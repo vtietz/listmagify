@@ -1,0 +1,40 @@
+services:
+  web:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: dev
+    image: sbs-web:dev
+    working_dir: /usr/src/app
+    ports:
+      - "${PORT:-3000}:${PORT:-3000}"
+    env_file:
+      - ../.env
+    environment:
+      - NODE_ENV=development
+      - NEXT_TELEMETRY_DISABLED=1
+      - CHOKIDAR_USEPOLLING=1
+      - WATCHPACK_POLLING=true
+      - PORT=${PORT:-3000}
+      # NextAuth + Spotify URLs built dynamically from PORT
+      # Using 127.0.0.1 instead of localhost (Spotify requirement)
+      # In production, override with full production URLs
+      - NEXTAUTH_URL=http://127.0.0.1:${PORT:-3000}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-dev-secret-change-me}
+      - SPOTIFY_CLIENT_ID=${SPOTIFY_CLIENT_ID:-your-spotify-client-id}
+      - SPOTIFY_CLIENT_SECRET=${SPOTIFY_CLIENT_SECRET:-your-spotify-client-secret}
+      - SPOTIFY_REDIRECT_URI=http://127.0.0.1:${PORT:-3000}/api/auth/callback/spotify
+    volumes:
+      - ..:/usr/src/app:cached
+      - node_modules:/usr/src/app/node_modules
+    command:
+      - sh
+      - -lc
+      - >
+        corepack prepare pnpm@latest --activate &&
+        node scripts/show-config.js &&
+        pnpm exec next dev --hostname 0.0.0.0 -p ${PORT:-3000}
+    tty: true
+
+volumes:
+  node_modules:

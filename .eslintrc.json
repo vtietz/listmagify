@@ -1,0 +1,18 @@
+{
+  "root": true,
+  "extends": ["next/core-web-vitals", "eslint:recommended", "plugin:import/recommended", "prettier"],
+  "plugins": ["unused-imports", "import"],
+  "settings": {
+    "next": { "rootDir": ["./"] },
+    "import/resolver": {
+      "typescript": {}
+    }
+  },
+  "rules": {
+    "no-console": ["warn", { "allow": ["warn", "error"] }],
+    "import/order": ["warn", { "groups": ["builtin","external","internal","parent","sibling","index","object","type"], "newlines-between": "always", "alphabetize": { "order": "asc", "caseInsensitive": true } }],
+    "unused-imports/no-unused-imports": "warn",
+    "unused-imports/no-unused-vars": ["warn", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_", "ignoreRestSiblings": true }]
+  },
+  "ignorePatterns": ["node_modules/", ".next/", "coverage/"]
+}
