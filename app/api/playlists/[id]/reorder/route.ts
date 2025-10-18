@@ -19,7 +19,12 @@ export async function PUT(
   try {
     const session = await getServerSession(authOptions);
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "token_expired" }, { status: 401 });
+    }
+
+    // Check if there's a session error (refresh failed)
+    if ((session as any).error === "RefreshAccessTokenError") {
+      return NextResponse.json({ error: "token_expired" }, { status: 401 });
     }
 
     const { id: playlistId } = await params;
@@ -78,6 +83,11 @@ export async function PUT(
       const text = await res.text().catch(() => "");
       console.error(`[api/playlists/reorder] PUT ${path} failed: ${res.status} ${text}`);
       
+      // Forward 401 errors with consistent format
+      if (res.status === 401) {
+        return NextResponse.json({ error: "token_expired" }, { status: 401 });
+      }
+      
       // Provide actionable error messages
       let errorMessage = `Failed to reorder tracks: ${res.status} ${res.statusText}`;
       
@@ -111,6 +121,13 @@ export async function PUT(
     return NextResponse.json({ snapshotId: newSnapshotId });
   } catch (error) {
     console.error("[api/playlists/reorder] Error:", error);
+    
+    // Check if error is 401 Unauthorized
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (errorMessage.includes("401") || errorMessage.includes("Unauthorized") || errorMessage.includes("access token expired")) {
+      return NextResponse.json({ error: "token_expired" }, { status: 401 });
+    }
+    
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Internal server error" },
       { status: 500 }

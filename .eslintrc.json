@@ -1,6 +1,6 @@
 {
   "root": true,
-  "extends": ["next/core-web-vitals", "eslint:recommended", "plugin:import/recommended", "prettier"],
+  "extends": ["next/core-web-vitals", "plugin:import/recommended", "prettier"],
   "plugins": ["unused-imports", "import"],
   "settings": {
     "next": { "rootDir": ["./"] },
@@ -8,11 +8,27 @@
       "typescript": {}
     }
   },
+  "env": {
+    "browser": true,
+    "es2022": true,
+    "node": true
+  },
   "rules": {
     "no-console": ["warn", { "allow": ["warn", "error"] }],
     "import/order": ["warn", { "groups": ["builtin","external","internal","parent","sibling","index","object","type"], "newlines-between": "always", "alphabetize": { "order": "asc", "caseInsensitive": true } }],
+    "no-undef": "off",
+    "no-unused-vars": "off",
     "unused-imports/no-unused-imports": "warn",
     "unused-imports/no-unused-vars": ["warn", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_", "ignoreRestSiblings": true }]
   },
+  "overrides": [
+    {
+      "files": ["**/*.ts", "**/*.tsx"],
+      "rules": {
+        "no-undef": "off",
+        "no-unused-vars": "off"
+      }
+    }
+  ],
   "ignorePatterns": ["node_modules/", ".next/", "coverage/"]
 }

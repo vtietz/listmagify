@@ -153,43 +153,56 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     /**
      * Persist the OAuth access_token, refresh_token, and expiry in the JWT.
-     * Refresh automatically when expired.
+     * Refresh automatically when expired or within 5 minutes of expiry.
      */
     async jwt({ token, account }: any) {
       // Initial sign-in
       if (account) {
+        const expiresAt = (account as any).expires_at 
+          ? (account as any).expires_at * 1000 
+          : Date.now() + 3600 * 1000; // Default to 1 hour if not provided
+        
         return {
           ...token,
           accessToken: (account as any).access_token,
           refreshToken: (account as any).refresh_token,
-          accessTokenExpires:
-            Date.now() +
-            (((account as any).expires_at ? (account as any).expires_at * 1000 : 3600 * 1000) as number),
+          accessTokenExpires: expiresAt,
+          error: undefined,
         };
       }
 
-      // If token still valid, return it
-      if (token.accessTokenExpires && Date.now() < (token.accessTokenExpires as number)) {
+      // Early refresh: 5 minutes before expiry (300 seconds = 300000 ms)
+      const REFRESH_BUFFER_MS = 5 * 60 * 1000;
+      const shouldRefresh = token.accessTokenExpires && 
+        Date.now() >= ((token.accessTokenExpires as number) - REFRESH_BUFFER_MS);
+
+      // If token still valid and not in refresh window, return it
+      if (!shouldRefresh) {
         return token;
       }
 
-      // Token expired, attempt refresh
+      // Token expired or expiring soon, attempt refresh
+      console.log("[auth] Token expiring soon or expired, refreshing...");
       return await refreshAccessToken(token as Record<string, any>);
     },
 
     /**
-     * Expose accessToken on the session for server-side fetchers.
+     * Expose accessToken and error state on the session for server-side fetchers.
      */
     async session({ session, token }: any) {
       (session as any).accessToken = token.accessToken;
+      (session as any).accessTokenExpires = token.accessTokenExpires;
       (session as any).error = token.error;
+      
+      // Add user info if available
+      if (session.user && token.email) {
+        session.user.email = token.email;
+      }
+      
       return session;
     },
   },
   events: {
-    error(error: any) {
-      console.error("[auth] NextAuth event error", error);
-    },
     signIn(message: any) {
       try {
         console.log("[auth] NextAuth signIn", {

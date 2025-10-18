@@ -1,8 +1,7 @@
 # syntax=docker/dockerfile:1.7
 
 FROM node:22-alpine AS base
-ENV NODE_ENV=development \
-    NEXT_TELEMETRY_DISABLED=1 \
+ENV NEXT_TELEMETRY_DISABLED=1 \
     CHOKIDAR_USEPOLLING=1 \
     WATCHPACK_POLLING=true \
     COREPACK_ENABLE_STRICT=0

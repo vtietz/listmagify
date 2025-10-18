@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
-import { Track, Playlist } from "@/lib/spotify/types";
+import type { Track, Playlist } from "@/lib/spotify/types";
 import { PlaylistToolbar } from "@/components/playlist/PlaylistToolbar";
-import { PlaylistTable, SortKey, SortDirection } from "@/components/playlist/PlaylistTable";
+import { PlaylistTable, type SortKey, type SortDirection } from "@/components/playlist/PlaylistTable";
+import { apiFetch } from "@/lib/api/client";
+// @ts-expect-error - sonner's type definitions are incompatible with verbatimModuleSyntax
 import { toast } from "sonner";
 
 export interface PlaylistDetailProps {
@@ -129,12 +131,13 @@ export function PlaylistDetail({
       // Optimistic update
       const newTracks = [...tracks];
       const [moved] = newTracks.splice(fromIndex, 1);
+      if (!moved) return; // Guard against invalid indices
       newTracks.splice(toIndex, 0, moved);
       setTracks(newTracks);
       setIsReordering(true);
 
       try {
-        const response = await fetch(`/api/playlists/${playlist.id}/reorder`, {
+        const data = await apiFetch<{ snapshotId?: string }>(`/api/playlists/${playlist.id}/reorder`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -145,12 +148,6 @@ export function PlaylistDetail({
           }),
         });
 
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.error || "Failed to reorder tracks");
-        }
-
         // Success - update snapshot_id
         if (data.snapshotId) {
           setSnapshotId(data.snapshotId);
@@ -158,7 +155,7 @@ export function PlaylistDetail({
 
         toast.success("Track reordered successfully");
       } catch (error) {
-        // Rollback on error
+        // Rollback on error (apiFetch handles 401 automatically)
         setTracks(previousTracks);
         setSnapshotId(previousSnapshotId);
         toast.error(
@@ -182,12 +179,9 @@ export function PlaylistDetail({
     setIsRefreshing(true);
 
     try {
-      const response = await fetch(`/api/playlists/${playlist.id}/tracks`);
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to refresh tracks");
-      }
+      const data = await apiFetch<{ tracks: Track[]; snapshotId?: string; nextCursor?: string | null }>(
+        `/api/playlists/${playlist.id}/tracks`
+      );
 
       setTracks(data.tracks || []);
       if (data.snapshotId) {
@@ -197,6 +191,7 @@ export function PlaylistDetail({
 
       toast.success("Playlist refreshed");
     } catch (error) {
+      // apiFetch handles 401 automatically
       toast.error(
         error instanceof Error ? error.message : "Failed to refresh playlist"
       );
@@ -216,21 +211,14 @@ export function PlaylistDetail({
     setIsLoadingMore(true);
 
     try {
-      const response = await fetch(
+      const data = await apiFetch<{ tracks: Track[]; nextCursor?: string | null }>(
         `/api/playlists/${playlist.id}/tracks?nextCursor=${encodeURIComponent(nextCursor)}`
       );
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to load more tracks");
-      }
 
       setTracks((prev) => [...prev, ...(data.tracks || [])]);
       setNextCursor(data.nextCursor ?? null);
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to load more tracks"
-      );
+      // apiFetch handles 401 automatically, silently fail for other errors
     } finally {
       setIsLoadingMore(false);
     }

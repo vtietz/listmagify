@@ -17,7 +17,12 @@ export async function GET(
   try {
     const session = await getServerSession(authOptions);
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "token_expired" }, { status: 401 });
+    }
+
+    // Check if there's a session error (refresh failed)
+    if ((session as any).error === "RefreshAccessTokenError") {
+      return NextResponse.json({ error: "token_expired" }, { status: 401 });
     }
 
     const { id: playlistId } = await params;
@@ -46,6 +51,12 @@ export async function GET(
     if (!res.ok) {
       const text = await res.text().catch(() => "");
       console.error(`[api/playlists/tracks] GET ${path} failed: ${res.status} ${text}`);
+      
+      // Forward 401 errors with consistent format
+      if (res.status === 401) {
+        return NextResponse.json({ error: "token_expired" }, { status: 401 });
+      }
+      
       return NextResponse.json(
         { error: `Failed to fetch tracks: ${res.status} ${res.statusText}` },
         { status: res.status }
@@ -69,6 +80,13 @@ export async function GET(
     });
   } catch (error) {
     console.error("[api/playlists/tracks] Error:", error);
+    
+    // Check if error is 401 Unauthorized
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (errorMessage.includes("401") || errorMessage.includes("Unauthorized") || errorMessage.includes("access token expired")) {
+      return NextResponse.json({ error: "token_expired" }, { status: 401 });
+    }
+    
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Internal server error" },
       { status: 500 }

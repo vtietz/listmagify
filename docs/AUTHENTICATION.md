@@ -29,13 +29,18 @@ session: {
 
 ### 3. **Token Refresh Flow**
 
-Access tokens expire after 1 hour. The refresh flow is:
+Access tokens expire after 1 hour. The refresh flow is **fully automatic and transparent**:
 
-1. NextAuth detects token expiry in the `jwt()` callback
-2. Calls `refreshAccessToken()` with the stored refresh token
-3. Requests a new access token from Spotify's token endpoint
-4. Updates the JWT with the new token (transparent to the user)
-5. If refresh fails (revoked token), sets `error: "RefreshAccessTokenError"`
+1. **Early Refresh**: NextAuth checks token expiry with a **5-minute buffer** in the `jwt()` callback
+2. **Automatic Refresh**: If expiring within 5 minutes, calls `refreshAccessToken()` with the stored refresh token
+3. **Token Update**: Requests a new access token from Spotify's `/api/token` endpoint
+4. **Seamless Update**: Updates the JWT with the new token (transparent to the user, no interruption)
+5. **Error Handling**: If refresh fails (revoked token), sets `error: "RefreshAccessTokenError"`
+
+**Key Points**:
+- Users never experience token expiration during normal browsing
+- Refresh happens in the background before the token actually expires
+- Failed refresh triggers graceful error handling (see below)
 
 ### 4. **Cookie Security Configuration**
 
@@ -79,14 +84,35 @@ const accessToken = (session as any).accessToken;
 const data = await getJSON<SpotifyPlaylist>("/me/playlists");
 ```
 
-### 7. **Automatic Error Handling**
+### 7. **Graceful 401 Error Handling**
 
-If token refresh fails (e.g., user revoked access in Spotify):
+When tokens expire or become invalid (despite automatic refresh), the app handles 401 errors gracefully:
 
-1. `SessionErrorHandler` detects the error
-2. Automatically signs out the user
-3. Redirects to `/login` for re-authentication
-4. Clears all cookies immediately
+**Server-Side (SSR Pages)**:
+- Playlists pages catch 401 errors in try/catch blocks
+- Immediately redirect to `/login?reason=expired`
+- User sees friendly "session expired" message
+
+**Client-Side (Interactive Components)**:
+- API routes return consistent `{ error: "token_expired" }` with status 401
+- Centralized `apiFetch` wrapper (`lib/api/client.ts`) automatically handles 401 errors
+- Shows toast: "Your session has expired. Redirecting to login..."
+- Waits 1.5 seconds, then navigates to `/login?reason=expired`
+- All fetch calls use `apiFetch<T>()` - no manual 401 checking required
+- Custom `ApiError` class for typed error handling
+
+**Error Flow**:
+1. Spotify returns 401 (token expired/revoked)
+2. API route detects 401, forwards with `token_expired` error
+3. Client component shows user-friendly message
+4. Automatic redirect to login page after brief delay
+5. Login page displays expired session notice
+
+**What triggers 401**:
+- User revoked app access in Spotify settings
+- Refresh token expired (rare, usually 1 year+)
+- Spotify service issue or token corruption
+- Manual token deletion from database
 
 ### 8. **Logout**
 
@@ -101,10 +127,52 @@ Explicit logout:
 | File | Purpose |
 |------|---------|
 | `lib/auth/auth.ts` | NextAuth configuration, token refresh logic |
+| `lib/api/client.ts` | Centralized API client with automatic 401 handling |
 | `components/auth/SessionErrorHandler.tsx` | Monitors for refresh errors, forces re-auth |
 | `hooks/useSessionUser.ts` | Client hook for user profile (no tokens) |
 | `lib/spotify/client.ts` | Server-side Spotify API client with token injection |
 | `app/logout/page.tsx` | Logout UI, calls NextAuth signOut |
+
+## Centralized API Client
+
+To eliminate code duplication, all client-side API calls use the centralized `apiFetch` wrapper (`lib/api/client.ts`):
+
+**Usage Example**:
+```typescript
+import { apiFetch, ApiError } from "@/lib/api/client";
+
+// Simple GET request with automatic 401 handling
+const data = await apiFetch<{ items: Playlist[] }>("/api/me/playlists");
+
+// POST/PUT with request body
+const result = await apiFetch<{ snapshotId: string }>("/api/playlists/123/reorder", {
+  method: "PUT",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ fromIndex: 0, toIndex: 5 }),
+});
+
+// Skip automatic redirect for custom handling
+try {
+  const data = await apiFetch("/api/endpoint", { skipAutoRedirect: true });
+} catch (error) {
+  if (error instanceof ApiError && error.isUnauthorized()) {
+    // Custom 401 handling
+  }
+}
+```
+
+**Features**:
+- Automatic 401 detection and redirect
+- User-friendly error toasts
+- TypeScript generic support for response types
+- Helper methods: `isUnauthorized()`, `isForbidden()`, `isNotFound()`
+- Optional `skipAutoRedirect` for custom error handling
+
+**Benefits**:
+- Eliminates ~50+ lines of duplicated error handling code
+- Consistent UX for authentication errors
+- Single source of truth for API error behavior
+- Easy to extend with additional features (retries, rate limiting, etc.)
 
 ## Production Checklist
 
@@ -151,13 +219,25 @@ SPOTIFY_CLIENT_SECRET=<from-spotify-dashboard>
 4. **Logout Guarantees**: signOut immediately clears cookies; no client-side storage cleanup needed
 5. **HTTPS Enforcement**: Production must use HTTPS; cookies set `secure: true` automatically
 
+## Login-First UX
+
+The app implements a **login-first experience** for unauthenticated users:
+
+- **Root page (`/`)**: Checks authentication status
+  - If authenticated → redirects to `/playlists`
+  - If not authenticated → redirects to `/login`
+- **Protected routes**: All `/playlists/*` routes protected by middleware
+- **Automatic routing**: Unauthenticated requests to protected pages redirect to `/login`
+
+This ensures users are always authenticated before accessing playlist features.
+
 ## Common Issues
 
 ### "Missing access token" error
 - User is not authenticated
 - Session expired after 30 days
 - Refresh token was revoked by user in Spotify settings
-- **Solution**: Redirect to `/login` for re-authentication
+- **Solution**: App automatically redirects to `/login?reason=expired`
 
 ### Session not persisting after browser restart
 - Check `session.maxAge` is set (30 days)
@@ -168,6 +248,12 @@ SPOTIFY_CLIENT_SECRET=<from-spotify-dashboard>
 - Client ID or Secret is incorrect
 - Redirect URI doesn't match Spotify dashboard exactly
 - **Solution**: Verify credentials in `.env` and Spotify app settings
+
+### "Your session has expired" appearing frequently
+- Check system clock is accurate (token expiry depends on timestamp)
+- Verify Spotify API is returning valid `expires_at` values
+- Review logs for "Token expiring soon or expired, refreshing..." messages
+- If refresh consistently fails, user may need to re-authenticate
 
 ---
 

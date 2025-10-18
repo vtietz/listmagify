@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 
 type AppShellProps = {
   headerTitle?: string;
-  children: React.ReactNode;
+  children?: React.ReactNode;
 };
 
 export function AppShell({ headerTitle = "Spotify Playlist Editor", children }: AppShellProps) {

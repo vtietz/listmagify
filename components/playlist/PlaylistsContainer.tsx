@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { Playlist } from "@/lib/spotify/types";
+import type { Playlist } from "@/lib/spotify/types";
 import { PlaylistsToolbar } from "@/components/playlist/PlaylistsToolbar";
 import { PlaylistsGrid } from "@/components/playlist/PlaylistsGrid";
 

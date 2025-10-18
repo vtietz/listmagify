@@ -30,6 +30,5 @@ pnpm-debug.log*
 
 # Env files (compose will inject at runtime)
 .env
-.env.*
 apps/web/.env
 apps/web/.env.*

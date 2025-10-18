@@ -12,20 +12,18 @@ export default async function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen grid place-items-center p-8">
-      <div className="max-w-sm w-full space-y-6 text-center">
-        <h1 className="text-2xl font-semibold">Welcome</h1>
-        <p className="text-sm text-neutral-600 dark:text-neutral-400">
-          Sign in to start organizing your Spotify playlists.
+    <div className="flex min-h-dvh items-center justify-center p-8">
+      <div className="max-w-md text-center space-y-3">
+        <h1 className="text-2xl font-semibold">Welcome to Spotify Playlist Editor</h1>
+        <p className="text-muted-foreground">
+          To get started, please sign in with your Spotify account.
         </p>
-        <SignInButton />
-        <p className="text-xs text-neutral-500">
-          By signing in you agree to our{" "}
-          <Link href="#" className="underline underline-offset-4">
-            terms
+        <div className="flex justify-center gap-3">
+          <SignInButton />
+          <Link href="/" className="text-muted-foreground hover:underline">
+            Home
           </Link>
-          .
-        </p>
+        </div>
       </div>
     </div>
   );

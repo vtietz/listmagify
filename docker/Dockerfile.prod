@@ -1,0 +1,31 @@
+# syntax=docker/dockerfile:1.7
+
+FROM node:22-alpine AS base
+ENV NEXT_TELEMETRY_DISABLED=1 \
+    COREPACK_ENABLE_STRICT=0
+WORKDIR /usr/src/app
+RUN corepack enable && corepack install -g pnpm@10.18.3
+
+# --- Production Build Stage ---
+FROM base AS builder
+WORKDIR /usr/src/app
+
+# Define ARGs for build-time environment variables
+ARG NEXTAUTH_URL
+ARG NEXTAUTH_SECRET
+ARG SPOTIFY_CLIENT_ID
+ARG SPOTIFY_CLIENT_SECRET
+
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --prod=false
+COPY . .
+RUN pnpm build
+
+# --- Production Image ---
+FROM base AS prod
+WORKDIR /usr/src/app
+COPY --from=builder /usr/src/app/.next ./.next
+COPY --from=builder /usr/src/app/node_modules ./node_modules
+COPY --from=builder /usr/src/app/package.json .
+EXPOSE 3000
+CMD ["pnpm", "start"]

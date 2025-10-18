@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { Playlist } from "@/lib/spotify/types";
+import type { Playlist } from "@/lib/spotify/types";
 import { PlaylistCard } from "@/components/playlist/PlaylistCard";
 import { Skeleton } from "@/components/ui/skeleton";
-import { toast } from "sonner";
+import { apiFetch, ApiError } from "@/lib/api/client";
 
 export interface PlaylistsGridProps {
   initialItems: Playlist[];
@@ -42,22 +42,17 @@ export function PlaylistsGrid({
       // Reset state and fetch from beginning
       const fetchInitial = async () => {
         try {
-          const response = await fetch("/api/me/playlists");
-          const data = await response.json();
-
-          if (!response.ok) {
-            throw new Error(data.error || "Failed to refresh playlists");
-          }
+          const data = await apiFetch<{ items: Playlist[]; nextCursor: string | null }>("/api/me/playlists");
 
           setItems(data.items || []);
           setNextCursor(data.nextCursor);
           onRefreshComplete(data.items || [], data.nextCursor);
-          toast.success("Playlists refreshed");
         } catch (error) {
-          toast.error(
-            error instanceof Error ? error.message : "Failed to refresh playlists"
-          );
-          onRefreshComplete(items, nextCursor); // Keep existing data
+          // apiFetch handles 401 automatically, just handle other errors
+          if (error instanceof ApiError && !error.isUnauthorized) {
+            // Keep existing data on error
+            onRefreshComplete(items, nextCursor);
+          }
         }
       };
 
@@ -88,21 +83,15 @@ export function PlaylistsGrid({
     setIsLoadingMore(true);
 
     try {
-      const response = await fetch(
+      const data = await apiFetch<{ items: Playlist[]; nextCursor: string | null }>(
         `/api/me/playlists?${new URLSearchParams({ nextCursor }).toString()}`
       );
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to load more playlists");
-      }
 
       setItems((prev) => [...prev, ...(data.items || [])]);
       setNextCursor(data.nextCursor);
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to load more playlists"
-      );
+      // apiFetch handles 401 automatically, just silently fail for other errors
+      // (user already saw error toast from apiFetch if not 401)
     } finally {
       setIsLoadingMore(false);
     }
@@ -115,7 +104,7 @@ export function PlaylistsGrid({
     observerRef.current = new IntersectionObserver(
       (entries) => {
         const [entry] = entries;
-        if (entry.isIntersecting) {
+        if (entry?.isIntersecting) {
           loadMore();
         }
       },

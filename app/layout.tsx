@@ -6,7 +6,7 @@ import { QueryProvider } from "@/components/providers/QueryProvider";
 import { AuthProvider } from "@/components/providers/AuthProvider";
 import { AppShell } from "@/components/shell/AppShell";
 import { SessionErrorHandler } from "@/components/auth/SessionErrorHandler";
- 
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -29,12 +29,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
-      <head>
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <script
+          id="theme-init"
           dangerouslySetInnerHTML={{
             __html: `
               try {
-                if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                if (typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches) {
                   document.documentElement.classList.add('dark')
                 } else {
                   document.documentElement.classList.remove('dark')
@@ -43,8 +44,6 @@ export default function RootLayout({
             `,
           }}
         />
-      </head>
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <AuthProvider>
           <QueryProvider>
             <SessionErrorHandler />
