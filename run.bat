@@ -2,10 +2,13 @@
 setlocal
 cd /d %~dp0
 
+REM Show help if no parameters
+if "%1"=="" goto :show_help
+
 REM Load PORT from .env if not set (defaults to 3000)
 if not defined PORT (
   if exist ".env" (
-    for /f "usebackq tokens=1,* delims==" %%A in (".env") do (
+    for /f "usebackq eol=# tokens=1,* delims==" %%A in (".env") do (
       if /I "%%A"=="PORT" set PORT=%%B
     )
   )
@@ -66,13 +69,18 @@ if "%1"=="init-env" (
   goto :eof
 )
 
+:show_help
 echo Usage:
-echo   run.bat compose ^<cmd^>
-echo   run.bat exec ^<cmd^>
-echo   run.bat install
-echo   run.bat start
-echo   run.bat test [-- ^<pnpm options^>]
-echo   run.bat run ^<cmd^>
-echo   run.bat install-host
-echo   run.bat init-env
+echo   run.bat compose ^<cmd^>       - Run docker compose commands
+echo   run.bat exec ^<cmd^>          - Execute command in container
+echo   run.bat install               - Install dependencies
+echo   run.bat start                 - Start dev server
+echo   run.bat test [-- ^<opts^>]    - Run tests
+echo   run.bat run ^<cmd^>           - Run command in new container
+echo   run.bat install-host          - Install deps as host user
+echo   run.bat init-env              - Create .env from example
+echo   run.bat up/down               - Start/stop containers
+goto :end
+
+:end
 endlocal

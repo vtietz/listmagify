@@ -1,7 +1,13 @@
 import type { NextAuthOptions } from "next-auth";
 import SpotifyProvider from "next-auth/providers/spotify";
-import { serverEnv } from "@/lib/env";
+import { serverEnv, summarizeEnv } from "@/lib/env";
 
+console.log(
+  `[auth] env=${summarizeEnv()} | CALLBACK=${new URL(
+    "/api/auth/callback/spotify",
+    serverEnv.NEXTAUTH_URL
+  ).toString()}`
+);
 /**
  * Refresh Spotify access token using the stored refresh token.
  * Spotify docs: https://developer.spotify.com/documentation/web-api/tutorials/refreshing-tokens
@@ -69,13 +75,61 @@ export const authOptions: NextAuthOptions = {
     maxAge: 30 * 24 * 60 * 60, // 30 days - align JWT expiry with session
   },
   cookies: {
+    // Fix for Docker/127.0.0.1 environments - ensure cookies work properly
     sessionToken: {
       name: `next-auth.session-token`,
       options: {
         httpOnly: true,
-        sameSite: "lax", // Allows OAuth redirects while preventing CSRF
-        path: "/",
-        secure: process.env.NODE_ENV === "production", // HTTPS-only in production
+        sameSite: 'lax',
+        path: '/',
+        secure: false, // Allow cookies on http://127.0.0.1 during development
+      },
+    },
+    callbackUrl: {
+      name: `next-auth.callback-url`,
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: false,
+      },
+    },
+    csrfToken: {
+      name: `next-auth.csrf-token`,
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: false,
+      },
+    },
+    pkceCodeVerifier: {
+      name: `next-auth.pkce.code_verifier`,
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: false,
+        maxAge: 900, // 15 minutes
+      },
+    },
+    state: {
+      name: `next-auth.state`,
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: false,
+        maxAge: 900, // 15 minutes
+      },
+    },
+    nonce: {
+      name: `next-auth.nonce`,
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: false,
       },
     },
   },
@@ -101,7 +155,7 @@ export const authOptions: NextAuthOptions = {
      * Persist the OAuth access_token, refresh_token, and expiry in the JWT.
      * Refresh automatically when expired.
      */
-    async jwt({ token, account }) {
+    async jwt({ token, account }: any) {
       // Initial sign-in
       if (account) {
         return {
@@ -126,10 +180,40 @@ export const authOptions: NextAuthOptions = {
     /**
      * Expose accessToken on the session for server-side fetchers.
      */
-    async session({ session, token }) {
+    async session({ session, token }: any) {
       (session as any).accessToken = token.accessToken;
       (session as any).error = token.error;
       return session;
+    },
+  },
+  events: {
+    error(error: any) {
+      console.error("[auth] NextAuth event error", error);
+    },
+    signIn(message: any) {
+      try {
+        console.log("[auth] NextAuth signIn", {
+          provider: message?.account?.provider,
+          providerAccountId: message?.account?.providerAccountId,
+          user: message?.user?.email ?? message?.user?.name ?? "[unknown]",
+        });
+      } catch {
+        // noop
+      }
+    },
+    signOut(_message: any) {
+      console.log("[auth] NextAuth signOut");
+    },
+  },
+  logger: {
+    error(...args: any[]) {
+      console.error("[auth] NextAuth logger error", ...args);
+    },
+    warn(...args: any[]) {
+      console.warn("[auth] NextAuth logger warn", ...args);
+    },
+    debug(...args: any[]) {
+      console.debug("[auth] NextAuth logger debug", ...args);
     },
   },
 };
