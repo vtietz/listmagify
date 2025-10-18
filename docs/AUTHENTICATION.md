@@ -119,17 +119,18 @@ Before deploying to production, ensure:
 
 ## Token Scopes
 
-Current scopes (read-only):
+Current scopes (with editing capabilities):
 ```typescript
-scope: "user-read-email playlist-read-private"
+scope: "user-read-email playlist-read-private playlist-modify-private playlist-modify-public"
 ```
 
-To add write capabilities (playlist editing), expand scopes:
-```typescript
-scope: "user-read-email playlist-read-private playlist-modify-public playlist-modify-private"
-```
+**Scopes breakdown**:
+- `user-read-email`: Access user profile information
+- `playlist-read-private`: View user's private playlists
+- `playlist-modify-private`: Edit user's private playlists (reorder, add/remove tracks)
+- `playlist-modify-public`: Edit user's public playlists (reorder, add/remove tracks)
 
-Changing scopes requires users to re-authenticate to grant new permissions.
+**Note**: Changing scopes requires users to re-authenticate to grant new permissions. Users who authenticated before the scope update will need to log out and log back in.
 
 ## Environment Variables
 

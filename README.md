@@ -2,6 +2,20 @@
 
 A modern Spotify playlist editor built with **Next.js 15**, **TypeScript**, and **React 19**.
 
+## Features
+
+- **Interactive Playlist Management**:
+  - Search tracks by title, artist, or album (debounced for performance)
+  - Sort tracks by position, title, artist, album, duration, or date added
+  - Drag-and-drop reordering (with keyboard accessibility)
+  - Refresh from Spotify with optimistic concurrency control
+  
+- **Multi-Instance Ready**: Multiple playlists can be edited simultaneously without state conflicts
+
+- **Robust Error Handling**: Optimistic updates with automatic rollback on failure
+
+- **Accessibility**: WCAG compliant with keyboard navigation, ARIA labels, and screen reader support
+
 ## Setup
 
 1. **Initialize environment file**:

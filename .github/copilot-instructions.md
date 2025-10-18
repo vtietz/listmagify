@@ -46,10 +46,14 @@ PowerShell commands you'll use frequently:
 | Task                     | Command                          |
 |--------------------------|----------------------------------|
 | Install dependencies     | `run.bat install`                |
+| Add new package          | `run.bat exec pnpm add <package>`|
+| Remove package           | `run.bat exec pnpm remove <package>`|
 | Start dev server         | `run.bat start`                  |
 | Run tests                | `run.bat test`                   |
 | Run tests (watch mode)   | `run.bat test -- --watch`        |
 | Execute arbitrary command| `run.bat exec <cmd>`             |
+
+**Important**: Always use `run.bat exec pnpm add <package>` to install packages instead of manually editing `package.json`. This ensures you get the latest compatible versions and properly updates the lockfile.
 
 ---
 
@@ -154,6 +158,7 @@ Ensure you have:
 4. ✅ Followed clean code principles and project conventions
 5. ✅ Verified no unrequested files were created
 6. ✅ Removed any debug code or unnecessary comments
+7. ✅ Provided a one-line summary of changes made for the commit message
 
 ---
 
