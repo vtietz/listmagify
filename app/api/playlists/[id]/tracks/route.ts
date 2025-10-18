@@ -26,10 +26,20 @@ export async function GET(
       return NextResponse.json({ error: "Invalid playlist ID" }, { status: 400 });
     }
 
-    // Fetch tracks from Spotify (limit 100 per request)
-    const limit = 100;
-    const fields = "items(track(id,uri,name,artists(name),duration_ms,album(id,name,images)),added_at),next,total,snapshot_id";
-    const path = `/playlists/${encodeURIComponent(playlistId)}/tracks?limit=${limit}&fields=${encodeURIComponent(fields)}`;
+    const searchParams = request.nextUrl.searchParams;
+    const nextCursorParam = searchParams.get("nextCursor");
+
+    let path: string;
+    
+    if (nextCursorParam) {
+      // Use the full next URL provided by Spotify
+      path = nextCursorParam;
+    } else {
+      // Fetch tracks from Spotify (limit 100 per request)
+      const limit = 100;
+      const fields = "items(track(id,uri,name,artists(name),duration_ms,album(id,name,images)),added_at),next,total,snapshot_id";
+      path = `/playlists/${encodeURIComponent(playlistId)}/tracks?limit=${limit}&fields=${encodeURIComponent(fields)}`;
+    }
 
     const res = await spotifyFetch(path, { method: "GET" });
 

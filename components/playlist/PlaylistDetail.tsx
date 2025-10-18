@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { Track, Playlist } from "@/lib/spotify/types";
 import { PlaylistToolbar } from "@/components/playlist/PlaylistToolbar";
 import { PlaylistTable, SortKey, SortDirection } from "@/components/playlist/PlaylistTable";
@@ -10,10 +10,11 @@ export interface PlaylistDetailProps {
   playlist: Playlist;
   initialTracks: Track[];
   initialSnapshotId?: string | null;
+  initialNextCursor?: string | null;
 }
 
 /**
- * Main interactive playlist component with search, sort, reorder, and refresh.
+ * Main interactive playlist component with search, sort, reorder, refresh, and infinite scroll.
  * 
  * Features:
  * - Client-side search (debounced) by title, artist, album
@@ -21,15 +22,19 @@ export interface PlaylistDetailProps {
  * - Drag-and-drop reordering (position sort only)
  * - Optimistic updates with rollback on error
  * - Refresh from Spotify with snapshot_id tracking
+ * - Infinite scroll for loading additional tracks
  * - Multi-instance ready (all state is local)
  */
 export function PlaylistDetail({
   playlist,
   initialTracks,
   initialSnapshotId,
+  initialNextCursor,
 }: PlaylistDetailProps) {
   const [tracks, setTracks] = useState<Track[]>(initialTracks);
   const [snapshotId, setSnapshotId] = useState<string | null>(initialSnapshotId ?? null);
+  const [nextCursor, setNextCursor] = useState<string | null>(initialNextCursor ?? null);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("position");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
@@ -167,7 +172,7 @@ export function PlaylistDetail({
   );
 
   /**
-   * Refresh tracks from Spotify.
+   * Refresh tracks from Spotify (resets to first page).
    */
   const handleRefresh = useCallback(async () => {
     if (isRefreshing) {
@@ -188,6 +193,7 @@ export function PlaylistDetail({
       if (data.snapshotId) {
         setSnapshotId(data.snapshotId);
       }
+      setNextCursor(data.nextCursor ?? null);
 
       toast.success("Playlist refreshed");
     } catch (error) {
@@ -198,6 +204,62 @@ export function PlaylistDetail({
       setIsRefreshing(false);
     }
   }, [isRefreshing, playlist.id]);
+
+  /**
+   * Load more tracks for infinite scroll.
+   */
+  const loadMore = useCallback(async () => {
+    if (!nextCursor || isLoadingMore || isRefreshing) {
+      return;
+    }
+
+    setIsLoadingMore(true);
+
+    try {
+      const response = await fetch(
+        `/api/playlists/${playlist.id}/tracks?nextCursor=${encodeURIComponent(nextCursor)}`
+      );
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to load more tracks");
+      }
+
+      setTracks((prev) => [...prev, ...(data.tracks || [])]);
+      setNextCursor(data.nextCursor ?? null);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to load more tracks"
+      );
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [nextCursor, isLoadingMore, isRefreshing, playlist.id]);
+
+  /**
+   * IntersectionObserver for infinite scroll.
+   */
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          loadMore();
+        }
+      },
+      { rootMargin: "100px" }
+    );
+
+    observer.observe(sentinel);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [loadMore]);
 
   return (
     <div className="space-y-6">
@@ -233,6 +295,15 @@ export function PlaylistDetail({
         isReordering={isReordering}
         disabled={isRefreshing}
       />
+
+      {/* Infinite scroll sentinel */}
+      {nextCursor && !searchQuery && (
+        <div ref={sentinelRef} className="py-8 text-center">
+          {isLoadingMore && (
+            <p className="text-sm text-muted-foreground">Loading more tracks...</p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

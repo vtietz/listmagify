@@ -1,40 +1,33 @@
 import { getCurrentUserPlaylists } from "@/lib/spotify/fetchers";
-import { PlaylistCard } from "@/components/playlist/PlaylistCard";
+import { PlaylistsContainer } from "@/components/playlist/PlaylistsContainer";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Playlists index page with SSR initial data and client-side infinite scroll.
+ * 
+ * Features:
+ * - Server-rendered initial playlists for fast loading
+ * - Client-side search filtering
+ * - Infinite scroll with automatic loading
+ * - Refresh button to re-fetch from Spotify
+ */
 export default async function PlaylistsPage() {
   const page = await getCurrentUserPlaylists(50);
-  const playlists = page.items;
 
   return (
     <div className="space-y-6">
       <header className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Your Playlists</h1>
         <span className="text-sm text-muted-foreground">
-          {playlists.length} of {page.total ?? playlists.length}
+          {page.total ?? page.items.length} {page.total === 1 ? "playlist" : "playlists"}
         </span>
       </header>
 
-      {playlists.length === 0 ? (
-        <EmptyState />
-      ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-          {playlists.map((pl) => (
-            <PlaylistCard key={pl.id} playlist={pl} />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function EmptyState() {
-  return (
-    <div className="rounded-lg border bg-muted/30 p-8 text-center">
-      <p className="text-sm text-muted-foreground">
-        No playlists found. Create a playlist in Spotify and come back.
-      </p>
+      <PlaylistsContainer
+        initialItems={page.items}
+        initialNextCursor={page.nextCursor}
+      />
     </div>
   );
 }
