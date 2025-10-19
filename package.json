@@ -14,8 +14,12 @@
     "test": "vitest --run",
     "test:unit": "vitest --run",
     "test:unit:watch": "vitest --watch",
-    "test:ui": "node -e \"console.error('Playwright UI tests not configured yet. Install @playwright/test and add playwright.config.ts.'); process.exit(1)\"",
-    "test:ui:watch": "node -e \"console.error('Playwright UI watch not configured yet. Install @playwright/test and add playwright.config.ts.'); process.exit(1)\""
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:ci": "docker compose -f docker/docker-compose.yml --profile test run --rm playwright-runner",
+    "test:stack:up": "docker compose -f docker/docker-compose.yml --profile test up -d web-test spotify-mock",
+    "test:stack:down": "docker compose -f docker/docker-compose.yml --profile test down",
+    "test:stack:logs": "docker compose -f docker/docker-compose.yml --profile test logs -f"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -38,6 +42,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
+    "@playwright/test": "^1.56.1",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.0",

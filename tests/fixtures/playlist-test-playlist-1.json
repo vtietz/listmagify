@@ -1,0 +1,39 @@
+{
+  "collaborative": false,
+  "description": "Test playlist for E2E testing",
+  "external_urls": {
+    "spotify": "https://open.spotify.com/playlist/test-playlist-1"
+  },
+  "followers": {
+    "total": 5
+  },
+  "href": "https://api.spotify.com/v1/playlists/test-playlist-1",
+  "id": "test-playlist-1",
+  "images": [
+    {
+      "height": 640,
+      "url": "https://via.placeholder.com/640",
+      "width": 640
+    }
+  ],
+  "name": "Test Playlist 1",
+  "owner": {
+    "display_name": "Test User",
+    "external_urls": {
+      "spotify": "https://open.spotify.com/user/testuser"
+    },
+    "href": "https://api.spotify.com/v1/users/testuser",
+    "id": "testuser",
+    "type": "user",
+    "uri": "spotify:user:testuser"
+  },
+  "primary_color": null,
+  "public": true,
+  "snapshot_id": "test-snapshot-1",
+  "tracks": {
+    "href": "https://api.spotify.com/v1/playlists/test-playlist-1/tracks",
+    "total": 5
+  },
+  "type": "playlist",
+  "uri": "spotify:playlist:test-playlist-1"
+}

@@ -70,6 +70,52 @@ run.bat compose down      # Stop containers
 ./run.sh test
 ```
 
+## Testing
+
+### Unit Tests
+
+Run with Vitest:
+```cmd
+run.bat test              # Run once
+run.bat test -- --watch   # Watch mode
+```
+
+### E2E Tests
+
+End-to-end tests use **Playwright** with a fully isolated Docker environment:
+
+- **Test server** on port 3100 (doesn't interfere with dev server)
+- **Mock Spotify API** for deterministic, fast tests
+- **No real OAuth** required (E2E_MODE bypasses authentication)
+
+**Start the test stack**:
+```cmd
+run.bat test stack:up     # Start web-test + spotify-mock
+run.bat test stack:logs   # View logs
+```
+
+**Run E2E tests**:
+```cmd
+run.bat test e2e          # Run tests in headless mode
+run.bat test e2e:ui       # Run with Playwright UI
+run.bat test e2e:ci       # Run in isolated container (CI mode)
+```
+
+**Stop the test stack**:
+```cmd
+run.bat test stack:down
+```
+
+**Updating test fixtures**:
+
+Mock Spotify data lives in `tests/fixtures/`. Edit these JSON files to change test data:
+- `me.json` - Mock user profile
+- `playlists.json` - List of playlists
+- `playlist-*.json` - Individual playlist details
+- `playlist-*-tracks.json` - Tracks for each playlist
+
+Fixtures are mounted as volumes, so **changes take effect immediately** - no rebuild needed! Just save the file and the mock server will use the updated data on the next request.
+
 ## Authentication
 
 This app uses **NextAuth.js** with Spotify OAuth. Sessions persist for 30 days with automatic token refresh. See [docs/AUTHENTICATION.md](docs/AUTHENTICATION.md) for security details.

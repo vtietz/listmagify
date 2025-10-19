@@ -46,5 +46,80 @@ services:
     env_file:
       - ../.env
 
+  # E2E Test Services (profile: test)
+  web-test:
+    profiles: ["test"]
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: dev
+    image: sbs-web:dev
+    working_dir: /usr/src/app
+    ports:
+      - "3100:3100"
+    environment:
+      - NODE_ENV=development
+      - E2E_MODE=1
+      - NEXT_TELEMETRY_DISABLED=1
+      - CHOKIDAR_USEPOLLING=1
+      - WATCHPACK_POLLING=true
+      - PORT=3100
+      - NEXTAUTH_URL=http://127.0.0.1:3100
+      - NEXTAUTH_SECRET=test-secret-key-for-e2e
+      - SPOTIFY_CLIENT_ID=dummy-client-id
+      - SPOTIFY_CLIENT_SECRET=dummy-client-secret
+      - SPOTIFY_BASE_URL=http://spotify-mock:8080
+    volumes:
+      - ..:/usr/src/app:cached
+      - node_modules:/usr/src/app/node_modules
+    command:
+      - sh
+      - -lc
+      - >
+        corepack prepare pnpm@latest --activate &&
+        echo "[E2E Mode] Starting test server on port 3100" &&
+        pnpm exec next dev --hostname 0.0.0.0 -p 3100
+    depends_on:
+      - spotify-mock
+    networks:
+      - test-network
+
+  spotify-mock:
+    profiles: ["test"]
+    build:
+      context: ..  # Build from root to access docker/mock/server.js
+      dockerfile: docker/mock/Dockerfile
+    ports:
+      - "8081:8080"  # Expose for local debugging
+    volumes:
+      - ../tests/fixtures:/app/fixtures:ro  # Mount fixtures for instant updates
+    networks:
+      - test-network
+
+  playwright-runner:
+    profiles: ["test"]
+    image: mcr.microsoft.com/playwright:v1.49-jammy
+    working_dir: /work
+    environment:
+      - BASE_URL=http://web-test:3100
+      - CI=true
+    volumes:
+      - ..:/work:cached
+    command: >
+      sh -c "
+        npm install -g pnpm &&
+        pnpm install &&
+        pnpm exec playwright test
+      "
+    depends_on:
+      - web-test
+      - spotify-mock
+    networks:
+      - test-network
+
 volumes:
   node_modules:
+
+networks:
+  test-network:
+    driver: bridge

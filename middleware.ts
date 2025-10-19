@@ -8,9 +8,17 @@ import { getToken } from "next-auth/jwt";
  * 
  * Protected paths: /playlists/*
  * Bypassed paths: /login, /api/auth/*, /_next/*, /favicon.ico, /api/debug/*, public assets
+ * 
+ * E2E Mode: When E2E_MODE=1, auth checks are bypassed for testing.
  */
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
+
+  // E2E Mode: Bypass all auth checks for testing
+  if (process.env.E2E_MODE === '1') {
+    console.log("[middleware] E2E mode active, bypassing auth");
+    return NextResponse.next();
+  }
 
   // Bypass middleware for public paths and auth infrastructure
   const publicPaths = [
@@ -20,6 +28,7 @@ export async function middleware(req: NextRequest) {
     "/_next",
     "/favicon.ico",
     "/api/debug",
+    "/api/test",
   ];
 
   if (publicPaths.some((path) => pathname.startsWith(path))) {

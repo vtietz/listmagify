@@ -1,0 +1,130 @@
+{
+  "snapshot_id": "test-snapshot-1",
+  "items": [
+    {
+      "added_at": "2024-01-01T00:00:00Z",
+      "track": {
+        "album": {
+          "id": "album1",
+          "name": "Test Album 1",
+          "images": [
+            {
+              "height": 64,
+              "url": "https://via.placeholder.com/64",
+              "width": 64
+            }
+          ]
+        },
+        "artists": [
+          {
+            "name": "Test Artist 1"
+          }
+        ],
+        "duration_ms": 180000,
+        "id": "track1",
+        "name": "Test Track 1",
+        "uri": "spotify:track:track1"
+      }
+    },
+    {
+      "added_at": "2024-01-02T00:00:00Z",
+      "track": {
+        "album": {
+          "id": "album2",
+          "name": "Test Album 2",
+          "images": [
+            {
+              "height": 64,
+              "url": "https://via.placeholder.com/64",
+              "width": 64
+            }
+          ]
+        },
+        "artists": [
+          {
+            "name": "Test Artist 2"
+          }
+        ],
+        "duration_ms": 210000,
+        "id": "track2",
+        "name": "Test Track 2",
+        "uri": "spotify:track:track2"
+      }
+    },
+    {
+      "added_at": "2024-01-03T00:00:00Z",
+      "track": {
+        "album": {
+          "id": "album3",
+          "name": "Test Album 3",
+          "images": [
+            {
+              "height": 64,
+              "url": "https://via.placeholder.com/64",
+              "width": 64
+            }
+          ]
+        },
+        "artists": [
+          {
+            "name": "Test Artist 3"
+          }
+        ],
+        "duration_ms": 240000,
+        "id": "track3",
+        "name": "Test Track 3",
+        "uri": "spotify:track:track3"
+      }
+    },
+    {
+      "added_at": "2024-01-04T00:00:00Z",
+      "track": {
+        "album": {
+          "id": "album4",
+          "name": "Test Album 4",
+          "images": [
+            {
+              "height": 64,
+              "url": "https://via.placeholder.com/64",
+              "width": 64
+            }
+          ]
+        },
+        "artists": [
+          {
+            "name": "Test Artist 4"
+          }
+        ],
+        "duration_ms": 195000,
+        "id": "track4",
+        "name": "Test Track 4",
+        "uri": "spotify:track:track4"
+      }
+    },
+    {
+      "added_at": "2024-01-05T00:00:00Z",
+      "track": {
+        "album": {
+          "id": "album5",
+          "name": "Test Album 5",
+          "images": [
+            {
+              "height": 64,
+              "url": "https://via.placeholder.com/64",
+              "width": 64
+            }
+          ]
+        },
+        "artists": [
+          {
+            "name": "Test Artist 5"
+          }
+        ],
+        "duration_ms": 220000,
+        "id": "track5",
+        "name": "Test Track 5",
+        "uri": "spotify:track:track5"
+      }
+    }
+  ]
+}

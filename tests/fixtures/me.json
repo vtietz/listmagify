@@ -1,0 +1,15 @@
+{
+  "display_name": "Test User",
+  "email": "test@example.com",
+  "external_urls": {
+    "spotify": "https://open.spotify.com/user/testuser"
+  },
+  "followers": {
+    "total": 10
+  },
+  "href": "https://api.spotify.com/v1/users/testuser",
+  "id": "testuser",
+  "images": [],
+  "type": "user",
+  "uri": "spotify:user:testuser"
+}

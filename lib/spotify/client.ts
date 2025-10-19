@@ -37,7 +37,12 @@ export async function spotifyFetch(
   init?: RequestInit,
   opts?: SpotifyClientOptions
 ): Promise<Response> {
-  const base = opts?.baseUrl ?? DEFAULT_BASE;
+  // In E2E mode, route to mock Spotify server
+  const effectiveBase = process.env.E2E_MODE === '1' 
+    ? (process.env.SPOTIFY_BASE_URL ?? 'http://spotify-mock:8080/v1')
+    : DEFAULT_BASE;
+  
+  const base = opts?.baseUrl ?? effectiveBase;
 
   const url = path.startsWith("http") ? path : `${base}${path}`;
   const headers = await buildAuthHeaders(init?.headers as Record<string, string> | undefined);

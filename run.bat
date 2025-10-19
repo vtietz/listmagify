@@ -53,6 +53,18 @@ if "%1"=="test" (
     docker compose -f docker\docker-compose.yml run --rm web pnpm test:unit:watch %3 %4 %5 %6 %7 %8 %9
   ) else if /I "%2"=="--watch" (
     docker compose -f docker\docker-compose.yml run --rm web pnpm test:unit:watch %3 %4 %5 %6 %7 %8 %9
+  ) else if /I "%2"=="e2e" (
+    docker compose -f docker\docker-compose.yml --profile test run --rm web pnpm test:e2e %3 %4 %5 %6 %7 %8 %9
+  ) else if /I "%2"=="e2e:ui" (
+    docker compose -f docker\docker-compose.yml --profile test run --rm web pnpm test:e2e:ui %3 %4 %5 %6 %7 %8 %9
+  ) else if /I "%2"=="e2e:ci" (
+    docker compose -f docker\docker-compose.yml --profile test run --rm playwright-runner %3 %4 %5 %6 %7 %8 %9
+  ) else if /I "%2"=="stack:up" (
+    docker compose -f docker\docker-compose.yml --profile test up -d web-test spotify-mock %3 %4 %5 %6 %7 %8 %9
+  ) else if /I "%2"=="stack:down" (
+    docker compose -f docker\docker-compose.yml --profile test down %3 %4 %5 %6 %7 %8 %9
+  ) else if /I "%2"=="stack:logs" (
+    docker compose -f docker\docker-compose.yml --profile test logs -f %3 %4 %5 %6 %7 %8 %9
   ) else (
     docker compose -f docker\docker-compose.yml run --rm web pnpm test:unit %2 %3 %4 %5 %6 %7 %8 %9
   )
@@ -84,7 +96,10 @@ echo   run.bat build           - Create a production build
 echo   run.bat start-prod      - Start the production server
 echo   run.bat dev ^<cmd^>      - Execute a command in a temporary dev container (e.g., run pnpm lint)
 echo   run.bat prod ^<cmd^>     - Execute a command in a temporary prod container
-echo   run.bat test [args]     - Run tests (default: unit, args: --watch, ui)
+echo   run.bat test [args]     - Run tests (default: unit, args: --watch, ui, e2e, e2e:ui, e2e:ci)
+echo   run.bat test stack:up   - Start E2E test stack (web-test + spotify-mock)
+echo   run.bat test stack:down - Stop E2E test stack
+echo   run.bat test stack:logs - View E2E test stack logs
 echo.
 echo Utility Commands:
 echo   run.bat compose ^<cmd^>  - Run a raw docker compose command
