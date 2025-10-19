@@ -74,65 +74,65 @@ export const authOptions: NextAuthOptions = {
   jwt: {
     maxAge: 30 * 24 * 60 * 60, // 30 days - align JWT expiry with session
   },
-  cookies: {
-    // Fix for Docker/127.0.0.1 environments - ensure cookies work properly
-    sessionToken: {
-      name: `next-auth.session-token`,
-      options: {
-        httpOnly: true,
-        sameSite: 'lax',
-        path: '/',
-        secure: false, // Allow cookies on http://127.0.0.1 during development
-      },
-    },
-    callbackUrl: {
-      name: `next-auth.callback-url`,
-      options: {
-        httpOnly: true,
-        sameSite: 'lax',
-        path: '/',
-        secure: false,
-      },
-    },
-    csrfToken: {
-      name: `next-auth.csrf-token`,
-      options: {
-        httpOnly: true,
-        sameSite: 'lax',
-        path: '/',
-        secure: false,
-      },
-    },
-    pkceCodeVerifier: {
-      name: `next-auth.pkce.code_verifier`,
-      options: {
-        httpOnly: true,
-        sameSite: 'lax',
-        path: '/',
-        secure: false,
-        maxAge: 900, // 15 minutes
-      },
-    },
-    state: {
-      name: `next-auth.state`,
-      options: {
-        httpOnly: true,
-        sameSite: 'lax',
-        path: '/',
-        secure: false,
-        maxAge: 900, // 15 minutes
-      },
-    },
-    nonce: {
-      name: `next-auth.nonce`,
-      options: {
-        httpOnly: true,
-        sameSite: 'lax',
-        path: '/',
-        secure: false,
-      },
-    },
-  },
+  // cookies: {
+  //   // Fix for Docker/127.0.0.1 environments - ensure cookies work properly
+  //   sessionToken: {
+  //     name: `next-auth.session-token`,
+  //     options: {
+  //       httpOnly: true,
+  //       sameSite: 'lax',
+  //       path: '/',
+  //       secure: false, // Allow cookies on http://127.0.0.1 during development
+  //     },
+  //   },
+  //   callbackUrl: {
+  //     name: `next-auth.callback-url`,
+  //     options: {
+  //       httpOnly: true,
+  //       sameSite: 'lax',
+  //       path: '/',
+  //       secure: false,
+  //     },
+  //   },
+  //   csrfToken: {
+  //     name: `next-auth.csrf-token`,
+  //     options: {
+  //       httpOnly: true,
+  //       sameSite: 'lax',
+  //       path: '/',
+  //       secure: false,
+  //     },
+  //   },
+  //   pkceCodeVerifier: {
+  //     name: `next-auth.pkce.code_verifier`,
+  //     options: {
+  //       httpOnly: true,
+  //       sameSite: 'lax',
+  //       path: '/',
+  //       secure: false,
+  //       maxAge: 900, // 15 minutes
+  //     },
+  //   },
+  //   state: {
+  //     name: `next-auth.state`,
+  //     options: {
+  //       httpOnly: true,
+  //       sameSite: 'lax',
+  //       path: '/',
+  //       secure: false,
+  //       maxAge: 900, // 15 minutes
+  //     },
+  //   },
+  //   nonce: {
+  //     name: `next-auth.nonce`,
+  //     options: {
+  //       httpOnly: true,
+  //       sameSite: 'lax',
+  //       path: '/',
+  //       secure: false,
+  //     },
+  //   },
+  // },
   pages: {
     signIn: "/login",
   },

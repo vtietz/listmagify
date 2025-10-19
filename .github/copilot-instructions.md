@@ -43,17 +43,17 @@ PowerShell commands you'll use frequently:
 
 ### Common Docker Commands
 
-| Task                     | Command                          |
-|--------------------------|----------------------------------|
-| Install dependencies     | `run.bat install`                |
-| Add new package          | `run.bat exec pnpm add <package>`|
-| Remove package           | `run.bat exec pnpm remove <package>`|
-| Start dev server         | `run.bat start`                  |
-| Run tests                | `run.bat test`                   |
-| Run tests (watch mode)   | `run.bat test -- --watch`        |
-| Execute arbitrary command| `run.bat exec <cmd>`             |
+| Task                     | Windows (cmd.exe)                | Windows (PowerShell)             | macOS/Linux                      |
+|--------------------------|----------------------------------|----------------------------------|----------------------------------|
+| Install dependencies     | `run.bat install`                | `.\run.bat install`              | `./run.sh install`               |
+| Add new package          | `run.bat dev pnpm add <package>` | `.\run.bat dev pnpm add <package>`| `./run.sh exec pnpm add <package>`|
+| Remove package           | `run.bat dev pnpm remove <package>`| `.\run.bat dev pnpm remove <package>`| `./run.sh exec pnpm remove <package>`|
+| Start dev server         | `run.bat up`                     | `.\run.bat up`                   | `./run.sh start`                 |
+| Run tests                | `run.bat test`                   | `.\run.bat test`                 | `./run.sh test`                  |
+| Run tests (watch mode)   | `run.bat test --watch`           | `.\run.bat test --watch`         | `./run.sh test -- --watch`       |
+| Execute arbitrary command| `run.bat dev <cmd>`              | `.\run.bat dev <cmd>`            | `./run.sh exec <cmd>`            |
 
-**Important**: Always use `run.bat exec pnpm add <package>` to install packages instead of manually editing `package.json`. This ensures you get the latest compatible versions and properly updates the lockfile.
+**Important**: Always use `run.bat dev pnpm add <package>` (Windows) or `./run.sh exec pnpm add <package>` (macOS/Linux) to install packages instead of manually editing `package.json`. This ensures you get the latest compatible versions and properly updates the lockfile.
 
 ---
 
@@ -61,7 +61,7 @@ PowerShell commands you'll use frequently:
 
 **After every code change:**
 
-1. **Run the test suite** via `run.bat test` or `run.sh test`
+1. **Run the test suite** via `.\run.bat test` (Windows PowerShell), `run.bat test` (Windows cmd.exe), or `./run.sh test` (macOS/Linux)
 2. **Verify the build** if applicable
 3. **Run linting/formatting** checks if configured
 4. **Do not skip validation steps** — automated testing prevents regressions

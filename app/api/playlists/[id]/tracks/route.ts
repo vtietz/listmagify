@@ -34,11 +34,23 @@ export async function GET(
     const searchParams = request.nextUrl.searchParams;
     const nextCursorParam = searchParams.get("nextCursor");
 
+    console.log("[api/playlists/tracks] nextCursorParam:", nextCursorParam);
+
     let path: string;
     
     if (nextCursorParam) {
-      // Use the full next URL provided by Spotify
-      path = nextCursorParam;
+      // nextCursor is a full Spotify URL like:
+      // https://api.spotify.com/v1/playlists/xxx/tracks?offset=100&limit=100
+      // Extract just the path part (everything after /v1/)
+      try {
+        const url = new URL(nextCursorParam);
+        path = url.pathname.replace('/v1', '') + url.search;
+        console.log("[api/playlists/tracks] Parsed cursor to path:", path);
+      } catch (err) {
+        // If not a full URL, assume it's already a path
+        console.log("[api/playlists/tracks] Not a URL, using as-is");
+        path = nextCursorParam;
+      }
     } else {
       // Fetch tracks from Spotify (limit 100 per request)
       const limit = 100;
@@ -46,6 +58,7 @@ export async function GET(
       path = `/playlists/${encodeURIComponent(playlistId)}/tracks?limit=${limit}&fields=${encodeURIComponent(fields)}`;
     }
 
+    console.log("[api/playlists/tracks] Final path:", path);
     const res = await spotifyFetch(path, { method: "GET" });
 
     if (!res.ok) {

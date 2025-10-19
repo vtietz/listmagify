@@ -1,5 +1,5 @@
 /**
- * Centralized API client with automatic 401 handling.
+ * Centralized API client with automatic error handling.
  * All client-side API calls should use this instead of raw fetch.
  */
 
@@ -8,42 +8,48 @@
 // This is a known issue: https://github.com/emilkowalski/sonner/issues/  
 import { toast } from "sonner";
 
-interface FetchOptions extends RequestInit {
-  /** Skip automatic 401 redirect (for custom handling) */
-  skipAutoRedirect?: boolean;
+interface FetchOptions extends RequestInit {}
+
+/**
+ * Custom error for access token expiration.
+ * Components should handle this by showing a sign-in prompt.
+ * Navigation is handled by middleware, not client code.
+ */
+export class AccessTokenExpiredError extends Error {
+  constructor(message = "Access token expired") {
+    super(message);
+    this.name = "AccessTokenExpiredError";
+  }
 }
 
 /**
- * Custom fetch wrapper that handles 401 errors globally.
- * Automatically redirects to login on token expiration.
+ * Custom fetch wrapper that handles API errors.
+ * Throws AccessTokenExpiredError on 401 - caller should handle by showing sign-in UI.
+ * Does NOT perform client-side navigation (middleware handles redirects).
  * 
  * Usage:
  * ```ts
- * const data = await apiFetch('/api/me/playlists');
- * const data = await apiFetch('/api/playlists/123/tracks', { method: 'POST' });
+ * try {
+ *   const data = await apiFetch('/api/me/playlists');
+ * } catch (error) {
+ *   if (error instanceof AccessTokenExpiredError) {
+ *     // Show sign-in button or message
+ *   }
+ * }
  * ```
  */
 export async function apiFetch<T = any>(
   url: string,
   options: FetchOptions = {}
 ): Promise<T> {
-  const { skipAutoRedirect = false, ...fetchOptions } = options;
-
   try {
-    const response = await fetch(url, fetchOptions);
+    const response = await fetch(url, options);
     const data = await response.json().catch(() => ({}));
 
     // Handle 401 Unauthorized - token expired
-    if (!skipAutoRedirect && (response.status === 401 || data.error === "token_expired")) {
-      toast.error("Your session has expired. Redirecting to login...");
-      
-      // Small delay for user to see the message
-      setTimeout(() => {
-        window.location.href = "/login?reason=expired";
-      }, 1500);
-      
-      // Throw error to stop execution in calling code
-      throw new ApiError("Session expired", 401, data);
+    if (response.status === 401 || data.error === "token_expired") {
+      toast.error("Your session has expired. Please sign in again.");
+      throw new AccessTokenExpiredError(data.error || "Session expired");
     }
 
     // Handle other error statuses
@@ -57,8 +63,8 @@ export async function apiFetch<T = any>(
 
     return data as T;
   } catch (error) {
-    // Re-throw ApiError as-is
-    if (error instanceof ApiError) {
+    // Re-throw AccessTokenExpiredError and ApiError as-is
+    if (error instanceof AccessTokenExpiredError || error instanceof ApiError) {
       throw error;
     }
 

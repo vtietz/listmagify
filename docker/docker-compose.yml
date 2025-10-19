@@ -16,11 +16,6 @@ services:
       - CHOKIDAR_USEPOLLING=1
       - WATCHPACK_POLLING=true
       - PORT=${PORT:-3000}
-      # NextAuth + Spotify URLs built dynamically from PORT
-      # Using 127.0.0.1 instead of localhost (Spotify requirement)
-      # In production, override with full production URLs
-      - NEXTAUTH_URL=http://127.0.0.1:${PORT:-3000}
-      - SPOTIFY_REDIRECT_URI=http://127.0.0.1:${PORT:-3000}/api/auth/callback/spotify
     volumes:
       - ..:/usr/src/app:cached
       - node_modules:/usr/src/app/node_modules
