@@ -24,8 +24,8 @@ export class AccessTokenExpiredError extends Error {
 
 /**
  * Custom fetch wrapper that handles API errors.
- * Throws AccessTokenExpiredError on 401 - caller should handle by showing sign-in UI.
- * Does NOT perform client-side navigation (middleware handles redirects).
+ * On 401 errors, shows a toast and redirects to login after a brief delay.
+ * This ensures users are automatically sent to the login page when their session expires.
  * 
  * Usage:
  * ```ts
@@ -33,7 +33,7 @@ export class AccessTokenExpiredError extends Error {
  *   const data = await apiFetch('/api/me/playlists');
  * } catch (error) {
  *   if (error instanceof AccessTokenExpiredError) {
- *     // Show sign-in button or message
+ *     // Toast shown, redirect scheduled
  *   }
  * }
  * ```
@@ -48,7 +48,14 @@ export async function apiFetch<T = any>(
 
     // Handle 401 Unauthorized - token expired
     if (response.status === 401 || data.error === "token_expired") {
-      toast.error("Your session has expired. Please sign in again.");
+      toast.error("Your session has expired. Redirecting to login...");
+      
+      // Redirect to login after a brief delay to show the toast
+      setTimeout(() => {
+        const currentPath = window.location.pathname + window.location.search;
+        window.location.href = `/login?reason=expired&next=${encodeURIComponent(currentPath)}`;
+      }, 1500);
+      
       throw new AccessTokenExpiredError(data.error || "Session expired");
     }
 

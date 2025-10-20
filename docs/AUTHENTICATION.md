@@ -86,33 +86,38 @@ const data = await getJSON<SpotifyPlaylist>("/me/playlists");
 
 ### 7. **Graceful 401 Error Handling**
 
-When tokens expire or become invalid (despite automatic refresh), the app handles 401 errors gracefully:
+When tokens expire or become invalid (despite automatic refresh), the app **automatically redirects users to login** with no manual intervention required:
 
 **Server-Side (SSR Pages)**:
 - Playlists pages catch 401 errors in try/catch blocks
 - Immediately redirect to `/login?reason=expired`
 - User sees friendly "session expired" message
 
-**Client-Side (Interactive Components)**:
+**Client-Side (Interactive Components)** - **Fully Automatic**:
 - API routes return consistent `{ error: "token_expired" }` with status 401
-- Centralized `apiFetch` wrapper (`lib/api/client.ts`) automatically handles 401 errors
+- Centralized `apiFetch` wrapper (`lib/api/client.ts`) **automatically handles all 401 errors**
 - Shows toast: "Your session has expired. Redirecting to login..."
-- Waits 1.5 seconds, then navigates to `/login?reason=expired`
-- All fetch calls use `apiFetch<T>()` - no manual 401 checking required
+- Waits 1.5 seconds for toast visibility, then **automatically navigates** to `/login?reason=expired`
+- Preserves current page URL in `next` parameter to return after re-authentication
+- All fetch calls use `apiFetch<T>()` - **zero manual 401 checking required**
 - Custom `ApiError` class for typed error handling
 
 **Error Flow**:
 1. Spotify returns 401 (token expired/revoked)
 2. API route detects 401, forwards with `token_expired` error
-3. Client component shows user-friendly message
-4. Automatic redirect to login page after brief delay
+3. Client component shows user-friendly message with toast notification
+4. **Automatic redirect to login page after 1.5s delay** (no user action needed)
 5. Login page displays expired session notice
+6. After re-authentication, user returns to original page via `next` parameter
 
-**What triggers 401**:
+**What triggers 401** (rare, thanks to automatic token refresh):
 - User revoked app access in Spotify settings
 - Refresh token expired (rare, usually 1 year+)
 - Spotify service issue or token corruption
 - Manual token deletion from database
+- Session expired after 30 days of inactivity
+
+**Note**: Under normal usage, you should **never see session expiration** because tokens auto-refresh 5 minutes before expiry. The 401 handling is a safety net for edge cases like revoked access or long-term inactivity.
 
 ### 8. **Logout**
 
