@@ -5,7 +5,11 @@
 
 'use client';
 
+import { logDebug } from '@/lib/utils/debug';
 import { useState, useRef, useCallback } from 'react';
+import { usePointerTracker } from '@/hooks/usePointerTracker';
+import { autoScrollEdge } from '@/hooks/useAutoScrollEdge';
+import { calculateDropPosition } from '@/hooks/useDropPosition';
 import {
   DndContext,
   DragOverlay,
@@ -75,12 +79,9 @@ export function SplitGrid() {
     targetPanelId: string;
     insertionIndex: number;
   } | null>(null);
-  const pointerPositionRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
-  const modifierKeysRef = useRef<{ ctrlKey: boolean; altKey: boolean; shiftKey: boolean }>({ 
-    ctrlKey: false, 
-    altKey: false, 
-    shiftKey: false 
-  });
+  
+  // Track pointer position and modifier keys during drag
+  const pointerTracker = usePointerTracker();
   
   const panels = useSplitGridStore((state) => state.panels);
 
@@ -126,39 +127,7 @@ export function SplitGrid() {
       return null;
     }
 
-    // Calculate relative Y position within the scrollable container
-    const containerRect = scrollContainer.getBoundingClientRect();
-    const scrollTop = scrollContainer.scrollTop;
-    const relativeY = pointerY - containerRect.top + scrollTop;
-
-    // Find the insertion index in the filtered view
-    const virtualItems = virtualizer.getVirtualItems();
-    let insertionIndexFiltered = filteredTracks.length; // Default: append to end
-
-    for (let i = 0; i < virtualItems.length; i++) {
-      const item = virtualItems[i];
-      const itemMiddle = item.start + item.size / 2;
-      
-      if (relativeY < itemMiddle) {
-        insertionIndexFiltered = item.index;
-        break;
-      }
-    }
-
-    // Map filtered index to global playlist position
-    if (filteredTracks.length === 0) return { filteredIndex: 0, globalPosition: 0 };
-    
-    if (insertionIndexFiltered >= filteredTracks.length) {
-      // Dropping after last visible track
-      const lastTrack = filteredTracks[filteredTracks.length - 1];
-      const globalPosition = (lastTrack?.position ?? 0) + 1;
-      return { filteredIndex: insertionIndexFiltered, globalPosition };
-    }
-
-    // Get the global position of the track at the insertion point
-    const targetTrack = filteredTracks[insertionIndexFiltered];
-    const globalPosition = targetTrack?.position ?? insertionIndexFiltered;
-    return { filteredIndex: insertionIndexFiltered, globalPosition };
+    return calculateDropPosition(scrollContainer, virtualizer, filteredTracks, pointerY);
   }, []);
 
   // Set up DnD sensors (disable auto-scroll to prevent source panel scrolling)
@@ -187,32 +156,11 @@ export function SplitGrid() {
     setSourcePanelId(sourcePanel || null);
     
     // Start tracking pointer position and modifier keys
-    const handlePointerMove = (e: PointerEvent) => {
-      pointerPositionRef.current = { x: e.clientX, y: e.clientY };
-      modifierKeysRef.current = {
-        ctrlKey: e.ctrlKey,
-        altKey: e.altKey,
-        shiftKey: e.shiftKey,
-      };
-    };
-    
-    const handleKeyChange = (e: KeyboardEvent) => {
-      modifierKeysRef.current = {
-        ctrlKey: e.ctrlKey,
-        altKey: e.altKey,
-        shiftKey: e.shiftKey,
-      };
-    };
-    
-    document.addEventListener('pointermove', handlePointerMove);
-    document.addEventListener('keydown', handleKeyChange);
-    document.addEventListener('keyup', handleKeyChange);
+    pointerTracker.startTracking();
     
     // Clean up on drag end
     const cleanup = () => {
-      document.removeEventListener('pointermove', handlePointerMove);
-      document.removeEventListener('keydown', handleKeyChange);
-      document.removeEventListener('keyup', handleKeyChange);
+      pointerTracker.stopTracking();
       document.removeEventListener('pointerup', cleanup);
     };
     document.addEventListener('pointerup', cleanup, { once: true });
@@ -222,8 +170,7 @@ export function SplitGrid() {
    * Helper: Find panel under pointer when over is null (fallback for virtualization gaps)
    */
   const findPanelUnderPointer = useCallback((): { panelId: string } | null => {
-    const pointerX = pointerPositionRef.current.x;
-    const pointerY = pointerPositionRef.current.y;
+    const { x: pointerX, y: pointerY } = pointerTracker.getPosition();
     
     for (const [panelId, panelData] of panelVirtualizersRef.current.entries()) {
       const { scrollRef } = panelData;
@@ -242,7 +189,7 @@ export function SplitGrid() {
     }
     
     return null;
-  }, []);
+  }, [pointerTracker]);
 
   const handleDragOver = (event: DragOverEvent) => {
     const { over } = event;
@@ -298,7 +245,7 @@ export function SplitGrid() {
     setActivePanelId(targetPanelId);
 
     // Use actual pointer Y position
-    const pointerY = pointerPositionRef.current.y;
+    const { y: pointerY } = pointerTracker.getPosition();
 
     // Get panel data for insertion index calculation
     const panelData = panelVirtualizersRef.current.get(targetPanelId);
@@ -312,25 +259,9 @@ export function SplitGrid() {
     const { virtualizer, scrollRef, filteredTracks } = panelData;
     const scrollContainer = scrollRef.current;
     
-    // Manual auto-scroll for active panel
+    // Auto-scroll when pointer is near container edges
     if (scrollContainer) {
-      const rect = scrollContainer.getBoundingClientRect();
-      const scrollThreshold = 80; // pixels from edge to trigger scroll
-      const scrollSpeed = 10; // pixels per frame
-      
-      const distanceFromTop = pointerY - rect.top;
-      const distanceFromBottom = rect.bottom - pointerY;
-      
-      if (distanceFromTop < scrollThreshold && distanceFromTop > 0) {
-        // Near top edge - scroll up
-        scrollContainer.scrollTop = Math.max(0, scrollContainer.scrollTop - scrollSpeed);
-      } else if (distanceFromBottom < scrollThreshold && distanceFromBottom > 0) {
-        // Near bottom edge - scroll down
-        scrollContainer.scrollTop = Math.min(
-          scrollContainer.scrollHeight - scrollContainer.clientHeight,
-          scrollContainer.scrollTop + scrollSpeed
-        );
-      }
+      autoScrollEdge(scrollContainer, pointerY);
     }
 
     // Compute insertion index in filtered view for "make room" animation
@@ -453,13 +384,13 @@ export function SplitGrid() {
     const sourceDndMode = sourcePanel.dndMode || 'copy';
     
     // Determine effective mode: Ctrl key inverts the panel's mode (only for editable source playlists)
-    const isCtrlPressed = modifierKeysRef.current.ctrlKey;
+    const { ctrlKey: isCtrlPressed } = pointerTracker.getModifiers();
     const canInvertMode = sourcePanel.isEditable; // Only editable playlists can use Ctrl to invert
     const effectiveMode = (isCtrlPressed && canInvertMode)
       ? (sourceDndMode === 'copy' ? 'move' : 'copy')
       : sourceDndMode;
 
-    console.log('[DragEnd] Cross-panel operation:', {
+    logDebug('[DragEnd] Cross-panel operation:', {
       sourcePanelId: sourcePanelIdFromData,
       targetPanelId,
       sourcePlaylistId,
@@ -579,7 +510,7 @@ export function SplitGrid() {
           if (!sourcePanel) return null;
           
           const sourceDndMode = sourcePanel.dndMode || 'copy';
-          const isCtrlPressed = modifierKeysRef.current.ctrlKey;
+          const { ctrlKey: isCtrlPressed } = pointerTracker.getModifiers();
           const canInvertMode = sourcePanel.isEditable;
           const effectiveMode = (isCtrlPressed && canInvertMode)
             ? (sourceDndMode === 'copy' ? 'move' : 'copy')

@@ -8,6 +8,7 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { Track } from '@/lib/spotify/types';
+import { makeCompositeId, getTrackPosition } from '@/lib/dnd/id';
 import { cn } from '@/lib/utils';
 import { GripVertical } from 'lucide-react';
 
@@ -38,7 +39,7 @@ export function TrackRow({
 }: TrackRowProps) {
   // Create globally unique composite ID scoped by panel
   const trackId = track.id || track.uri;
-  const compositeId = panelId ? `${panelId}:${trackId}` : trackId;
+  const compositeId = panelId ? makeCompositeId(panelId, trackId) : trackId;
 
   const {
     attributes,
@@ -57,7 +58,7 @@ export function TrackRow({
       track,
       panelId,
       playlistId,
-      position: track.position ?? index, // Global position for mutations
+      position: getTrackPosition(track, index), // Global position for mutations
     },
   });
 

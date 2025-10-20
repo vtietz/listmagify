@@ -5,6 +5,16 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api/client';
+import { playlistTracks } from '@/lib/api/queryKeys';
+import { eventBus } from '@/lib/sync/eventBus';
+import type { Track } from '@/lib/spotify/types';
+// @ts-expect-error - sonner's type definitions are incompatible with verbatimModuleSyntax
+import { toast } from 'sonner';ct Query mutation hooks for playlist operations.
+ * Includes optimistic updates and event bus notifications for cross-panel sync.
+ */
+
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { apiFetch } from '@/lib/api/client';
 import { eventBus } from '@/lib/sync/eventBus';
 import type { Track } from '@/lib/spotify/types';
 // @ts-expect-error - sonner's type definitions are incompatible with verbatimModuleSyntax
@@ -62,13 +72,12 @@ export function useAddTracks() {
     },
     onMutate: async (params) => {
       // Cancel outgoing refetches
-      await queryClient.cancelQueries({ queryKey: ['playlist-tracks', params.playlistId] });
+      await queryClient.cancelQueries({ queryKey: playlistTracks(params.playlistId) });
 
       // Snapshot current data
-      const previousData = queryClient.getQueryData<PlaylistTracksData>([
-        'playlist-tracks',
-        params.playlistId,
-      ]);
+      const previousData = queryClient.getQueryData<PlaylistTracksData>(
+        playlistTracks(params.playlistId)
+      );
 
       // Optimistically update - we don't have full track data here, so we'll wait for refetch
       // Just emit the event so other panels know to refresh
@@ -77,7 +86,7 @@ export function useAddTracks() {
     },
     onSuccess: (data, params) => {
       // Invalidate and refetch
-      queryClient.invalidateQueries({ queryKey: ['playlist-tracks', params.playlistId] });
+      queryClient.invalidateQueries({ queryKey: playlistTracks(params.playlistId) });
 
       // Notify other panels
       eventBus.emit('playlist:update', { playlistId: params.playlistId, cause: 'add' });
@@ -88,7 +97,7 @@ export function useAddTracks() {
       // Rollback on error
       if (context?.previousData) {
         queryClient.setQueryData(
-          ['playlist-tracks', params.playlistId],
+          playlistTracks(params.playlistId),
           context.previousData
         );
       }
@@ -116,17 +125,16 @@ export function useRemoveTracks() {
       });
     },
     onMutate: async (params) => {
-      await queryClient.cancelQueries({ queryKey: ['playlist-tracks', params.playlistId] });
+      await queryClient.cancelQueries({ queryKey: playlistTracks(params.playlistId) });
 
-      const previousData = queryClient.getQueryData<PlaylistTracksData>([
-        'playlist-tracks',
-        params.playlistId,
-      ]);
+      const previousData = queryClient.getQueryData<PlaylistTracksData>(
+        playlistTracks(params.playlistId)
+      );
 
       // Optimistically remove tracks
       if (previousData) {
         const uriSet = new Set(params.trackUris);
-        queryClient.setQueryData(['playlist-tracks', params.playlistId], {
+        queryClient.setQueryData(playlistTracks(params.playlistId), {
           ...previousData,
           tracks: previousData.tracks.filter((track) => !uriSet.has(track.uri)),
           total: previousData.total - params.trackUris.length,
@@ -136,14 +144,14 @@ export function useRemoveTracks() {
       return { previousData };
     },
     onSuccess: (data, params) => {
-      queryClient.invalidateQueries({ queryKey: ['playlist-tracks', params.playlistId] });
+      queryClient.invalidateQueries({ queryKey: playlistTracks(params.playlistId) });
       eventBus.emit('playlist:update', { playlistId: params.playlistId, cause: 'remove' });
       toast.success('Tracks removed successfully');
     },
     onError: (error, params, context) => {
       if (context?.previousData) {
         queryClient.setQueryData(
-          ['playlist-tracks', params.playlistId],
+          playlistTracks(params.playlistId),
           context.previousData
         );
       }
@@ -172,12 +180,11 @@ export function useReorderTracks() {
       });
     },
     onMutate: async (params) => {
-      await queryClient.cancelQueries({ queryKey: ['playlist-tracks', params.playlistId] });
+      await queryClient.cancelQueries({ queryKey: playlistTracks(params.playlistId) });
 
-      const previousData = queryClient.getQueryData<PlaylistTracksData>([
-        'playlist-tracks',
-        params.playlistId,
-      ]);
+      const previousData = queryClient.getQueryData<PlaylistTracksData>(
+        playlistTracks(params.playlistId)
+      );
 
       // Optimistically reorder
       if (previousData) {
@@ -189,7 +196,7 @@ export function useReorderTracks() {
           : params.toIndex;
         newTracks.splice(insertAt, 0, ...movedItems);
 
-        queryClient.setQueryData(['playlist-tracks', params.playlistId], {
+        queryClient.setQueryData(playlistTracks(params.playlistId), {
           ...previousData,
           tracks: newTracks,
         });
@@ -198,14 +205,14 @@ export function useReorderTracks() {
       return { previousData };
     },
     onSuccess: (data, params) => {
-      queryClient.invalidateQueries({ queryKey: ['playlist-tracks', params.playlistId] });
+      queryClient.invalidateQueries({ queryKey: playlistTracks(params.playlistId) });
       eventBus.emit('playlist:update', { playlistId: params.playlistId, cause: 'reorder' });
       toast.success('Tracks reordered successfully');
     },
     onError: (error, params, context) => {
       if (context?.previousData) {
         queryClient.setQueryData(
-          ['playlist-tracks', params.playlistId],
+          playlistTracks(params.playlistId),
           context.previousData
         );
       }

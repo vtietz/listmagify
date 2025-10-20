@@ -7,10 +7,13 @@
 
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useVirtualizer } from '@tanstack/react-virtual';
+import { useVirtualizer } from '@tantml:react-virtual';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useDroppable } from '@dnd-kit/core';
 import { apiFetch } from '@/lib/api/client';
+import { playlistTracks, playlistMeta, playlistPermissions } from '@/lib/api/queryKeys';
+import { makeCompositeId } from '@/lib/dnd/id';
+import { logDebug } from '@/lib/utils/debug';
 import { eventBus } from '@/lib/sync/eventBus';
 import { useSplitGridStore } from '@/hooks/useSplitGridStore';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
@@ -87,7 +90,7 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
 
   // Fetch playlist tracks with stable query key
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['playlist-tracks', playlistIdRef.current],
+    queryKey: playlistIdRef.current ? playlistTracks(playlistIdRef.current) : ['playlist-tracks', null],
     queryFn: async (): Promise<PlaylistTracksData> => {
       if (!playlistIdRef.current) throw new Error('No playlist ID');
       return apiFetch(`/api/playlists/${playlistId}/tracks`);
@@ -97,8 +100,8 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
   });
 
   // Fetch playlist metadata for name
-  const { data: playlistMeta } = useQuery({
-    queryKey: ['playlist', playlistId],
+  const { data: playlistMetaData } = useQuery({
+    queryKey: playlistId ? playlistMeta(playlistId) : ['playlist', null],
     queryFn: async () => {
       if (!playlistId) throw new Error('No playlist ID');
       const result = await apiFetch<{
@@ -115,14 +118,14 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
   });
 
   useEffect(() => {
-    if (playlistMeta?.name) {
-      setPlaylistName(playlistMeta.name);
+    if (playlistMetaData?.name) {
+      setPlaylistName(playlistMetaData.name);
     }
-  }, [playlistMeta]);
+  }, [playlistMetaData]);
 
   // Fetch playlist permissions
   const { data: permissionsData } = useQuery({
-    queryKey: ['playlist-permissions', playlistId],
+    queryKey: playlistId ? playlistPermissions(playlistId) : ['playlist-permissions', null],
     queryFn: async () => {
       if (!playlistId) throw new Error('No playlist ID');
       const result = await apiFetch<{ isEditable: boolean }>(
@@ -206,7 +209,7 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
   // Compute contextItems with ephemeral insertion for "make room" animation
   const contextItems = useMemo(() => {
     // Use composite IDs scoped by panel for globally unique identification
-    const baseItems = filteredTracks.map((t) => `${panelId}:${t.id || t.uri}`);
+    const baseItems = filteredTracks.map((t) => makeCompositeId(panelId, t.id || t.uri));
     
     // For cross-panel drags, we use a visual drop indicator line instead of
     // ephemeral insertion to avoid interfering with @dnd-kit's native animations.
@@ -408,7 +411,7 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
             >
               {/* Visual drop indicator line - show during any drag with valid filtered index */}
               {dropIndicatorIndex !== null && dropIndicatorIndex !== undefined && (() => {
-                console.log('[PlaylistPanel] Rendering drop indicator:', {
+                logDebug('[PlaylistPanel] Rendering drop indicator:', {
                   panelId,
                   dropIndicatorIndex,
                   itemsCount: items.length,
@@ -419,14 +422,14 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
                 const virtualItem = items.find(item => item.index === dropIndicatorIndex);
                 
                 if (!virtualItem) {
-                  console.log('[PlaylistPanel] No virtual item found, trying last track');
+                  logDebug('[PlaylistPanel] No virtual item found, trying last track');
                   // Dropping after last visible track
                   const lastIndex = filteredTracks.length - 1;
                   if (lastIndex >= 0) {
                     const lastVirtualItem = items.find(item => item.index === lastIndex);
                     if (lastVirtualItem) {
                       const dropY = lastVirtualItem.start + lastVirtualItem.size;
-                      console.log('[PlaylistPanel] Rendering indicator after last track at Y:', dropY);
+                      logDebug('[PlaylistPanel] Rendering indicator after last track at Y:', dropY);
                       return (
                         <div
                           data-drop-indicator="after-last"
@@ -446,11 +449,11 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
                       );
                     }
                   }
-                  console.log('[PlaylistPanel] Could not render indicator - no virtual items');
+                  logDebug('[PlaylistPanel] Could not render indicator - no virtual items');
                   return null;
                 }
                 
-                console.log('[PlaylistPanel] Rendering indicator at virtual item:', {
+                logDebug('[PlaylistPanel] Rendering indicator at virtual item:', {
                   index: virtualItem.index,
                   start: virtualItem.start,
                 });
