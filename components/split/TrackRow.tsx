@@ -16,6 +16,7 @@ interface TrackRowProps {
   index: number;
   isSelected: boolean;
   isEditable: boolean;
+  locked?: boolean;
   onSelect: (trackId: string, event: React.MouseEvent) => void;
   onClick: (trackId: string) => void;
   panelId?: string;
@@ -28,6 +29,7 @@ export function TrackRow({
   index,
   isSelected,
   isEditable,
+  locked = false,
   onSelect,
   onClick,
   panelId,
@@ -47,7 +49,7 @@ export function TrackRow({
     isDragging,
   } = useSortable({
     id: compositeId, // Globally unique ID
-    disabled: !isEditable,
+    disabled: !isEditable || locked, // Disable if not editable OR locked
     animateLayoutChanges: () => false, // Disable "make room" animation for non-active items
     data: {
       type: 'track',
@@ -86,9 +88,9 @@ export function TrackRow({
       className={cn(
         'flex items-center gap-3 px-4 py-2 border-b border-border hover:bg-accent/50 transition-colors',
         isSelected && 'bg-accent',
-        // Cursor feedback
-        isEditable && dndMode === 'move' && 'cursor-grab active:cursor-grabbing',
-        isEditable && dndMode === 'copy' && 'cursor-copy',
+        // Cursor feedback - show grab/copy only when draggable
+        !locked && isEditable && dndMode === 'move' && 'cursor-grab active:cursor-grabbing',
+        !locked && isEditable && dndMode === 'copy' && 'cursor-copy',
         // Visual feedback during drag
         isDragging && dndMode === 'move' && 'opacity-0',
         isDragging && dndMode === 'copy' && 'opacity-50',
@@ -97,8 +99,14 @@ export function TrackRow({
       role="button"
       tabIndex={0}
       aria-selected={isSelected}
-      title={dndMode === 'copy' ? 'Click and drag to copy (Ctrl to move)' : 'Click and drag to move (Ctrl to copy)'}
-      {...(isEditable ? { ...attributes, ...listeners } : {})}
+      title={
+        locked 
+          ? 'Panel is locked - unlock to enable dragging'
+          : dndMode === 'copy' 
+            ? 'Click and drag to copy (Ctrl to move)' 
+            : 'Click and drag to move (Ctrl to copy)'
+      }
+      {...(isEditable && !locked ? { ...attributes, ...listeners } : {})}
     >
       {isEditable && (
         <div className="text-muted-foreground hover:text-foreground pointer-events-none">

@@ -12,6 +12,7 @@ export interface PanelConfig {
   id: string;
   playlistId: string | null;
   isEditable: boolean;
+  locked: boolean; // User-controlled lock (prevents dragging tracks from this panel)
   searchQuery: string;
   scrollOffset: number;
   selection: Set<string>;
@@ -33,6 +34,7 @@ interface SplitGridState {
   toggleSelection: (panelId: string, trackId: string) => void;
   setScroll: (panelId: string, offset: number) => void;
   setPanelDnDMode: (panelId: string, mode: 'move' | 'copy') => void;
+  togglePanelLock: (panelId: string) => void;
   reset: () => void;
 }
 
@@ -57,6 +59,7 @@ export const useSplitGridStore = create<SplitGridState>()(
           id: generatePanelId(),
           playlistId: null,
           isEditable: false,
+          locked: false,
           searchQuery: '',
           scrollOffset: 0,
           selection: new Set(),
@@ -79,6 +82,7 @@ export const useSplitGridStore = create<SplitGridState>()(
           id: generatePanelId(),
           playlistId: sourcePanel.playlistId,
           isEditable: sourcePanel.isEditable,
+          locked: sourcePanel.locked,
           searchQuery: sourcePanel.searchQuery,
           scrollOffset: sourcePanel.scrollOffset,
           selection: new Set(), // Clear selection in clone
@@ -127,6 +131,7 @@ export const useSplitGridStore = create<SplitGridState>()(
           id: generatePanelId(),
           playlistId,
           isEditable: false, // Will be updated by PlaylistPanel after permissions check
+          locked: false,
           searchQuery: '',
           scrollOffset: 0,
           selection: new Set(),
@@ -181,6 +186,15 @@ export const useSplitGridStore = create<SplitGridState>()(
         const { panels } = get();
         set({
           panels: panels.map((p) => (p.id === panelId ? { ...p, dndMode: mode } : p)),
+        });
+      },
+
+      togglePanelLock: (panelId) => {
+        const { panels } = get();
+        set({
+          panels: panels.map((p) => 
+            p.id === panelId ? { ...p, locked: !p.locked } : p
+          ),
         });
       },
 

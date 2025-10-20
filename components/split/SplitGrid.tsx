@@ -284,6 +284,16 @@ export function SplitGrid() {
       return;
     }
 
+    // Check if target panel is editable - if not, don't show drop indicator
+    const targetPanel = panels.find(p => p.id === targetPanelId);
+    if (!targetPanel || !targetPanel.isEditable) {
+      setComputedDropPosition(null);
+      setDropIndicatorIndex(null);
+      setActivePanelId(null);
+      setEphemeralInsertion(null);
+      return;
+    }
+
     // Track which panel the mouse is currently over
     setActivePanelId(targetPanelId);
 
@@ -357,15 +367,9 @@ export function SplitGrid() {
     const dropData = computeDropPosition(targetPanelId, pointerY);
     
     if (dropData) {
-      console.log('[DragOver] Setting drop indicator:', {
-        targetPanelId,
-        filteredIndex: dropData.filteredIndex,
-        globalPosition: dropData.globalPosition,
-      });
       setComputedDropPosition(dropData.globalPosition);
       setDropIndicatorIndex(dropData.filteredIndex);
     } else {
-      console.log('[DragOver] No drop data computed');
       setComputedDropPosition(null);
       setDropIndicatorIndex(null);
     }
@@ -448,9 +452,10 @@ export function SplitGrid() {
     const trackUri = sourceTrack.uri;
     const sourceDndMode = sourcePanel.dndMode || 'copy';
     
-    // Determine effective mode: Ctrl key inverts the panel's mode
+    // Determine effective mode: Ctrl key inverts the panel's mode (only for editable source playlists)
     const isCtrlPressed = modifierKeysRef.current.ctrlKey;
-    const effectiveMode = isCtrlPressed 
+    const canInvertMode = sourcePanel.isEditable; // Only editable playlists can use Ctrl to invert
+    const effectiveMode = (isCtrlPressed && canInvertMode)
       ? (sourceDndMode === 'copy' ? 'move' : 'copy')
       : sourceDndMode;
 
@@ -459,8 +464,10 @@ export function SplitGrid() {
       targetPanelId,
       sourcePlaylistId,
       targetPlaylistId,
+      sourceIsEditable: sourcePanel.isEditable,
       sourceDndMode,
       isCtrlPressed,
+      canInvertMode,
       effectiveMode,
       samePlaylist: sourcePlaylistId === targetPlaylistId,
     });
@@ -562,15 +569,42 @@ export function SplitGrid() {
         ))}
       </div>
 
-      <DragOverlay dropAnimation={null}>
-        {activeTrack && (
-          <div className="bg-card border-2 border-primary rounded px-4 py-2 shadow-2xl opacity-95">
-            <div className="font-medium">{activeTrack.name}</div>
-            <div className="text-sm text-muted-foreground">
-              {activeTrack.artists.join(', ')}
+      <DragOverlay 
+        dropAnimation={null}
+        style={{ cursor: 'inherit' }}
+      >
+        {activeTrack && (() => {
+          // Determine cursor based on source panel's mode and Ctrl key
+          const sourcePanel = panels.find(p => p.id === sourcePanelId);
+          if (!sourcePanel) return null;
+          
+          const sourceDndMode = sourcePanel.dndMode || 'copy';
+          const isCtrlPressed = modifierKeysRef.current.ctrlKey;
+          const canInvertMode = sourcePanel.isEditable;
+          const effectiveMode = (isCtrlPressed && canInvertMode)
+            ? (sourceDndMode === 'copy' ? 'move' : 'copy')
+            : sourceDndMode;
+          
+          // Check if hovering over a non-editable panel
+          const targetPanel = activePanelId ? panels.find(p => p.id === activePanelId) : null;
+          const isTargetEditable = targetPanel?.isEditable ?? true;
+          
+          const cursorStyle = !isTargetEditable 
+            ? 'not-allowed' 
+            : (effectiveMode === 'move' ? 'grabbing' : 'copy');
+          
+          return (
+            <div 
+              className="bg-card border-2 border-primary rounded px-4 py-2 shadow-2xl opacity-95"
+              style={{ cursor: cursorStyle }}
+            >
+              <div className="font-medium">{activeTrack.name}</div>
+              <div className="text-sm text-muted-foreground">
+                {activeTrack.artists.join(', ')}
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
       </DragOverlay>
     </DndContext>
   );

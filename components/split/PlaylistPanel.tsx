@@ -57,6 +57,7 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
   const closePanel = useSplitGridStore((state) => state.closePanel);
   const clonePanel = useSplitGridStore((state) => state.clonePanel);
   const setPanelDnDMode = useSplitGridStore((state) => state.setPanelDnDMode);
+  const togglePanelLock = useSplitGridStore((state) => state.togglePanelLock);
   const loadPlaylist = useSplitGridStore((state) => state.loadPlaylist);
   const selectPlaylist = useSplitGridStore((state) => state.selectPlaylist);
 
@@ -66,7 +67,6 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
   const searchQuery = panel?.searchQuery || '';
   const debouncedSearchQuery = useDebouncedValue(searchQuery, 150);
   const selection = panel?.selection || new Set();
-  const dndMode = panel?.dndMode || 'copy';
 
   // Panel-level droppable for hover detection (gaps, padding, background)
   const { setNodeRef: setDroppableRef } = useDroppable({
@@ -136,6 +136,10 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
 
   // Derive isEditable from query result
   const isEditable = permissionsData?.isEditable || false;
+
+  // Read-only playlists are always in 'copy' mode
+  const dndMode = isEditable ? (panel?.dndMode || 'copy') : 'copy';
+  const locked = panel?.locked || false;
 
   // Update store when permissions are loaded
   useEffect(() => {
@@ -254,6 +258,10 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
     setPanelDnDMode(panelId, newMode);
   }, [panelId, dndMode, setPanelDnDMode]);
 
+  const handleLockToggle = useCallback(() => {
+    togglePanelLock(panelId);
+  }, [panelId, togglePanelLock]);
+
   const handleLoadPlaylist = useCallback(
     (newPlaylistId: string) => {
       selectPlaylist(panelId, newPlaylistId);
@@ -320,6 +328,7 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
           playlistId={null}
           isEditable={false}
           dndMode="copy"
+          locked={false}
           searchQuery=""
           onSearchChange={() => {}}
           onReload={() => {}}
@@ -327,6 +336,7 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
           onSplitHorizontal={handleSplitHorizontal}
           onSplitVertical={handleSplitVertical}
           onDndModeToggle={() => {}}
+          onLockToggle={() => {}}
           onLoadPlaylist={handleLoadPlaylist}
         />
         <div className="flex-1 flex items-center justify-center text-muted-foreground">
@@ -340,6 +350,7 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
     <div 
       ref={setDroppableRef}
       data-testid="playlist-panel"
+      data-editable={isEditable}
       className={`flex flex-col h-full border rounded-lg overflow-hidden bg-card transition-all ${
         isActiveDropTarget ? 'border-primary border-2 shadow-lg' : 'border-border'
       }`}
@@ -350,6 +361,7 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
         playlistName={playlistName}
         isEditable={isEditable}
         dndMode={dndMode}
+        locked={locked}
         searchQuery={searchQuery}
         onSearchChange={handleSearchChange}
         onReload={handleReload}
@@ -357,6 +369,7 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
         onSplitHorizontal={handleSplitHorizontal}
         onSplitVertical={handleSplitVertical}
         onDndModeToggle={handleDndModeToggle}
+        onLockToggle={handleLockToggle}
         onLoadPlaylist={handleLoadPlaylist}
       />
 
@@ -484,6 +497,7 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
                       index={virtualRow.index}
                       isSelected={selection.has(trackId)}
                       isEditable={isEditable}
+                      locked={locked}
                       onSelect={handleTrackSelect}
                       onClick={handleTrackClick}
                       panelId={panelId}

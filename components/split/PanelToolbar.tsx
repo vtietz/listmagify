@@ -6,7 +6,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Search, RefreshCw, Lock, X, SplitSquareHorizontal, SplitSquareVertical, Move, Copy } from 'lucide-react';
+import { Search, RefreshCw, Lock, LockOpen, X, SplitSquareHorizontal, SplitSquareVertical, Move, Copy } from 'lucide-react';
 import { PlaylistSelector } from './PlaylistSelector';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -18,6 +18,7 @@ interface PanelToolbarProps {
   playlistId: string | null;
   playlistName?: string;
   isEditable: boolean;
+  locked: boolean;
   dndMode: 'move' | 'copy';
   searchQuery: string;
   onSearchChange: (query: string) => void;
@@ -26,6 +27,7 @@ interface PanelToolbarProps {
   onSplitHorizontal: () => void;
   onSplitVertical: () => void;
   onDndModeToggle: () => void;
+  onLockToggle: () => void;
   onLoadPlaylist: (playlistId: string) => void;
 }
 
@@ -34,6 +36,7 @@ export function PanelToolbar({
   playlistId,
   playlistName,
   isEditable,
+  locked,
   dndMode,
   searchQuery,
   onSearchChange,
@@ -42,6 +45,7 @@ export function PanelToolbar({
   onSplitHorizontal,
   onSplitVertical,
   onDndModeToggle,
+  onLockToggle,
   onLoadPlaylist,
 }: PanelToolbarProps) {
   const [localSearch, setLocalSearch] = useState(searchQuery);
@@ -60,14 +64,6 @@ export function PanelToolbar({
           selectedPlaylistId={playlistId}
           onSelectPlaylist={onLoadPlaylist}
         />
-        {playlistId && !isEditable && (
-          <div title="This playlist is read-only" className="ml-2 inline-flex">
-            <Lock
-              className="h-4 w-4 text-muted-foreground flex-shrink-0"
-              aria-label="Read-only playlist"
-            />
-          </div>
-        )}
       </div>
 
       {/* Search */}
@@ -98,8 +94,8 @@ export function PanelToolbar({
         </Button>
       )}
 
-      {/* DnD Mode Toggle (only when editable) */}
-      {playlistId && isEditable && (
+      {/* DnD Mode Toggle (only when editable and not locked) */}
+      {playlistId && isEditable && !locked && (
         <Button
           variant={dndMode === 'move' ? 'default' : 'outline'}
           size="sm"
@@ -113,6 +109,31 @@ export function PanelToolbar({
             <Copy className="h-4 w-4" />
           )}
           <span className="sr-only">{dndMode === 'move' ? 'Move mode' : 'Copy mode'}</span>
+        </Button>
+      )}
+
+      {/* Lock Toggle */}
+      {playlistId && (
+        <Button
+          variant={locked ? 'default' : 'outline'}
+          size="sm"
+          onClick={onLockToggle}
+          disabled={!isEditable}
+          className="h-8 px-2"
+          title={
+            !isEditable 
+              ? 'Playlist is read-only (always locked)'
+              : locked 
+                ? 'Locked (click to unlock dragging)' 
+                : 'Unlocked (click to prevent dragging from this panel)'
+          }
+        >
+          {locked ? (
+            <Lock className="h-4 w-4" />
+          ) : (
+            <LockOpen className="h-4 w-4" />
+          )}
+          <span className="sr-only">{locked ? 'Locked' : 'Unlocked'}</span>
         </Button>
       )}
 
