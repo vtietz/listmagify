@@ -5,7 +5,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, ChangeEvent } from 'react';
 import { Search, RefreshCw, Lock, LockOpen, X, SplitSquareHorizontal, SplitSquareVertical, Move, Copy } from 'lucide-react';
 import { PlaylistSelector } from './PlaylistSelector';
 import { Input } from '@/components/ui/input';
@@ -58,12 +58,18 @@ export function PanelToolbar({
 
   return (
     <div className="flex items-center gap-2 p-2 border-b border-border bg-card">
-      {/* Playlist name or empty state */}
+      {/* Playlist selector or name */}
       <div className="flex-1 min-w-0 px-2">
-        <PlaylistSelector
-          selectedPlaylistId={playlistId}
-          onSelectPlaylist={onLoadPlaylist}
-        />
+        {playlistName ? (
+          <div className="font-medium truncate" title={playlistName}>
+            {playlistName}
+          </div>
+        ) : (
+          <PlaylistSelector
+            selectedPlaylistId={playlistId}
+            onSelectPlaylist={onLoadPlaylist}
+          />
+        )}
       </div>
 
       {/* Search */}
@@ -74,7 +80,7 @@ export function PanelToolbar({
             type="text"
             placeholder="Search tracks..."
             value={localSearch}
-            onChange={(e) => handleSearchChange(e.target.value)}
+            onChange={(e: ChangeEvent<HTMLInputElement>) => handleSearchChange(e.target.value)}
             className="pl-8 h-8 text-sm"
           />
         </div>

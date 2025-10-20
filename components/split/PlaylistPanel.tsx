@@ -69,7 +69,6 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
 
   const playlistId = panel?.playlistId;
   const searchQuery = panel?.searchQuery || '';
-  const debouncedSearchQuery = useDebouncedValue(searchQuery, 150);
   const selection = panel?.selection || new Set();
 
   // Panel-level droppable for hover detection (gaps, padding, background)
