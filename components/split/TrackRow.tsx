@@ -47,7 +47,7 @@ export function TrackRow({
       track,
       panelId,
       playlistId,
-      index,
+      index: track.position ?? index, // Use track's original position if available, fallback to filtered index
     },
   });
 

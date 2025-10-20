@@ -26,6 +26,7 @@ export type Track = {
   artists: string[];
   durationMs: number;
   addedAt?: string; // ISO
+  position?: number; // Original position in playlist (0-indexed)
   album?: {
     id?: string | null;
     name?: string | null;

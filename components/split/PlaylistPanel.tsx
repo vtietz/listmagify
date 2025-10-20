@@ -33,6 +33,11 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 interface PlaylistPanelProps {
   panelId: string;
+  onRegisterVirtualizer?: (panelId: string, virtualizer: any, scrollRef: React.RefObject<HTMLDivElement>, filteredTracks: Track[]) => void;
+  onUnregisterVirtualizer?: (panelId: string) => void;
+  isActiveDropTarget?: boolean; // True when mouse is hovering over this panel during drag
+  dropIndicatorPosition?: number | null; // Global playlist position where drop indicator should appear
+  ephemeralInsertion?: { activeId: string; insertionIndex: number } | null; // For multi-container "make room" animation
 }
 
 interface PlaylistTracksData {
@@ -42,7 +47,7 @@ interface PlaylistTracksData {
   nextCursor: string | null;
 }
 
-export function PlaylistPanel({ panelId }: PlaylistPanelProps) {
+export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirtualizer, isActiveDropTarget, dropIndicatorPosition, ephemeralInsertion }: PlaylistPanelProps) {
   const queryClient = useQueryClient();
   const scrollRef = useRef<HTMLDivElement>(null);
   const playlistIdRef = useRef<string | null>(null);
@@ -189,6 +194,33 @@ export function PlaylistPanel({ panelId }: PlaylistPanelProps) {
 
   const items = virtualizer.getVirtualItems();
 
+  // Compute contextItems with ephemeral insertion for "make room" animation
+  const contextItems = useMemo(() => {
+    const baseItems = filteredTracks.map((t) => t.id || t.uri);
+    
+    // If this panel is the active drop target and we have an ephemeral insertion,
+    // temporarily add the activeId at the insertion index to make items shift
+    if (ephemeralInsertion && !baseItems.includes(ephemeralInsertion.activeId)) {
+      const itemsCopy = [...baseItems];
+      itemsCopy.splice(ephemeralInsertion.insertionIndex, 0, ephemeralInsertion.activeId);
+      return itemsCopy;
+    }
+    
+    return baseItems;
+  }, [filteredTracks, ephemeralInsertion]);
+
+  // Register virtualizer with parent for drop position calculation
+  useEffect(() => {
+    if (onRegisterVirtualizer && playlistId) {
+      onRegisterVirtualizer(panelId, virtualizer, scrollRef, filteredTracks);
+    }
+    return () => {
+      if (onUnregisterVirtualizer) {
+        onUnregisterVirtualizer(panelId);
+      }
+    };
+  }, [panelId, virtualizer, filteredTracks, playlistId, onRegisterVirtualizer, onUnregisterVirtualizer]);
+
   // Handlers
   const handleSearchChange = useCallback(
     (query: string) => {
@@ -295,7 +327,11 @@ export function PlaylistPanel({ panelId }: PlaylistPanelProps) {
   }
 
   return (
-    <div className="flex flex-col h-full border border-border rounded-lg overflow-hidden bg-card">
+    <div 
+      className={`flex flex-col h-full border rounded-lg overflow-hidden bg-card transition-all ${
+        isActiveDropTarget ? 'border-primary border-2 shadow-lg' : 'border-border'
+      }`}
+    >
       <PanelToolbar
         panelId={panelId}
         playlistId={playlistId}
@@ -334,7 +370,7 @@ export function PlaylistPanel({ panelId }: PlaylistPanelProps) {
 
         {!isLoading && !error && filteredTracks.length > 0 && (
           <SortableContext
-            items={filteredTracks.map((t) => t.id || t.uri)}
+            items={contextItems}
             strategy={verticalListSortingStrategy}
           >
             <div
@@ -344,6 +380,59 @@ export function PlaylistPanel({ panelId }: PlaylistPanelProps) {
                 position: 'relative',
               }}
             >
+              {/* Visual drop indicator line */}
+              {isActiveDropTarget && dropIndicatorPosition !== null && dropIndicatorPosition !== undefined && (() => {
+                // Find the track at the drop position to get its Y coordinate
+                const dropTrackIndex = filteredTracks.findIndex(t => t.position === dropIndicatorPosition);
+                
+                if (dropTrackIndex === -1) {
+                  // Dropping after last track
+                  const lastIndex = filteredTracks.length - 1;
+                  if (lastIndex >= 0) {
+                    const lastVirtualItem = items.find(item => item.index === lastIndex);
+                    if (lastVirtualItem) {
+                      const dropY = lastVirtualItem.start + lastVirtualItem.size;
+                      return (
+                        <div
+                          style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '100%',
+                            height: '2px',
+                            backgroundColor: 'hsl(var(--primary))',
+                            transform: `translateY(${dropY}px)`,
+                            zIndex: 50,
+                            pointerEvents: 'none',
+                          }}
+                        />
+                      );
+                    }
+                  }
+                  return null;
+                }
+                
+                // Find virtual item for this filtered index
+                const virtualItem = items.find(item => item.index === dropTrackIndex);
+                if (!virtualItem) return null;
+                
+                return (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      height: '2px',
+                      backgroundColor: 'hsl(var(--primary))',
+                      transform: `translateY(${virtualItem.start}px)`,
+                      zIndex: 50,
+                      pointerEvents: 'none',
+                    }}
+                  />
+                );
+              })()}
+
               {items.map((virtualRow) => {
                 const track = filteredTracks[virtualRow.index];
                 if (!track) return null;

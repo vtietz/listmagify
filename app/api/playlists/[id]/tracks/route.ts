@@ -81,7 +81,17 @@ export async function GET(
     // Extract snapshot_id and normalize tracks
     const snapshotId = raw?.snapshot_id ?? null;
     const rawItems = Array.isArray(raw?.items) ? raw.items : [];
-    const tracks: Track[] = rawItems.map(mapPlaylistItemToTrack);
+    
+    // Calculate the starting offset for this page
+    const url = new URL(nextCursorParam || `http://dummy${path}`);
+    const offset = parseInt(url.searchParams.get('offset') || '0', 10);
+    
+    // Map tracks with their original positions
+    const tracks: Track[] = rawItems.map((item, index) => ({
+      ...mapPlaylistItemToTrack(item),
+      position: offset + index,
+    }));
+    
     const total = typeof raw?.total === "number" ? raw.total : tracks.length;
     const nextCursor = raw?.next ?? null;
 
