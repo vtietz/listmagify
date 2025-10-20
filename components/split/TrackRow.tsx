@@ -6,7 +6,6 @@
 'use client';
 
 import { useSortable } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
 import type { Track } from '@/lib/spotify/types';
 import { makeCompositeId, getTrackPosition } from '@/lib/dnd/id';
 import { cn } from '@/lib/utils';
@@ -45,8 +44,6 @@ export function TrackRow({
     attributes,
     listeners,
     setNodeRef,
-    transform,
-    transition,
     isDragging,
   } = useSortable({
     id: compositeId, // Globally unique ID
@@ -62,11 +59,9 @@ export function TrackRow({
     },
   });
 
-  // Only apply transform/transition to the actively dragged item to prevent "make room" animation
-  const style = {
-    transform: isDragging ? CSS.Transform.toString(transform) : undefined,
-    transition: isDragging ? transition : undefined,
-  };
+  // Don't apply transform/transition - we use drag overlay and drop indicator instead
+  // This prevents the original item from moving during drag
+  const style = {};
 
   const formatDuration = (ms: number) => {
     const minutes = Math.floor(ms / 60000);

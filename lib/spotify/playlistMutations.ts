@@ -9,15 +9,6 @@ import { playlistTracks } from '@/lib/api/queryKeys';
 import { eventBus } from '@/lib/sync/eventBus';
 import type { Track } from '@/lib/spotify/types';
 // @ts-expect-error - sonner's type definitions are incompatible with verbatimModuleSyntax
-import { toast } from 'sonner';ct Query mutation hooks for playlist operations.
- * Includes optimistic updates and event bus notifications for cross-panel sync.
- */
-
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiFetch } from '@/lib/api/client';
-import { eventBus } from '@/lib/sync/eventBus';
-import type { Track } from '@/lib/spotify/types';
-// @ts-expect-error - sonner's type definitions are incompatible with verbatimModuleSyntax
 import { toast } from 'sonner';
 
 interface AddTracksParams {

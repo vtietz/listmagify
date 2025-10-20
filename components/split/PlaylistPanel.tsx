@@ -7,13 +7,14 @@
 
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useVirtualizer } from '@tantml:react-virtual';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useDroppable } from '@dnd-kit/core';
 import { apiFetch } from '@/lib/api/client';
 import { playlistTracks, playlistMeta, playlistPermissions } from '@/lib/api/queryKeys';
 import { makeCompositeId } from '@/lib/dnd/id';
 import { logDebug } from '@/lib/utils/debug';
+import { DropIndicator } from './DropIndicator';
 import { eventBus } from '@/lib/sync/eventBus';
 import { useSplitGridStore } from '@/hooks/useSplitGridStore';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
@@ -409,73 +410,13 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
                 position: 'relative',
               }}
             >
-              {/* Visual drop indicator line - show during any drag with valid filtered index */}
-              {dropIndicatorIndex !== null && dropIndicatorIndex !== undefined && (() => {
-                logDebug('[PlaylistPanel] Rendering drop indicator:', {
-                  panelId,
-                  dropIndicatorIndex,
-                  itemsCount: items.length,
-                  filteredTracksCount: filteredTracks.length,
-                });
-                
-                // Directly use the filtered index to find the virtual item
-                const virtualItem = items.find(item => item.index === dropIndicatorIndex);
-                
-                if (!virtualItem) {
-                  logDebug('[PlaylistPanel] No virtual item found, trying last track');
-                  // Dropping after last visible track
-                  const lastIndex = filteredTracks.length - 1;
-                  if (lastIndex >= 0) {
-                    const lastVirtualItem = items.find(item => item.index === lastIndex);
-                    if (lastVirtualItem) {
-                      const dropY = lastVirtualItem.start + lastVirtualItem.size;
-                      logDebug('[PlaylistPanel] Rendering indicator after last track at Y:', dropY);
-                      return (
-                        <div
-                          data-drop-indicator="after-last"
-                          style={{
-                            position: 'absolute',
-                            top: 0,
-                            left: 0,
-                            width: '100%',
-                            height: '4px',
-                            backgroundColor: '#3b82f6',
-                            transform: `translateY(${dropY}px)`,
-                            zIndex: 40,
-                            pointerEvents: 'none',
-                            boxShadow: '0 0 8px rgba(59, 130, 246, 0.8)',
-                          }}
-                        />
-                      );
-                    }
-                  }
-                  logDebug('[PlaylistPanel] Could not render indicator - no virtual items');
-                  return null;
-                }
-                
-                logDebug('[PlaylistPanel] Rendering indicator at virtual item:', {
-                  index: virtualItem.index,
-                  start: virtualItem.start,
-                });
-                
-                return (
-                  <div
-                    data-drop-indicator="at-index"
-                    style={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      width: '100%',
-                      height: '4px',
-                      backgroundColor: '#3b82f6',
-                      transform: `translateY(${virtualItem.start}px)`,
-                      zIndex: 40,
-                      pointerEvents: 'none',
-                      boxShadow: '0 0 8px rgba(59, 130, 246, 0.8)',
-                    }}
-                  />
-                );
-              })()}
+              {/* Visual drop indicator line */}
+              <DropIndicator
+                panelId={panelId}
+                dropIndicatorIndex={dropIndicatorIndex}
+                virtualItems={items}
+                filteredTracksCount={filteredTracks.length}
+              />
 
               {items.map((virtualRow) => {
                 const track = filteredTracks[virtualRow.index];
