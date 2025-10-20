@@ -48,3 +48,6 @@ docker/volumes/
 *.tmp
 *.temp
 .cache/
+
+playwright-report/
+test-results/

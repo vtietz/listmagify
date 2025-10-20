@@ -94,13 +94,32 @@ export function SplitGrid() {
           
           return (
             <div 
-              className="bg-card border-2 border-primary rounded px-4 py-2 shadow-2xl opacity-95"
-              style={{ cursor: cursorStyle }}
+              className="flex items-center gap-3 px-4 py-1.5 bg-card border-2 border-primary rounded shadow-2xl opacity-95 min-w-[600px]"
+              style={{ cursor: cursorStyle, height: '48px' }}
             >
-              <div className="font-medium">{activeTrack.name}</div>
-              <div className="text-sm text-muted-foreground">
-                {activeTrack.artists.join(', ')}
+              {/* Position placeholder */}
+              <div className="flex-shrink-0 w-10" />
+              
+              {/* Track title */}
+              <div className="flex-shrink-0 w-[200px] min-w-0">
+                <div className="text-sm truncate">{activeTrack.name}</div>
               </div>
+
+              {/* Artist */}
+              <div className="flex-shrink-0 w-[160px] min-w-0">
+                <div className="text-sm text-muted-foreground truncate">
+                  {activeTrack.artists.join(', ')}
+                </div>
+              </div>
+
+              {/* Album */}
+              {activeTrack.album?.name && (
+                <div className="flex-shrink-0 w-[160px] min-w-0">
+                  <div className="text-sm text-muted-foreground truncate">
+                    {activeTrack.album.name}
+                  </div>
+                </div>
+              )}
             </div>
           );
         })()}

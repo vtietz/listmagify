@@ -7,6 +7,7 @@
 
 import { logDebug } from '@/lib/utils/debug';
 import type { VirtualItem } from '@tanstack/react-virtual';
+import { TRACK_ROW_HEIGHT } from './constants';
 
 interface DropIndicatorProps {
   /** Panel ID for debug logging */
@@ -58,36 +59,29 @@ export function DropIndicator({
   const virtualItem = virtualItems.find(item => item.index === dropIndicatorIndex);
 
   if (!virtualItem) {
-    // Dropping after last visible track
-    const lastIndex = filteredTracksCount - 1;
-    if (lastIndex >= 0) {
-      const lastVirtualItem = virtualItems.find(item => item.index === lastIndex);
-      if (lastVirtualItem) {
-        const dropY = lastVirtualItem.start + lastVirtualItem.size;
-        logDebug('[DropIndicator] After last track at Y:', dropY);
-        
-        return (
-          <div
-            data-drop-indicator="after-last"
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: '100%',
-              height: '4px',
-              backgroundColor: '#3b82f6',
-              transform: `translateY(${dropY}px)`,
-              zIndex: 40,
-              pointerEvents: 'none',
-              boxShadow: '0 0 8px rgba(59, 130, 246, 0.8)',
-            }}
-          />
-        );
-      }
-    }
-    
-    logDebug('[DropIndicator] Could not render - no virtual items');
-    return null;
+    // Dropping after the last track.
+    // Use the absolute content end based on constant row height to work even if
+    // the last row is not currently virtualized (e.g., due to extra bottom padding).
+    const dropY = Math.max(0, filteredTracksCount * TRACK_ROW_HEIGHT);
+    logDebug('[DropIndicator] After last track at absolute end Y:', dropY);
+
+    return (
+      <div
+        data-drop-indicator="after-last"
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '4px',
+          backgroundColor: '#3b82f6',
+          transform: `translateY(${dropY}px)`,
+          zIndex: 40,
+          pointerEvents: 'none',
+          boxShadow: '0 0 8px rgba(59, 130, 246, 0.8)',
+        }}
+      />
+    );
   }
 
   logDebug('[DropIndicator] At virtual item:', {

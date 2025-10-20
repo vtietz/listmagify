@@ -13,12 +13,12 @@ import { useDroppable } from '@dnd-kit/core';
 import { apiFetch } from '@/lib/api/client';
 import { playlistTracks, playlistMeta, playlistPermissions } from '@/lib/api/queryKeys';
 import { makeCompositeId } from '@/lib/dnd/id';
-import { logDebug } from '@/lib/utils/debug';
 import { DropIndicator } from './DropIndicator';
 import { eventBus } from '@/lib/sync/eventBus';
 import { useSplitGridStore } from '@/hooks/useSplitGridStore';
-import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { usePlaylistSort, type SortKey, type SortDirection } from '@/hooks/usePlaylistSort';
 import { PanelToolbar } from './PanelToolbar';
+import { TableHeader } from './TableHeader';
 import { TrackRow } from './TrackRow';
 import { TRACK_ROW_HEIGHT, VIRTUALIZATION_OVERSCAN } from './constants';
 import type { Track } from '@/lib/spotify/types';
@@ -26,7 +26,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 interface PlaylistPanelProps {
   panelId: string;
-  onRegisterVirtualizer?: (panelId: string, virtualizer: any, scrollRef: React.RefObject<HTMLDivElement>, filteredTracks: Track[]) => void;
+  onRegisterVirtualizer?: (panelId: string, virtualizer: any, scrollRef: { current: HTMLDivElement | null }, filteredTracks: Track[]) => void;
   onUnregisterVirtualizer?: (panelId: string) => void;
   isActiveDropTarget?: boolean; // True when mouse is hovering over this panel during drag
   dropIndicatorIndex?: number | null; // Filtered index where drop indicator line should appear
@@ -50,30 +50,39 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
   const scrollRef = useRef<HTMLDivElement>(null);
   const playlistIdRef = useRef<string | null>(null);
   
-  const panel = useSplitGridStore((state) => 
-    state.panels.find((p) => p.id === panelId)
+  const panel = useSplitGridStore((state: any) =>
+    state.panels.find((p: any) => p.id === panelId)
   );
   
-  const setSearch = useSplitGridStore((state) => state.setSearch);
-  const setSelection = useSplitGridStore((state) => state.setSelection);
-  const toggleSelection = useSplitGridStore((state) => state.toggleSelection);
-  const setScroll = useSplitGridStore((state) => state.setScroll);
-  const closePanel = useSplitGridStore((state) => state.closePanel);
-  const clonePanel = useSplitGridStore((state) => state.clonePanel);
-  const setPanelDnDMode = useSplitGridStore((state) => state.setPanelDnDMode);
-  const togglePanelLock = useSplitGridStore((state) => state.togglePanelLock);
-  const loadPlaylist = useSplitGridStore((state) => state.loadPlaylist);
-  const selectPlaylist = useSplitGridStore((state) => state.selectPlaylist);
+  const setSearch = useSplitGridStore((state: any) => state.setSearch);
+  const setSelection = useSplitGridStore((state: any) => state.setSelection);
+  const toggleSelection = useSplitGridStore((state: any) => state.toggleSelection);
+  const setScroll = useSplitGridStore((state: any) => state.setScroll);
+  const closePanel = useSplitGridStore((state: any) => state.closePanel);
+  const clonePanel = useSplitGridStore((state: any) => state.clonePanel);
+  const setPanelDnDMode = useSplitGridStore((state: any) => state.setPanelDnDMode);
+  const togglePanelLock = useSplitGridStore((state: any) => state.togglePanelLock);
+  const loadPlaylist = useSplitGridStore((state: any) => state.loadPlaylist);
+  const selectPlaylist = useSplitGridStore((state: any) => state.selectPlaylist);
 
   const [playlistName, setPlaylistName] = useState<string>('');
+  const [sortKey, setSortKey] = useState<SortKey>('position');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  const [isLoadingAudioFeatures, setIsLoadingAudioFeatures] = useState(false);
 
   const playlistId = panel?.playlistId;
   const searchQuery = panel?.searchQuery || '';
   const selection = panel?.selection || new Set();
 
+  // Derive locked and canDrop state early (needed for droppable hook)
+  const locked = panel?.locked || false;
+  const canDrop = !locked && sortKey === 'position'; // Only accept drops when sorted by position
+
   // Panel-level droppable for hover detection (gaps, padding, background)
+  // Disable drops when sorted (to prevent reordering in non-position sort)
   const { setNodeRef: setDroppableRef } = useDroppable({
     id: `panel-${panelId}`,
+    disabled: !canDrop,
     data: {
       type: 'panel',
       panelId,
@@ -142,7 +151,92 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
 
   // Read-only playlists are always in 'copy' mode
   const dndMode = isEditable ? (panel?.dndMode || 'copy') : 'copy';
-  const locked = panel?.locked || false;
+  
+  // Separate drag source and drop target locking:
+  // - Can drag FROM sorted table (if not locked and editable)
+  // - Cannot drop INTO sorted table (prevents reordering when sorted)
+  const canDrag = !locked && isEditable;
+
+  // Fetch audio features when tracks load
+  const [tracksWithFeatures, setTracksWithFeatures] = useState<Track[]>([]);
+
+  useEffect(() => {
+    if (!data?.tracks) {
+      setTracksWithFeatures([]);
+      return;
+    }
+
+    const trackIds = data.tracks
+      .map((t: Track) => t.id)
+      .filter((id: string | null): id is string => !!id);
+    
+    if (trackIds.length === 0) {
+      setTracksWithFeatures(data.tracks);
+      return;
+    }
+
+    setIsLoadingAudioFeatures(true);
+    
+    // Fetch audio features via API route
+    apiFetch('/api/audio-features', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ trackIds }),
+    })
+      .then((response: { features: Record<string, any> }) => {
+        // Debug: log how many features we received
+        const featureKeys = Object.keys(response?.features || {});
+        console.log(`[PlaylistPanel:${panelId}] audio features response`, { count: featureKeys.length, sample: featureKeys.slice(0, 5) });
+
+        // Convert response object to Map
+        const featuresMap = new Map<string, any>();
+        Object.entries(response.features).forEach(([id, features]) => {
+          featuresMap.set(id, features);
+        });
+        
+        // Populate tracks with audio features
+        const populated = data.tracks.map((track: Track) => {
+          if (!track.id) return track;
+          const features = featuresMap.get(track.id);
+          if (!features) return track;
+          
+          return {
+            ...track,
+            tempoBpm: features.tempo,
+            musicalKey: features.key,
+            mode: features.mode,
+            acousticness: features.acousticness,
+            energy: features.energy,
+            instrumentalness: features.instrumentalness,
+            liveness: features.liveness,
+            valence: features.valence,
+          };
+        });
+
+        // Debug: log how many tracks now have features
+        const withFeaturesCount = populated.reduce((acc: number, t: Track) => {
+          const hasAny =
+            t.tempoBpm != null ||
+            t.musicalKey != null ||
+            t.acousticness != null ||
+            t.energy != null ||
+            t.instrumentalness != null ||
+            t.liveness != null ||
+            t.valence != null;
+          return acc + (hasAny ? 1 : 0);
+        }, 0);
+        console.log(`[PlaylistPanel:${panelId}] tracks with features after mapping`, { withFeaturesCount, total: populated.length });
+
+        setTracksWithFeatures(populated);
+      })
+      .catch((err) => {
+        console.error('Failed to fetch audio features:', err);
+        setTracksWithFeatures(data.tracks); // Use tracks without features on error
+      })
+      .finally(() => {
+        setIsLoadingAudioFeatures(false);
+      });
+  }, [data?.tracks]);
 
   // Update store when permissions are loaded
   useEffect(() => {
@@ -182,19 +276,26 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
     };
   }, [playlistId, panelId, refetch, setScroll]);
 
-  // Filter tracks based on search
+  // Apply sorting to tracks with audio features
+  const sortedTracks = usePlaylistSort({
+    tracks: tracksWithFeatures,
+    sortKey,
+    sortDirection,
+  });
+
+  // Filter sorted tracks based on search
   const filteredTracks = useMemo(() => {
-    if (!data?.tracks) return [];
-    if (!searchQuery.trim()) return data.tracks;
+    if (sortedTracks.length === 0) return [];
+    if (!searchQuery.trim()) return sortedTracks;
 
     const query = searchQuery.toLowerCase();
-    return data.tracks.filter(
-      (track) =>
+    return sortedTracks.filter(
+      (track: Track) =>
         track.name.toLowerCase().includes(query) ||
-        track.artists.some((artist) => artist.toLowerCase().includes(query)) ||
+        track.artists.some((artist: string) => artist.toLowerCase().includes(query)) ||
         track.album?.name?.toLowerCase().includes(query)
     );
-  }, [data?.tracks, searchQuery]);
+  }, [sortedTracks, searchQuery]);
 
   // Virtualization with constant row height
   const virtualizer = useVirtualizer({
@@ -209,7 +310,7 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
   // Compute contextItems with ephemeral insertion for "make room" animation
   const contextItems = useMemo(() => {
     // Use composite IDs scoped by panel for globally unique identification
-    const baseItems = filteredTracks.map((t) => makeCompositeId(panelId, t.id || t.uri));
+    const baseItems = filteredTracks.map((t: Track) => makeCompositeId(panelId, t.id || t.uri));
     
     // For cross-panel drags, we use a visual drop indicator line instead of
     // ephemeral insertion to avoid interfering with @dnd-kit's native animations.
@@ -265,6 +366,16 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
     togglePanelLock(panelId);
   }, [panelId, togglePanelLock]);
 
+  const handleSort = useCallback((key: SortKey) => {
+    // Toggle direction if clicking the same column
+    if (key === sortKey) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortKey(key);
+      setSortDirection('asc');
+    }
+  }, [sortKey, sortDirection]);
+
   const handleLoadPlaylist = useCallback(
     (newPlaylistId: string) => {
       selectPlaylist(panelId, newPlaylistId);
@@ -280,12 +391,12 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
   );
 
   const handleTrackSelect = useCallback(
-    (trackId: string, event: React.MouseEvent) => {
+    (trackId: string, event: any) => {
       if (event.shiftKey) {
         // Range selection
-        const tracks = filteredTracks.map((t) => t.id || t.uri);
+        const tracks = filteredTracks.map((t: Track) => t.id || t.uri);
         const currentIndex = tracks.indexOf(trackId);
-        const lastSelectedIndex = tracks.findIndex((id) => selection.has(id));
+        const lastSelectedIndex = tracks.findIndex((id: string) => selection.has(id));
         
         if (lastSelectedIndex !== -1 && currentIndex !== -1) {
           const start = Math.min(currentIndex, lastSelectedIndex);
@@ -366,7 +477,14 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
         dndMode={dndMode}
         locked={locked}
         searchQuery={searchQuery}
+        sortKey={sortKey}
+        sortDirection={sortDirection}
+        isLoadingAudioFeatures={isLoadingAudioFeatures}
         onSearchChange={handleSearchChange}
+        onSortChange={(key, direction) => {
+          setSortKey(key);
+          setSortDirection(direction);
+        }}
         onReload={handleReload}
         onClose={handleClose}
         onSplitHorizontal={handleSplitHorizontal}
@@ -376,7 +494,7 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
         onLoadPlaylist={handleLoadPlaylist}
       />
 
-      <div ref={scrollRef} data-testid="track-list-scroll" className="flex-1 overflow-auto">
+      <div ref={scrollRef} data-testid="track-list-scroll" className="flex-1 overflow-auto" style={{ paddingBottom: TRACK_ROW_HEIGHT * 2 }}>
         {isLoading && (
           <div className="p-4 space-y-2">
             {Array.from({ length: 10 }).map((_, i) => (
@@ -398,10 +516,17 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
         )}
 
         {!isLoading && !error && filteredTracks.length > 0 && (
-          <SortableContext
-            items={contextItems}
-            strategy={verticalListSortingStrategy}
-          >
+          <>
+            <TableHeader
+              isEditable={isEditable}
+              sortKey={sortKey}
+              sortDirection={sortDirection}
+              onSort={handleSort}
+            />
+            <SortableContext
+              items={contextItems}
+              strategy={verticalListSortingStrategy}
+            >
             <div
               style={{
                 height: `${virtualizer.getTotalSize()}px`,
@@ -440,7 +565,7 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
                       index={virtualRow.index}
                       isSelected={selection.has(trackId)}
                       isEditable={isEditable}
-                      locked={locked}
+                      locked={!canDrag}
                       onSelect={handleTrackSelect}
                       onClick={handleTrackClick}
                       panelId={panelId}
@@ -452,6 +577,7 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
               })}
             </div>
           </SortableContext>
+          </>
         )}
       </div>
     </div>

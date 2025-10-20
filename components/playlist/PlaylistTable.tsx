@@ -20,8 +20,22 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, ArrowUpDown } from "lucide-react";
 import { useMemo } from "react";
+import { formatBpm, formatKey, formatPercent } from "@/lib/utils/format";
 
-export type SortKey = "position" | "title" | "artist" | "album" | "duration" | "addedAt";
+export type SortKey = 
+  | "position" 
+  | "title" 
+  | "artist" 
+  | "album" 
+  | "duration" 
+  | "addedAt"
+  | "tempo"
+  | "key"
+  | "acousticness"
+  | "energy"
+  | "instrumentalness"
+  | "liveness"
+  | "valence";
 export type SortDirection = "asc" | "desc";
 
 export interface PlaylistTableProps {
@@ -83,7 +97,7 @@ function SortableRow({ track, index, isDragEnabled }: SortableRowProps) {
       style={style}
       className={`border-b hover:bg-muted/50 ${isDragging ? "shadow-lg z-10" : ""}`}
     >
-      <td className="py-3 px-4 text-sm text-muted-foreground text-right w-16">
+      <td className="py-2 px-4 text-sm text-muted-foreground text-right w-16">
         {isDragEnabled ? (
           <button
             className="inline-flex items-center justify-center p-1 rounded hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring cursor-grab active:cursor-grabbing"
@@ -99,20 +113,41 @@ function SortableRow({ track, index, isDragEnabled }: SortableRowProps) {
           <span>{index + 1}</span>
         )}
       </td>
-      <td className="py-3 px-4">
+      <td className="py-2 px-4">
         <div className="font-medium">{track.name}</div>
       </td>
-      <td className="py-3 px-4 text-sm text-muted-foreground">
+      <td className="py-2 px-4 text-sm text-muted-foreground">
         {track.artists.join(", ") || "—"}
       </td>
-      <td className="py-3 px-4 text-sm text-muted-foreground">
+      <td className="py-2 px-4 text-sm text-muted-foreground">
         {track.album?.name || "—"}
       </td>
-      <td className="py-3 px-4 text-sm text-muted-foreground text-right">
+      <td className="py-2 px-4 text-sm text-muted-foreground text-right">
         {formatDuration(track.durationMs)}
       </td>
-      <td className="py-3 px-4 text-sm text-muted-foreground">
+      <td className="py-2 px-4 text-sm text-muted-foreground">
         {formatDate(track.addedAt)}
+      </td>
+      <td className="py-2 px-4 text-sm text-muted-foreground text-right">
+        {track.tempoBpm != null ? formatBpm(track.tempoBpm) : "—"}
+      </td>
+      <td className="py-2 px-4 text-sm text-muted-foreground">
+        {track.musicalKey != null ? formatKey(track.musicalKey, track.mode) : "—"}
+      </td>
+      <td className="py-2 px-4 text-sm text-muted-foreground text-right">
+        {track.acousticness != null ? formatPercent(track.acousticness) : "—"}
+      </td>
+      <td className="py-2 px-4 text-sm text-muted-foreground text-right">
+        {track.energy != null ? formatPercent(track.energy) : "—"}
+      </td>
+      <td className="py-2 px-4 text-sm text-muted-foreground text-right">
+        {track.instrumentalness != null ? formatPercent(track.instrumentalness) : "—"}
+      </td>
+      <td className="py-2 px-4 text-sm text-muted-foreground text-right">
+        {track.liveness != null ? formatPercent(track.liveness) : "—"}
+      </td>
+      <td className="py-2 px-4 text-sm text-muted-foreground text-right">
+        {track.valence != null ? formatPercent(track.valence) : "—"}
       </td>
     </tr>
   );
@@ -142,7 +177,7 @@ function ColumnHeader({
   const textAlign = align === "right" ? "text-right" : "text-left";
 
   return (
-    <th className={`py-3 px-4 ${textAlign}`}>
+    <th className={`py-2 px-4 ${textAlign}`}>
       <button
         onClick={() => onSort(sortKey)}
         className="inline-flex items-center gap-1 font-semibold text-sm hover:text-foreground focus:outline-none focus:underline"
@@ -280,6 +315,61 @@ export function PlaylistTable({
                     currentSortKey={sortKey}
                     currentDirection={sortDirection}
                     onSort={onSortChange}
+                  />
+                  <ColumnHeader
+                    label="Tempo"
+                    sortKey="tempo"
+                    currentSortKey={sortKey}
+                    currentDirection={sortDirection}
+                    onSort={onSortChange}
+                    align="right"
+                  />
+                  <ColumnHeader
+                    label="Key"
+                    sortKey="key"
+                    currentSortKey={sortKey}
+                    currentDirection={sortDirection}
+                    onSort={onSortChange}
+                  />
+                  <ColumnHeader
+                    label="Acoustic"
+                    sortKey="acousticness"
+                    currentSortKey={sortKey}
+                    currentDirection={sortDirection}
+                    onSort={onSortChange}
+                    align="right"
+                  />
+                  <ColumnHeader
+                    label="Energy"
+                    sortKey="energy"
+                    currentSortKey={sortKey}
+                    currentDirection={sortDirection}
+                    onSort={onSortChange}
+                    align="right"
+                  />
+                  <ColumnHeader
+                    label="Instrumental"
+                    sortKey="instrumentalness"
+                    currentSortKey={sortKey}
+                    currentDirection={sortDirection}
+                    onSort={onSortChange}
+                    align="right"
+                  />
+                  <ColumnHeader
+                    label="Live"
+                    sortKey="liveness"
+                    currentSortKey={sortKey}
+                    currentDirection={sortDirection}
+                    onSort={onSortChange}
+                    align="right"
+                  />
+                  <ColumnHeader
+                    label="Valence"
+                    sortKey="valence"
+                    currentSortKey={sortKey}
+                    currentDirection={sortDirection}
+                    onSort={onSortChange}
+                    align="right"
                   />
                 </tr>
               </thead>

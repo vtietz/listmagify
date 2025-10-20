@@ -6,12 +6,13 @@
 'use client';
 
 import { useState, ChangeEvent } from 'react';
-import { Search, RefreshCw, Lock, LockOpen, X, SplitSquareHorizontal, SplitSquareVertical, Move, Copy } from 'lucide-react';
+import { Search, RefreshCw, Lock, LockOpen, X, SplitSquareHorizontal, SplitSquareVertical, Move, Copy, ArrowUpDown } from 'lucide-react';
 import { PlaylistSelector } from './PlaylistSelector';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
+import type { SortKey, SortDirection } from '@/hooks/usePlaylistSort';
 
 interface PanelToolbarProps {
   panelId: string;
@@ -21,7 +22,11 @@ interface PanelToolbarProps {
   locked: boolean;
   dndMode: 'move' | 'copy';
   searchQuery: string;
+  sortKey?: SortKey;
+  sortDirection?: SortDirection;
+  isLoadingAudioFeatures?: boolean;
   onSearchChange: (query: string) => void;
+  onSortChange?: (key: SortKey, direction: SortDirection) => void;
   onReload: () => void;
   onClose: () => void;
   onSplitHorizontal: () => void;
@@ -39,7 +44,11 @@ export function PanelToolbar({
   locked,
   dndMode,
   searchQuery,
+  sortKey = 'position',
+  sortDirection = 'asc',
+  isLoadingAudioFeatures = false,
   onSearchChange,
+  onSortChange,
   onReload,
   onClose,
   onSplitHorizontal,
@@ -57,28 +66,32 @@ export function PanelToolbar({
   };
 
   return (
-    <div className="flex items-center gap-2 p-2 border-b border-border bg-card">
-      {/* Playlist selector or name */}
+    <div className="flex items-center gap-2 p-2 border-b border-border bg-card overflow-x-auto">
+      {/* Playlist selector (always shown as combobox) */}
       <div className="flex-1 min-w-0 px-2">
-        {playlistName ? (
-          <div className="font-medium truncate" title={playlistName}>
-            {playlistName}
-          </div>
-        ) : (
-          <PlaylistSelector
-            selectedPlaylistId={playlistId}
-            onSelectPlaylist={onLoadPlaylist}
-          />
-        )}
+        <PlaylistSelector
+          selectedPlaylistId={playlistId}
+          selectedPlaylistName={playlistName}
+          onSelectPlaylist={onLoadPlaylist}
+        />
       </div>
+
+      {/* Sort indicator */}
+      {playlistId && sortKey !== 'position' && (
+        <div className="flex items-center gap-1 px-2 h-8 text-xs text-muted-foreground border border-border rounded whitespace-nowrap shrink-0">
+          <ArrowUpDown className="h-3 w-3" />
+          <span>Sorted by {sortKey}</span>
+          {isLoadingAudioFeatures && <span className="animate-pulse">...</span>}
+        </div>
+      )}
 
       {/* Search */}
       {playlistId && (
-        <div className="relative w-48">
+        <div className="relative w-40 shrink-0">
           <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
           <Input
             type="text"
-            placeholder="Search tracks..."
+            placeholder="Search..."
             value={localSearch}
             onChange={(e: ChangeEvent<HTMLInputElement>) => handleSearchChange(e.target.value)}
             className="pl-8 h-8 text-sm"
@@ -86,101 +99,105 @@ export function PanelToolbar({
         </div>
       )}
 
-      {/* Reload */}
+      {/* Action buttons group */}
       {playlistId && (
+        <div className="flex items-center gap-1 shrink-0">
+          {/* Reload */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onReload}
+            className="h-8 w-8 p-0"
+            title="Reload playlist"
+          >
+            <RefreshCw className="h-4 w-4" />
+            <span className="sr-only">Reload playlist</span>
+          </Button>
+
+          {/* DnD Mode Toggle (only when editable and not locked) */}
+          {isEditable && !locked && (
+            <Button
+              variant={dndMode === 'move' ? 'default' : 'outline'}
+              size="sm"
+              onClick={onDndModeToggle}
+              className="h-8 w-8 p-0"
+              title={`Drag mode: ${dndMode === 'move' ? 'Move (remove from source)' : 'Copy (keep in source)'}`}
+            >
+              {dndMode === 'move' ? (
+                <Move className="h-4 w-4" />
+              ) : (
+                <Copy className="h-4 w-4" />
+              )}
+              <span className="sr-only">{dndMode === 'move' ? 'Move mode' : 'Copy mode'}</span>
+            </Button>
+          )}
+
+          {/* Lock Toggle */}
+          <Button
+            variant={locked ? 'default' : 'outline'}
+            size="sm"
+            onClick={onLockToggle}
+            disabled={!isEditable}
+            className="h-8 w-8 p-0"
+            title={
+              !isEditable 
+                ? 'Playlist is read-only (always locked)'
+                : locked 
+                  ? 'Locked (click to unlock dragging)' 
+                  : 'Unlocked (click to prevent dragging from this panel)'
+            }
+          >
+            {locked ? (
+              <Lock className="h-4 w-4" />
+            ) : (
+              <LockOpen className="h-4 w-4" />
+            )}
+            <span className="sr-only">{locked ? 'Locked' : 'Unlocked'}</span>
+          </Button>
+        </div>
+      )}
+
+      {/* Layout controls group */}
+      <div className="flex items-center gap-1 shrink-0">
+        <Separator orientation="vertical" className="h-6" />
+
+        {/* Split buttons */}
         <Button
           variant="ghost"
           size="sm"
-          onClick={onReload}
+          onClick={onSplitHorizontal}
           className="h-8 w-8 p-0"
-          title="Reload playlist"
+          title="Split Horizontal"
         >
-          <RefreshCw className="h-4 w-4" />
-          <span className="sr-only">Reload playlist</span>
+          <SplitSquareHorizontal className="h-4 w-4" />
+          <span className="sr-only">Split Horizontal</span>
         </Button>
-      )}
 
-      {/* DnD Mode Toggle (only when editable and not locked) */}
-      {playlistId && isEditable && !locked && (
         <Button
-          variant={dndMode === 'move' ? 'default' : 'outline'}
+          variant="ghost"
           size="sm"
-          onClick={onDndModeToggle}
-          className="h-8 px-2"
-          title={`Drag mode: ${dndMode === 'move' ? 'Move (remove from source)' : 'Copy (keep in source)'}`}
+          onClick={onSplitVertical}
+          className="h-8 w-8 p-0"
+          title="Split Vertical"
         >
-          {dndMode === 'move' ? (
-            <Move className="h-4 w-4" />
-          ) : (
-            <Copy className="h-4 w-4" />
-          )}
-          <span className="sr-only">{dndMode === 'move' ? 'Move mode' : 'Copy mode'}</span>
+          <SplitSquareVertical className="h-4 w-4" />
+          <span className="sr-only">Split Vertical</span>
         </Button>
-      )}
 
-      {/* Lock Toggle */}
-      {playlistId && (
+        <Separator orientation="vertical" className="h-6" />
+
+        {/* Close */}
         <Button
-          variant={locked ? 'default' : 'outline'}
+          variant="ghost"
           size="sm"
-          onClick={onLockToggle}
-          disabled={!isEditable}
-          className="h-8 px-2"
-          title={
-            !isEditable 
-              ? 'Playlist is read-only (always locked)'
-              : locked 
-                ? 'Locked (click to unlock dragging)' 
-                : 'Unlocked (click to prevent dragging from this panel)'
-          }
+          onClick={onClose}
+          className="h-8 w-8 p-0"
+          title="Close panel"
         >
-          {locked ? (
-            <Lock className="h-4 w-4" />
-          ) : (
-            <LockOpen className="h-4 w-4" />
-          )}
-          <span className="sr-only">{locked ? 'Locked' : 'Unlocked'}</span>
+          <X className="h-4 w-4" />
+          <span className="sr-only">Close panel</span>
         </Button>
-      )}
-
-      <Separator orientation="vertical" className="h-6" />
-
-      {/* Split buttons */}
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={onSplitHorizontal}
-        className="h-8 w-8 p-0"
-        title="Split Horizontal"
-      >
-        <SplitSquareHorizontal className="h-4 w-4" />
-        <span className="sr-only">Split Horizontal</span>
-      </Button>
-
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={onSplitVertical}
-        className="h-8 w-8 p-0"
-        title="Split Vertical"
-      >
-        <SplitSquareVertical className="h-4 w-4" />
-        <span className="sr-only">Split Vertical</span>
-      </Button>
-
-      <Separator orientation="vertical" className="h-6" />
-
-      {/* Close */}
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={onClose}
-        className="h-8 w-8 p-0"
-        title="Close panel"
-      >
-        <X className="h-4 w-4" />
-        <span className="sr-only">Close panel</span>
-      </Button>
+      </div>
     </div>
   );
 }

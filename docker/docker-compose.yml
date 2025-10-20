@@ -98,17 +98,19 @@ services:
 
   playwright-runner:
     profiles: ["test"]
-    image: mcr.microsoft.com/playwright:v1.49-jammy
+    image: mcr.microsoft.com/playwright:v1.48.2-jammy
     working_dir: /work
     environment:
       - BASE_URL=http://web-test:3100
       - CI=true
     volumes:
       - ..:/work:cached
+      - playwright-cache:/root/.cache/ms-playwright  # Persist browser downloads
+      - node_modules:/work/node_modules  # Use shared node_modules volume
     command: >
       sh -c "
-        npm install -g pnpm &&
-        pnpm install &&
+        npm install -g pnpm@10.18.3 &&
+        pnpm exec playwright install chromium --with-deps &&
         pnpm exec playwright test
       "
     depends_on:
@@ -119,6 +121,7 @@ services:
 
 volumes:
   node_modules:
+  playwright-cache:  # Persist Playwright browser downloads
 
 networks:
   test-network:

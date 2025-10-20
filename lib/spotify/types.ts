@@ -27,11 +27,21 @@ export type Track = {
   durationMs: number;
   addedAt?: string; // ISO
   position?: number; // Original position in playlist (0-indexed)
+  originalPosition?: number; // Stable position for sorting (set once at load)
   album?: {
     id?: string | null;
     name?: string | null;
     image?: Image | null;
   } | null;
+  // Audio features from Spotify Audio Features API
+  tempoBpm?: number; // Spotify: tempo (e.g., 120.5)
+  musicalKey?: number; // Spotify: key (0-11, C=0, C#=1, etc.)
+  mode?: number; // Spotify: mode (0=minor, 1=major)
+  acousticness?: number; // 0.0 - 1.0
+  energy?: number; // 0.0 - 1.0
+  instrumentalness?: number; // 0.0 - 1.0
+  liveness?: number; // 0.0 - 1.0
+  valence?: number; // 0.0 - 1.0 (musical positivity)
 };
 
 export type PageResult<T> = {

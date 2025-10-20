@@ -54,11 +54,13 @@ if "%1"=="test" (
   ) else if /I "%2"=="--watch" (
     docker compose -f docker\docker-compose.yml run --rm web pnpm test:unit:watch %3 %4 %5 %6 %7 %8 %9
   ) else if /I "%2"=="e2e" (
-    docker compose -f docker\docker-compose.yml --profile test run --rm web pnpm test:e2e %3 %4 %5 %6 %7 %8 %9
+    rem Run E2E tests in proper Docker environment with mock server
+    docker compose -f docker\docker-compose.yml --profile test up -d web-test spotify-mock
+    docker compose -f docker\docker-compose.yml --profile test run --rm playwright-runner
+    goto :eof
   ) else if /I "%2"=="e2e:ui" (
-    docker compose -f docker\docker-compose.yml --profile test run --rm web pnpm test:e2e:ui %3 %4 %5 %6 %7 %8 %9
-  ) else if /I "%2"=="e2e:ci" (
-    docker compose -f docker\docker-compose.yml --profile test run --rm playwright-runner %3 %4 %5 %6 %7 %8 %9
+    echo ERROR: E2E UI mode must run on host. Install Playwright locally: pnpm add -D @playwright/test
+    goto :eof
   ) else if /I "%2"=="stack:up" (
     docker compose -f docker\docker-compose.yml --profile test up -d web-test spotify-mock %3 %4 %5 %6 %7 %8 %9
   ) else if /I "%2"=="stack:down" (

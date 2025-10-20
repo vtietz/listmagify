@@ -1,0 +1,262 @@
+/**
+ * Unit tests for sorting utilities
+ */
+import { describe, it, expect } from "vitest";
+import type { Track } from "@/lib/spotify/types";
+import {
+  compareByPosition,
+  compareByName,
+  compareByArtist,
+  compareByAlbum,
+  compareByDuration,
+  compareByTempo,
+  compareByKey,
+  compareByAcousticness,
+  compareByEnergy,
+  compareByInstrumentalness,
+  compareByLiveness,
+  compareByValence,
+  getComparator,
+  sortTracks,
+} from "@/lib/utils/sort";
+
+// Test fixture factory
+function createTrack(overrides: Partial<Track> = {}): Track {
+  return {
+    id: "test-id",
+    uri: "spotify:track:test",
+    name: "Test Track",
+    artists: ["Test Artist"],
+    durationMs: 180000,
+    ...overrides,
+  };
+}
+
+describe("compareByPosition", () => {
+  it("sorts by originalPosition ascending", () => {
+    const a = createTrack({ originalPosition: 1 });
+    const b = createTrack({ originalPosition: 2 });
+    expect(compareByPosition(a, b)).toBeLessThan(0);
+    expect(compareByPosition(b, a)).toBeGreaterThan(0);
+  });
+
+  it("falls back to position when originalPosition is missing", () => {
+    const a = createTrack({ position: 1 });
+    const b = createTrack({ position: 2 });
+    expect(compareByPosition(a, b)).toBeLessThan(0);
+  });
+
+  it("returns 0 for equal positions", () => {
+    const a = createTrack({ originalPosition: 5 });
+    const b = createTrack({ originalPosition: 5 });
+    expect(compareByPosition(a, b)).toBe(0);
+  });
+});
+
+describe("compareByName", () => {
+  it("sorts by name case-insensitively", () => {
+    const a = createTrack({ name: "Apple", originalPosition: 0 });
+    const b = createTrack({ name: "Banana", originalPosition: 1 });
+    expect(compareByName(a, b)).toBeLessThan(0);
+    expect(compareByName(b, a)).toBeGreaterThan(0);
+  });
+
+  it("handles case differences", () => {
+    const a = createTrack({ name: "apple", originalPosition: 0 });
+    const b = createTrack({ name: "BANANA", originalPosition: 1 });
+    expect(compareByName(a, b)).toBeLessThan(0);
+  });
+
+  it("uses stable sort when names are equal", () => {
+    const a = createTrack({ name: "Same", originalPosition: 1 });
+    const b = createTrack({ name: "Same", originalPosition: 2 });
+    expect(compareByName(a, b)).toBeLessThan(0);
+  });
+});
+
+describe("compareByArtist", () => {
+  it("sorts by first artist case-insensitively", () => {
+    const a = createTrack({ artists: ["Adele"], originalPosition: 0 });
+    const b = createTrack({ artists: ["Beatles"], originalPosition: 1 });
+    expect(compareByArtist(a, b)).toBeLessThan(0);
+  });
+
+  it("handles empty artists array", () => {
+    const a = createTrack({ artists: [], originalPosition: 0 });
+    const b = createTrack({ artists: ["Artist"], originalPosition: 1 });
+    expect(compareByArtist(a, b)).toBeLessThan(0);
+  });
+
+  it("uses stable sort when artists are equal", () => {
+    const a = createTrack({ artists: ["Same Artist"], originalPosition: 1 });
+    const b = createTrack({ artists: ["Same Artist"], originalPosition: 2 });
+    expect(compareByArtist(a, b)).toBeLessThan(0);
+  });
+});
+
+describe("compareByAlbum", () => {
+  it("sorts by album name case-insensitively", () => {
+    const a = createTrack({ album: { name: "Abbey Road" }, originalPosition: 0 });
+    const b = createTrack({ album: { name: "Revolver" }, originalPosition: 1 });
+    expect(compareByAlbum(a, b)).toBeLessThan(0);
+  });
+
+  it("handles null/undefined albums", () => {
+    const a = createTrack({ album: null, originalPosition: 0 });
+    const b = createTrack({ album: { name: "Album" }, originalPosition: 1 });
+    expect(compareByAlbum(a, b)).toBeGreaterThan(0); // nulls sort to end
+  });
+
+  it("handles both null albums equally", () => {
+    const a = createTrack({ album: null, originalPosition: 1 });
+    const b = createTrack({ album: null, originalPosition: 2 });
+    expect(compareByAlbum(a, b)).toBeLessThan(0); // stable sort
+  });
+});
+
+describe("compareByDuration", () => {
+  it("sorts by duration ascending", () => {
+    const a = createTrack({ durationMs: 120000, originalPosition: 0 });
+    const b = createTrack({ durationMs: 180000, originalPosition: 1 });
+    expect(compareByDuration(a, b)).toBeLessThan(0);
+  });
+
+  it("uses stable sort when durations are equal", () => {
+    const a = createTrack({ durationMs: 180000, originalPosition: 1 });
+    const b = createTrack({ durationMs: 180000, originalPosition: 2 });
+    expect(compareByDuration(a, b)).toBeLessThan(0);
+  });
+});
+
+describe("compareByTempo", () => {
+  it("sorts by tempo ascending", () => {
+    const a = createTrack({ tempoBpm: 100, originalPosition: 0 });
+    const b = createTrack({ tempoBpm: 140, originalPosition: 1 });
+    expect(compareByTempo(a, b)).toBeLessThan(0);
+  });
+
+  it("handles undefined tempo", () => {
+    const a = createTrack({ originalPosition: 0 });
+    const b = createTrack({ tempoBpm: 120, originalPosition: 1 });
+    expect(compareByTempo(a, b)).toBeGreaterThan(0); // undefined sorts to end
+  });
+
+  it("uses stable sort when tempos are equal", () => {
+    const a = createTrack({ tempoBpm: 120, originalPosition: 1 });
+    const b = createTrack({ tempoBpm: 120, originalPosition: 2 });
+    expect(compareByTempo(a, b)).toBeLessThan(0);
+  });
+});
+
+describe("compareByKey", () => {
+  it("sorts by musical key ascending", () => {
+    const a = createTrack({ musicalKey: 0, originalPosition: 0 }); // C
+    const b = createTrack({ musicalKey: 7, originalPosition: 1 }); // G
+    expect(compareByKey(a, b)).toBeLessThan(0);
+  });
+
+  it("handles undefined key", () => {
+    const a = createTrack({ originalPosition: 0 });
+    const b = createTrack({ musicalKey: 5, originalPosition: 1 });
+    expect(compareByKey(a, b)).toBeGreaterThan(0);
+  });
+});
+
+describe("Audio feature comparators", () => {
+  describe("compareByAcousticness", () => {
+    it("sorts by acousticness ascending", () => {
+      const a = createTrack({ acousticness: 0.2, originalPosition: 0 });
+      const b = createTrack({ acousticness: 0.8, originalPosition: 1 });
+      expect(compareByAcousticness(a, b)).toBeLessThan(0);
+    });
+
+    it("handles undefined values", () => {
+      const a = createTrack({ originalPosition: 0 });
+      const b = createTrack({ acousticness: 0.5, originalPosition: 1 });
+      expect(compareByAcousticness(a, b)).toBeGreaterThan(0);
+    });
+  });
+
+  describe("compareByEnergy", () => {
+    it("sorts by energy ascending", () => {
+      const a = createTrack({ energy: 0.3, originalPosition: 0 });
+      const b = createTrack({ energy: 0.9, originalPosition: 1 });
+      expect(compareByEnergy(a, b)).toBeLessThan(0);
+    });
+  });
+
+  describe("compareByInstrumentalness", () => {
+    it("sorts by instrumentalness ascending", () => {
+      const a = createTrack({ instrumentalness: 0.1, originalPosition: 0 });
+      const b = createTrack({ instrumentalness: 0.7, originalPosition: 1 });
+      expect(compareByInstrumentalness(a, b)).toBeLessThan(0);
+    });
+  });
+
+  describe("compareByLiveness", () => {
+    it("sorts by liveness ascending", () => {
+      const a = createTrack({ liveness: 0.05, originalPosition: 0 });
+      const b = createTrack({ liveness: 0.85, originalPosition: 1 });
+      expect(compareByLiveness(a, b)).toBeLessThan(0);
+    });
+  });
+
+  describe("compareByValence", () => {
+    it("sorts by valence ascending", () => {
+      const a = createTrack({ valence: 0.2, originalPosition: 0 });
+      const b = createTrack({ valence: 0.95, originalPosition: 1 });
+      expect(compareByValence(a, b)).toBeLessThan(0);
+    });
+  });
+});
+
+describe("getComparator", () => {
+  it("returns correct comparator for each sort key", () => {
+    expect(getComparator("position")).toBe(compareByPosition);
+    expect(getComparator("name")).toBe(compareByName);
+    expect(getComparator("artist")).toBe(compareByArtist);
+    expect(getComparator("album")).toBe(compareByAlbum);
+    expect(getComparator("duration")).toBe(compareByDuration);
+    expect(getComparator("tempo")).toBe(compareByTempo);
+    expect(getComparator("key")).toBe(compareByKey);
+    expect(getComparator("acousticness")).toBe(compareByAcousticness);
+    expect(getComparator("energy")).toBe(compareByEnergy);
+    expect(getComparator("instrumentalness")).toBe(compareByInstrumentalness);
+    expect(getComparator("liveness")).toBe(compareByLiveness);
+    expect(getComparator("valence")).toBe(compareByValence);
+  });
+});
+
+describe("sortTracks", () => {
+  const tracks = [
+    createTrack({ name: "Zebra", originalPosition: 0 }),
+    createTrack({ name: "Apple", originalPosition: 1 }),
+    createTrack({ name: "Mango", originalPosition: 2 }),
+  ];
+
+  it("sorts tracks by name ascending", () => {
+    const sorted = sortTracks(tracks, "name", "asc");
+    expect(sorted.map((t) => t.name)).toEqual(["Apple", "Mango", "Zebra"]);
+  });
+
+  it("sorts tracks by name descending", () => {
+    const sorted = sortTracks(tracks, "name", "desc");
+    expect(sorted.map((t) => t.name)).toEqual(["Zebra", "Mango", "Apple"]);
+  });
+
+  it("defaults to ascending when direction not specified", () => {
+    const sorted = sortTracks(tracks, "name");
+    expect(sorted.map((t) => t.name)).toEqual(["Apple", "Mango", "Zebra"]);
+  });
+
+  it("does not mutate original array", () => {
+    const original = [...tracks];
+    sortTracks(tracks, "name");
+    expect(tracks).toEqual(original);
+  });
+
+  it("sorts by position (stable #)", () => {
+    const sorted = sortTracks(tracks, "position");
+    expect(sorted.map((t) => t.originalPosition)).toEqual([0, 1, 2]);
+  });
+});

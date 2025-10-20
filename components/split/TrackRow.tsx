@@ -9,6 +9,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import type { Track } from '@/lib/spotify/types';
 import { makeCompositeId, getTrackPosition } from '@/lib/dnd/id';
 import { cn } from '@/lib/utils';
+import { formatDuration, formatBpm, formatKey, formatPercent } from '@/lib/utils/format';
 import { GripVertical } from 'lucide-react';
 
 interface TrackRowProps {
@@ -63,12 +64,6 @@ export function TrackRow({
   // This prevents the original item from moving during drag
   const style = {};
 
-  const formatDuration = (ms: number) => {
-    const minutes = Math.floor(ms / 60000);
-    const seconds = Math.floor((ms % 60000) / 1000);
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-  };
-
   const handleClick = (e: React.MouseEvent) => {
     if (e.shiftKey || e.ctrlKey || e.metaKey) {
       onSelect(trackId, e);
@@ -82,7 +77,7 @@ export function TrackRow({
       ref={setNodeRef}
       style={style}
       className={cn(
-        'flex items-center gap-3 px-4 py-2 border-b border-border hover:bg-accent/50 transition-colors',
+        'flex items-center gap-3 px-4 h-12 border-b border-border hover:bg-accent/50 transition-colors',
         isSelected && 'bg-accent',
         // Cursor feedback - show grab/copy only when draggable
         !locked && isEditable && dndMode === 'move' && 'cursor-grab active:cursor-grabbing',
@@ -96,35 +91,88 @@ export function TrackRow({
       tabIndex={0}
       aria-selected={isSelected}
       title={
-        locked 
+        locked
           ? 'Panel is locked - unlock to enable dragging'
-          : dndMode === 'copy' 
-            ? 'Click and drag to copy (Ctrl to move)' 
+          : dndMode === 'copy'
+            ? 'Click and drag to copy (Ctrl to move)'
             : 'Click and drag to move (Ctrl to copy)'
       }
       {...(isEditable && !locked ? { ...attributes, ...listeners } : {})}
     >
+      {/* Grip handle for dragging */}
       {isEditable && (
-        <div className="text-muted-foreground hover:text-foreground pointer-events-none">
+        <div className="flex-shrink-0 text-muted-foreground hover:text-foreground pointer-events-none">
           <GripVertical className="h-4 w-4" />
         </div>
       )}
 
-      <div className="flex-1 min-w-0">
-        <div className="font-medium truncate">{track.name}</div>
+      {/* Position number */}
+      <div className="flex-shrink-0 w-10 text-sm text-muted-foreground tabular-nums">
+        {track.position != null ? track.position + 1 : index + 1}
+      </div>
+
+      {/* Track title */}
+      <div className="flex-shrink-0 w-[200px] min-w-0">
+        <div className="text-sm truncate">{track.name}</div>
+      </div>
+
+      {/* Artist */}
+      <div className="flex-shrink-0 w-[160px] min-w-0">
         <div className="text-sm text-muted-foreground truncate">
           {track.artists.join(', ')}
         </div>
       </div>
 
+      {/* Album - hidden on small screens */}
       {track.album?.name && (
-        <div className="hidden md:block text-sm text-muted-foreground truncate max-w-[200px]">
-          {track.album.name}
+        <div className="hidden lg:block flex-shrink-0 w-[160px] min-w-0">
+          <div className="text-sm text-muted-foreground truncate">
+            {track.album.name}
+          </div>
         </div>
       )}
 
-      <div className="text-sm text-muted-foreground tabular-nums">
+      {/* Duration */}
+      <div className="flex-shrink-0 w-[60px] text-sm text-muted-foreground tabular-nums text-right">
         {formatDuration(track.durationMs)}
+      </div>
+
+      {/* Audio Features - compact display without labels */}
+      <div className="hidden xl:flex items-center gap-4 text-sm text-muted-foreground tabular-nums">
+        {/* Tempo */}
+        <div className="w-[50px] text-right">
+          {track.tempoBpm != null ? formatBpm(track.tempoBpm) : '—'}
+        </div>
+
+        {/* Key */}
+        <div className="w-[40px] text-right">
+          {track.musicalKey != null && track.mode != null ? formatKey(track.musicalKey, track.mode) : '—'}
+        </div>
+
+        {/* Acousticness */}
+        <div className="w-[50px] text-right">
+          {track.acousticness != null ? formatPercent(track.acousticness) : '—'}
+        </div>
+
+        {/* Energy */}
+        <div className="w-[50px] text-right">
+          {track.energy != null ? formatPercent(track.energy) : '—'}
+        </div>
+
+        {/* Instrumentalness */}
+        <div className="w-[50px] text-right">
+          {track.instrumentalness != null ? formatPercent(track.instrumentalness) : '—'}
+        </div>
+
+        {/* Liveness */}
+        <div className="w-[50px] text-right">
+          {track.liveness != null ? formatPercent(track.liveness) : '—'}
+        </div>
+
+        {/* Valence */}
+        <div className="w-[50px] text-right">
+          {track.valence != null ? formatPercent(track.valence) : '—'}
+        </div>
       </div>
     </div>
   );

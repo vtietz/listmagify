@@ -1,7 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const isCI = process.env.CI === 'true';
-const baseURL = isCI ? 'http://web-test:3100' : 'http://127.0.0.1:3100';
+const baseURL = process.env.BASE_URL || (isCI ? 'http://web-test:3100' : 'http://127.0.0.1:3100');
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -29,12 +29,5 @@ export default defineConfig({
       use: { ...devices['Desktop Safari'] },
     },
   ],
-  webServer: isCI
-    ? undefined
-    : {
-        command: 'run.bat test:stack:up',
-        url: baseURL,
-        reuseExistingServer: true,
-        timeout: 120 * 1000,
-      },
+  // No webServer config - tests run in Docker with services orchestrated by docker-compose
 });
