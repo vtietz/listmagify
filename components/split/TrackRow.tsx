@@ -18,6 +18,8 @@ interface TrackRowProps {
   isEditable: boolean;
   onSelect: (trackId: string, event: React.MouseEvent) => void;
   onClick: (trackId: string) => void;
+  panelId?: string;
+  playlistId?: string;
 }
 
 export function TrackRow({
@@ -27,6 +29,8 @@ export function TrackRow({
   isEditable,
   onSelect,
   onClick,
+  panelId,
+  playlistId,
 }: TrackRowProps) {
   const {
     attributes,
@@ -38,6 +42,13 @@ export function TrackRow({
   } = useSortable({
     id: track.id || track.uri,
     disabled: !isEditable,
+    data: {
+      type: 'track',
+      track,
+      panelId,
+      playlistId,
+      index,
+    },
   });
 
   const style = {

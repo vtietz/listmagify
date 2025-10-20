@@ -5,7 +5,7 @@
 
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useState } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -20,17 +20,21 @@ import {
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { useSplitGridStore } from '@/hooks/useSplitGridStore';
 import { PlaylistPanel } from './PlaylistPanel';
-import { cn } from '@/lib/utils';
-import { useState } from 'react';
 import type { Track } from '@/lib/spotify/types';
+import { useAddTracks, useRemoveTracks, useReorderTracks } from '@/lib/spotify/playlistMutations';
+import { eventBus } from '@/lib/sync/eventBus';
+// @ts-expect-error - sonner's type definitions are incompatible with verbatimModuleSyntax
+import { toast } from 'sonner';
 
 export function SplitGrid() {
-  const containerRef = useRef<HTMLDivElement>(null);
   const [activeTrack, setActiveTrack] = useState<Track | null>(null);
   
   const panels = useSplitGridStore((state) => state.panels);
-  const getLayout = useSplitGridStore((state) => state.getLayout);
-  const setContainerSize = useSplitGridStore((state) => state.setContainerSize);
+
+  // Mutation hooks
+  const addTracks = useAddTracks();
+  const removeTracks = useRemoveTracks();
+  const reorderTracks = useReorderTracks();
 
   // Set up DnD sensors
   const sensors = useSensors(
@@ -44,26 +48,13 @@ export function SplitGrid() {
     })
   );
 
-  // Measure container and update layout
-  useEffect(() => {
-    const updateSize = () => {
-      if (containerRef.current) {
-        const { clientWidth, clientHeight } = containerRef.current;
-        setContainerSize(clientWidth, clientHeight);
-      }
-    };
-
-    updateSize();
-    window.addEventListener('resize', updateSize);
-    return () => window.removeEventListener('resize', updateSize);
-  }, [setContainerSize]);
-
-  const layout = getLayout();
-
   const handleDragStart = (event: DragStartEvent) => {
-    // Track what's being dragged for the overlay
-    // In a full implementation, we'd extract track data from the active element
-    setActiveTrack(null);
+    // Extract track data for the overlay
+    const { active } = event;
+    const track = active.data.current?.track;
+    if (track) {
+      setActiveTrack(track);
+    }
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -75,13 +66,86 @@ export function SplitGrid() {
       return;
     }
 
-    // In a full implementation, this would:
-    // 1. Determine source and target panels
-    // 2. Check permissions
-    // 3. Execute move/copy based on globalDnDMode
-    // 4. Update via mutation hooks
-    
-    console.log('Drag ended:', { active: active.id, over: over.id });
+    // Extract source and target data
+    const sourceData = active.data.current;
+    const targetData = over.data.current;
+
+    if (!sourceData || !targetData || sourceData.type !== 'track' || targetData.type !== 'track') {
+      return;
+    }
+
+    const sourcePanelId = sourceData.panelId;
+    const targetPanelId = targetData.panelId;
+    const sourcePlaylistId = sourceData.playlistId;
+    const targetPlaylistId = targetData.playlistId;
+    const sourceTrack: Track = sourceData.track;
+    const sourceIndex: number = sourceData.index;
+    const targetIndex: number = targetData.index;
+
+    if (!sourcePanelId || !targetPanelId || !sourcePlaylistId || !targetPlaylistId) {
+      console.error('Missing panel or playlist context in drag event');
+      return;
+    }
+
+    // Find the panels
+    const sourcePanel = panels.find((p) => p.id === sourcePanelId);
+    const targetPanel = panels.find((p) => p.id === targetPanelId);
+
+    if (!sourcePanel || !targetPanel) {
+      console.error('Could not find source or target panel');
+      return;
+    }
+
+    // Check if target panel is editable
+    if (!targetPanel.isEditable) {
+      toast.error('Target playlist is not editable');
+      return;
+    }
+
+    // Same playlist reordering
+    if (sourcePlaylistId === targetPlaylistId && sourcePanelId === targetPanelId) {
+      if (sourceIndex === targetIndex) return;
+
+      reorderTracks.mutate({
+        playlistId: targetPlaylistId,
+        fromIndex: sourceIndex,
+        toIndex: targetIndex,
+      });
+      return;
+    }
+
+    // Cross-playlist operation
+    const trackUri = sourceTrack.uri;
+    const targetDndMode = targetPanel.dndMode || 'move';
+
+    if (targetDndMode === 'copy') {
+      // Copy: Add to target playlist
+      addTracks.mutate({
+        playlistId: targetPlaylistId,
+        trackUris: [trackUri],
+        position: targetIndex,
+      });
+    } else {
+      // Move: Add to target, then remove from source (if source is editable)
+      addTracks.mutate(
+        {
+          playlistId: targetPlaylistId,
+          trackUris: [trackUri],
+          position: targetIndex,
+        },
+        {
+          onSuccess: () => {
+            // Only remove from source if it's editable
+            if (sourcePanel.isEditable) {
+              removeTracks.mutate({
+                playlistId: sourcePlaylistId,
+                trackUris: [trackUri],
+              });
+            }
+          },
+        }
+      );
+    }
   };
 
   if (panels.length === 0) {
@@ -100,12 +164,11 @@ export function SplitGrid() {
       onDragEnd={handleDragEnd}
     >
       <div
-        ref={containerRef}
         className="h-full w-full p-2"
         style={{
           display: 'grid',
-          gridTemplateColumns: `repeat(${layout.cols}, 1fr)`,
-          gridTemplateRows: `repeat(${layout.rows}, 1fr)`,
+          gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))',
+          gridAutoRows: 'minmax(240px, 1fr)',
           gap: '0.5rem',
         }}
       >

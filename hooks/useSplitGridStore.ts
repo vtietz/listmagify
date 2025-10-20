@@ -15,78 +15,36 @@ export interface PanelConfig {
   searchQuery: string;
   scrollOffset: number;
   selection: Set<string>;
-}
-
-interface GridLayout {
-  rows: number;
-  cols: number;
+  dndMode: 'move' | 'copy';
 }
 
 interface SplitGridState {
   panels: PanelConfig[];
-  globalDnDMode: 'move' | 'copy';
-  containerWidth: number;
-  containerHeight: number;
 
   // Actions
   addSplit: (direction: 'horizontal' | 'vertical') => void;
+  clonePanel: (panelId: string, direction: 'horizontal' | 'vertical') => void;
   closePanel: (panelId: string) => void;
   loadPlaylist: (panelId: string, playlistId: string, isEditable: boolean) => void;
+  initializeSinglePanel: (playlistId: string) => void;
   setSearch: (panelId: string, query: string) => void;
   setSelection: (panelId: string, trackIds: string[]) => void;
   toggleSelection: (panelId: string, trackId: string) => void;
   setScroll: (panelId: string, offset: number) => void;
-  setGlobalDnDMode: (mode: 'move' | 'copy') => void;
-  setContainerSize: (width: number, height: number) => void;
-  getLayout: () => GridLayout;
+  setPanelDnDMode: (panelId: string, mode: 'move' | 'copy') => void;
   reset: () => void;
 }
 
-const MIN_PANEL_WIDTH = 350;
-const MIN_PANEL_HEIGHT = 240;
 const MAX_PANELS = 16;
 
 function generatePanelId(): string {
   return `panel-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
 
-function computeLayout(
-  panelCount: number,
-  containerWidth: number,
-  containerHeight: number
-): GridLayout {
-  if (panelCount === 0) return { rows: 0, cols: 0 };
-  if (panelCount === 1) return { rows: 1, cols: 1 };
-
-  const maxCols = Math.floor(containerWidth / MIN_PANEL_WIDTH) || 1;
-  const maxRows = Math.floor(containerHeight / MIN_PANEL_HEIGHT) || 1;
-
-  // Try to create a square-ish layout
-  let cols = Math.min(Math.ceil(Math.sqrt(panelCount)), maxCols);
-  let rows = Math.ceil(panelCount / cols);
-
-  // Verify fit
-  while (rows > maxRows && cols < maxCols) {
-    cols++;
-    rows = Math.ceil(panelCount / cols);
-  }
-
-  // If still doesn't fit, reduce cols
-  while (rows > maxRows && cols > 1) {
-    cols--;
-    rows = Math.ceil(panelCount / cols);
-  }
-
-  return { rows: Math.min(rows, maxRows), cols: Math.min(cols, maxCols) };
-}
-
 export const useSplitGridStore = create<SplitGridState>()(
   persist(
     (set, get) => ({
       panels: [],
-      globalDnDMode: 'copy',
-      containerWidth: 1200,
-      containerHeight: 800,
 
       addSplit: (direction) => {
         const { panels } = get();
@@ -101,6 +59,29 @@ export const useSplitGridStore = create<SplitGridState>()(
           searchQuery: '',
           scrollOffset: 0,
           selection: new Set(),
+          dndMode: 'copy',
+        };
+
+        set({ panels: [...panels, newPanel] });
+      },
+
+      clonePanel: (panelId, direction) => {
+        const { panels } = get();
+        if (panels.length >= MAX_PANELS) {
+          return;
+        }
+
+        const sourcePanel = panels.find((p) => p.id === panelId);
+        if (!sourcePanel) return;
+
+        const newPanel: PanelConfig = {
+          id: generatePanelId(),
+          playlistId: sourcePanel.playlistId,
+          isEditable: sourcePanel.isEditable,
+          searchQuery: sourcePanel.searchQuery,
+          scrollOffset: sourcePanel.scrollOffset,
+          selection: new Set(), // Clear selection in clone
+          dndMode: sourcePanel.dndMode,
         };
 
         set({ panels: [...panels, newPanel] });
@@ -120,6 +101,20 @@ export const useSplitGridStore = create<SplitGridState>()(
               : p
           ),
         });
+      },
+
+      initializeSinglePanel: (playlistId) => {
+        const newPanel: PanelConfig = {
+          id: generatePanelId(),
+          playlistId,
+          isEditable: false, // Will be updated by PlaylistPanel after permissions check
+          searchQuery: '',
+          scrollOffset: 0,
+          selection: new Set(),
+          dndMode: 'copy',
+        };
+
+        set({ panels: [newPanel] });
       },
 
       setSearch: (panelId, query) => {
@@ -163,25 +158,16 @@ export const useSplitGridStore = create<SplitGridState>()(
         });
       },
 
-      setGlobalDnDMode: (mode) => {
-        set({ globalDnDMode: mode });
-      },
-
-      setContainerSize: (width, height) => {
-        set({ containerWidth: width, containerHeight: height });
-      },
-
-      getLayout: () => {
-        const { panels, containerWidth, containerHeight } = get();
-        return computeLayout(panels.length, containerWidth, containerHeight);
+      setPanelDnDMode: (panelId, mode) => {
+        const { panels } = get();
+        set({
+          panels: panels.map((p) => (p.id === panelId ? { ...p, dndMode: mode } : p)),
+        });
       },
 
       reset: () => {
         set({
           panels: [],
-          globalDnDMode: 'copy',
-          containerWidth: 1200,
-          containerHeight: 800,
         });
       },
     }),
@@ -192,7 +178,6 @@ export const useSplitGridStore = create<SplitGridState>()(
           ...p,
           selection: Array.from(p.selection), // Convert Set to Array for serialization
         })),
-        globalDnDMode: state.globalDnDMode,
       }),
       onRehydrateStorage: () => (state) => {
         // Convert arrays back to Sets after rehydration
@@ -200,6 +185,7 @@ export const useSplitGridStore = create<SplitGridState>()(
           state.panels = state.panels.map((p: PanelConfig) => ({
             ...p,
             selection: new Set(Array.isArray(p.selection) ? p.selection : []),
+            dndMode: p.dndMode || 'copy', // Ensure dndMode exists for old state
           }));
         }
       },

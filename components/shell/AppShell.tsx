@@ -4,8 +4,6 @@ import React from "react";
 import Link from "next/link";
 import { Separator } from "@radix-ui/react-separator";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { SplitSquareHorizontal, SplitSquareVertical, Copy, Move } from "lucide-react";
 import { useSplitGridStore, MAX_PANELS_LIMIT } from "@/hooks/useSplitGridStore";
 
 type AppShellProps = {
@@ -26,9 +24,6 @@ export function AppShell({ headerTitle = "Spotify Playlist Editor", children }: 
 }
 
 function Header({ title }: { title: string }) {
-  const addSplit = useSplitGridStore((state) => state.addSplit);
-  const globalDnDMode = useSplitGridStore((state) => state.globalDnDMode);
-  const setGlobalDnDMode = useSplitGridStore((state) => state.setGlobalDnDMode);
   const panels = useSplitGridStore((state) => state.panels);
   
   const canAddPanel = panels.length < MAX_PANELS_LIMIT;
@@ -41,51 +36,7 @@ function Header({ title }: { title: string }) {
         <span className="font-semibold">{title}</span>
       </div>
 
-      {/* Split Grid Controls */}
-      <div className="flex items-center gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => addSplit('horizontal')}
-          disabled={!canAddPanel}
-          title={tooltipText || 'Split Horizontal'}
-          className="h-8"
-        >
-          <SplitSquareHorizontal className="h-4 w-4 mr-1" />
-          <span className="hidden sm:inline">Split H</span>
-        </Button>
-
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => addSplit('vertical')}
-          disabled={!canAddPanel}
-          title={tooltipText || 'Split Vertical'}
-          className="h-8"
-        >
-          <SplitSquareVertical className="h-4 w-4 mr-1" />
-          <span className="hidden sm:inline">Split V</span>
-        </Button>
-
-        <Separator orientation="vertical" className="h-6 mx-1" />
-
-        <Button
-          variant={globalDnDMode === 'move' ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => setGlobalDnDMode(globalDnDMode === 'move' ? 'copy' : 'move')}
-          title={`Mode: ${globalDnDMode === 'move' ? 'Move (remove from source)' : 'Copy (keep in source)'}`}
-          className="h-8"
-        >
-          {globalDnDMode === 'move' ? (
-            <Move className="h-4 w-4 mr-1" />
-          ) : (
-            <Copy className="h-4 w-4 mr-1" />
-          )}
-          <span className="hidden sm:inline">
-            {globalDnDMode === 'move' ? 'Move' : 'Copy'}
-          </span>
-        </Button>
-      </div>
+      {/* Removed global split controls - now per-panel via toolbar */}
 
       <nav className="flex items-center gap-3 text-sm">
         <Link href="/playlists" className="hover:underline">

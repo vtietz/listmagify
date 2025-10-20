@@ -1,6 +1,18 @@
 /**
  * PlaylistPanel component with virtualized track list, search, and DnD support.
- * Each panel can load a playlist independently and sync with other panels showing the same playlist.
+ * Each panel can load a playlist independently and sync w  // Filter tracks based on debounced search query
+  const filteredTracks = useMemo(() => {
+    if (!data?.tracks) return [];
+    if (!debouncedSearchQuery) return data.tracks;
+
+    const query = debouncedSearchQuery.toLowerCase();
+    return data.tracks.filter(
+      (track) =>
+        track.name.toLowerCase().includes(query) ||
+        track.artists.some((artist) => artist.toLowerCase().includes(query)) ||
+        track.album?.name?.toLowerCase().includes(query)
+    );
+  }, [data?.tracks, debouncedSearchQuery]);els showing the same playlist.
  */
 
 'use client';
@@ -12,11 +24,12 @@ import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { apiFetch } from '@/lib/api/client';
 import { eventBus } from '@/lib/sync/eventBus';
 import { useSplitGridStore } from '@/hooks/useSplitGridStore';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { PanelToolbar } from './PanelToolbar';
 import { TrackRow } from './TrackRow';
+import { TRACK_ROW_HEIGHT, VIRTUALIZATION_OVERSCAN } from './constants';
 import type { Track } from '@/lib/spotify/types';
 import { Skeleton } from '@/components/ui/skeleton';
-import { checkPlaylistEditable } from '@/lib/spotify/playlistMutations';
 
 interface PlaylistPanelProps {
   panelId: string;
@@ -32,6 +45,7 @@ interface PlaylistTracksData {
 export function PlaylistPanel({ panelId }: PlaylistPanelProps) {
   const queryClient = useQueryClient();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const playlistIdRef = useRef<string | null>(null);
   
   const panel = useSplitGridStore((state) => 
     state.panels.find((p) => p.id === panelId)
@@ -42,20 +56,30 @@ export function PlaylistPanel({ panelId }: PlaylistPanelProps) {
   const toggleSelection = useSplitGridStore((state) => state.toggleSelection);
   const setScroll = useSplitGridStore((state) => state.setScroll);
   const closePanel = useSplitGridStore((state) => state.closePanel);
+  const clonePanel = useSplitGridStore((state) => state.clonePanel);
+  const setPanelDnDMode = useSplitGridStore((state) => state.setPanelDnDMode);
   const loadPlaylist = useSplitGridStore((state) => state.loadPlaylist);
 
   const [playlistName, setPlaylistName] = useState<string>('');
 
   const playlistId = panel?.playlistId;
   const searchQuery = panel?.searchQuery || '';
+  const debouncedSearchQuery = useDebouncedValue(searchQuery, 150);
   const selection = panel?.selection || new Set();
-  const isEditable = panel?.isEditable || false;
+  const dndMode = panel?.dndMode || 'copy';
 
-  // Fetch playlist tracks
+  // Update ref when playlistId changes
+  useEffect(() => {
+    if (playlistId) {
+      playlistIdRef.current = playlistId;
+    }
+  }, [playlistId]);
+
+  // Fetch playlist tracks with stable query key
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['playlist-tracks', playlistId],
+    queryKey: ['playlist-tracks', playlistIdRef.current],
     queryFn: async (): Promise<PlaylistTracksData> => {
-      if (!playlistId) throw new Error('No playlist ID');
+      if (!playlistIdRef.current) throw new Error('No playlist ID');
       return apiFetch(`/api/playlists/${playlistId}/tracks`);
     },
     enabled: !!playlistId,
@@ -63,34 +87,52 @@ export function PlaylistPanel({ panelId }: PlaylistPanelProps) {
   });
 
   // Fetch playlist metadata for name
+  const { data: playlistMeta } = useQuery({
+    queryKey: ['playlist', playlistId],
+    queryFn: async () => {
+      if (!playlistId) throw new Error('No playlist ID');
+      const result = await apiFetch<{
+        id: string;
+        name: string;
+        owner: { id: string; displayName: string };
+        collaborative: boolean;
+        tracksTotal: number;
+      }>(`/api/playlists/${playlistId}`);
+      return result;
+    },
+    enabled: !!playlistId,
+    staleTime: 60000, // 1 minute
+  });
+
   useEffect(() => {
-    if (!playlistId) return;
+    if (playlistMeta?.name) {
+      setPlaylistName(playlistMeta.name);
+    }
+  }, [playlistMeta]);
 
-    const fetchPlaylist = async () => {
-      try {
-        const result = await apiFetch<{ name: string }>(`/api/me/playlists`);
-        // This is a hack - we need a separate endpoint for single playlist
-        // For now, just use the playlist ID as the name
-        setPlaylistName(`Playlist ${playlistId.slice(0, 8)}`);
-      } catch (err) {
-        console.error('Failed to fetch playlist name:', err);
-      }
-    };
+  // Fetch playlist permissions
+  const { data: permissionsData } = useQuery({
+    queryKey: ['playlist-permissions', playlistId],
+    queryFn: async () => {
+      if (!playlistId) throw new Error('No playlist ID');
+      const result = await apiFetch<{ isEditable: boolean }>(
+        `/api/playlists/${playlistId}/permissions`
+      );
+      return result;
+    },
+    enabled: !!playlistId,
+    staleTime: 60000, // 1 minute
+  });
 
-    fetchPlaylist();
-  }, [playlistId]);
+  // Derive isEditable from query result
+  const isEditable = permissionsData?.isEditable || false;
 
-  // Check permissions and update store
+  // Update store when permissions are loaded
   useEffect(() => {
-    if (!playlistId) return;
-
-    const checkPermissions = async () => {
-      const editable = await checkPlaylistEditable(playlistId);
-      loadPlaylist(panelId, playlistId, editable);
-    };
-
-    checkPermissions();
-  }, [playlistId, panelId, loadPlaylist]);
+    if (playlistId && permissionsData) {
+      loadPlaylist(panelId, playlistId, permissionsData.isEditable);
+    }
+  }, [playlistId, panelId, permissionsData, loadPlaylist]);
 
   // Subscribe to playlist update events
   useEffect(() => {
@@ -137,12 +179,12 @@ export function PlaylistPanel({ panelId }: PlaylistPanelProps) {
     );
   }, [data?.tracks, searchQuery]);
 
-  // Virtualization
+  // Virtualization with constant row height
   const virtualizer = useVirtualizer({
     count: filteredTracks.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => 60,
-    overscan: 5,
+    estimateSize: () => TRACK_ROW_HEIGHT,
+    overscan: VIRTUALIZATION_OVERSCAN,
   });
 
   const items = virtualizer.getVirtualItems();
@@ -164,6 +206,19 @@ export function PlaylistPanel({ panelId }: PlaylistPanelProps) {
   const handleClose = useCallback(() => {
     closePanel(panelId);
   }, [panelId, closePanel]);
+
+  const handleSplitHorizontal = useCallback(() => {
+    clonePanel(panelId, 'horizontal');
+  }, [panelId, clonePanel]);
+
+  const handleSplitVertical = useCallback(() => {
+    clonePanel(panelId, 'vertical');
+  }, [panelId, clonePanel]);
+
+  const handleDndModeToggle = useCallback(() => {
+    const newMode = dndMode === 'move' ? 'copy' : 'move';
+    setPanelDnDMode(panelId, newMode);
+  }, [panelId, dndMode, setPanelDnDMode]);
 
   const handleTrackClick = useCallback(
     (trackId: string) => {
@@ -223,10 +278,14 @@ export function PlaylistPanel({ panelId }: PlaylistPanelProps) {
           panelId={panelId}
           playlistId={null}
           isEditable={false}
+          dndMode="copy"
           searchQuery=""
           onSearchChange={() => {}}
           onReload={() => {}}
           onClose={handleClose}
+          onSplitHorizontal={handleSplitHorizontal}
+          onSplitVertical={handleSplitVertical}
+          onDndModeToggle={() => {}}
         />
         <div className="flex-1 flex items-center justify-center text-muted-foreground">
           <p>Select a playlist to load</p>
@@ -242,10 +301,14 @@ export function PlaylistPanel({ panelId }: PlaylistPanelProps) {
         playlistId={playlistId}
         playlistName={playlistName}
         isEditable={isEditable}
+        dndMode={dndMode}
         searchQuery={searchQuery}
         onSearchChange={handleSearchChange}
         onReload={handleReload}
         onClose={handleClose}
+        onSplitHorizontal={handleSplitHorizontal}
+        onSplitVertical={handleSplitVertical}
+        onDndModeToggle={handleDndModeToggle}
       />
 
       <div ref={scrollRef} className="flex-1 overflow-auto">
@@ -306,6 +369,8 @@ export function PlaylistPanel({ panelId }: PlaylistPanelProps) {
                       isEditable={isEditable}
                       onSelect={handleTrackSelect}
                       onClick={handleTrackClick}
+                      panelId={panelId}
+                      playlistId={playlistId}
                     />
                   </div>
                 );

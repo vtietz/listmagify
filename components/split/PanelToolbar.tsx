@@ -6,9 +6,10 @@
 'use client';
 
 import { useState } from 'react';
-import { Search, RefreshCw, Lock, X } from 'lucide-react';
+import { Search, RefreshCw, Lock, X, SplitSquareHorizontal, SplitSquareVertical, Move, Copy } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 
 interface PanelToolbarProps {
@@ -16,10 +17,14 @@ interface PanelToolbarProps {
   playlistId: string | null;
   playlistName?: string;
   isEditable: boolean;
+  dndMode: 'move' | 'copy';
   searchQuery: string;
   onSearchChange: (query: string) => void;
   onReload: () => void;
   onClose: () => void;
+  onSplitHorizontal: () => void;
+  onSplitVertical: () => void;
+  onDndModeToggle: () => void;
   onLoadPlaylist?: (playlistId: string) => void;
 }
 
@@ -28,10 +33,14 @@ export function PanelToolbar({
   playlistId,
   playlistName,
   isEditable,
+  dndMode,
   searchQuery,
   onSearchChange,
   onReload,
   onClose,
+  onSplitHorizontal,
+  onSplitVertical,
+  onDndModeToggle,
   onLoadPlaylist,
 }: PanelToolbarProps) {
   const [localSearch, setLocalSearch] = useState(searchQuery);
@@ -90,6 +99,51 @@ export function PanelToolbar({
           <span className="sr-only">Reload playlist</span>
         </Button>
       )}
+
+      {/* DnD Mode Toggle (only when editable) */}
+      {playlistId && isEditable && (
+        <Button
+          variant={dndMode === 'move' ? 'default' : 'outline'}
+          size="sm"
+          onClick={onDndModeToggle}
+          className="h-8 px-2"
+          title={`Drag mode: ${dndMode === 'move' ? 'Move (remove from source)' : 'Copy (keep in source)'}`}
+        >
+          {dndMode === 'move' ? (
+            <Move className="h-4 w-4" />
+          ) : (
+            <Copy className="h-4 w-4" />
+          )}
+          <span className="sr-only">{dndMode === 'move' ? 'Move mode' : 'Copy mode'}</span>
+        </Button>
+      )}
+
+      <Separator orientation="vertical" className="h-6" />
+
+      {/* Split buttons */}
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={onSplitHorizontal}
+        className="h-8 w-8 p-0"
+        title="Split Horizontal"
+      >
+        <SplitSquareHorizontal className="h-4 w-4" />
+        <span className="sr-only">Split Horizontal</span>
+      </Button>
+
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={onSplitVertical}
+        className="h-8 w-8 p-0"
+        title="Split Vertical"
+      >
+        <SplitSquareVertical className="h-4 w-4" />
+        <span className="sr-only">Split Vertical</span>
+      </Button>
+
+      <Separator orientation="vertical" className="h-6" />
 
       {/* Close */}
       <Button
