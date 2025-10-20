@@ -74,7 +74,7 @@ export function useAutoLoadPaginated<T>({
         let allItems = [...initialItems];
 
         while (currentCursor) {
-          const data = await apiFetch<PaginatedResponse<T>>(
+          const data: PaginatedResponse<T> = await apiFetch<PaginatedResponse<T>>(
             `${endpoint}?nextCursor=${encodeURIComponent(currentCursor)}`
           );
 
