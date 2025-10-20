@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useMemo, useCallback, useRef, useEffect } from "react";
+import { useState, useMemo, useCallback } from "react";
 import type { Track, Playlist } from "@/lib/spotify/types";
 import { PlaylistToolbar } from "@/components/playlist/PlaylistToolbar";
 import { PlaylistTable, type SortKey, type SortDirection } from "@/components/playlist/PlaylistTable";
 import { apiFetch } from "@/lib/api/client";
+import { useAutoLoadPaginated } from "@/hooks/useAutoLoadPaginated";
 // @ts-expect-error - sonner's type definitions are incompatible with verbatimModuleSyntax
 import { toast } from "sonner";
 
@@ -16,15 +17,15 @@ export interface PlaylistDetailProps {
 }
 
 /**
- * Main interactive playlist component with search, sort, reorder, refresh, and infinite scroll.
+ * Main interactive playlist component with search, sort, reorder, and refresh.
  * 
  * Features:
+ * - Auto-loads all tracks on mount for instant search
  * - Client-side search (debounced) by title, artist, album
  * - Sortable columns with stable asc/desc sort
  * - Drag-and-drop reordering (position sort only)
  * - Optimistic updates with rollback on error
  * - Refresh from Spotify with snapshot_id tracking
- * - Infinite scroll for loading additional tracks
  * - Multi-instance ready (all state is local)
  */
 export function PlaylistDetail({
@@ -33,15 +34,20 @@ export function PlaylistDetail({
   initialSnapshotId,
   initialNextCursor,
 }: PlaylistDetailProps) {
-  const [tracks, setTracks] = useState<Track[]>(initialTracks);
   const [snapshotId, setSnapshotId] = useState<string | null>(initialSnapshotId ?? null);
-  const [nextCursor, setNextCursor] = useState<string | null>(initialNextCursor ?? null);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("position");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [isReordering, setIsReordering] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Auto-load all tracks for instant search
+  const { items: tracks, isAutoLoading, setItems: setTracks, setNextCursor } = useAutoLoadPaginated({
+    initialItems: initialTracks,
+    initialNextCursor,
+    endpoint: `/api/playlists/${playlist.id}/tracks`,
+    itemsKey: "tracks",
+  });
 
   /**
    * Filter tracks by search query (title, artist, album - case insensitive).
@@ -198,56 +204,7 @@ export function PlaylistDetail({
     } finally {
       setIsRefreshing(false);
     }
-  }, [isRefreshing, playlist.id]);
-
-  /**
-   * Load more tracks for infinite scroll.
-   */
-  const loadMore = useCallback(async () => {
-    if (!nextCursor || isLoadingMore || isRefreshing) {
-      return;
-    }
-
-    setIsLoadingMore(true);
-
-    try {
-      const data = await apiFetch<{ tracks: Track[]; nextCursor?: string | null }>(
-        `/api/playlists/${playlist.id}/tracks?nextCursor=${encodeURIComponent(nextCursor)}`
-      );
-
-      setTracks((prev) => [...prev, ...(data.tracks || [])]);
-      setNextCursor(data.nextCursor ?? null);
-    } catch (error) {
-      // apiFetch handles 401 automatically, silently fail for other errors
-    } finally {
-      setIsLoadingMore(false);
-    }
-  }, [nextCursor, isLoadingMore, isRefreshing, playlist.id]);
-
-  /**
-   * IntersectionObserver for infinite scroll.
-   */
-  const sentinelRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const sentinel = sentinelRef.current;
-    if (!sentinel) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0]?.isIntersecting) {
-          loadMore();
-        }
-      },
-      { rootMargin: "100px" }
-    );
-
-    observer.observe(sentinel);
-
-    return () => {
-      observer.disconnect();
-    };
-  }, [loadMore]);
+  }, [isRefreshing, playlist.id, setTracks, setNextCursor]);
 
   return (
     <div className="space-y-6">
@@ -284,12 +241,12 @@ export function PlaylistDetail({
         disabled={isRefreshing}
       />
 
-      {/* Infinite scroll sentinel */}
-      {nextCursor && !searchQuery && (
-        <div ref={sentinelRef} className="py-8 text-center">
-          {isLoadingMore && (
-            <p className="text-sm text-muted-foreground">Loading more tracks...</p>
-          )}
+      {/* Auto-load progress indicator */}
+      {isAutoLoading && (
+        <div className="py-8 text-center">
+          <p className="text-sm text-muted-foreground">
+            Loading all tracks for instant search... ({tracks.length} loaded)
+          </p>
         </div>
       )}
     </div>

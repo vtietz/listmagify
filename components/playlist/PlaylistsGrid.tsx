@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useEffect, useMemo } from "react";
 import type { Playlist } from "@/lib/spotify/types";
 import { PlaylistCard } from "@/components/playlist/PlaylistCard";
-import { Skeleton } from "@/components/ui/skeleton";
 import { apiFetch, ApiError } from "@/lib/api/client";
+import { useAutoLoadPaginated } from "@/hooks/useAutoLoadPaginated";
 
 export interface PlaylistsGridProps {
   initialItems: Playlist[];
@@ -15,13 +15,13 @@ export interface PlaylistsGridProps {
 }
 
 /**
- * Infinite scroll grid for playlists with client-side filtering.
+ * Grid display for playlists with auto-loading and client-side filtering.
  * 
  * Features:
- * - IntersectionObserver-based infinite scroll
+ * - Auto-loads all playlists on mount for instant search
  * - Client-side search filtering by name and owner
- * - Automatic loading of additional pages
- * - Loading states and error handling
+ * - Progressive loading UI updates
+ * - Refresh support with parent callback
  */
 export function PlaylistsGrid({
   initialItems,
@@ -30,11 +30,13 @@ export function PlaylistsGrid({
   isRefreshing,
   onRefreshComplete,
 }: PlaylistsGridProps) {
-  const [items, setItems] = useState<Playlist[]>(initialItems);
-  const [nextCursor, setNextCursor] = useState<string | null>(initialNextCursor);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const sentinelRef = useRef<HTMLDivElement>(null);
-  const observerRef = useRef<IntersectionObserver | null>(null);
+  // Auto-load all playlists for instant search
+  const { items, isAutoLoading, setItems, setNextCursor } = useAutoLoadPaginated({
+    initialItems,
+    initialNextCursor,
+    endpoint: "/api/me/playlists",
+    itemsKey: "items",
+  });
 
   // Handle refresh from parent
   useEffect(() => {
@@ -51,7 +53,7 @@ export function PlaylistsGrid({
           // apiFetch handles 401 automatically, just handle other errors
           if (error instanceof ApiError && !error.isUnauthorized) {
             // Keep existing data on error
-            onRefreshComplete(items, nextCursor);
+            onRefreshComplete(items, null);
           }
         }
       };
@@ -74,57 +76,7 @@ export function PlaylistsGrid({
     });
   }, [items, searchTerm]);
 
-  // Load more items when sentinel becomes visible
-  const loadMore = useCallback(async () => {
-    if (isLoadingMore || !nextCursor || isRefreshing) {
-      return;
-    }
-
-    setIsLoadingMore(true);
-
-    try {
-      const data = await apiFetch<{ items: Playlist[]; nextCursor: string | null }>(
-        `/api/me/playlists?${new URLSearchParams({ nextCursor }).toString()}`
-      );
-
-      setItems((prev) => [...prev, ...(data.items || [])]);
-      setNextCursor(data.nextCursor);
-    } catch (error) {
-      // apiFetch handles 401 automatically, just silently fail for other errors
-      // (user already saw error toast from apiFetch if not 401)
-    } finally {
-      setIsLoadingMore(false);
-    }
-  }, [isLoadingMore, nextCursor, isRefreshing]);
-
-  // Set up IntersectionObserver
-  useEffect(() => {
-    if (!sentinelRef.current) return;
-
-    observerRef.current = new IntersectionObserver(
-      (entries) => {
-        const [entry] = entries;
-        if (entry?.isIntersecting) {
-          loadMore();
-        }
-      },
-      {
-        root: null,
-        rootMargin: "100px",
-        threshold: 0.1,
-      }
-    );
-
-    observerRef.current.observe(sentinelRef.current);
-
-    return () => {
-      if (observerRef.current) {
-        observerRef.current.disconnect();
-      }
-    };
-  }, [loadMore]);
-
-  if (filteredItems.length === 0 && !isLoadingMore) {
+  if (filteredItems.length === 0) {
     return (
       <div className="text-center py-12">
         <p className="text-muted-foreground">
@@ -142,22 +94,12 @@ export function PlaylistsGrid({
         ))}
       </div>
 
-      {/* Sentinel for infinite scroll */}
-      {nextCursor && !searchTerm && (
-        <div ref={sentinelRef} className="py-8">
-          {isLoadingMore && (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="space-y-3">
-                  <Skeleton className="aspect-square rounded-lg" />
-                  <div className="space-y-2">
-                    <Skeleton className="h-4 w-full" />
-                    <Skeleton className="h-3 w-2/3" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+      {/* Auto-loading indicator */}
+      {isAutoLoading && (
+        <div className="text-center py-4">
+          <p className="text-sm text-muted-foreground">
+            Loading all playlists for instant search... ({items.length} loaded)
+          </p>
         </div>
       )}
     </div>

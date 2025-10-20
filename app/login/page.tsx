@@ -40,9 +40,6 @@ export default async function LoginPage({ searchParams }: Props) {
         <p className="text-muted-foreground">{message}</p>
         <div className="flex justify-center gap-3">
           <SignInButton callbackUrl={returnTo} />
-          <Link href="/" className="text-muted-foreground hover:underline">
-            Home
-          </Link>
         </div>
       </div>
     </div>

@@ -71,6 +71,13 @@ If tests fail after your changes:
 - Fix the code or update tests appropriately
 - Re-run tests to confirm resolution
 
+**When adding new functionality:**
+- Write unit tests for new components, hooks, and utilities
+- Custom hooks should have comprehensive tests in `tests/unit/` directory
+- Use `@testing-library/react` for component and hook testing
+- Mock external dependencies (API calls, etc.) using Vitest's `vi.mock()`
+- Wrap state updates in React tests with `act()` to avoid warnings
+
 ---
 
 ## 📝 Documentation Requirements
@@ -120,11 +127,13 @@ Follow these best practices when writing or modifying code:
 - **Component Composition**: Break down large components into smaller, reusable pieces
 - **Props Validation**: Define clear prop types with TypeScript interfaces
 - **Avoid Prop Drilling**: Use context or state management when passing props deeply
+- **Custom Hooks**: Extract reusable logic into custom hooks when the same pattern appears in multiple components
 
 ### File Organization
 - **Consistent Structure**: Follow existing project patterns
 - **Logical Grouping**: Co-locate related files (component + styles + tests)
 - **Clear Exports**: Use named exports for better refactoring and tree-shaking
+- **Custom Hooks Location**: Place custom hooks in the `hooks/` directory with descriptive names (e.g., `useAutoLoadPaginated.ts`)
 
 ---
 
@@ -148,6 +157,34 @@ Follow these best practices when writing or modifying code:
 
 ---
 
+## 📝 Commit Message Guidelines
+
+**Always generate a concise commit message summarizing uncommitted changes:**
+
+- **Format**: Single line, imperative mood (e.g., "Add feature" not "Added feature")
+- **Length**: 50-72 characters preferred
+- **Content**: Summarize what changed and why, not how
+- **Process**: 
+  1. Use `get_changed_files` tool to examine all uncommitted changes
+  2. Review the diffs to understand the scope of changes
+  3. Identify the primary purpose (feature, refactor, fix, etc.)
+  4. Summarize all significant changes in one concise message
+- **Examples**:
+  - ✅ `Add auto-load pagination hook with comprehensive tests`
+  - ✅ `Refactor playlist components to use useAutoLoadPaginated`
+  - ✅ `Fix OAuth redirect URI to use 127.0.0.1`
+  - ❌ `Updated some files` (too vague)
+  - ❌ `Changed PlaylistDetail.tsx and PlaylistsGrid.tsx to use the new hook and also added tests` (too long)
+
+**When to generate commit messages:**
+- After completing a task or feature
+- Before the user commits changes
+- When explicitly requested
+
+**Important**: Always examine the full list of changed files before generating a commit message to ensure you capture all modifications, not just the most recent changes.
+
+---
+
 ## ✅ Before Completing a Task
 
 Ensure you have:
@@ -158,7 +195,7 @@ Ensure you have:
 4. ✅ Followed clean code principles and project conventions
 5. ✅ Verified no unrequested files were created
 6. ✅ Removed any debug code or unnecessary comments
-7. ✅ Provided a one-line summary of changes made for the commit message
+7. ✅ Generated a commit message summarizing all changes
 
 ---
 
