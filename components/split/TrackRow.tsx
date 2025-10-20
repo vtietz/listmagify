@@ -32,6 +32,10 @@ export function TrackRow({
   panelId,
   playlistId,
 }: TrackRowProps) {
+  // Create globally unique composite ID scoped by panel
+  const trackId = track.id || track.uri;
+  const compositeId = panelId ? `${panelId}:${trackId}` : trackId;
+
   const {
     attributes,
     listeners,
@@ -40,20 +44,23 @@ export function TrackRow({
     transition,
     isDragging,
   } = useSortable({
-    id: track.id || track.uri,
+    id: compositeId, // Globally unique ID
     disabled: !isEditable,
+    animateLayoutChanges: () => false, // Disable "make room" animation for non-active items
     data: {
       type: 'track',
+      trackId, // Keep pure Spotify ID for mutations
       track,
       panelId,
       playlistId,
-      index: track.position ?? index, // Use track's original position if available, fallback to filtered index
+      position: track.position ?? index, // Global position for mutations
     },
   });
 
+  // Only apply transform/transition to the actively dragged item to prevent "make room" animation
   const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
+    transform: isDragging ? CSS.Transform.toString(transform) : undefined,
+    transition: isDragging ? transition : undefined,
   };
 
   const formatDuration = (ms: number) => {
@@ -64,9 +71,9 @@ export function TrackRow({
 
   const handleClick = (e: React.MouseEvent) => {
     if (e.shiftKey || e.ctrlKey || e.metaKey) {
-      onSelect(track.id || track.uri, e);
+      onSelect(trackId, e);
     } else {
-      onClick(track.id || track.uri);
+      onClick(trackId);
     }
   };
 
@@ -77,7 +84,7 @@ export function TrackRow({
       className={cn(
         'flex items-center gap-3 px-4 py-2 border-b border-border hover:bg-accent/50 cursor-pointer transition-colors',
         isSelected && 'bg-accent',
-        isDragging && 'opacity-50'
+        isDragging && 'opacity-0'  // Hide the original item completely when dragging (overlay shows instead)
       )}
       onClick={handleClick}
       role="button"

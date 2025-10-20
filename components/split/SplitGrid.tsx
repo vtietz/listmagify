@@ -17,6 +17,7 @@ import {
   type DragEndEvent,
   type DragStartEvent,
   type DragOverEvent,
+  type CollisionDetection,
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { useSplitGridStore } from '@/hooks/useSplitGridStore';
@@ -27,14 +28,51 @@ import { eventBus } from '@/lib/sync/eventBus';
 // @ts-expect-error - sonner's type definitions are incompatible with verbatimModuleSyntax
 import { toast } from 'sonner';
 
+/**
+ * Custom collision detection that prioritizes track droppables over panel droppables.
+ * 
+ * Strategy:
+ * 1. Use pointerWithin for accurate collision detection
+ * 2. If track collisions exist, return only tracks (sorted by distance)
+ * 3. Otherwise, return panel collisions
+ * 4. This ensures tracks take priority for "make room" animation,
+ *    while panels provide reliable hover detection in gaps/background
+ */
+const panelAwarePointerWithin: CollisionDetection = (args) => {
+  const pointerCollisions = pointerWithin(args);
+  
+  if (pointerCollisions.length === 0) {
+    return [];
+  }
+  
+  // Partition collisions by type
+  const trackCollisions = pointerCollisions.filter(
+    (collision) => collision.data?.droppableContainer?.data?.current?.type === 'track'
+  );
+  const panelCollisions = pointerCollisions.filter(
+    (collision) => collision.data?.droppableContainer?.data?.current?.type === 'panel'
+  );
+  
+  // Prefer track collisions (for precise drop positioning and "make room")
+  if (trackCollisions.length > 0) {
+    return trackCollisions;
+  }
+  
+  // Fallback to panel collisions (for highlight and gap detection)
+  return panelCollisions;
+};
+
 export function SplitGrid() {
   const [activeTrack, setActiveTrack] = useState<Track | null>(null);
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const [activeId, setActiveId] = useState<string | null>(null); // Composite ID
+  const [sourcePanelId, setSourcePanelId] = useState<string | null>(null); // Panel where drag originated
   const [computedDropPosition, setComputedDropPosition] = useState<number | null>(null);
+  const [dropIndicatorIndex, setDropIndicatorIndex] = useState<number | null>(null); // Filtered index for drop indicator
   const [activePanelId, setActivePanelId] = useState<string | null>(null); // Track which panel is being dragged over
   const [ephemeralInsertion, setEphemeralInsertion] = useState<{
-    panelId: string;
-    activeId: string;
+    activeId: string; // Composite ID
+    sourcePanelId: string;
+    targetPanelId: string;
     insertionIndex: number;
   } | null>(null);
   const pointerPositionRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -67,21 +105,19 @@ export function SplitGrid() {
     panelVirtualizersRef.current.delete(panelId);
   }, []);
 
-  // Compute global playlist position from pointer Y in target panel
+  // Compute global playlist position and filtered index from pointer Y in target panel
   const computeDropPosition = useCallback((
     targetPanelId: string,
     pointerY: number
-  ): number | null => {
+  ): { filteredIndex: number; globalPosition: number } | null => {
     const panelData = panelVirtualizersRef.current.get(targetPanelId);
     if (!panelData) {
-      console.log('[computeDropPosition] No panel data for', targetPanelId);
       return null;
     }
 
     const { virtualizer, scrollRef, filteredTracks } = panelData;
     const scrollContainer = scrollRef.current;
     if (!scrollContainer) {
-      console.log('[computeDropPosition] No scroll container');
       return null;
     }
 
@@ -89,15 +125,6 @@ export function SplitGrid() {
     const containerRect = scrollContainer.getBoundingClientRect();
     const scrollTop = scrollContainer.scrollTop;
     const relativeY = pointerY - containerRect.top + scrollTop;
-
-    console.log('[computeDropPosition]', {
-      panelId: targetPanelId,
-      pointerY,
-      containerTop: containerRect.top,
-      scrollTop,
-      relativeY,
-      filteredTracksCount: filteredTracks.length,
-    });
 
     // Find the insertion index in the filtered view
     const virtualItems = virtualizer.getVirtualItems();
@@ -113,24 +140,20 @@ export function SplitGrid() {
       }
     }
 
-    console.log('[computeDropPosition] insertionIndexFiltered:', insertionIndexFiltered);
-
     // Map filtered index to global playlist position
-    if (filteredTracks.length === 0) return 0;
+    if (filteredTracks.length === 0) return { filteredIndex: 0, globalPosition: 0 };
     
     if (insertionIndexFiltered >= filteredTracks.length) {
       // Dropping after last visible track
       const lastTrack = filteredTracks[filteredTracks.length - 1];
-      const result = (lastTrack?.position ?? 0) + 1;
-      console.log('[computeDropPosition] After last track, position:', result);
-      return result;
+      const globalPosition = (lastTrack?.position ?? 0) + 1;
+      return { filteredIndex: insertionIndexFiltered, globalPosition };
     }
 
     // Get the global position of the track at the insertion point
     const targetTrack = filteredTracks[insertionIndexFiltered];
-    const result = targetTrack?.position ?? insertionIndexFiltered;
-    console.log('[computeDropPosition] Target track position:', result, 'track:', targetTrack?.name);
-    return result;
+    const globalPosition = targetTrack?.position ?? insertionIndexFiltered;
+    return { filteredIndex: insertionIndexFiltered, globalPosition };
   }, []);
 
   // Set up DnD sensors (disable auto-scroll to prevent source panel scrolling)
@@ -149,12 +172,14 @@ export function SplitGrid() {
     // Extract track data for the overlay
     const { active } = event;
     const track = active.data.current?.track;
-    const trackId = active.id as string;
+    const compositeId = active.id as string; // e.g., "panel-1:track-abc123"
+    const sourcePanel = active.data.current?.panelId;
     
     if (track) {
       setActiveTrack(track);
     }
-    setActiveId(trackId);
+    setActiveId(compositeId);
+    setSourcePanelId(sourcePanel || null);
     
     // Start tracking pointer position
     const handlePointerMove = (e: PointerEvent) => {
@@ -171,27 +196,67 @@ export function SplitGrid() {
     document.addEventListener('pointerup', cleanup, { once: true });
   };
 
+  /**
+   * Helper: Find panel under pointer when over is null (fallback for virtualization gaps)
+   */
+  const findPanelUnderPointer = useCallback((): { panelId: string } | null => {
+    const pointerX = pointerPositionRef.current.x;
+    const pointerY = pointerPositionRef.current.y;
+    
+    for (const [panelId, panelData] of panelVirtualizersRef.current.entries()) {
+      const { scrollRef } = panelData;
+      const container = scrollRef.current;
+      if (!container) continue;
+      
+      const rect = container.getBoundingClientRect();
+      if (
+        pointerX >= rect.left &&
+        pointerX <= rect.right &&
+        pointerY >= rect.top &&
+        pointerY <= rect.bottom
+      ) {
+        return { panelId };
+      }
+    }
+    
+    return null;
+  }, []);
+
   const handleDragOver = (event: DragOverEvent) => {
     const { over } = event;
     
-    if (!over || !activeId) {
+    if (!activeId) {
       setComputedDropPosition(null);
+      setDropIndicatorIndex(null);
       setActivePanelId(null);
       setEphemeralInsertion(null);
       return;
     }
 
-    const targetData = over.data.current;
-    if (!targetData || targetData.type !== 'track') {
-      setComputedDropPosition(null);
-      setActivePanelId(null);
-      setEphemeralInsertion(null);
-      return;
+    // Get target panel ID from either track or panel droppable
+    let targetPanelId: string | null = null;
+    
+    if (over) {
+      const targetData = over.data.current;
+      
+      if (targetData?.type === 'track') {
+        // Hovering over a track droppable
+        targetPanelId = targetData.panelId;
+      } else if (targetData?.type === 'panel') {
+        // Hovering over panel background/gaps
+        targetPanelId = targetData.panelId;
+      }
+    } else {
+      // Fallback: No collision detected (virtualization gap), find panel under pointer
+      const panelUnderPointer = findPanelUnderPointer();
+      if (panelUnderPointer) {
+        targetPanelId = panelUnderPointer.panelId;
+      }
     }
-
-    const targetPanelId = targetData.panelId;
+    
     if (!targetPanelId) {
       setComputedDropPosition(null);
+      setDropIndicatorIndex(null);
       setActivePanelId(null);
       setEphemeralInsertion(null);
       return;
@@ -207,6 +272,7 @@ export function SplitGrid() {
     const panelData = panelVirtualizersRef.current.get(targetPanelId);
     if (!panelData) {
       setComputedDropPosition(null);
+      setDropIndicatorIndex(null);
       setEphemeralInsertion(null);
       return;
     }
@@ -254,38 +320,47 @@ export function SplitGrid() {
         }
       }
 
-      // Set ephemeral insertion for target panel to trigger "make room"
-      setEphemeralInsertion({
-        panelId: targetPanelId,
-        activeId,
-        insertionIndex: insertionIndexFiltered,
-      });
+      // Set ephemeral insertion for multi-container "make room" animation
+      if (sourcePanelId) {
+        setEphemeralInsertion({
+          activeId,
+          sourcePanelId,
+          targetPanelId,
+          insertionIndex: insertionIndexFiltered,
+        });
+      }
     }
 
-    // Compute the global playlist position for handleDragEnd
-    const globalPosition = computeDropPosition(targetPanelId, pointerY);
+    // Compute the global playlist position and filtered index
+    const dropData = computeDropPosition(targetPanelId, pointerY);
     
-    console.log('[DragOver]', {
-      targetPanelId,
-      targetType: targetData.type,
-      pointerY,
-      computedPosition: globalPosition,
-      ephemeralInsertion: ephemeralInsertion?.insertionIndex,
-      over: over.id,
-    });
-    
-    setComputedDropPosition(globalPosition);
+    if (dropData) {
+      console.log('[DragOver] Setting drop indicator:', {
+        targetPanelId,
+        filteredIndex: dropData.filteredIndex,
+        globalPosition: dropData.globalPosition,
+      });
+      setComputedDropPosition(dropData.globalPosition);
+      setDropIndicatorIndex(dropData.filteredIndex);
+    } else {
+      console.log('[DragOver] No drop data computed');
+      setComputedDropPosition(null);
+      setDropIndicatorIndex(null);
+    }
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
-    setActiveTrack(null);
+    const { active, over } = event;
+    
+    // Reset drag state
     setActiveId(null);
+    setActiveTrack(null);
+    setSourcePanelId(null);
     const finalDropPosition = computedDropPosition;
     setComputedDropPosition(null);
-    setActivePanelId(null); // Clear active panel
-    setEphemeralInsertion(null); // Clear ephemeral insertion
-
-    const { active, over } = event;
+    setDropIndicatorIndex(null);
+    setActivePanelId(null);
+    setEphemeralInsertion(null);
     
     if (!over || active.id === over.id) {
       return;
@@ -295,37 +370,33 @@ export function SplitGrid() {
     const sourceData = active.data.current;
     const targetData = over.data.current;
 
-    if (!sourceData || !targetData || sourceData.type !== 'track' || targetData.type !== 'track') {
+    // Source must be a track
+    if (!sourceData || sourceData.type !== 'track') {
       return;
     }
 
-    const sourcePanelId = sourceData.panelId;
+    // Target can be either a track or a panel
+    if (!targetData || (targetData.type !== 'track' && targetData.type !== 'panel')) {
+      return;
+    }
+
+    const sourcePanelIdFromData = sourceData.panelId;
     const targetPanelId = targetData.panelId;
     const sourcePlaylistId = sourceData.playlistId;
     const targetPlaylistId = targetData.playlistId;
     const sourceTrack: Track = sourceData.track;
-    const sourceIndex: number = sourceData.index; // This is track.position (global)
+    const sourceIndex: number = sourceData.position; // Use position from data payload (global index)
     
-    // Use computed drop position from onDragOver (pointer-based)
-    const targetIndex: number = finalDropPosition ?? targetData.index;
+    // Use computed drop position from handleDragOver (pointer-based, already global)
+    const targetIndex: number = finalDropPosition ?? (targetData.position ?? 0);
 
-    console.log('[DragEnd]', {
-      sourcePanelId,
-      targetPanelId,
-      sourceIndex,
-      targetIndex,
-      finalDropPosition,
-      fallbackIndex: targetData.index,
-      samePlaylist: sourcePlaylistId === targetPlaylistId,
-    });
-
-    if (!sourcePanelId || !targetPanelId || !sourcePlaylistId || !targetPlaylistId) {
+    if (!sourcePanelIdFromData || !targetPanelId || !sourcePlaylistId || !targetPlaylistId) {
       console.error('Missing panel or playlist context in drag event');
       return;
     }
 
     // Find the panels
-    const sourcePanel = panels.find((p) => p.id === sourcePanelId);
+    const sourcePanel = panels.find((p) => p.id === sourcePanelIdFromData);
     const targetPanel = panels.find((p) => p.id === targetPanelId);
 
     if (!sourcePanel || !targetPanel) {
@@ -340,7 +411,7 @@ export function SplitGrid() {
     }
 
     // Same panel reordering (traditional drag-and-drop within one view)
-    if (sourcePanelId === targetPanelId) {
+    if (sourcePanelIdFromData === targetPanelId) {
       if (sourceIndex === targetIndex) return;
 
       reorderTracks.mutate({
@@ -405,7 +476,7 @@ export function SplitGrid() {
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={pointerWithin}
+      collisionDetection={panelAwarePointerWithin}
       onDragStart={handleDragStart}
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
@@ -436,20 +507,16 @@ export function SplitGrid() {
               onRegisterVirtualizer={handleRegisterVirtualizer}
               onUnregisterVirtualizer={handleUnregisterVirtualizer}
               isActiveDropTarget={activePanelId === panel.id}
-              dropIndicatorPosition={activePanelId === panel.id ? computedDropPosition : null}
-              ephemeralInsertion={
-                ephemeralInsertion?.panelId === panel.id 
-                  ? { activeId: ephemeralInsertion.activeId, insertionIndex: ephemeralInsertion.insertionIndex }
-                  : null
-              }
+              dropIndicatorIndex={activePanelId === panel.id || sourcePanelId === panel.id ? dropIndicatorIndex : null}
+              ephemeralInsertion={ephemeralInsertion} // Pass full state, panel will filter
             />
           </div>
         ))}
       </div>
 
-      <DragOverlay>
+      <DragOverlay dropAnimation={null}>
         {activeTrack && (
-          <div className="bg-card border border-border rounded px-4 py-2 shadow-lg">
+          <div className="bg-card border-2 border-primary rounded px-4 py-2 shadow-2xl opacity-95">
             <div className="font-medium">{activeTrack.name}</div>
             <div className="text-sm text-muted-foreground">
               {activeTrack.artists.join(', ')}

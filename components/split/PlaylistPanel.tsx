@@ -1,18 +1,6 @@
 /**
  * PlaylistPanel component with virtualized track list, search, and DnD support.
- * Each panel can load a playlist independently and sync w  // Filter tracks based on debounced search query
-  const filteredTracks = useMemo(() => {
-    if (!data?.tracks) return [];
-    if (!debouncedSearchQuery) return data.tracks;
-
-    const query = debouncedSearchQuery.toLowerCase();
-    return data.tracks.filter(
-      (track) =>
-        track.name.toLowerCase().includes(query) ||
-        track.artists.some((artist) => artist.toLowerCase().includes(query)) ||
-        track.album?.name?.toLowerCase().includes(query)
-    );
-  }, [data?.tracks, debouncedSearchQuery]);els showing the same playlist.
+ * Each panel can load a playlist independently and sync with other panels showing the same playlist.
  */
 
 'use client';
@@ -21,6 +9,7 @@ import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { useDroppable } from '@dnd-kit/core';
 import { apiFetch } from '@/lib/api/client';
 import { eventBus } from '@/lib/sync/eventBus';
 import { useSplitGridStore } from '@/hooks/useSplitGridStore';
@@ -36,8 +25,13 @@ interface PlaylistPanelProps {
   onRegisterVirtualizer?: (panelId: string, virtualizer: any, scrollRef: React.RefObject<HTMLDivElement>, filteredTracks: Track[]) => void;
   onUnregisterVirtualizer?: (panelId: string) => void;
   isActiveDropTarget?: boolean; // True when mouse is hovering over this panel during drag
-  dropIndicatorPosition?: number | null; // Global playlist position where drop indicator should appear
-  ephemeralInsertion?: { activeId: string; insertionIndex: number } | null; // For multi-container "make room" animation
+  dropIndicatorIndex?: number | null; // Filtered index where drop indicator line should appear
+  ephemeralInsertion?: {
+    activeId: string; // Composite ID of dragged item
+    sourcePanelId: string; // Panel where drag originated
+    targetPanelId: string; // Panel being hovered over
+    insertionIndex: number; // Filtered index where item should be inserted
+  } | null; // For multi-container "make room" animation
 }
 
 interface PlaylistTracksData {
@@ -47,7 +41,7 @@ interface PlaylistTracksData {
   nextCursor: string | null;
 }
 
-export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirtualizer, isActiveDropTarget, dropIndicatorPosition, ephemeralInsertion }: PlaylistPanelProps) {
+export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirtualizer, isActiveDropTarget, dropIndicatorIndex, ephemeralInsertion }: PlaylistPanelProps) {
   const queryClient = useQueryClient();
   const scrollRef = useRef<HTMLDivElement>(null);
   const playlistIdRef = useRef<string | null>(null);
@@ -72,6 +66,16 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
   const debouncedSearchQuery = useDebouncedValue(searchQuery, 150);
   const selection = panel?.selection || new Set();
   const dndMode = panel?.dndMode || 'copy';
+
+  // Panel-level droppable for hover detection (gaps, padding, background)
+  const { setNodeRef: setDroppableRef } = useDroppable({
+    id: `panel-${panelId}`,
+    data: {
+      type: 'panel',
+      panelId,
+      playlistId,
+    },
+  });
 
   // Update ref when playlistId changes
   useEffect(() => {
@@ -196,18 +200,15 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
 
   // Compute contextItems with ephemeral insertion for "make room" animation
   const contextItems = useMemo(() => {
-    const baseItems = filteredTracks.map((t) => t.id || t.uri);
+    // Use composite IDs scoped by panel for globally unique identification
+    const baseItems = filteredTracks.map((t) => `${panelId}:${t.id || t.uri}`);
     
-    // If this panel is the active drop target and we have an ephemeral insertion,
-    // temporarily add the activeId at the insertion index to make items shift
-    if (ephemeralInsertion && !baseItems.includes(ephemeralInsertion.activeId)) {
-      const itemsCopy = [...baseItems];
-      itemsCopy.splice(ephemeralInsertion.insertionIndex, 0, ephemeralInsertion.activeId);
-      return itemsCopy;
-    }
+    // For cross-panel drags, we use a visual drop indicator line instead of
+    // ephemeral insertion to avoid interfering with @dnd-kit's native animations.
+    // The drop indicator is rendered in the JSX below.
     
     return baseItems;
-  }, [filteredTracks, ephemeralInsertion]);
+  }, [filteredTracks, panelId]);
 
   // Register virtualizer with parent for drop position calculation
   useEffect(() => {
@@ -328,6 +329,8 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
 
   return (
     <div 
+      ref={setDroppableRef}
+      data-testid="playlist-panel"
       className={`flex flex-col h-full border rounded-lg overflow-hidden bg-card transition-all ${
         isActiveDropTarget ? 'border-primary border-2 shadow-lg' : 'border-border'
       }`}
@@ -347,7 +350,7 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
         onDndModeToggle={handleDndModeToggle}
       />
 
-      <div ref={scrollRef} className="flex-1 overflow-auto">
+      <div ref={scrollRef} data-testid="track-list-scroll" className="flex-1 overflow-auto">
         {isLoading && (
           <div className="p-4 space-y-2">
             {Array.from({ length: 10 }).map((_, i) => (
@@ -380,54 +383,69 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
                 position: 'relative',
               }}
             >
-              {/* Visual drop indicator line */}
-              {isActiveDropTarget && dropIndicatorPosition !== null && dropIndicatorPosition !== undefined && (() => {
-                // Find the track at the drop position to get its Y coordinate
-                const dropTrackIndex = filteredTracks.findIndex(t => t.position === dropIndicatorPosition);
+              {/* Visual drop indicator line - show during any drag with valid filtered index */}
+              {dropIndicatorIndex !== null && dropIndicatorIndex !== undefined && (() => {
+                console.log('[PlaylistPanel] Rendering drop indicator:', {
+                  panelId,
+                  dropIndicatorIndex,
+                  itemsCount: items.length,
+                  filteredTracksCount: filteredTracks.length,
+                });
                 
-                if (dropTrackIndex === -1) {
-                  // Dropping after last track
+                // Directly use the filtered index to find the virtual item
+                const virtualItem = items.find(item => item.index === dropIndicatorIndex);
+                
+                if (!virtualItem) {
+                  console.log('[PlaylistPanel] No virtual item found, trying last track');
+                  // Dropping after last visible track
                   const lastIndex = filteredTracks.length - 1;
                   if (lastIndex >= 0) {
                     const lastVirtualItem = items.find(item => item.index === lastIndex);
                     if (lastVirtualItem) {
                       const dropY = lastVirtualItem.start + lastVirtualItem.size;
+                      console.log('[PlaylistPanel] Rendering indicator after last track at Y:', dropY);
                       return (
                         <div
+                          data-drop-indicator="after-last"
                           style={{
                             position: 'absolute',
                             top: 0,
                             left: 0,
                             width: '100%',
-                            height: '2px',
-                            backgroundColor: 'hsl(var(--primary))',
+                            height: '4px',
+                            backgroundColor: '#3b82f6',
                             transform: `translateY(${dropY}px)`,
-                            zIndex: 50,
+                            zIndex: 9999,
                             pointerEvents: 'none',
+                            boxShadow: '0 0 8px rgba(59, 130, 246, 0.8)',
                           }}
                         />
                       );
                     }
                   }
+                  console.log('[PlaylistPanel] Could not render indicator - no virtual items');
                   return null;
                 }
                 
-                // Find virtual item for this filtered index
-                const virtualItem = items.find(item => item.index === dropTrackIndex);
-                if (!virtualItem) return null;
+                console.log('[PlaylistPanel] Rendering indicator at virtual item:', {
+                  index: virtualItem.index,
+                  start: virtualItem.start,
+                });
                 
                 return (
                   <div
+                    data-drop-indicator="at-index"
                     style={{
                       position: 'absolute',
                       top: 0,
                       left: 0,
                       width: '100%',
-                      height: '2px',
-                      backgroundColor: 'hsl(var(--primary))',
+                      height: '4px',
+                      backgroundColor: '#3b82f6',
                       transform: `translateY(${virtualItem.start}px)`,
-                      zIndex: 50,
+                      zIndex: 9999,
                       pointerEvents: 'none',
+                      boxShadow: '0 0 8px rgba(59, 130, 246, 0.8)',
                     }}
                   />
                 );

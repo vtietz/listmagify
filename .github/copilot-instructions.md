@@ -57,6 +57,18 @@ PowerShell commands you'll use frequently:
 
 ---
 
+## 📚 Library Documentation
+
+**When working with complex libraries (@dnd-kit, TanStack Query, etc.), use the context7 tool** to fetch up-to-date documentation:
+
+1. **Resolve library ID first**: Use `resolve-library-id` with the package name
+2. **Fetch docs**: Use `get-library-docs` with the resolved library ID and topic
+3. **Example**: For @dnd-kit collision detection, search for "dnd-kit/core" then fetch docs on "collision detection"
+
+This ensures you have accurate, current API documentation rather than relying on potentially outdated knowledge.
+
+---
+
 ## 🧪 Testing & Validation Workflow
 
 **After every code change:**
@@ -154,6 +166,7 @@ Follow these best practices when writing or modifying code:
 - **Do not** use magic numbers or strings without explaining them
 - **Do not** ignore TypeScript errors or use `@ts-ignore` without justification
 - **Do not** overuse emojis in documentation or code comments
+- **Do not** create unrequested files, especially documentation markdown files
 
 ---
 
