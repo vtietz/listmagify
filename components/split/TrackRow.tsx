@@ -20,6 +20,7 @@ interface TrackRowProps {
   onClick: (trackId: string) => void;
   panelId?: string;
   playlistId?: string;
+  dndMode?: 'copy' | 'move';
 }
 
 export function TrackRow({
@@ -31,6 +32,7 @@ export function TrackRow({
   onClick,
   panelId,
   playlistId,
+  dndMode = 'copy',
 }: TrackRowProps) {
   // Create globally unique composite ID scoped by panel
   const trackId = track.id || track.uri;
@@ -82,24 +84,26 @@ export function TrackRow({
       ref={setNodeRef}
       style={style}
       className={cn(
-        'flex items-center gap-3 px-4 py-2 border-b border-border hover:bg-accent/50 cursor-pointer transition-colors',
+        'flex items-center gap-3 px-4 py-2 border-b border-border hover:bg-accent/50 transition-colors',
         isSelected && 'bg-accent',
-        isDragging && 'opacity-0'  // Hide the original item completely when dragging (overlay shows instead)
+        // Cursor feedback
+        isEditable && dndMode === 'move' && 'cursor-grab active:cursor-grabbing',
+        isEditable && dndMode === 'copy' && 'cursor-copy',
+        // Visual feedback during drag
+        isDragging && dndMode === 'move' && 'opacity-0',
+        isDragging && dndMode === 'copy' && 'opacity-50',
       )}
       onClick={handleClick}
       role="button"
       tabIndex={0}
       aria-selected={isSelected}
+      title={dndMode === 'copy' ? 'Click and drag to copy (Ctrl to move)' : 'Click and drag to move (Ctrl to copy)'}
+      {...(isEditable ? { ...attributes, ...listeners } : {})}
     >
       {isEditable && (
-        <button
-          className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground"
-          {...attributes}
-          {...listeners}
-          aria-label="Drag to reorder"
-        >
+        <div className="text-muted-foreground hover:text-foreground pointer-events-none">
           <GripVertical className="h-4 w-4" />
-        </button>
+        </div>
       )}
 
       <div className="flex-1 min-w-0">

@@ -76,6 +76,11 @@ export function SplitGrid() {
     insertionIndex: number;
   } | null>(null);
   const pointerPositionRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const modifierKeysRef = useRef<{ ctrlKey: boolean; altKey: boolean; shiftKey: boolean }>({ 
+    ctrlKey: false, 
+    altKey: false, 
+    shiftKey: false 
+  });
   
   const panels = useSplitGridStore((state) => state.panels);
 
@@ -181,16 +186,33 @@ export function SplitGrid() {
     setActiveId(compositeId);
     setSourcePanelId(sourcePanel || null);
     
-    // Start tracking pointer position
+    // Start tracking pointer position and modifier keys
     const handlePointerMove = (e: PointerEvent) => {
       pointerPositionRef.current = { x: e.clientX, y: e.clientY };
+      modifierKeysRef.current = {
+        ctrlKey: e.ctrlKey,
+        altKey: e.altKey,
+        shiftKey: e.shiftKey,
+      };
+    };
+    
+    const handleKeyChange = (e: KeyboardEvent) => {
+      modifierKeysRef.current = {
+        ctrlKey: e.ctrlKey,
+        altKey: e.altKey,
+        shiftKey: e.shiftKey,
+      };
     };
     
     document.addEventListener('pointermove', handlePointerMove);
+    document.addEventListener('keydown', handleKeyChange);
+    document.addEventListener('keyup', handleKeyChange);
     
     // Clean up on drag end
     const cleanup = () => {
       document.removeEventListener('pointermove', handlePointerMove);
+      document.removeEventListener('keydown', handleKeyChange);
+      document.removeEventListener('keyup', handleKeyChange);
       document.removeEventListener('pointerup', cleanup);
     };
     document.addEventListener('pointerup', cleanup, { once: true });
@@ -423,19 +445,45 @@ export function SplitGrid() {
     }
 
     // Cross-panel operation (different panels, possibly same or different playlists)
-    // targetIndex is now the computed global position from pointer location
     const trackUri = sourceTrack.uri;
-    const targetDndMode = targetPanel.dndMode || 'move';
+    const sourceDndMode = sourcePanel.dndMode || 'copy';
+    
+    // Determine effective mode: Ctrl key inverts the panel's mode
+    const isCtrlPressed = modifierKeysRef.current.ctrlKey;
+    const effectiveMode = isCtrlPressed 
+      ? (sourceDndMode === 'copy' ? 'move' : 'copy')
+      : sourceDndMode;
+
+    console.log('[DragEnd] Cross-panel operation:', {
+      sourcePanelId: sourcePanelIdFromData,
+      targetPanelId,
+      sourcePlaylistId,
+      targetPlaylistId,
+      sourceDndMode,
+      isCtrlPressed,
+      effectiveMode,
+      samePlaylist: sourcePlaylistId === targetPlaylistId,
+    });
 
     if (sourcePlaylistId === targetPlaylistId) {
-      // Same playlist, different panels: reorder to target position
-      // Use case: Two views of same playlist, one scrolled to top, one to bottom
-      reorderTracks.mutate({
-        playlistId: targetPlaylistId,
-        fromIndex: sourceIndex,
-        toIndex: targetIndex,
-      });
-    } else if (targetDndMode === 'copy') {
+      // Same playlist, different panels
+      if (effectiveMode === 'copy') {
+        // Copy mode: Duplicate the track at new position (same playlist)
+        // This creates a duplicate of the track at the target position
+        addTracks.mutate({
+          playlistId: targetPlaylistId,
+          trackUris: [trackUri],
+          position: targetIndex,
+        });
+      } else {
+        // Move mode: Reorder within playlist
+        reorderTracks.mutate({
+          playlistId: targetPlaylistId,
+          fromIndex: sourceIndex,
+          toIndex: targetIndex,
+        });
+      }
+    } else if (effectiveMode === 'copy') {
       // Different playlists: Copy to target at mouse position
       addTracks.mutate({
         playlistId: targetPlaylistId,

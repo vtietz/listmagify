@@ -26,6 +26,7 @@ interface SplitGridState {
   clonePanel: (panelId: string, direction: 'horizontal' | 'vertical') => void;
   closePanel: (panelId: string) => void;
   loadPlaylist: (panelId: string, playlistId: string, isEditable: boolean) => void;
+  selectPlaylist: (panelId: string, playlistId: string) => void;
   initializeSinglePanel: (playlistId: string) => void;
   setSearch: (panelId: string, query: string) => void;
   setSelection: (panelId: string, trackIds: string[]) => void;
@@ -98,6 +99,24 @@ export const useSplitGridStore = create<SplitGridState>()(
           panels: panels.map((p) =>
             p.id === panelId
               ? { ...p, playlistId, isEditable, searchQuery: '', scrollOffset: 0, selection: new Set() }
+              : p
+          ),
+        });
+      },
+
+      selectPlaylist: (panelId, playlistId) => {
+        const { panels } = get();
+        set({
+          panels: panels.map((p) =>
+            p.id === panelId
+              ? {
+                  ...p,
+                  playlistId,
+                  isEditable: false, // Will be updated by PlaylistPanel after permissions check
+                  searchQuery: '',
+                  scrollOffset: 0,
+                  selection: new Set(),
+                }
               : p
           ),
         });

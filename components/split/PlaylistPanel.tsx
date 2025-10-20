@@ -58,6 +58,7 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
   const clonePanel = useSplitGridStore((state) => state.clonePanel);
   const setPanelDnDMode = useSplitGridStore((state) => state.setPanelDnDMode);
   const loadPlaylist = useSplitGridStore((state) => state.loadPlaylist);
+  const selectPlaylist = useSplitGridStore((state) => state.selectPlaylist);
 
   const [playlistName, setPlaylistName] = useState<string>('');
 
@@ -253,6 +254,13 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
     setPanelDnDMode(panelId, newMode);
   }, [panelId, dndMode, setPanelDnDMode]);
 
+  const handleLoadPlaylist = useCallback(
+    (newPlaylistId: string) => {
+      selectPlaylist(panelId, newPlaylistId);
+    },
+    [panelId, selectPlaylist]
+  );
+
   const handleTrackClick = useCallback(
     (trackId: string) => {
       setSelection(panelId, [trackId]);
@@ -319,6 +327,7 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
           onSplitHorizontal={handleSplitHorizontal}
           onSplitVertical={handleSplitVertical}
           onDndModeToggle={() => {}}
+          onLoadPlaylist={handleLoadPlaylist}
         />
         <div className="flex-1 flex items-center justify-center text-muted-foreground">
           <p>Select a playlist to load</p>
@@ -348,6 +357,7 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
         onSplitHorizontal={handleSplitHorizontal}
         onSplitVertical={handleSplitVertical}
         onDndModeToggle={handleDndModeToggle}
+        onLoadPlaylist={handleLoadPlaylist}
       />
 
       <div ref={scrollRef} data-testid="track-list-scroll" className="flex-1 overflow-auto">
@@ -415,7 +425,7 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
                             height: '4px',
                             backgroundColor: '#3b82f6',
                             transform: `translateY(${dropY}px)`,
-                            zIndex: 9999,
+                            zIndex: 40,
                             pointerEvents: 'none',
                             boxShadow: '0 0 8px rgba(59, 130, 246, 0.8)',
                           }}
@@ -443,7 +453,7 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
                       height: '4px',
                       backgroundColor: '#3b82f6',
                       transform: `translateY(${virtualItem.start}px)`,
-                      zIndex: 9999,
+                      zIndex: 40,
                       pointerEvents: 'none',
                       boxShadow: '0 0 8px rgba(59, 130, 246, 0.8)',
                     }}
@@ -478,6 +488,7 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
                       onClick={handleTrackClick}
                       panelId={panelId}
                       playlistId={playlistId}
+                      dndMode={dndMode}
                     />
                   </div>
                 );

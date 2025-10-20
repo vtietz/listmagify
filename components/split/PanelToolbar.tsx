@@ -7,6 +7,7 @@
 
 import { useState } from 'react';
 import { Search, RefreshCw, Lock, X, SplitSquareHorizontal, SplitSquareVertical, Move, Copy } from 'lucide-react';
+import { PlaylistSelector } from './PlaylistSelector';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -25,7 +26,7 @@ interface PanelToolbarProps {
   onSplitHorizontal: () => void;
   onSplitVertical: () => void;
   onDndModeToggle: () => void;
-  onLoadPlaylist?: (playlistId: string) => void;
+  onLoadPlaylist: (playlistId: string) => void;
 }
 
 export function PanelToolbar({
@@ -55,20 +56,17 @@ export function PanelToolbar({
     <div className="flex items-center gap-2 p-2 border-b border-border bg-card">
       {/* Playlist name or empty state */}
       <div className="flex-1 min-w-0 px-2">
-        {playlistId ? (
-          <div className="flex items-center gap-2">
-            <span className="font-medium truncate">{playlistName || 'Playlist'}</span>
-            {!isEditable && (
-              <div title="This playlist is read-only">
-                <Lock
-                  className="h-4 w-4 text-muted-foreground flex-shrink-0"
-                  aria-label="Read-only playlist"
-                />
-              </div>
-            )}
+        <PlaylistSelector
+          selectedPlaylistId={playlistId}
+          onSelectPlaylist={onLoadPlaylist}
+        />
+        {playlistId && !isEditable && (
+          <div title="This playlist is read-only" className="ml-2 inline-flex">
+            <Lock
+              className="h-4 w-4 text-muted-foreground flex-shrink-0"
+              aria-label="Read-only playlist"
+            />
           </div>
-        ) : (
-          <span className="text-sm text-muted-foreground">No playlist loaded</span>
         )}
       </div>
 
