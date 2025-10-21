@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ChevronsUpDown, Check } from 'lucide-react';
 import { apiFetch } from '@/lib/api/client';
+import { userPlaylists } from '@/lib/api/queryKeys';
 import { cn } from '@/lib/utils';
 import type { Playlist } from '@/lib/spotify/types';
 
@@ -34,6 +35,7 @@ export function PlaylistSelector({ selectedPlaylistId, selectedPlaylistName, onS
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
   const containerRef = useRef<HTMLDivElement | null>(null);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
 
   const {
     data,
@@ -43,7 +45,7 @@ export function PlaylistSelector({ selectedPlaylistId, selectedPlaylistName, onS
     isFetchingNextPage,
     refetch,
   } = useInfiniteQuery({
-    queryKey: ['user-playlists'],
+    queryKey: userPlaylists(),
     queryFn: async ({ pageParam = null }): Promise<PlaylistsResponse> => {
       const url = pageParam
         ? `/api/me/playlists?nextCursor=${encodeURIComponent(pageParam as string)}`
@@ -90,16 +92,29 @@ export function PlaylistSelector({ selectedPlaylistId, selectedPlaylistName, onS
   );
 
   // Close on outside click
+  // Using 'click' instead of 'mousedown' allows the dropdown item's onClick to fire first
   useEffect(() => {
-    function onDocMouseDown(e: MouseEvent) {
-      if (!containerRef.current) return;
-      if (containerRef.current.contains(e.target as Node)) return;
+    function onDocClick(e: MouseEvent) {
+      console.log('[PlaylistSelector] click event fired', { target: e.target });
+      
+      // Check if click is inside any of our components using composedPath
+      const path = e.composedPath();
+      const isInsideContainer = containerRef.current && path.includes(containerRef.current);
+      const isInsideButton = buttonRef.current && path.includes(buttonRef.current);
+      const isInsideDropdown = dropdownRef.current && path.includes(dropdownRef.current);
+      
+      if (isInsideContainer || isInsideButton || isInsideDropdown) {
+        console.log('[PlaylistSelector] Click inside component, keeping dropdown open');
+        return;
+      }
+      
+      console.log('[PlaylistSelector] Closing dropdown due to outside click');
       setOpen(false);
     }
     if (open) {
-      document.addEventListener('mousedown', onDocMouseDown);
+      document.addEventListener('click', onDocClick);
     }
-    return () => document.removeEventListener('mousedown', onDocMouseDown);
+    return () => document.removeEventListener('click', onDocClick);
   }, [open]);
 
   // Reset active index when query changes
@@ -129,6 +144,7 @@ export function PlaylistSelector({ selectedPlaylistId, selectedPlaylistName, onS
 
   const handleSelect = useCallback(
     (playlistId: string) => {
+      console.log('[PlaylistSelector] handleSelect called', { playlistId });
       onSelectPlaylist(playlistId);
       setOpen(false);
       setQuery('');
@@ -176,6 +192,7 @@ export function PlaylistSelector({ selectedPlaylistId, selectedPlaylistName, onS
 
       {open && typeof document !== 'undefined' && createPortal(
         <div
+          ref={dropdownRef}
           style={{
             position: 'fixed',
             top: `${dropdownPosition.top}px`,

@@ -48,7 +48,6 @@ interface PlaylistTracksData {
 export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirtualizer, isActiveDropTarget, dropIndicatorIndex, ephemeralInsertion }: PlaylistPanelProps) {
   const queryClient = useQueryClient();
   const scrollRef = useRef<HTMLDivElement>(null);
-  const playlistIdRef = useRef<string | null>(null);
   
   const panel = useSplitGridStore((state: any) =>
     state.panels.find((p: any) => p.id === panelId)
@@ -89,18 +88,11 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
     },
   });
 
-  // Update ref when playlistId changes
-  useEffect(() => {
-    if (playlistId) {
-      playlistIdRef.current = playlistId;
-    }
-  }, [playlistId]);
-
   // Fetch playlist tracks with stable query key
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: playlistIdRef.current ? playlistTracks(playlistIdRef.current) : ['playlist-tracks', null],
+    queryKey: playlistId ? playlistTracks(playlistId) : ['playlist-tracks', null],
     queryFn: async (): Promise<PlaylistTracksData> => {
-      if (!playlistIdRef.current) throw new Error('No playlist ID');
+      if (!playlistId) throw new Error('No playlist ID');
       return apiFetch(`/api/playlists/${playlistId}/tracks`);
     },
     enabled: !!playlistId,
