@@ -71,31 +71,6 @@ export function TableHeader({ isEditable, sortKey, sortDirection, onSort }: Tabl
       <div className="flex-shrink-0 w-[60px] text-right">
         {renderColumnHeader('Time', 'duration', 'w-[60px]')}
       </div>
-
-      {/* Audio Features - hidden on medium screens */}
-      <div className="hidden xl:flex items-center gap-4">
-        <div className="w-[50px] text-right">
-          {renderColumnHeader('BPM', 'tempo', 'w-[50px]')}
-        </div>
-        <div className="w-[40px] text-right">
-          {renderColumnHeader('Key', 'key', 'w-[40px]')}
-        </div>
-        <div className="w-[50px] text-right">
-          {renderColumnHeader('Acou', 'acousticness', 'w-[50px]')}
-        </div>
-        <div className="w-[50px] text-right">
-          {renderColumnHeader('Enrg', 'energy', 'w-[50px]')}
-        </div>
-        <div className="w-[50px] text-right">
-          {renderColumnHeader('Inst', 'instrumentalness', 'w-[50px]')}
-        </div>
-        <div className="w-[50px] text-right">
-          {renderColumnHeader('Live', 'liveness', 'w-[50px]')}
-        </div>
-        <div className="w-[50px] text-right">
-          {renderColumnHeader('Val', 'valence', 'w-[50px]')}
-        </div>
-      </div>
     </div>
   );
 }

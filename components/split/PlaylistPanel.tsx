@@ -68,7 +68,6 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
   const [playlistName, setPlaylistName] = useState<string>('');
   const [sortKey, setSortKey] = useState<SortKey>('position');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
-  const [isLoadingAudioFeatures, setIsLoadingAudioFeatures] = useState(false);
 
   const playlistId = panel?.playlistId;
   const searchQuery = panel?.searchQuery || '';
@@ -157,87 +156,6 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
   // - Cannot drop INTO sorted table (prevents reordering when sorted)
   const canDrag = !locked && isEditable;
 
-  // Fetch audio features when tracks load
-  const [tracksWithFeatures, setTracksWithFeatures] = useState<Track[]>([]);
-
-  useEffect(() => {
-    if (!data?.tracks) {
-      setTracksWithFeatures([]);
-      return;
-    }
-
-    const trackIds = data.tracks
-      .map((t: Track) => t.id)
-      .filter((id: string | null): id is string => !!id);
-    
-    if (trackIds.length === 0) {
-      setTracksWithFeatures(data.tracks);
-      return;
-    }
-
-    setIsLoadingAudioFeatures(true);
-    
-    // Fetch audio features via API route
-    apiFetch('/api/audio-features', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ trackIds }),
-    })
-      .then((response: { features: Record<string, any> }) => {
-        // Debug: log how many features we received
-        const featureKeys = Object.keys(response?.features || {});
-        console.log(`[PlaylistPanel:${panelId}] audio features response`, { count: featureKeys.length, sample: featureKeys.slice(0, 5) });
-
-        // Convert response object to Map
-        const featuresMap = new Map<string, any>();
-        Object.entries(response.features).forEach(([id, features]) => {
-          featuresMap.set(id, features);
-        });
-        
-        // Populate tracks with audio features
-        const populated = data.tracks.map((track: Track) => {
-          if (!track.id) return track;
-          const features = featuresMap.get(track.id);
-          if (!features) return track;
-          
-          return {
-            ...track,
-            tempoBpm: features.tempo,
-            musicalKey: features.key,
-            mode: features.mode,
-            acousticness: features.acousticness,
-            energy: features.energy,
-            instrumentalness: features.instrumentalness,
-            liveness: features.liveness,
-            valence: features.valence,
-          };
-        });
-
-        // Debug: log how many tracks now have features
-        const withFeaturesCount = populated.reduce((acc: number, t: Track) => {
-          const hasAny =
-            t.tempoBpm != null ||
-            t.musicalKey != null ||
-            t.acousticness != null ||
-            t.energy != null ||
-            t.instrumentalness != null ||
-            t.liveness != null ||
-            t.valence != null;
-          return acc + (hasAny ? 1 : 0);
-        }, 0);
-        console.log(`[PlaylistPanel:${panelId}] tracks with features after mapping`, { withFeaturesCount, total: populated.length });
-
-        setTracksWithFeatures(populated);
-      })
-      .catch((err) => {
-        console.error('Failed to fetch audio features:', err);
-        setTracksWithFeatures(data.tracks); // Use tracks without features on error
-      })
-      .finally(() => {
-        setIsLoadingAudioFeatures(false);
-      });
-  }, [data?.tracks]);
-
   // Update store when permissions are loaded
   useEffect(() => {
     if (playlistId && permissionsData) {
@@ -276,9 +194,9 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
     };
   }, [playlistId, panelId, refetch, setScroll]);
 
-  // Apply sorting to tracks with audio features
+  // Apply sorting to tracks
   const sortedTracks = usePlaylistSort({
-    tracks: tracksWithFeatures,
+    tracks: data?.tracks || [],
     sortKey,
     sortDirection,
   });
@@ -479,7 +397,6 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
         searchQuery={searchQuery}
         sortKey={sortKey}
         sortDirection={sortDirection}
-        isLoadingAudioFeatures={isLoadingAudioFeatures}
         onSearchChange={handleSearchChange}
         onSortChange={(key, direction) => {
           setSortKey(key);

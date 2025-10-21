@@ -24,7 +24,6 @@ interface PanelToolbarProps {
   searchQuery: string;
   sortKey?: SortKey;
   sortDirection?: SortDirection;
-  isLoadingAudioFeatures?: boolean;
   onSearchChange: (query: string) => void;
   onSortChange?: (key: SortKey, direction: SortDirection) => void;
   onReload: () => void;
@@ -46,7 +45,6 @@ export function PanelToolbar({
   searchQuery,
   sortKey = 'position',
   sortDirection = 'asc',
-  isLoadingAudioFeatures = false,
   onSearchChange,
   onSortChange,
   onReload,
@@ -81,7 +79,6 @@ export function PanelToolbar({
         <div className="flex items-center gap-1 px-2 h-8 text-xs text-muted-foreground border border-border rounded whitespace-nowrap shrink-0">
           <ArrowUpDown className="h-3 w-3" />
           <span>Sorted by {sortKey}</span>
-          {isLoadingAudioFeatures && <span className="animate-pulse">...</span>}
         </div>
       )}
 

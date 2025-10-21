@@ -9,13 +9,6 @@ import {
   compareByArtist,
   compareByAlbum,
   compareByDuration,
-  compareByTempo,
-  compareByKey,
-  compareByAcousticness,
-  compareByEnergy,
-  compareByInstrumentalness,
-  compareByLiveness,
-  compareByValence,
   getComparator,
   sortTracks,
 } from "@/lib/utils/sort";
@@ -128,88 +121,6 @@ describe("compareByDuration", () => {
   });
 });
 
-describe("compareByTempo", () => {
-  it("sorts by tempo ascending", () => {
-    const a = createTrack({ tempoBpm: 100, originalPosition: 0 });
-    const b = createTrack({ tempoBpm: 140, originalPosition: 1 });
-    expect(compareByTempo(a, b)).toBeLessThan(0);
-  });
-
-  it("handles undefined tempo", () => {
-    const a = createTrack({ originalPosition: 0 });
-    const b = createTrack({ tempoBpm: 120, originalPosition: 1 });
-    expect(compareByTempo(a, b)).toBeGreaterThan(0); // undefined sorts to end
-  });
-
-  it("uses stable sort when tempos are equal", () => {
-    const a = createTrack({ tempoBpm: 120, originalPosition: 1 });
-    const b = createTrack({ tempoBpm: 120, originalPosition: 2 });
-    expect(compareByTempo(a, b)).toBeLessThan(0);
-  });
-});
-
-describe("compareByKey", () => {
-  it("sorts by musical key ascending", () => {
-    const a = createTrack({ musicalKey: 0, originalPosition: 0 }); // C
-    const b = createTrack({ musicalKey: 7, originalPosition: 1 }); // G
-    expect(compareByKey(a, b)).toBeLessThan(0);
-  });
-
-  it("handles undefined key", () => {
-    const a = createTrack({ originalPosition: 0 });
-    const b = createTrack({ musicalKey: 5, originalPosition: 1 });
-    expect(compareByKey(a, b)).toBeGreaterThan(0);
-  });
-});
-
-describe("Audio feature comparators", () => {
-  describe("compareByAcousticness", () => {
-    it("sorts by acousticness ascending", () => {
-      const a = createTrack({ acousticness: 0.2, originalPosition: 0 });
-      const b = createTrack({ acousticness: 0.8, originalPosition: 1 });
-      expect(compareByAcousticness(a, b)).toBeLessThan(0);
-    });
-
-    it("handles undefined values", () => {
-      const a = createTrack({ originalPosition: 0 });
-      const b = createTrack({ acousticness: 0.5, originalPosition: 1 });
-      expect(compareByAcousticness(a, b)).toBeGreaterThan(0);
-    });
-  });
-
-  describe("compareByEnergy", () => {
-    it("sorts by energy ascending", () => {
-      const a = createTrack({ energy: 0.3, originalPosition: 0 });
-      const b = createTrack({ energy: 0.9, originalPosition: 1 });
-      expect(compareByEnergy(a, b)).toBeLessThan(0);
-    });
-  });
-
-  describe("compareByInstrumentalness", () => {
-    it("sorts by instrumentalness ascending", () => {
-      const a = createTrack({ instrumentalness: 0.1, originalPosition: 0 });
-      const b = createTrack({ instrumentalness: 0.7, originalPosition: 1 });
-      expect(compareByInstrumentalness(a, b)).toBeLessThan(0);
-    });
-  });
-
-  describe("compareByLiveness", () => {
-    it("sorts by liveness ascending", () => {
-      const a = createTrack({ liveness: 0.05, originalPosition: 0 });
-      const b = createTrack({ liveness: 0.85, originalPosition: 1 });
-      expect(compareByLiveness(a, b)).toBeLessThan(0);
-    });
-  });
-
-  describe("compareByValence", () => {
-    it("sorts by valence ascending", () => {
-      const a = createTrack({ valence: 0.2, originalPosition: 0 });
-      const b = createTrack({ valence: 0.95, originalPosition: 1 });
-      expect(compareByValence(a, b)).toBeLessThan(0);
-    });
-  });
-});
-
 describe("getComparator", () => {
   it("returns correct comparator for each sort key", () => {
     expect(getComparator("position")).toBe(compareByPosition);
@@ -217,13 +128,6 @@ describe("getComparator", () => {
     expect(getComparator("artist")).toBe(compareByArtist);
     expect(getComparator("album")).toBe(compareByAlbum);
     expect(getComparator("duration")).toBe(compareByDuration);
-    expect(getComparator("tempo")).toBe(compareByTempo);
-    expect(getComparator("key")).toBe(compareByKey);
-    expect(getComparator("acousticness")).toBe(compareByAcousticness);
-    expect(getComparator("energy")).toBe(compareByEnergy);
-    expect(getComparator("instrumentalness")).toBe(compareByInstrumentalness);
-    expect(getComparator("liveness")).toBe(compareByLiveness);
-    expect(getComparator("valence")).toBe(compareByValence);
   });
 });
 

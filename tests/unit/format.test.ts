@@ -4,9 +4,6 @@
 import { describe, it, expect } from "vitest";
 import {
   formatDuration,
-  formatBpm,
-  formatKey,
-  formatPercent,
   formatCumulativeDuration,
 } from "@/lib/utils/format";
 
@@ -33,63 +30,6 @@ describe("formatDuration", () => {
 
   it("rounds down fractional seconds", () => {
     expect(formatDuration(45999)).toBe("0:45"); // 45.999 seconds
-  });
-});
-
-describe("formatBpm", () => {
-  it("formats BPM with one decimal place", () => {
-    expect(formatBpm(120.5)).toBe("120.5");
-    expect(formatBpm(98.123)).toBe("98.1");
-    expect(formatBpm(140)).toBe("140.0");
-  });
-
-  it("rounds correctly", () => {
-    expect(formatBpm(120.49)).toBe("120.5");
-    expect(formatBpm(120.44)).toBe("120.4");
-  });
-});
-
-describe("formatKey", () => {
-  it("formats major keys correctly", () => {
-    expect(formatKey(0, 1)).toBe("C major");
-    expect(formatKey(7, 1)).toBe("G major");
-    expect(formatKey(11, 1)).toBe("B major");
-  });
-
-  it("formats minor keys correctly", () => {
-    expect(formatKey(0, 0)).toBe("C minor");
-    expect(formatKey(9, 0)).toBe("A minor");
-    expect(formatKey(2, 0)).toBe("D minor");
-  });
-
-  it("handles sharp/flat keys", () => {
-    expect(formatKey(1, 1)).toBe("C♯/D♭ major");
-    expect(formatKey(6, 0)).toBe("F♯/G♭ minor");
-  });
-
-  it("formats key without mode when mode is undefined", () => {
-    expect(formatKey(0)).toBe("C");
-    expect(formatKey(7, undefined)).toBe("G");
-  });
-
-  it("handles invalid key gracefully", () => {
-    expect(formatKey(12, 1)).toBe("? major");
-    expect(formatKey(-1, 0)).toBe("? minor");
-  });
-});
-
-describe("formatPercent", () => {
-  it("formats decimal values as percentages", () => {
-    expect(formatPercent(0.85)).toBe("85%");
-    expect(formatPercent(0.5)).toBe("50%");
-    expect(formatPercent(1.0)).toBe("100%");
-    expect(formatPercent(0.0)).toBe("0%");
-  });
-
-  it("rounds to nearest integer", () => {
-    expect(formatPercent(0.856)).toBe("86%");
-    expect(formatPercent(0.854)).toBe("85%");
-    expect(formatPercent(0.005)).toBe("1%");
   });
 });
 

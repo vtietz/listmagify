@@ -9,7 +9,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import type { Track } from '@/lib/spotify/types';
 import { makeCompositeId, getTrackPosition } from '@/lib/dnd/id';
 import { cn } from '@/lib/utils';
-import { formatDuration, formatBpm, formatKey, formatPercent } from '@/lib/utils/format';
+import { formatDuration } from '@/lib/utils/format';
 import { GripVertical } from 'lucide-react';
 
 interface TrackRowProps {
@@ -135,44 +135,6 @@ export function TrackRow({
       {/* Duration */}
       <div className="flex-shrink-0 w-[60px] text-sm text-muted-foreground tabular-nums text-right">
         {formatDuration(track.durationMs)}
-      </div>
-
-      {/* Audio Features - compact display without labels */}
-      <div className="hidden xl:flex items-center gap-4 text-sm text-muted-foreground tabular-nums">
-        {/* Tempo */}
-        <div className="w-[50px] text-right">
-          {track.tempoBpm != null ? formatBpm(track.tempoBpm) : '—'}
-        </div>
-
-        {/* Key */}
-        <div className="w-[40px] text-right">
-          {track.musicalKey != null && track.mode != null ? formatKey(track.musicalKey, track.mode) : '—'}
-        </div>
-
-        {/* Acousticness */}
-        <div className="w-[50px] text-right">
-          {track.acousticness != null ? formatPercent(track.acousticness) : '—'}
-        </div>
-
-        {/* Energy */}
-        <div className="w-[50px] text-right">
-          {track.energy != null ? formatPercent(track.energy) : '—'}
-        </div>
-
-        {/* Instrumentalness */}
-        <div className="w-[50px] text-right">
-          {track.instrumentalness != null ? formatPercent(track.instrumentalness) : '—'}
-        </div>
-
-        {/* Liveness */}
-        <div className="w-[50px] text-right">
-          {track.liveness != null ? formatPercent(track.liveness) : '—'}
-        </div>
-
-        {/* Valence */}
-        <div className="w-[50px] text-right">
-          {track.valence != null ? formatPercent(track.valence) : '—'}
-        </div>
       </div>
     </div>
   );

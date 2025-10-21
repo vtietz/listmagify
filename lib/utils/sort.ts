@@ -10,14 +10,7 @@ export type SortKey =
   | "name"
   | "artist"
   | "album"
-  | "duration"
-  | "tempo"
-  | "key"
-  | "acousticness"
-  | "energy"
-  | "instrumentalness"
-  | "liveness"
-  | "valence";
+  | "duration";
 
 export type SortDirection = "asc" | "desc";
 
@@ -91,90 +84,6 @@ export function compareByDuration(a: Track, b: Track): number {
 }
 
 /**
- * Sort by tempo (BPM)
- */
-export function compareByTempo(a: Track, b: Track): number {
-  const result = compareValues(
-    a.tempoBpm,
-    b.tempoBpm,
-    (aTempo, bTempo) => aTempo - bTempo
-  );
-  return result !== 0 ? result : stableSort(a, b);
-}
-
-/**
- * Sort by musical key (0-11)
- */
-export function compareByKey(a: Track, b: Track): number {
-  const result = compareValues(
-    a.musicalKey,
-    b.musicalKey,
-    (aKey, bKey) => aKey - bKey
-  );
-  return result !== 0 ? result : stableSort(a, b);
-}
-
-/**
- * Sort by acousticness (0-1)
- */
-export function compareByAcousticness(a: Track, b: Track): number {
-  const result = compareValues(
-    a.acousticness,
-    b.acousticness,
-    (aVal, bVal) => aVal - bVal
-  );
-  return result !== 0 ? result : stableSort(a, b);
-}
-
-/**
- * Sort by energy (0-1)
- */
-export function compareByEnergy(a: Track, b: Track): number {
-  const result = compareValues(
-    a.energy,
-    b.energy,
-    (aVal, bVal) => aVal - bVal
-  );
-  return result !== 0 ? result : stableSort(a, b);
-}
-
-/**
- * Sort by instrumentalness (0-1)
- */
-export function compareByInstrumentalness(a: Track, b: Track): number {
-  const result = compareValues(
-    a.instrumentalness,
-    b.instrumentalness,
-    (aVal, bVal) => aVal - bVal
-  );
-  return result !== 0 ? result : stableSort(a, b);
-}
-
-/**
- * Sort by liveness (0-1)
- */
-export function compareByLiveness(a: Track, b: Track): number {
-  const result = compareValues(
-    a.liveness,
-    b.liveness,
-    (aVal, bVal) => aVal - bVal
-  );
-  return result !== 0 ? result : stableSort(a, b);
-}
-
-/**
- * Sort by valence / positivity (0-1)
- */
-export function compareByValence(a: Track, b: Track): number {
-  const result = compareValues(
-    a.valence,
-    b.valence,
-    (aVal, bVal) => aVal - bVal
-  );
-  return result !== 0 ? result : stableSort(a, b);
-}
-
-/**
  * Get comparator function for a given sort key
  */
 export function getComparator(sortKey: SortKey): (a: Track, b: Track) => number {
@@ -189,20 +98,6 @@ export function getComparator(sortKey: SortKey): (a: Track, b: Track) => number 
       return compareByAlbum;
     case "duration":
       return compareByDuration;
-    case "tempo":
-      return compareByTempo;
-    case "key":
-      return compareByKey;
-    case "acousticness":
-      return compareByAcousticness;
-    case "energy":
-      return compareByEnergy;
-    case "instrumentalness":
-      return compareByInstrumentalness;
-    case "liveness":
-      return compareByLiveness;
-    case "valence":
-      return compareByValence;
     default:
       return compareByPosition;
   }
