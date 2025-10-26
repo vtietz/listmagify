@@ -95,8 +95,6 @@ export function PlaylistSelector({ selectedPlaylistId, selectedPlaylistName, onS
   // Using 'click' instead of 'mousedown' allows the dropdown item's onClick to fire first
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
-      console.log('[PlaylistSelector] click event fired', { target: e.target });
-      
       // Check if click is inside any of our components using composedPath
       const path = e.composedPath();
       const isInsideContainer = containerRef.current && path.includes(containerRef.current);
@@ -104,11 +102,9 @@ export function PlaylistSelector({ selectedPlaylistId, selectedPlaylistName, onS
       const isInsideDropdown = dropdownRef.current && path.includes(dropdownRef.current);
       
       if (isInsideContainer || isInsideButton || isInsideDropdown) {
-        console.log('[PlaylistSelector] Click inside component, keeping dropdown open');
         return;
       }
       
-      console.log('[PlaylistSelector] Closing dropdown due to outside click');
       setOpen(false);
     }
     if (open) {
@@ -144,7 +140,6 @@ export function PlaylistSelector({ selectedPlaylistId, selectedPlaylistName, onS
 
   const handleSelect = useCallback(
     (playlistId: string) => {
-      console.log('[PlaylistSelector] handleSelect called', { playlistId });
       onSelectPlaylist(playlistId);
       setOpen(false);
       setQuery('');

@@ -1,0 +1,20 @@
+{
+  "name": "spotify-playlist-editor",
+  "dockerComposeFile": ["../docker/docker-compose.yml"],
+  "service": "web",
+  "workspaceFolder": "/usr/src/app",
+  "shutdownAction": "stopCompose",
+  "runServices": ["web"],
+  "overrideCommand": false,
+  "mounts": [
+    "source=node_modules,target=/usr/src/app/node_modules,type=volume"
+  ],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "esbenp.prettier-vscode"
+      ]
+    }
+  },
+  "postCreateCommand": "corepack use pnpm@10.18.3 && pnpm install"
+}

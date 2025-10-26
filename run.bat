@@ -34,7 +34,8 @@ if "%1"=="down" (
   goto :eof
 )
 if "%1"=="install" (
-  docker compose -f docker\docker-compose.yml run --rm web pnpm install %2 %3 %4 %5 %6 %7 %8 %9
+  rem Install as root inside the container to avoid Windows bind-mount EACCES on rename/mkdir
+  docker compose -f docker\docker-compose.yml run --rm --user root web sh -lc "corepack prepare pnpm@10.18.3 --activate && pnpm install %2 %3 %4 %5 %6 %7 %8 %9"
   goto :eof
 )
 if "%1"=="build" (

@@ -318,7 +318,9 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
     const { virtualizer, scrollRef, filteredTracks } = panelData;
     const scrollContainer = scrollRef.current;
     
-    // Auto-scroll when pointer is near container edges
+    // Auto-scroll when pointer is near the edges of the current target panel
+    // Note: targetPanelId is determined by pointer position, so we always scroll 
+    // whichever panel the pointer is currently over. This is the expected behavior.
     if (scrollContainer) {
       autoScrollEdge(scrollContainer, pointerY);
     }
