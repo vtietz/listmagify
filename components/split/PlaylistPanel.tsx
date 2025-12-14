@@ -13,10 +13,12 @@ import { useDroppable } from '@dnd-kit/core';
 import { apiFetch } from '@/lib/api/client';
 import { playlistTracks, playlistMeta, playlistPermissions } from '@/lib/api/queryKeys';
 import { makeCompositeId } from '@/lib/dnd/id';
+import { scrollToIndexIfOutOfView } from '@/lib/utils/virtualScroll';
 import { DropIndicator } from './DropIndicator';
 import { eventBus } from '@/lib/sync/eventBus';
 import { useSplitGridStore } from '@/hooks/useSplitGridStore';
 import { usePlaylistSort, type SortKey, type SortDirection } from '@/hooks/usePlaylistSort';
+import { useTrackListSelection } from '@/hooks/useTrackListSelection';
 import { PanelToolbar } from './PanelToolbar';
 import { TableHeader } from './TableHeader';
 import { TrackRow } from './TrackRow';
@@ -293,36 +295,14 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
     [panelId, selectPlaylist]
   );
 
-  const handleTrackClick = useCallback(
-    (trackId: string) => {
-      setSelection(panelId, [trackId]);
-    },
-    [panelId, setSelection]
-  );
-
-  const handleTrackSelect = useCallback(
-    (trackId: string, event: any) => {
-      if (event.shiftKey) {
-        // Range selection
-        const tracks = filteredTracks.map((t: Track) => t.id || t.uri);
-        const currentIndex = tracks.indexOf(trackId);
-        const lastSelectedIndex = tracks.findIndex((id: string) => selection.has(id));
-        
-        if (lastSelectedIndex !== -1 && currentIndex !== -1) {
-          const start = Math.min(currentIndex, lastSelectedIndex);
-          const end = Math.max(currentIndex, lastSelectedIndex);
-          const range = tracks.slice(start, end + 1);
-          setSelection(panelId, range);
-        }
-      } else if (event.ctrlKey || event.metaKey) {
-        // Toggle selection
-        toggleSelection(panelId, trackId);
-      } else {
-        setSelection(panelId, [trackId]);
-      }
-    },
-    [panelId, filteredTracks, selection, setSelection, toggleSelection]
-  );
+  const { handleTrackClick, handleTrackSelect, handleKeyDownNavigation, focusedIndex } = useTrackListSelection({
+    filteredTracks,
+    selection,
+    panelId,
+    setSelection,
+    toggleSelection,
+    virtualizer,
+  });
 
   // Save scroll position
   useEffect(() => {
@@ -403,7 +383,17 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
         onLoadPlaylist={handleLoadPlaylist}
       />
 
-      <div ref={scrollRef} data-testid="track-list-scroll" className="flex-1 overflow-auto" style={{ paddingBottom: TRACK_ROW_HEIGHT * 2 }}>
+      <div
+        ref={scrollRef}
+        data-testid="track-list-scroll"
+        className="flex-1 overflow-auto focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+        style={{ paddingBottom: TRACK_ROW_HEIGHT * 2 }}
+        role="listbox"
+        aria-multiselectable="true"
+        aria-activedescendant={focusedIndex !== null ? `option-${panelId}-${focusedIndex}` : undefined}
+        tabIndex={0}
+        onKeyDown={handleKeyDownNavigation}
+      >
         {isLoading && (
           <div className="p-4 space-y-2">
             {Array.from({ length: 10 }).map((_, i) => (

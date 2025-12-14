@@ -18,8 +18,8 @@ interface TrackRowProps {
   isSelected: boolean;
   isEditable: boolean;
   locked?: boolean;
-  onSelect: (trackId: string, event: React.MouseEvent) => void;
-  onClick: (trackId: string) => void;
+  onSelect: (trackId: string, index: number, event: React.MouseEvent) => void;
+  onClick: (trackId: string, index: number) => void;
   panelId?: string;
   playlistId?: string;
   dndMode?: 'copy' | 'move';
@@ -66,9 +66,9 @@ export function TrackRow({
 
   const handleClick = (e: React.MouseEvent) => {
     if (e.shiftKey || e.ctrlKey || e.metaKey) {
-      onSelect(trackId, e);
+      onSelect(trackId, index, e);
     } else {
-      onClick(trackId);
+      onClick(trackId, index);
     }
   };
 
@@ -77,8 +77,9 @@ export function TrackRow({
       ref={setNodeRef}
       style={style}
       className={cn(
-        'flex items-center gap-3 px-4 h-12 border-b border-border hover:bg-accent/50 transition-colors',
-        isSelected && 'bg-accent',
+        'flex items-center gap-3 px-4 h-12 border-b border-border transition-colors',
+        !isSelected && 'hover:bg-accent/40 hover:text-foreground',
+        isSelected && 'bg-accent/70 text-foreground hover:bg-accent/80',
         // Cursor feedback - show grab/copy only when draggable
         !locked && isEditable && dndMode === 'move' && 'cursor-grab active:cursor-grabbing',
         !locked && isEditable && dndMode === 'copy' && 'cursor-copy',
@@ -86,9 +87,9 @@ export function TrackRow({
         isDragging && dndMode === 'move' && 'opacity-0',
         isDragging && dndMode === 'copy' && 'opacity-50',
       )}
+      id={`option-${panelId}-${index}`}
+      role="option"
       onClick={handleClick}
-      role="button"
-      tabIndex={0}
       aria-selected={isSelected}
       title={
         locked

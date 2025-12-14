@@ -193,3 +193,36 @@ export function clearSelection(): SelectionState {
 export function getSelectionCount(selection: SelectionState): number {
   return selection.selectedIds.size;
 }
+
+/**
+ * Determines the next track index for keyboard navigation.
+ *
+ * If nothing is selected, it starts at the first track (index 0).
+ * The returned index is clamped to the bounds of the track list.
+ *
+ * @param tracks - Ordered list of tracks in view
+ * @param selection - Current selection set (IDs or URIs)
+ * @param direction - +1 for ArrowDown, -1 for ArrowUp
+ * @returns Next index to select, or -1 when there are no tracks
+ */
+export function getNextTrackIndex(
+  tracks: Track[],
+  selection: Set<string>,
+  direction: 1 | -1,
+  fromIndex?: number
+): number {
+  if (tracks.length === 0) {
+    return -1;
+  }
+
+  const currentIndex =
+    fromIndex ?? tracks.findIndex((track) => selection.has(track.id || track.uri));
+  const startIndex = currentIndex === -1 ? -1 : currentIndex;
+
+  const nextIndex = Math.min(
+    Math.max(startIndex + direction, 0),
+    tracks.length - 1
+  );
+
+  return nextIndex;
+}

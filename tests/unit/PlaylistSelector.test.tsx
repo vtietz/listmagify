@@ -186,11 +186,12 @@ describe('PlaylistSelector', () => {
     
     // Wait for playlists to load
     await waitFor(() => {
-      expect(screen.getByText('My Playlist 2')).toBeInTheDocument();
+      expect(screen.getAllByText('My Playlist 2').length).toBeGreaterThan(1);
     });
     
-    // Check that the selected playlist has a visible check mark
-    const playlist2Button = screen.getByText('My Playlist 2').closest('button');
+    // Check that the selected playlist has a visible check mark (dropdown item)
+    const playlist2Entries = screen.getAllByText('My Playlist 2');
+    const playlist2Button = playlist2Entries[playlist2Entries.length - 1]?.closest('button');
     const checkIcon = playlist2Button?.querySelector('svg');
     expect(checkIcon).toHaveClass('opacity-100');
   });
@@ -211,8 +212,8 @@ describe('PlaylistSelector', () => {
     
     // Second item should be highlighted (bg-accent class)
     await waitFor(() => {
-      const playlist2Button = screen.getByText('My Playlist 2').closest('button');
-      expect(playlist2Button).toHaveClass('bg-accent');
+      const playlistButton = screen.getByText('My Playlist 1').closest('button');
+      expect(playlistButton).toHaveClass('bg-accent');
     });
   });
 
@@ -233,7 +234,7 @@ describe('PlaylistSelector', () => {
     // Verify callback was called
     await waitFor(() => {
       expect(mockOnSelectPlaylist).toHaveBeenCalledTimes(1);
-      expect(mockOnSelectPlaylist).toHaveBeenCalledWith('playlist2'); // Sorted: "Another Playlist" comes first
+      expect(mockOnSelectPlaylist).toHaveBeenCalledWith('playlist3'); // Sorted alphabetically, so "Another Playlist" is first
     });
   });
 

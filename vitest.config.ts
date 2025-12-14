@@ -14,6 +14,10 @@ export default defineConfig({
     exclude: ['tests/e2e/**'],
     setupFiles: ['tests/setup/vitest.setup.ts'],
   },
+  esbuild: {
+    jsx: 'automatic',
+    jsxImportSource: 'react',
+  },
   resolve: {
     alias: [
       // Support both "@/..." and "@" prefix forms

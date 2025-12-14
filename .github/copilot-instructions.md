@@ -196,8 +196,6 @@ Follow these best practices when writing or modifying code:
 
 **Important**: Always examine the full list of changed files before generating a commit message to ensure you capture all modifications, not just the most recent changes.
 
----
-
 ## ✅ Before Completing a Task
 
 Ensure you have:
@@ -208,8 +206,5 @@ Ensure you have:
 4. ✅ Followed clean code principles and project conventions
 5. ✅ Verified no unrequested files were created
 6. ✅ Removed any debug code or unnecessary comments
-7. ✅ Generated a commit message summarizing all changes
+7. ✅ Always generate a one-line commit message summarizing all changes
 
----
-
-Following these guidelines ensures maintainable, high-quality contributions. Thank you for adhering to these standards!

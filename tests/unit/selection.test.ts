@@ -15,6 +15,7 @@ import {
   removeFromSelection,
   clearSelection,
   getSelectionCount,
+  getNextTrackIndex,
   type SelectionState,
 } from '@/lib/dnd/selection';
 import type { Track } from '@/lib/spotify/types';
@@ -291,6 +292,44 @@ describe('Selection Utilities', () => {
     it('should return 0 for empty selection', () => {
       const selection = createEmptySelection();
       expect(getSelectionCount(selection)).toBe(0);
+    });
+  });
+
+  describe('getNextTrackIndex', () => {
+    const mockTracks: Track[] = [
+      { id: 'track-1', name: 'Track 1', uri: 'spotify:track:1', artists: [], album: null, durationMs: 180000 },
+      { id: 'track-2', name: 'Track 2', uri: 'spotify:track:2', artists: [], album: null, durationMs: 180000 },
+      { id: 'track-3', name: 'Track 3', uri: 'spotify:track:3', artists: [], album: null, durationMs: 180000 },
+    ];
+
+    it('should return -1 when there are no tracks', () => {
+      expect(getNextTrackIndex([], new Set(), 1)).toBe(-1);
+    });
+
+    it('should start at index 0 when nothing is selected', () => {
+      expect(getNextTrackIndex(mockTracks, new Set(), 1)).toBe(0);
+      expect(getNextTrackIndex(mockTracks, new Set(), -1)).toBe(0);
+    });
+
+    it('should move forward from the current selection', () => {
+      const selection = new Set<string>(['track-1']);
+      expect(getNextTrackIndex(mockTracks, selection, 1)).toBe(1);
+    });
+
+    it('should clamp to the last index when moving past the end', () => {
+      const selection = new Set<string>(['track-3']);
+      expect(getNextTrackIndex(mockTracks, selection, 1)).toBe(2);
+    });
+
+    it('should clamp to the first index when moving above the start', () => {
+      const selection = new Set<string>(['track-1']);
+      expect(getNextTrackIndex(mockTracks, selection, -1)).toBe(0);
+    });
+
+    it('should use fromIndex if provided', () => {
+      const selection = new Set<string>(['track-1']);
+      // Even though track-1 is selected (index 0), we say we are at index 1
+      expect(getNextTrackIndex(mockTracks, selection, 1, 1)).toBe(2);
     });
   });
 });
