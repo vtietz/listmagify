@@ -32,10 +32,14 @@ vi.mock('@/hooks/useDropPosition', () => ({
   calculateDropPosition: vi.fn(() => ({ filteredIndex: 5, globalPosition: 10 })),
 }));
 
+const addTracksMutate = vi.fn();
+const removeTracksMutate = vi.fn();
+const reorderTracksMutate = vi.fn();
+
 vi.mock('@/lib/spotify/playlistMutations', () => ({
-  useAddTracks: () => ({ mutate: vi.fn() }),
-  useRemoveTracks: () => ({ mutate: vi.fn() }),
-  useReorderTracks: () => ({ mutate: vi.fn() }),
+  useAddTracks: () => ({ mutate: addTracksMutate }),
+  useRemoveTracks: () => ({ mutate: removeTracksMutate }),
+  useReorderTracks: () => ({ mutate: reorderTracksMutate }),
 }));
 
 vi.mock('@/lib/utils/debug', () => ({
@@ -62,6 +66,9 @@ describe('useDndOrchestrator', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    addTracksMutate.mockReset();
+    removeTracksMutate.mockReset();
+    reorderTracksMutate.mockReset();
   });
 
   describe('Initialization', () => {
@@ -352,6 +359,81 @@ describe('useDndOrchestrator', () => {
       expect(result.current.sourcePanelId).toBeNull();
       expect(result.current.activePanelId).toBeNull();
       expect(result.current.dropIndicatorIndex).toBeNull();
+    });
+
+    it('handles multi-selection move within same playlist without errors', () => {
+      const trackA = { ...createMockTrack('track-a'), position: 0 };
+      const trackB = { ...createMockTrack('track-b'), position: 1 };
+      const trackC = { ...createMockTrack('track-c'), position: 2 };
+
+      const selection = new Set([
+        `${trackA.id}::${trackA.position}`,
+        `${trackB.id}::${trackB.position}`,
+      ]);
+      const panels = [
+        { id: 'panel-1', isEditable: true, dndMode: 'move' as const, playlistId: 'playlist-1', selection },
+      ];
+
+      const { result } = renderHook(() => useDndOrchestrator(panels));
+
+      const mockVirtualizer = { getVirtualItems: vi.fn(() => []) };
+      const mockScrollRef = { current: document.createElement('div') };
+
+      act(() => {
+        result.current.registerVirtualizer('panel-1', mockVirtualizer, mockScrollRef, [trackA, trackB, trackC]);
+      });
+
+      act(() => {
+        result.current.onDragStart({
+          active: {
+            id: 'panel-1:track-a',
+            data: {
+              current: {
+                type: 'track',
+                panelId: 'panel-1',
+                playlistId: 'playlist-1',
+                track: trackA,
+              },
+            },
+          },
+        } as any);
+      });
+
+      expect(() => {
+        act(() => {
+          result.current.onDragEnd({
+            active: {
+              id: 'panel-1:track-a',
+              data: {
+                current: {
+                  type: 'track',
+                  panelId: 'panel-1',
+                  playlistId: 'playlist-1',
+                  track: trackA,
+                  position: 0,
+                },
+              },
+            },
+            over: {
+              id: 'panel-1:track-c',
+              data: {
+                current: {
+                  type: 'track',
+                  panelId: 'panel-1',
+                  playlistId: 'playlist-1',
+                  track: trackC,
+                  position: 2,
+                },
+              },
+            },
+          } as any);
+        });
+      }).not.toThrow();
+
+      expect(reorderTracksMutate).toHaveBeenCalledTimes(1);
+      const callArgs = reorderTracksMutate.mock.calls[0][0];
+      expect(callArgs.playlistId).toBe('playlist-1');
+      expect(callArgs.rangeLength).toBe(2);
     });
   });
 });

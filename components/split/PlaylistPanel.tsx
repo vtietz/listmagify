@@ -19,6 +19,8 @@ import { eventBus } from '@/lib/sync/eventBus';
 import { useSplitGridStore } from '@/hooks/useSplitGridStore';
 import { usePlaylistSort, type SortKey, type SortDirection } from '@/hooks/usePlaylistSort';
 import { useTrackListSelection } from '@/hooks/useTrackListSelection';
+import { useAutoLoadPaginated } from '@/hooks/useAutoLoadPaginated';
+import { getTrackSelectionKey } from '@/lib/dnd/selection';
 import { PanelToolbar } from './PanelToolbar';
 import { TableHeader } from './TableHeader';
 import { TrackRow } from './TrackRow';
@@ -99,6 +101,16 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
     },
     enabled: !!playlistId,
     staleTime: 30000, // 30 seconds
+  });
+
+  // Auto-load all playlist tracks (beyond 100) when a playlist is active
+  const { items: tracks, isAutoLoading } = useAutoLoadPaginated<Track>({
+    initialItems: data?.tracks || [],
+    initialNextCursor: data?.nextCursor ?? null,
+    endpoint: playlistId ? `/api/playlists/${playlistId}/tracks` : '',
+    itemsKey: 'tracks',
+    enabled: !!playlistId && !!data,
+    resetKey: playlistId,
   });
 
   // Fetch playlist metadata for name
@@ -190,7 +202,7 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
 
   // Apply sorting to tracks
   const sortedTracks = usePlaylistSort({
-    tracks: data?.tracks || [],
+    tracks: tracks || [],
     sortKey,
     sortDirection,
   });
@@ -295,6 +307,8 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
     [panelId, selectPlaylist]
   );
 
+  const selectionKey = useCallback((track: Track, index: number) => getTrackSelectionKey(track, index), []);
+
   const { handleTrackClick, handleTrackSelect, handleKeyDownNavigation, focusedIndex } = useTrackListSelection({
     filteredTracks,
     selection,
@@ -302,6 +316,7 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
     setSelection,
     toggleSelection,
     virtualizer,
+    selectionKey,
   });
 
   // Save scroll position
@@ -445,11 +460,12 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
                 const track = filteredTracks[virtualRow.index];
                 if (!track) return null;
                 
+                const selectionId = selectionKey(track, virtualRow.index);
                 const trackId = track.id || track.uri;
 
                 return (
                   <div
-                    key={trackId}
+                    key={`${panelId}-${trackId}-${virtualRow.index}`}
                     style={{
                       position: 'absolute',
                       top: 0,
@@ -462,7 +478,8 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
                     <TrackRow
                       track={track}
                       index={virtualRow.index}
-                      isSelected={selection.has(trackId)}
+                      selectionKey={selectionId}
+                      isSelected={selection.has(selectionId)}
                       isEditable={isEditable}
                       locked={!canDrag}
                       onSelect={handleTrackSelect}
@@ -477,6 +494,12 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
             </div>
           </SortableContext>
           </>
+        )}
+
+        {isAutoLoading && (
+          <div className="p-3 text-center text-xs text-muted-foreground">
+            Loading all tracks for this playlist… ({tracks.length} loaded)
+          </div>
         )}
       </div>
     </div>

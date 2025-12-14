@@ -15,11 +15,12 @@ import { GripVertical } from 'lucide-react';
 interface TrackRowProps {
   track: Track;
   index: number;
+  selectionKey: string;
   isSelected: boolean;
   isEditable: boolean;
   locked?: boolean;
-  onSelect: (trackId: string, index: number, event: React.MouseEvent) => void;
-  onClick: (trackId: string, index: number) => void;
+  onSelect: (selectionKey: string, index: number, event: React.MouseEvent) => void;
+  onClick: (selectionKey: string, index: number) => void;
   panelId?: string;
   playlistId?: string;
   dndMode?: 'copy' | 'move';
@@ -28,6 +29,7 @@ interface TrackRowProps {
 export function TrackRow({
   track,
   index,
+  selectionKey,
   isSelected,
   isEditable,
   locked = false,
@@ -64,11 +66,24 @@ export function TrackRow({
   // This prevents the original item from moving during drag
   const style = {};
 
+  const { role: _attrRole, ...restAttributes } = attributes;
+
   const handleClick = (e: React.MouseEvent) => {
+    // Prevent text selection when using modifier-based range/toggle selection
     if (e.shiftKey || e.ctrlKey || e.metaKey) {
-      onSelect(trackId, index, e);
+      e.preventDefault();
+    }
+    if (e.shiftKey || e.ctrlKey || e.metaKey) {
+      onSelect(selectionKey, index, e);
     } else {
-      onClick(trackId, index);
+      onClick(selectionKey, index);
+    }
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    // Avoid native text selection during modifier selection
+    if (e.shiftKey || e.ctrlKey || e.metaKey) {
+      e.preventDefault();
     }
   };
 
@@ -90,6 +105,7 @@ export function TrackRow({
       id={`option-${panelId}-${index}`}
       role="option"
       onClick={handleClick}
+      onMouseDown={handleMouseDown}
       aria-selected={isSelected}
       title={
         locked
@@ -98,7 +114,7 @@ export function TrackRow({
             ? 'Click and drag to copy (Ctrl to move)'
             : 'Click and drag to move (Ctrl to copy)'
       }
-      {...(isEditable && !locked ? { ...attributes, ...listeners } : {})}
+      {...(isEditable && !locked ? { ...restAttributes, ...listeners } : {})}
     >
       {/* Grip handle for dragging */}
       {isEditable && (

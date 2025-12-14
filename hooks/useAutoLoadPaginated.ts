@@ -18,6 +18,8 @@ interface UseAutoLoadPaginatedOptions<T> {
   itemsKey?: "items" | "tracks";
   /** Whether to enable auto-loading (default: true) */
   enabled?: boolean;
+  /** Reset the hook when this value changes (e.g., new playlist) */
+  resetKey?: string | number | null;
 }
 
 interface UseAutoLoadPaginatedResult<T> {
@@ -56,13 +58,24 @@ export function useAutoLoadPaginated<T>({
   endpoint,
   itemsKey = "items",
   enabled = true,
+  resetKey = endpoint ?? null,
 }: UseAutoLoadPaginatedOptions<T>): UseAutoLoadPaginatedResult<T> {
   const [items, setItems] = useState<T[]>(initialItems);
   const [nextCursor, setNextCursor] = useState<string | null>(initialNextCursor);
   const [isAutoLoading, setIsAutoLoading] = useState(false);
 
+  // Stable token to drive resets without changing dependency array size
+  const resetToken = `${resetKey ?? ""}::${initialNextCursor ?? ""}::${initialItems?.length ?? 0}`;
+
+  // Reset state when resetKey changes (e.g., loading a different playlist)
   useEffect(() => {
-    if (!enabled || !initialNextCursor) {
+    setItems(initialItems);
+    setNextCursor(initialNextCursor);
+    setIsAutoLoading(false);
+  }, [resetToken]);
+
+  useEffect(() => {
+    if (!enabled || !nextCursor || !endpoint) {
       return; // Auto-load disabled or all data already loaded
     }
 
@@ -70,8 +83,8 @@ export function useAutoLoadPaginated<T>({
       setIsAutoLoading(true);
 
       try {
-        let currentCursor: string | null = initialNextCursor;
-        let allItems = [...initialItems];
+        let currentCursor: string | null = nextCursor;
+        let allItems = [...items];
 
         while (currentCursor) {
           const data: PaginatedResponse<T> = await apiFetch<PaginatedResponse<T>>(
@@ -94,7 +107,7 @@ export function useAutoLoadPaginated<T>({
     };
 
     autoLoadAll();
-  }, []); // Only run once on mount
+  }, [enabled, endpoint, itemsKey, nextCursor, resetToken]);
 
   return {
     items,

@@ -13,6 +13,7 @@ interface Params {
   setSelection: (panelId: string, trackIds: string[]) => void;
   toggleSelection: (panelId: string, trackId: string) => void;
   virtualizer: Virtualizer<any, any>;
+  selectionKey: (track: Track, index: number) => string;
 }
 
 export function useTrackListSelection({
@@ -22,14 +23,15 @@ export function useTrackListSelection({
   setSelection,
   toggleSelection,
   virtualizer,
+  selectionKey,
 }: Params) {
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
   const lastFocusedIndexRef = useRef<number | null>(null);
 
   const handleTrackClick = useCallback(
-    (trackId: string, index: number) => {
+    (selectionId: string, index: number) => {
       virtualizer.scrollElement?.focus();
-      setSelection(panelId, [trackId]);
+      setSelection(panelId, [selectionId]);
       setFocusedIndex(index);
       lastFocusedIndexRef.current = index;
     },
@@ -37,11 +39,11 @@ export function useTrackListSelection({
   );
 
   const handleTrackSelect = useCallback(
-    (trackId: string, index: number, event: any) => {
+    (selectionId: string, index: number, event: any) => {
       virtualizer.scrollElement?.focus();
 
       if (event.shiftKey) {
-        const tracks = filteredTracks.map((t: Track) => t.id || t.uri);
+        const tracks = filteredTracks.map((t: Track, i: number) => selectionKey(t, i));
         const currentIndex = index;
         const anchorIndex =
           lastFocusedIndexRef.current ?? tracks.findIndex((id: string) => selection.has(id));
@@ -54,16 +56,16 @@ export function useTrackListSelection({
           setFocusedIndex(currentIndex);
         }
       } else if (event.ctrlKey || event.metaKey) {
-        toggleSelection(panelId, trackId);
+        toggleSelection(panelId, selectionId);
         setFocusedIndex(index);
         lastFocusedIndexRef.current = index;
       } else {
-        setSelection(panelId, [trackId]);
+        setSelection(panelId, [selectionId]);
         setFocusedIndex(index);
         lastFocusedIndexRef.current = index;
       }
     },
-    [filteredTracks, panelId, selection, setSelection, toggleSelection, virtualizer]
+    [filteredTracks, panelId, selection, setSelection, toggleSelection, virtualizer, selectionKey]
   );
 
   const handleKeyDownNavigation = useCallback(
@@ -80,7 +82,7 @@ export function useTrackListSelection({
 
       const direction: 1 | -1 = event.key === 'ArrowDown' ? 1 : -1;
       const baseIndex =
-        focusedIndex ?? filteredTracks.findIndex((track) => selection.has(track.id || track.uri));
+        focusedIndex ?? filteredTracks.findIndex((track, i) => selection.has(selectionKey(track, i)));
 
       const nextIndex = getNextTrackIndex(filteredTracks, selection, direction, baseIndex);
 
@@ -92,10 +94,7 @@ export function useTrackListSelection({
       if (!nextTrack) {
         return;
       }
-      const nextTrackId = nextTrack.id || nextTrack.uri;
-      if (!nextTrackId) {
-        return;
-      }
+      const nextSelectionId = selectionKey(nextTrack, nextIndex);
 
       scrollToIndexIfOutOfView(virtualizer, nextIndex, TABLE_HEADER_HEIGHT, TRACK_ROW_HEIGHT);
 
@@ -111,7 +110,7 @@ export function useTrackListSelection({
 
         const start = Math.min(anchorIndex, nextIndex);
         const end = Math.max(anchorIndex, nextIndex);
-        const tracks = filteredTracks.slice(start, end + 1).map((t) => t.id || t.uri);
+        const tracks = filteredTracks.slice(start, end + 1).map((t, i) => selectionKey(t, start + i));
         setSelection(panelId, tracks);
         setFocusedIndex(nextIndex);
         return;
@@ -123,11 +122,11 @@ export function useTrackListSelection({
         return;
       }
 
-      setSelection(panelId, [nextTrackId]);
+      setSelection(panelId, [nextSelectionId]);
       setFocusedIndex(nextIndex);
       lastFocusedIndexRef.current = nextIndex;
     },
-    [filteredTracks, focusedIndex, panelId, selection, setSelection, virtualizer]
+    [filteredTracks, focusedIndex, panelId, selection, setSelection, virtualizer, selectionKey]
   );
 
   return {

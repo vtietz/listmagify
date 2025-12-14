@@ -165,6 +165,9 @@ describe("useAutoLoadPaginated", () => {
     mockApiFetch.mockResolvedValueOnce({
       items: [{ id: "2", name: "Item 2" }],
       nextCursor: null,
+    }).mockResolvedValueOnce({
+      items: [],
+      nextCursor: null,
     });
 
     const { result } = renderHook(() =>
@@ -192,7 +195,12 @@ describe("useAutoLoadPaginated", () => {
     act(() => {
       result.current.setNextCursor("newCursor");
     });
-    expect(result.current.nextCursor).toBe("newCursor");
+
+    await waitFor(() => {
+      expect(result.current.isAutoLoading).toBe(false);
+    });
+
+    expect(result.current.nextCursor).toBeNull();
   });
 
   it("progressively updates items during loading", async () => {
@@ -297,5 +305,43 @@ describe("useAutoLoadPaginated", () => {
     expect(mockApiFetch).toHaveBeenCalledWith(
       "/api/items?nextCursor=cursor%20with%20spaces%20%26%20special%3Dchars"
     );
+  });
+
+  it("resets and reloads when resetKey changes", async () => {
+    const initialSetA = [{ id: "a1" }];
+    const initialSetB = [{ id: "b1" }];
+
+    mockApiFetch
+      .mockResolvedValueOnce({ items: [{ id: "a2" }], nextCursor: null })
+      .mockResolvedValueOnce({ items: [{ id: "b2" }], nextCursor: null });
+
+    const { result, rerender } = renderHook(
+      (props: { items: any[]; cursor: string | null; keyVal: string }) =>
+        useAutoLoadPaginated({
+          initialItems: props.items,
+          initialNextCursor: props.cursor,
+          endpoint: "/api/items",
+          itemsKey: "items",
+          resetKey: props.keyVal,
+        }),
+      {
+        initialProps: { items: initialSetA, cursor: "cursorA", keyVal: "A" },
+      }
+    );
+
+    await waitFor(() => {
+      expect(result.current.isAutoLoading).toBe(false);
+    });
+    expect(result.current.items).toEqual([{ id: "a1" }, { id: "a2" }]);
+
+    // Rerender with new dataset and reset key
+    rerender({ items: initialSetB, cursor: "cursorB", keyVal: "B" });
+
+    await waitFor(() => {
+      expect(result.current.isAutoLoading).toBe(false);
+    });
+
+    expect(result.current.items).toEqual([{ id: "b1" }, { id: "b2" }]);
+    expect(mockApiFetch).toHaveBeenCalledTimes(2);
   });
 });

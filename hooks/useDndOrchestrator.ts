@@ -53,6 +53,7 @@ interface PanelConfig {
   isEditable: boolean;
   dndMode?: 'copy' | 'move';
   playlistId?: string;
+  selection?: Set<string>;
 }
 
 /**
@@ -110,6 +111,7 @@ interface UseDndOrchestratorReturn {
   activePanelId: string | null;
   dropIndicatorIndex: number | null;
   ephemeralInsertion: EphemeralInsertion | null;
+  activeSelectionCount: number;
   
   // DnD context props
   sensors: ReturnType<typeof useSensors>;
@@ -140,10 +142,13 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
   const [activeTrack, setActiveTrack] = useState<Track | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null); // Composite ID
   const [sourcePanelId, setSourcePanelId] = useState<string | null>(null); // Panel where drag originated
+  const [activeSelectionCount, setActiveSelectionCount] = useState<number>(0);
   const [computedDropPosition, setComputedDropPosition] = useState<number | null>(null);
   const [dropIndicatorIndex, setDropIndicatorIndex] = useState<number | null>(null); // Filtered index for drop indicator
   const [activePanelId, setActivePanelId] = useState<string | null>(null); // Track which panel is being dragged over
   const [ephemeralInsertion, setEphemeralInsertion] = useState<EphemeralInsertion | null>(null);
+
+  const activeDragTracksRef = useRef<Track[]>([]);
   
   // Track pointer position and modifier keys during drag
   const pointerTracker = usePointerTracker();
@@ -234,7 +239,17 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
     const sourcePanel = active.data.current?.panelId;
     
     if (track) {
-      setActiveTrack(track);
+      // Resolve ordered selection from the source panel; fall back to the active track
+      const panelSelection = panels.find((p) => p.id === sourcePanel)?.selection ?? new Set<string>();
+      const panelData = sourcePanel ? panelVirtualizersRef.current.get(sourcePanel) : null;
+      const orderedTracks = panelData?.filteredTracks ?? [];
+
+      const selectedTracks = orderedTracks.filter((t) => panelSelection.has(t.id || t.uri));
+      const dragTracks = selectedTracks.length > 0 ? selectedTracks : [track];
+
+      activeDragTracksRef.current = dragTracks;
+      setActiveTrack(dragTracks[0] ?? null);
+      setActiveSelectionCount(dragTracks.length);
     }
     setActiveId(compositeId);
     setSourcePanelId(sourcePanel || null);
@@ -248,7 +263,7 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
       document.removeEventListener('pointerup', cleanup);
     };
     document.addEventListener('pointerup', cleanup, { once: true });
-  }, [pointerTracker]);
+  }, [pointerTracker, panels]);
 
   const handleDragOver = useCallback((event: DragOverEvent) => {
     const { over } = event;
@@ -373,6 +388,7 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
     // Reset drag state
     setActiveId(null);
     setActiveTrack(null);
+    setActiveSelectionCount(0);
     setSourcePanelId(null);
     const finalDropPosition = computedDropPosition;
     setComputedDropPosition(null);
@@ -404,9 +420,43 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
     const targetPlaylistId = targetData.playlistId;
     const sourceTrack: Track = sourceData.track;
     const sourceIndex: number = sourceData.position; // Use position from data payload (global index)
-    
+
+    const panelSelection = panels.find((p) => p.id === sourcePanelIdFromData)?.selection ?? new Set<string>();
+    const panelData = panelVirtualizersRef.current.get(sourcePanelIdFromData);
+    const orderedTracks = panelData?.filteredTracks ?? [];
+    const selectedTracks = orderedTracks.filter((t, idx) => panelSelection.has(`${t.id || t.uri}::${t.position ?? idx}`));
+    const dragTracks = (selectedTracks.length ? selectedTracks : [sourceTrack]);
+    const dragTrackUris = dragTracks.map((t) => t.uri);
+
+    // Helper to compute adjusted target index when moving within the same playlist
+    const computeAdjustedTargetIndex = (
+      targetIdx: number,
+      dragList: Track[],
+      ordered: Track[],
+      sourcePlId?: string,
+      targetPlId?: string,
+    ) => {
+      if (!sourcePlId || !targetPlId) return targetIdx;
+      if (sourcePlId !== targetPlId) return targetIdx;
+      if (!dragList.length) return targetIdx;
+      const indices = dragList
+        .map((t) => ordered.findIndex((ot) => (ot.id || ot.uri) === (t.id || t.uri)))
+        .filter((i) => i >= 0)
+        .sort((a, b) => a - b);
+      const removedBefore = indices.filter((i) => i < targetIdx).length;
+      return Math.max(0, targetIdx - removedBefore);
+    };
+
     // Use computed drop position from handleDragOver (pointer-based, already global)
     const targetIndex: number = finalDropPosition ?? (targetData.position ?? 0);
+
+    const effectiveTargetIndex = computeAdjustedTargetIndex(
+      targetIndex,
+      dragTracks,
+      orderedTracks,
+      sourcePlaylistId,
+      targetPlaylistId,
+    );
 
     if (!sourcePanelIdFromData || !targetPanelId || !sourcePlaylistId || !targetPlaylistId) {
       console.error('Missing panel or playlist context in drag event');
@@ -428,28 +478,77 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
       return;
     }
 
-    // Same panel reordering (traditional drag-and-drop within one view)
-    if (sourcePanelIdFromData === targetPanelId) {
-      if (sourceIndex === targetIndex) return;
-
-      reorderTracks.mutate({
-        playlistId: targetPlaylistId,
-        fromIndex: sourceIndex,
-        toIndex: targetIndex,
-      });
-      return;
-    }
-
-    // Cross-panel operation (different panels, possibly same or different playlists)
-    const trackUri = sourceTrack.uri;
     const sourceDndMode = sourcePanel.dndMode || 'copy';
-    
-    // Determine effective mode: Ctrl key inverts the panel's mode (only for editable source playlists)
     const { ctrlKey: isCtrlPressed } = pointerTracker.getModifiers();
     const canInvertMode = sourcePanel.isEditable; // Only editable playlists can use Ctrl to invert
     const effectiveMode = (isCtrlPressed && canInvertMode)
       ? (sourceDndMode === 'copy' ? 'move' : 'copy')
       : sourceDndMode;
+
+    const isContiguousSelection = (() => {
+      if (dragTracks.length <= 1) return true;
+      const indices = dragTracks
+        .map((t) => orderedTracks.findIndex((ot) => (ot.id || ot.uri) === (t.id || t.uri)))
+        .filter((i) => i >= 0)
+        .sort((a, b) => a - b);
+      const first = indices[0];
+      const last = indices[indices.length - 1];
+      if (indices.length !== dragTracks.length || first === undefined || last === undefined) return false;
+      return last - first + 1 === indices.length;
+    })();
+
+    // Same panel reordering (traditional drag-and-drop within one view)
+    if (sourcePanelIdFromData === targetPanelId && sourcePlaylistId === targetPlaylistId) {
+      if (effectiveMode === 'copy') {
+        addTracks.mutate({
+          playlistId: targetPlaylistId,
+          trackUris: dragTrackUris,
+          position: effectiveTargetIndex,
+        });
+        return;
+      }
+
+      if (dragTracks.length === 1) {
+        if (sourceIndex === targetIndex) return;
+        reorderTracks.mutate({
+          playlistId: targetPlaylistId,
+          fromIndex: sourceIndex,
+          toIndex: effectiveTargetIndex,
+        });
+        return;
+      }
+
+      if (isContiguousSelection) {
+        const indices = dragTracks
+          .map((t) => orderedTracks.findIndex((ot) => (ot.id || ot.uri) === (t.id || t.uri)))
+          .filter((i) => i >= 0)
+          .sort((a, b) => a - b);
+        const fromIndex = indices[0] ?? sourceIndex;
+        const rangeLength = indices.length || 1;
+        reorderTracks.mutate({
+          playlistId: targetPlaylistId,
+          fromIndex,
+          toIndex: effectiveTargetIndex,
+          rangeLength,
+        });
+        return;
+      }
+
+      // Non-contiguous move within same playlist: fall back to remove + add
+      addTracks.mutate({
+        playlistId: targetPlaylistId,
+        trackUris: dragTrackUris,
+        position: effectiveTargetIndex,
+      }, {
+        onSuccess: () => {
+          removeTracks.mutate({
+            playlistId: sourcePlaylistId,
+            trackUris: dragTrackUris,
+          });
+        },
+      });
+      return;
+    }
 
     logDebug('[DragEnd] Cross-panel operation:', {
       sourcePanelId: sourcePanelIdFromData,
@@ -467,26 +566,31 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
     if (sourcePlaylistId === targetPlaylistId) {
       // Same playlist, different panels
       if (effectiveMode === 'copy') {
-        // Copy mode: Duplicate the track at new position (same playlist)
-        // This creates a duplicate of the track at the target position
         addTracks.mutate({
           playlistId: targetPlaylistId,
-          trackUris: [trackUri],
-          position: targetIndex,
+          trackUris: dragTrackUris,
+          position: effectiveTargetIndex,
         });
       } else {
-        // Move mode: Reorder within playlist
-        reorderTracks.mutate({
+        // Move by remove + add (selection-aware)
+        addTracks.mutate({
           playlistId: targetPlaylistId,
-          fromIndex: sourceIndex,
-          toIndex: targetIndex,
+          trackUris: dragTrackUris,
+          position: effectiveTargetIndex,
+        }, {
+          onSuccess: () => {
+            removeTracks.mutate({
+              playlistId: sourcePlaylistId,
+              trackUris: dragTrackUris,
+            });
+          },
         });
       }
     } else if (effectiveMode === 'copy') {
       // Different playlists: Copy to target at mouse position
       addTracks.mutate({
         playlistId: targetPlaylistId,
-        trackUris: [trackUri],
+        trackUris: dragTrackUris,
         position: targetIndex,
       });
     } else {
@@ -494,7 +598,7 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
       addTracks.mutate(
         {
           playlistId: targetPlaylistId,
-          trackUris: [trackUri],
+          trackUris: dragTrackUris,
           position: targetIndex,
         },
         {
@@ -503,7 +607,7 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
             if (sourcePanel.isEditable) {
               removeTracks.mutate({
                 playlistId: sourcePlaylistId,
-                trackUris: [trackUri],
+                trackUris: dragTrackUris,
               });
             }
           },
@@ -555,6 +659,7 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
     activePanelId,
     dropIndicatorIndex,
     ephemeralInsertion,
+    activeSelectionCount,
     
     // DnD context props
     sensors,

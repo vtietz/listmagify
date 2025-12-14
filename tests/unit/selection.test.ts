@@ -16,6 +16,7 @@ import {
   clearSelection,
   getSelectionCount,
   getNextTrackIndex,
+  getTrackSelectionKey,
   type SelectionState,
 } from '@/lib/dnd/selection';
 import type { Track } from '@/lib/spotify/types';
@@ -176,6 +177,13 @@ describe('Selection Utilities', () => {
       expect(newSelection.selectedIds.has('track-4')).toBe(true);
       expect(newSelection.selectedIds.has('track-5')).toBe(false);
       expect(newSelection.lastSelectedId).toBe('track-4');
+    });
+
+    it('getTrackSelectionKey differentiates duplicates by position', () => {
+      const track = { id: 't', uri: 't', position: 5 } as any;
+      expect(getTrackSelectionKey(track, 0)).toBe('t::5');
+      expect(getTrackSelectionKey({ ...track, position: undefined }, 3)).toBe('t::3');
+      expect(getTrackSelectionKey({ id: undefined, uri: 'uri' } as any, 2)).toBe('uri::2');
     });
 
     it('should select range from last selected to clicked track (backward)', () => {

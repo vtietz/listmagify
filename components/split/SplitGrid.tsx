@@ -22,6 +22,7 @@ export function SplitGrid() {
     activePanelId,
     dropIndicatorIndex,
     ephemeralInsertion,
+    activeSelectionCount,
     sensors,
     collisionDetection,
     onDragStart,
@@ -91,6 +92,8 @@ export function SplitGrid() {
           const cursorStyle = !targetEditable 
             ? 'not-allowed' 
             : (effectiveMode === 'move' ? 'grabbing' : 'copy');
+
+          const extraCount = Math.max(0, (activeSelectionCount || 1) - 1);
           
           return (
             <div 
@@ -118,6 +121,12 @@ export function SplitGrid() {
                   <div className="text-sm text-muted-foreground truncate">
                     {activeTrack.album.name}
                   </div>
+                </div>
+              )}
+
+              {extraCount > 0 && (
+                <div className="flex-shrink-0 text-xs font-medium text-muted-foreground">
+                  +{extraCount} more
                 </div>
               )}
             </div>

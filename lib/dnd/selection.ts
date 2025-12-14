@@ -1,6 +1,16 @@
 import type { Track } from '@/lib/spotify/types';
 
 /**
+ * Builds a stable selection key for a track instance, distinguishing duplicates.
+ * Uses playlist position when available, otherwise falls back to the current index.
+ */
+export function getTrackSelectionKey(track: Track, index: number): string {
+  const baseId = track.id || track.uri || 'unknown';
+  const position = track.position ?? index;
+  return `${baseId}::${position}`;
+}
+
+/**
  * Selection state for tracks in a playlist.
  */
 export interface SelectionState {
