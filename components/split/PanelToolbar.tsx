@@ -22,6 +22,7 @@ interface PanelToolbarProps {
   locked: boolean;
   dndMode: 'move' | 'copy';
   searchQuery: string;
+  isReloading?: boolean;
   sortKey?: SortKey;
   sortDirection?: SortDirection;
   onSearchChange: (query: string) => void;
@@ -43,6 +44,7 @@ export function PanelToolbar({
   locked,
   dndMode,
   searchQuery,
+  isReloading = false,
   sortKey = 'position',
   sortDirection = 'asc',
   onSearchChange,
@@ -105,9 +107,10 @@ export function PanelToolbar({
             size="sm"
             onClick={onReload}
             className="h-8 w-8 p-0"
-            title="Reload playlist"
+            title={isReloading ? 'Reloading…' : 'Reload playlist'}
+            disabled={isReloading}
           >
-            <RefreshCw className="h-4 w-4" />
+            <RefreshCw className={cn('h-4 w-4', isReloading && 'animate-spin')} />
             <span className="sr-only">Reload playlist</span>
           </Button>
 

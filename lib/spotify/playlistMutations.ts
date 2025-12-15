@@ -5,8 +5,14 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api/client';
-import { playlistTracks } from '@/lib/api/queryKeys';
+import { playlistTracks, playlistTracksInfinite } from '@/lib/api/queryKeys';
 import { eventBus } from '@/lib/sync/eventBus';
+import { 
+  applyReorderToInfinitePages, 
+  applyRemoveToInfinitePages,
+  applyAddToInfinitePages,
+  type InfiniteData,
+} from '@/lib/dnd/sortUtils';
 import type { Track } from '@/lib/spotify/types';
 // @ts-expect-error - sonner's type definitions are incompatible with verbatimModuleSyntax
 import { toast } from 'sonner';
@@ -43,6 +49,9 @@ interface PlaylistTracksData {
   nextCursor: string | null;
 }
 
+// Type alias for infinite query data structure
+type InfinitePlaylistData = InfiniteData<PlaylistTracksData>;
+
 /**
  * Hook for adding tracks to a playlist (copy operation).
  */
@@ -76,10 +85,18 @@ export function useAddTracks() {
       return { previousData };
     },
     onSuccess: (data, params) => {
-      // Invalidate and refetch
-      queryClient.invalidateQueries({ queryKey: playlistTracks(params.playlistId) });
+      // Update snapshotId without refetching (optimistic add stays)
+      const currentData = queryClient.getQueryData<PlaylistTracksData>(
+        playlistTracks(params.playlistId)
+      );
+      if (currentData) {
+        queryClient.setQueryData(playlistTracks(params.playlistId), {
+          ...currentData,
+          snapshotId: data.snapshotId,
+        });
+      }
 
-      // Notify other panels
+      // Notify other panels to refetch
       eventBus.emit('playlist:update', { playlistId: params.playlistId, cause: 'add' });
 
       toast.success('Tracks added successfully');
@@ -116,13 +133,25 @@ export function useRemoveTracks() {
       });
     },
     onMutate: async (params) => {
+      // Cancel outgoing refetches for both query keys
+      await queryClient.cancelQueries({ queryKey: playlistTracksInfinite(params.playlistId) });
       await queryClient.cancelQueries({ queryKey: playlistTracks(params.playlistId) });
 
+      // Snapshot both caches for rollback
+      const previousInfiniteData = queryClient.getQueryData<InfinitePlaylistData>(
+        playlistTracksInfinite(params.playlistId)
+      );
       const previousData = queryClient.getQueryData<PlaylistTracksData>(
         playlistTracks(params.playlistId)
       );
 
-      // Optimistically remove tracks
+      // Optimistically remove tracks from infinite query (primary)
+      if (previousInfiniteData) {
+        const newData = applyRemoveToInfinitePages(previousInfiniteData, params.trackUris);
+        queryClient.setQueryData(playlistTracksInfinite(params.playlistId), newData);
+      }
+
+      // Also update legacy single-page query for backwards compatibility
       if (previousData) {
         const uriSet = new Set(params.trackUris);
         queryClient.setQueryData(playlistTracks(params.playlistId), {
@@ -132,14 +161,46 @@ export function useRemoveTracks() {
         });
       }
 
-      return { previousData };
+      return { previousInfiniteData, previousData };
     },
     onSuccess: (data, params) => {
-      queryClient.invalidateQueries({ queryKey: playlistTracks(params.playlistId) });
+      // Update snapshotId in infinite query without refetching
+      const currentInfiniteData = queryClient.getQueryData<InfinitePlaylistData>(
+        playlistTracksInfinite(params.playlistId)
+      );
+      if (currentInfiniteData?.pages?.length) {
+        const updatedPages = currentInfiniteData.pages.map(page => ({
+          ...page,
+          snapshotId: data.snapshotId,
+        }));
+        queryClient.setQueryData(playlistTracksInfinite(params.playlistId), {
+          ...currentInfiniteData,
+          pages: updatedPages,
+        });
+      }
+
+      // Also update legacy query
+      const currentData = queryClient.getQueryData<PlaylistTracksData>(
+        playlistTracks(params.playlistId)
+      );
+      if (currentData) {
+        queryClient.setQueryData(playlistTracks(params.playlistId), {
+          ...currentData,
+          snapshotId: data.snapshotId,
+        });
+      }
+
       eventBus.emit('playlist:update', { playlistId: params.playlistId, cause: 'remove' });
       toast.success('Tracks removed successfully');
     },
     onError: (error, params, context) => {
+      // Rollback both caches
+      if (context?.previousInfiniteData) {
+        queryClient.setQueryData(
+          playlistTracksInfinite(params.playlistId),
+          context.previousInfiniteData
+        );
+      }
       if (context?.previousData) {
         queryClient.setQueryData(
           playlistTracks(params.playlistId),
@@ -171,16 +232,34 @@ export function useReorderTracks() {
       });
     },
     onMutate: async (params) => {
+      // Cancel outgoing refetches for both query keys
+      await queryClient.cancelQueries({ queryKey: playlistTracksInfinite(params.playlistId) });
       await queryClient.cancelQueries({ queryKey: playlistTracks(params.playlistId) });
 
+      // Snapshot both caches for rollback
+      const previousInfiniteData = queryClient.getQueryData<InfinitePlaylistData>(
+        playlistTracksInfinite(params.playlistId)
+      );
       const previousData = queryClient.getQueryData<PlaylistTracksData>(
         playlistTracks(params.playlistId)
       );
 
-      // Optimistically reorder
+      const rangeLength = params.rangeLength ?? 1;
+
+      // Optimistically reorder in infinite query (primary)
+      if (previousInfiniteData) {
+        const newData = applyReorderToInfinitePages(
+          previousInfiniteData, 
+          params.fromIndex, 
+          params.toIndex, 
+          rangeLength
+        );
+        queryClient.setQueryData(playlistTracksInfinite(params.playlistId), newData);
+      }
+
+      // Also update legacy single-page query for backwards compatibility
       if (previousData) {
         const newTracks = [...previousData.tracks];
-        const rangeLength = params.rangeLength ?? 1;
         const movedItems = newTracks.splice(params.fromIndex, rangeLength);
         const insertAt = params.toIndex > params.fromIndex 
           ? params.toIndex - rangeLength 
@@ -193,14 +272,37 @@ export function useReorderTracks() {
         });
       }
 
-      return { previousData };
+      return { previousInfiniteData, previousData };
     },
-    onSuccess: (data, params) => {
-      queryClient.invalidateQueries({ queryKey: playlistTracks(params.playlistId) });
+    onSuccess: async (data, params) => {
+      // Refetch from server to get correct positions
+      // This ensures the UI reflects the exact server state after reorder
+      await queryClient.refetchQueries({
+        queryKey: playlistTracksInfinite(params.playlistId),
+      });
+
+      // Also update legacy query snapshotId
+      const currentData = queryClient.getQueryData<PlaylistTracksData>(
+        playlistTracks(params.playlistId)
+      );
+      if (currentData) {
+        queryClient.setQueryData(playlistTracks(params.playlistId), {
+          ...currentData,
+          snapshotId: data.snapshotId,
+        });
+      }
+
       eventBus.emit('playlist:update', { playlistId: params.playlistId, cause: 'reorder' });
       toast.success('Tracks reordered successfully');
     },
     onError: (error, params, context) => {
+      // Rollback both caches
+      if (context?.previousInfiniteData) {
+        queryClient.setQueryData(
+          playlistTracksInfinite(params.playlistId),
+          context.previousInfiniteData
+        );
+      }
       if (context?.previousData) {
         queryClient.setQueryData(
           playlistTracks(params.playlistId),

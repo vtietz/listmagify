@@ -4,7 +4,7 @@
  */
 
 export interface Track {
-  id: string;
+  id: string | null;
   uri: string;
   [key: string]: unknown;
 }
@@ -102,4 +102,182 @@ export function extractRanges(
 
   ranges.push({ start: currentStart, length: currentLength });
   return ranges;
+}
+
+// ============================================================
+// Infinite Query Page Manipulation Helpers
+// ============================================================
+
+interface PlaylistTracksPage {
+  tracks: Track[];
+  snapshotId: string;
+  total: number;
+  nextCursor: string | null;
+}
+
+interface InfiniteData<T> {
+  pages: T[];
+  pageParams: unknown[];
+}
+
+/**
+ * Flatten all tracks from infinite query pages into a single array.
+ * Optionally de-duplicates based on track URI.
+ */
+export function flattenInfinitePages(
+  data: InfiniteData<PlaylistTracksPage> | undefined,
+  dedupe = true
+): Track[] {
+  if (!data?.pages) return [];
+  
+  const tracks: Track[] = [];
+  const seen = new Set<string>();
+  
+  for (const page of data.pages) {
+    for (const track of page.tracks) {
+      if (dedupe && seen.has(track.uri)) continue;
+      if (dedupe) seen.add(track.uri);
+      tracks.push(track);
+    }
+  }
+  
+  return tracks;
+}
+
+/**
+ * Update position field on all tracks to reflect their index in the array.
+ * This ensures the UI shows correct positions after reorder operations.
+ */
+function updateTrackPositions(tracks: Track[]): Track[] {
+  return tracks.map((track, index) => ({
+    ...track,
+    position: index,
+    // Keep originalPosition stable for sorting reference
+    originalPosition: track.originalPosition ?? track.position ?? index,
+  }));
+}
+
+/**
+ * Distribute a flat track array back into pages, preserving page structure.
+ * Used after reordering to rebuild infinite query cache.
+ * Automatically updates position fields to reflect new order.
+ */
+export function rebuildInfinitePages(
+  originalData: InfiniteData<PlaylistTracksPage>,
+  newTracks: Track[]
+): InfiniteData<PlaylistTracksPage> {
+  // Update positions on all tracks first
+  const tracksWithPositions = updateTrackPositions(newTracks);
+  
+  const newPages: PlaylistTracksPage[] = [];
+  let trackIndex = 0;
+  
+  for (let i = 0; i < originalData.pages.length; i++) {
+    const originalPage = originalData.pages[i];
+    if (!originalPage) continue;
+    
+    const pageSize = originalPage.tracks.length;
+    const pageTracks = tracksWithPositions.slice(trackIndex, trackIndex + pageSize);
+    trackIndex += pageSize;
+    
+    newPages.push({
+      ...originalPage,
+      tracks: pageTracks,
+    });
+  }
+  
+  // Handle case where tracks overflow original page structure
+  // (shouldn't happen in normal reorder, but handle gracefully)
+  if (trackIndex < tracksWithPositions.length && newPages.length > 0) {
+    const lastPage = newPages[newPages.length - 1];
+    if (lastPage) {
+      lastPage.tracks = [...lastPage.tracks, ...tracksWithPositions.slice(trackIndex)];
+    }
+  }
+  
+  return {
+    pages: newPages,
+    pageParams: originalData.pageParams,
+  };
+}
+
+/**
+ * Apply a reorder operation to infinite query data.
+ * Handles the splice logic for moving track ranges.
+ */
+export function applyReorderToInfinitePages(
+  data: InfiniteData<PlaylistTracksPage>,
+  fromIndex: number,
+  toIndex: number,
+  rangeLength: number = 1
+): InfiniteData<PlaylistTracksPage> {
+  // Flatten tracks
+  const allTracks = flattenInfinitePages(data, false);
+  
+  // Apply reorder: splice out moved items, then insert at new position
+  const movedItems = allTracks.splice(fromIndex, rangeLength);
+  
+  // Calculate insert position (adjusting for removed items)
+  const insertAt = toIndex > fromIndex 
+    ? toIndex - rangeLength 
+    : toIndex;
+  
+  allTracks.splice(insertAt, 0, ...movedItems);
+  
+  // Rebuild pages
+  return rebuildInfinitePages(data, allTracks);
+}
+
+/**
+ * Apply a remove operation to infinite query data.
+ * Removes tracks matching the given URIs.
+ */
+export function applyRemoveToInfinitePages(
+  data: InfiniteData<PlaylistTracksPage>,
+  trackUris: string[]
+): InfiniteData<PlaylistTracksPage> {
+  const uriSet = new Set(trackUris);
+  
+  // Flatten and filter
+  const allTracks = flattenInfinitePages(data, false);
+  const filteredTracks = allTracks.filter(track => !uriSet.has(track.uri));
+  
+  // Rebuild pages with updated total
+  const newData = rebuildInfinitePages(data, filteredTracks);
+  
+  // Update total in all pages
+  const newTotal = filteredTracks.length;
+  for (const page of newData.pages) {
+    page.total = newTotal;
+  }
+  
+  return newData;
+}
+
+/**
+ * Apply an add/insert operation to infinite query data.
+ * Inserts new tracks at the specified position.
+ */
+export function applyAddToInfinitePages(
+  data: InfiniteData<PlaylistTracksPage>,
+  newTracks: Track[],
+  position?: number
+): InfiniteData<PlaylistTracksPage> {
+  // Flatten tracks
+  const allTracks = flattenInfinitePages(data, false);
+  
+  // Insert at position (or append if not specified)
+  const insertAt = position ?? allTracks.length;
+  allTracks.splice(insertAt, 0, ...newTracks);
+  
+  // Rebuild pages with updated total
+  const newData = rebuildInfinitePages(data, allTracks);
+  
+  // Update total in all pages
+  const newTotal = allTracks.length;
+  for (const page of newData.pages) {
+    page.total = newTotal;
+  }
+  
+  return newData;
 }

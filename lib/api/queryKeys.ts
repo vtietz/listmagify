@@ -12,6 +12,15 @@ export const playlistTracks = (playlistId: string) =>
   ['playlist-tracks', playlistId] as const;
 
 /**
+ * Query key for playlist tracks with infinite pagination.
+ * This is the authoritative source for all tracks in a playlist.
+ * @param playlistId - Spotify playlist ID
+ * @returns React Query key array
+ */
+export const playlistTracksInfinite = (playlistId: string) => 
+  ['playlist-tracks-infinite', playlistId] as const;
+
+/**
  * Query key for playlist metadata (name, owner, etc.).
  * @param playlistId - Spotify playlist ID
  * @returns React Query key array

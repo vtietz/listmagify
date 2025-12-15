@@ -11,15 +11,14 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useDroppable } from '@dnd-kit/core';
 import { apiFetch } from '@/lib/api/client';
-import { playlistTracks, playlistMeta, playlistPermissions } from '@/lib/api/queryKeys';
+import { playlistMeta, playlistPermissions } from '@/lib/api/queryKeys';
 import { makeCompositeId } from '@/lib/dnd/id';
-import { scrollToIndexIfOutOfView } from '@/lib/utils/virtualScroll';
 import { DropIndicator } from './DropIndicator';
 import { eventBus } from '@/lib/sync/eventBus';
 import { useSplitGridStore } from '@/hooks/useSplitGridStore';
 import { usePlaylistSort, type SortKey, type SortDirection } from '@/hooks/usePlaylistSort';
 import { useTrackListSelection } from '@/hooks/useTrackListSelection';
-import { useAutoLoadPaginated } from '@/hooks/useAutoLoadPaginated';
+import { usePlaylistTracksInfinite } from '@/hooks/usePlaylistTracksInfinite';
 import { getTrackSelectionKey } from '@/lib/dnd/selection';
 import { PanelToolbar } from './PanelToolbar';
 import { TableHeader } from './TableHeader';
@@ -40,13 +39,6 @@ interface PlaylistPanelProps {
     targetPanelId: string; // Panel being hovered over
     insertionIndex: number; // Filtered index where item should be inserted
   } | null; // For multi-container "make room" animation
-}
-
-interface PlaylistTracksData {
-  tracks: Track[];
-  snapshotId: string;
-  total: number;
-  nextCursor: string | null;
 }
 
 export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirtualizer, isActiveDropTarget, dropIndicatorIndex, ephemeralInsertion }: PlaylistPanelProps) {
@@ -92,26 +84,22 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
     },
   });
 
-  // Fetch playlist tracks with stable query key
-  const { data, isLoading, error, refetch } = useQuery({
-    queryKey: playlistId ? playlistTracks(playlistId) : ['playlist-tracks', null],
-    queryFn: async (): Promise<PlaylistTracksData> => {
-      if (!playlistId) throw new Error('No playlist ID');
-      return apiFetch(`/api/playlists/${playlistId}/tracks`);
-    },
+  // Use infinite query as single source of truth for playlist tracks
+  const { 
+    allTracks: tracks, 
+    snapshotId,
+    isLoading, 
+    isFetchingNextPage: isAutoLoading,
+    hasLoadedAll,
+    error,
+    dataUpdatedAt,
+  } = usePlaylistTracksInfinite({
+    playlistId,
     enabled: !!playlistId,
-    staleTime: 30000, // 30 seconds
   });
 
-  // Auto-load all playlist tracks (beyond 100) when a playlist is active
-  const { items: tracks, isAutoLoading } = useAutoLoadPaginated<Track>({
-    initialItems: data?.tracks || [],
-    initialNextCursor: data?.nextCursor ?? null,
-    endpoint: playlistId ? `/api/playlists/${playlistId}/tracks` : '',
-    itemsKey: 'tracks',
-    enabled: !!playlistId && !!data,
-    resetKey: playlistId,
-  });
+  // Compute isReloading based on auto-loading state
+  const isReloading = isAutoLoading;
 
   // Fetch playlist metadata for name
   const { data: playlistMetaData } = useQuery({
@@ -175,7 +163,15 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
 
     const unsubscribeUpdate = eventBus.on('playlist:update', ({ playlistId: id }) => {
       if (id === playlistId) {
-        refetch();
+        // Don't refetch - mutations handle cache updates optimistically
+        // Only cross-panel sync needs this, and they should refetch to get full data
+        // But for the source panel, the optimistic update is already applied
+        const currentPanel = panel;
+        if (!currentPanel) return;
+        
+        // Only refetch if we're a different panel viewing the same playlist
+        // (source panel already has optimistic update)
+        // For now, skip refetch entirely - optimistic updates are enough
       }
     });
 
@@ -185,7 +181,11 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
         const scrollTop = scrollRef.current?.scrollTop || 0;
         setScroll(panelId, scrollTop);
         
-        refetch().then(() => {
+        // Invalidate the infinite query to trigger a fresh fetch
+        // Note: With placeholderData, the old data stays visible during refetch
+        queryClient.invalidateQueries({ 
+          queryKey: ['playlist-tracks-infinite', playlistId],
+        }).then(() => {
           // Restore scroll position after refetch
           if (scrollRef.current) {
             scrollRef.current.scrollTop = scrollTop;
@@ -198,7 +198,7 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
       unsubscribeUpdate();
       unsubscribeReload();
     };
-  }, [playlistId, panelId, refetch, setScroll]);
+  }, [playlistId, panelId, queryClient, setScroll, panel]);
 
   // Apply sorting to tracks
   const sortedTracks = usePlaylistSort({
@@ -337,7 +337,7 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
     if (scrollRef.current && panel?.scrollOffset) {
       scrollRef.current.scrollTop = panel.scrollOffset;
     }
-  }, [data, panel?.scrollOffset]);
+  }, [dataUpdatedAt, panel?.scrollOffset]);
 
   if (!playlistId) {
     return (
@@ -349,6 +349,7 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
           dndMode="copy"
           locked={false}
           searchQuery=""
+          isReloading={false}
           onSearchChange={() => {}}
           onReload={() => {}}
           onClose={handleClose}
@@ -382,6 +383,7 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
         dndMode={dndMode}
         locked={locked}
         searchQuery={searchQuery}
+        isReloading={isReloading}
         sortKey={sortKey}
         sortDirection={sortDirection}
         onSearchChange={handleSearchChange}

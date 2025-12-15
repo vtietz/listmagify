@@ -47,14 +47,15 @@ export function calculateDropPosition(
   const scrollTop = scrollContainer.scrollTop;
   const relativeY = pointerY - containerRect.top + scrollTop;
 
-  // Use the visual center of the dragged overlay to decide insertion.
-  // Approximate by shifting the pointer Y by one row height so the "middle of the hover item"
-  // determines whether we insert before/after.
+  // Adjust pointer position to represent the top edge of the drag overlay
+  // The drag overlay is typically 48-60px tall, and the pointer is often in the middle/bottom
+  // By subtracting ~half a row height, we use the visual top edge for drop calculations
   const virtualItems = virtualizer.getVirtualItems();
-  const rowSize = virtualItems.length > 0 && virtualItems[0] ? virtualItems[0].size : 48; // fallback if not yet measured
-  const adjustedY = relativeY - rowSize;
+  const rowSize = virtualItems.length > 0 && virtualItems[0] ? virtualItems[0].size : 48;
+  const adjustedY = relativeY - (rowSize / 2);
 
   // Find the insertion index in the filtered view
+  // If adjusted Y is above a row's middle, insert before that row
   let insertionIndexFiltered = filteredTracks.length; // Default: append to end
 
   for (let i = 0; i < virtualItems.length; i++) {
@@ -63,7 +64,7 @@ export function calculateDropPosition(
     
     const itemMiddle = item.start + item.size / 2;
 
-    // Use overlay center: if it's above the row's middle, insert before this row.
+    // If adjusted Y (top of drag overlay) is above the row's middle, insert before this row
     if (adjustedY < itemMiddle) {
       insertionIndexFiltered = item.index;
       break;

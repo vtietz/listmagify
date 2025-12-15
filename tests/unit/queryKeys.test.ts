@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { playlistTracks, playlistMeta, playlistPermissions, userPlaylists } from '@/lib/api/queryKeys';
+import { playlistTracks, playlistTracksInfinite, playlistMeta, playlistPermissions, userPlaylists } from '@/lib/api/queryKeys';
 
 describe('Query Keys', () => {
   describe('playlistTracks', () => {
@@ -50,6 +50,31 @@ describe('Query Keys', () => {
       const key2 = userPlaylists();
       
       expect(key1).toEqual(key2);
+    });
+  });
+
+  describe('playlistTracksInfinite', () => {
+    it('should generate query key for infinite playlist tracks', () => {
+      const key = playlistTracksInfinite('playlist-infinite-123');
+      
+      expect(key).toEqual(['playlist-tracks-infinite', 'playlist-infinite-123']);
+    });
+
+    it('should generate different keys for different playlists', () => {
+      const key1 = playlistTracksInfinite('playlist-1');
+      const key2 = playlistTracksInfinite('playlist-2');
+      
+      expect(key1).not.toEqual(key2);
+      expect(key1[1]).not.toBe(key2[1]);
+    });
+
+    it('should generate different keys than non-infinite query', () => {
+      const infiniteKey = playlistTracksInfinite('playlist-123');
+      const regularKey = playlistTracks('playlist-123');
+      
+      expect(infiniteKey[0]).not.toBe(regularKey[0]);
+      expect(infiniteKey[0]).toBe('playlist-tracks-infinite');
+      expect(regularKey[0]).toBe('playlist-tracks');
     });
   });
 });

@@ -71,13 +71,13 @@ describe('calculateDropPosition', () => {
       const virtualizer = createMockVirtualizer(virtualItems);
       const tracks = createMockTracks(5);
       
-      // Pointer at Y=190 (90px from container top, past midpoint of track 1)
+      // Pointer at Y=190 (90px from container top)
       const result = calculateDropPosition(container, virtualizer, tracks, 190);
       
       // relativeY = 190 - 100 + 0 = 90
-      // adjustedY = 90 - 60 = 30
-      // Track 0: start=0, midpoint=30 (30 == 30, at boundary, skip)
-      // Track 1: start=60, midpoint=90 (30 < 90, insert at index 1)
+      // adjustedY = 90 - 30 = 60 (top edge of drag overlay)
+      // Track 0: start=0, midpoint=30 (60 > 30, skip)
+      // Track 1: start=60, midpoint=90 (60 < 90, insert at index 1)
       expect(result?.filteredIndex).toBe(1);
       expect(result?.globalPosition).toBe(1);
     });
@@ -114,9 +114,9 @@ describe('calculateDropPosition', () => {
       
       // Pointer at Y=190 (90px from container top)
       // relativeY = 190 - 100 + 0 = 90
-      // adjustedY = 90 - 60 = 30
-      // Track 0: start=0, midpoint=30 (30 == 30, at boundary, skip)
-      // Track 1: start=60, midpoint=90 (30 < 90, insert at index 1)
+      // adjustedY = 90 - 30 = 60 (top edge of drag overlay)
+      // Track 0: start=0, midpoint=30 (60 > 30, skip)
+      // Track 1: start=60, midpoint=90 (60 < 90, insert at index 1)
       const result = calculateDropPosition(container, virtualizer, filteredTracks, 190);
       
       expect(result).toEqual({
@@ -163,11 +163,11 @@ describe('calculateDropPosition', () => {
       
       // Pointer at Y=200 (viewport coords)
       // relativeY = 200 - 100 + 300 = 400
-      // adjustedY = 400 - 60 = 340
+      // adjustedY = 400 - 30 = 370
       const result = calculateDropPosition(container, virtualizer, tracks, 200);
       
-      // Track 5: start=300, midpoint=330 (340 > 330, skip)
-      // Track 6: start=360, midpoint=390 (340 < 390, insert at index 6)
+      // Track 5: start=300, midpoint=330 (370 > 330, skip)
+      // Track 6: start=360, midpoint=390 (370 < 390, insert at index 6)
       expect(result?.filteredIndex).toBe(6);
       expect(result?.globalPosition).toBe(6);
     });
@@ -219,9 +219,9 @@ describe('calculateDropPosition', () => {
       const result = calculateDropPosition(container, virtualizer, tracks, 190);
       
       // relativeY = 190 - 100 = 90
-      // adjustedY = 90 - 60 = 30
-      // Track 0: midpoint=30, adjustedY=30 (at boundary, skip)
-      // Track 1: midpoint=90 (30 < 90, insert at index 1)
+      // adjustedY = 90 - 30 = 60
+      // Track 0: midpoint=30 (60 > 30, skip)
+      // Track 1: midpoint=90 (60 < 90, insert at index 1)
       // Should fall back to using filtered index as global position
       expect(result?.filteredIndex).toBe(1);
       expect(result?.globalPosition).toBe(1);
@@ -236,12 +236,11 @@ describe('calculateDropPosition', () => {
       const tracks = createMockTracks(3);
       
       // Track 0: 0-60, midpoint at 30
-      // With adjustedY = pointerY - rowSize
-      // Pointer at 29: adjustedY = 29 - 60 = -31 (before all tracks)
+      // Pointer at 29: relativeY = 29, adjustedY = 29-30=-1 (before all tracks)
       const result1 = calculateDropPosition(container, virtualizer, tracks, 29);
       expect(result1?.filteredIndex).toBe(0);
       
-      // Pointer at 91: adjustedY = 91 - 60 = 31 (past midpoint of track 0 at 30)
+      // Pointer at 91: relativeY = 91, adjustedY = 91-30=61 (past midpoint of track 0 at 30, before track 1 midpoint at 90)
       const result2 = calculateDropPosition(container, virtualizer, tracks, 91);
       expect(result2?.filteredIndex).toBe(1);
     });
@@ -252,10 +251,10 @@ describe('calculateDropPosition', () => {
       const virtualizer = createMockVirtualizer(virtualItems);
       const tracks = createMockTracks(2);
       
-      // Pointer at 90: adjustedY = 90 - 60 = 30 (exactly at midpoint of track 0)
+      // Pointer at 90: relativeY = 90, adjustedY = 90-30=60
       const result = calculateDropPosition(container, virtualizer, tracks, 90);
       
-      // At exact midpoint, should prefer next track (insert at index 1)
+      // adjustedY=60 is past track 0 midpoint (30) but before track 1 midpoint (90)
       expect(result?.filteredIndex).toBe(1);
     });
   });
