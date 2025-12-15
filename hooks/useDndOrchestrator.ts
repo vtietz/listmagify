@@ -263,8 +263,8 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
       // Simple readable log - server side
       logDebug('🎵 DRAG START:', {
         selected: selectedIndicesRef.current,
-        selectedPositions: selectedTracks.map(t => t.position),
-        dragging: dragTracks.map(t => `#${t.position} ${t.name}`).join(', ')
+        selectedPositions: selectedTracks.map(t => t?.position).filter(p => p != null),
+        dragging: dragTracks.map(t => `#${t?.position ?? '?'} ${t?.name ?? 'unknown'}`).join(', ')
       });
       
       console.debug('[DND] start', {
@@ -472,7 +472,7 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
     const orderedTracks = orderedTracksSnapshotRef.current.length > 0 
       ? orderedTracksSnapshotRef.current 
       : (panelVirtualizersRef.current.get(sourcePanelIdFromData)?.filteredTracks ?? []);
-    const selectedTracks = selectedIndicesRef.current.map(idx => orderedTracks[idx]).filter(Boolean);
+    const selectedTracks = selectedIndicesRef.current.map(idx => orderedTracks[idx]).filter((t): t is Track => t != null);
     const dragTracks = (selectedTracks.length ? selectedTracks : [sourceTrack]);
     const dragTrackUris = dragTracks.map((t) => t.uri);
 
@@ -502,7 +502,7 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
     logDebug('🎯 DROP:', {
       from: selectedIndicesRef.current.length > 0 ? selectedIndicesRef.current : [sourceIndex],
       to: targetIndex,
-      tracks: dragTracks.map(t => `#${t.position} ${t.name}`)
+      tracks: dragTracks.map(t => `#${t?.position ?? '?'} ${t?.name ?? 'unknown'}`)
     });
     
     console.debug('[DND] end: selection', {
@@ -549,16 +549,24 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
     const { ctrlKey: isCtrlPressed } = pointerTracker.getModifiers();
     const canInvertMode = sourcePanel.isEditable; // Only editable playlists can use Ctrl to invert
     const isSamePanelSamePlaylist = sourcePanelIdFromData === targetPanelId && sourcePlaylistId === targetPlaylistId;
+    
+    // Determine effective mode:
+    // - Same panel, same playlist: 
+    //   - If source panel is in copy mode OR Ctrl is pressed (inverting from move to copy): copy (add duplicate)
+    //   - Otherwise: move (reorder)
+    // - Different panels: respect panel's dndMode setting with Ctrl inversion
     const effectiveMode = isSamePanelSamePlaylist
-      ? 'move'
+      ? (sourceDndMode === 'copy' || (isCtrlPressed && canInvertMode))
+        ? 'copy'  // Copy mode or Ctrl pressed: add duplicate
+        : 'move'  // Move mode: reorder
       : (isCtrlPressed && canInvertMode)
-        ? (sourceDndMode === 'copy' ? 'move' : 'copy')
-        : sourceDndMode;
+        ? (sourceDndMode === 'copy' ? 'move' : 'copy')  // Ctrl inverts mode
+        : sourceDndMode;  // Cross-panel: use source panel setting
 
     const isContiguousSelection = (() => {
       if (dragTracks.length <= 1) return true;
       const indices = dragTracks
-        .map((t) => orderedTracks.findIndex((ot) => (ot.id || ot.uri) === (t.id || t.uri)))
+        .map((t) => orderedTracks.findIndex((ot) => (ot?.id || ot?.uri) === (t?.id || t?.uri)))
         .filter((i) => i >= 0)
         .sort((a, b) => a - b);
       const first = indices[0];
@@ -567,8 +575,20 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
       return last - first + 1 === indices.length;
     })();
 
-    // Same panel reordering (traditional drag-and-drop within one view)
+    // Same panel, same playlist operations
     if (isSamePanelSamePlaylist) {
+      // Check if we're in copy mode (adding duplicates)
+      if (effectiveMode === 'copy') {
+        logDebug('✅ COPY (add duplicate):', dragTrackUris.length, 'tracks →', targetIndex);
+        addTracks.mutate({
+          playlistId: targetPlaylistId,
+          trackUris: dragTrackUris,
+          position: targetIndex,  // Use raw targetIndex for copy
+        });
+        return;
+      }
+      
+      // Move mode: reorder operations
       if (dragTracks.length === 1) {
         logDebug('✅ REORDER single:', sourceIndex, '→', effectiveTargetIndex);
         console.debug('[DND] end: branch = single-item', {
@@ -593,7 +613,7 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
               .sort((a, b) => a - b);
         
         // Use track positions (global playlist positions) not filtered indices
-        const trackPositions = indices.map(idx => orderedTracks[idx]?.position ?? idx).sort((a, b) => a - b);
+        const trackPositions = indices.map(idx => orderedTracks[idx]?.position ?? idx).filter((p): p is number => p != null).sort((a, b) => a - b);
         const fromIndex = trackPositions[0] ?? sourceIndex;
         const rangeLength = trackPositions.length || 1;
         
@@ -604,12 +624,6 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
           rangeLength,
           indices: trackPositions.slice(0, 25)
         });
-        
-        // Skip if already at target position
-        if (fromIndex === effectiveTargetIndex) {
-          console.debug('[DND] Skipping reorder - already at target position');
-          return;
-        }
         
         reorderTracks.mutate({
           playlistId: targetPlaylistId,
@@ -657,25 +671,47 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
     if (sourcePlaylistId === targetPlaylistId) {
       // Same playlist, different panels
       if (effectiveMode === 'copy') {
+        logDebug('✅ COPY same playlist, cross-panel:', dragTrackUris.length, 'tracks →', targetIndex);
         addTracks.mutate({
           playlistId: targetPlaylistId,
           trackUris: dragTrackUris,
-          position: effectiveTargetIndex,
+          position: targetIndex,  // Use raw targetIndex for copy (no adjustment needed)
         });
       } else {
-        // Move by remove + add (selection-aware)
-        addTracks.mutate({
-          playlistId: targetPlaylistId,
-          trackUris: dragTrackUris,
-          position: effectiveTargetIndex,
-        }, {
-          onSuccess: () => {
-            removeTracks.mutate({
-              playlistId: sourcePlaylistId,
-              trackUris: dragTrackUris,
-            });
-          },
-        });
+        // Move within same playlist across panels
+        // IMPORTANT: Must use reorder API, not add+remove, because remove by URI
+        // would remove ALL occurrences including the newly added tracks
+        
+        if (isContiguousSelection && dragTracks.length > 1) {
+          // Contiguous multi-track: use rangeLength reorder
+          const indices = selectedIndicesRef.current.length > 0
+            ? selectedIndicesRef.current.slice().sort((a, b) => a - b)
+            : dragTracks
+                .map((t) => orderedTracks.findIndex((ot) => (ot?.id || ot?.uri) === (t?.id || t?.uri)))
+                .filter((i) => i >= 0)
+                .sort((a, b) => a - b);
+          
+          const trackPositions = indices.map(idx => orderedTracks[idx]?.position ?? idx).filter((p): p is number => p != null).sort((a, b) => a - b);
+          const fromIndex = trackPositions[0] ?? sourceIndex;
+          const rangeLength = trackPositions.length || 1;
+          
+          logDebug('✅ REORDER cross-panel (contiguous):', trackPositions, '→', effectiveTargetIndex, `(${rangeLength} tracks)`);
+          reorderTracks.mutate({
+            playlistId: targetPlaylistId,
+            fromIndex,
+            toIndex: effectiveTargetIndex,
+            rangeLength,
+          });
+        } else {
+          // Non-contiguous or single track: use reorder API for each track
+          logDebug('✅ REORDER cross-panel (single/non-contiguous):', dragTracks.map(t => t.position), '→', effectiveTargetIndex);
+          reorderTracks.mutate({
+            playlistId: targetPlaylistId,
+            fromIndex: sourceIndex,
+            toIndex: effectiveTargetIndex,
+            rangeLength: 1,
+          });
+        }
       }
     } else if (effectiveMode === 'copy') {
       // Different playlists: Copy to target at mouse position

@@ -90,6 +90,7 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
     snapshotId,
     isLoading, 
     isFetchingNextPage: isAutoLoading,
+    isRefetching,
     hasLoadedAll,
     error,
     dataUpdatedAt,
@@ -98,8 +99,8 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
     enabled: !!playlistId,
   });
 
-  // Compute isReloading based on auto-loading state
-  const isReloading = isAutoLoading;
+  // Show reload animation when auto-loading or manually refetching
+  const isReloading = isAutoLoading || isRefetching;
 
   // Fetch playlist metadata for name
   const { data: playlistMetaData } = useQuery({
@@ -177,6 +178,7 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
 
     const unsubscribeReload = eventBus.on('playlist:reload', ({ playlistId: id }) => {
       if (id === playlistId) {
+        console.log('🔄 Reloading playlist tracks from server:', playlistId);
         // Save scroll position
         const scrollTop = scrollRef.current?.scrollTop || 0;
         setScroll(panelId, scrollTop);
@@ -186,6 +188,7 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
         queryClient.invalidateQueries({ 
           queryKey: ['playlist-tracks-infinite', playlistId],
         }).then(() => {
+          console.log('✅ Playlist reload complete:', playlistId);
           // Restore scroll position after refetch
           if (scrollRef.current) {
             scrollRef.current.scrollTop = scrollTop;
@@ -265,6 +268,7 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
 
   const handleReload = useCallback(() => {
     if (playlistId) {
+      console.log('🔄 Reload button clicked for playlist:', playlistId);
       eventBus.emit('playlist:reload', { playlistId });
     }
   }, [playlistId]);

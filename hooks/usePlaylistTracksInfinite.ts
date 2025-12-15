@@ -13,7 +13,7 @@
 'use client';
 
 import { useEffect, useRef, useCallback, useMemo } from 'react';
-import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api/client';
 import { playlistTracksInfinite } from '@/lib/api/queryKeys';
 import type { Track } from '@/lib/spotify/types';
@@ -47,6 +47,8 @@ interface UsePlaylistTracksInfiniteResult {
   isLoading: boolean;
   /** Whether additional pages are being fetched */
   isFetchingNextPage: boolean;
+  /** Whether data is being refetched (e.g., manual reload) */
+  isRefetching: boolean;
   /** Whether all pages have been loaded */
   hasLoadedAll: boolean;
   /** Error if any */
@@ -77,7 +79,13 @@ export function usePlaylistTracksInfinite({
   const queryClient = useQueryClient();
   const prefetchedRef = useRef<string | null>(null);
 
-  const queryResult = useInfiniteQuery({
+  const queryResult = useInfiniteQuery<
+    PlaylistTracksPage,
+    Error,
+    InfiniteData<PlaylistTracksPage>,
+    ReturnType<typeof playlistTracksInfinite>,
+    string | null
+  >({
     queryKey: playlistId ? playlistTracksInfinite(playlistId) : ['playlist-tracks-infinite', null],
     queryFn: async ({ pageParam = null }): Promise<PlaylistTracksPage> => {
       if (!playlistId) throw new Error('No playlist ID');
@@ -88,12 +96,12 @@ export function usePlaylistTracksInfinite({
       
       return apiFetch<PlaylistTracksPage>(url);
     },
-    initialPageParam: null,
-    getNextPageParam: (lastPage) => lastPage.nextCursor,
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage: PlaylistTracksPage) => lastPage.nextCursor,
     enabled: enabled && !!playlistId,
     staleTime: 30000, // 30 seconds
     // CRITICAL: Keep previous data during refetch to prevent undefined flashes
-    placeholderData: (prev) => prev,
+    placeholderData: (prev: InfiniteData<PlaylistTracksPage> | undefined) => prev,
     // Disable automatic background refetches to prevent data resets during DnD
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
@@ -101,7 +109,7 @@ export function usePlaylistTracksInfinite({
     structuralSharing: false,
   });
 
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, error, dataUpdatedAt } = queryResult;
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, isRefetching, error, dataUpdatedAt } = queryResult;
 
   // Prefetch all remaining pages once the first page loads
   const prefetchAllPages = useCallback(async () => {
@@ -144,8 +152,9 @@ export function usePlaylistTracksInfinite({
     
     for (const page of data.pages) {
       for (const track of page.tracks) {
-        // De-duplicate based on URI (same track can appear on page boundaries)
-        const key = track.uri;
+        // De-duplicate based on URI + position (same track at same position = page boundary duplicate)
+        // But same track at different positions = intentional playlist duplicates (keep them!)
+        const key = `${track.uri}::${track.position}`;
         if (seenKeys.has(key)) continue;
         seenKeys.add(key);
         tracks.push(track);
@@ -170,6 +179,7 @@ export function usePlaylistTracksInfinite({
     total,
     isLoading,
     isFetchingNextPage,
+    isRefetching,
     hasLoadedAll,
     error: error as Error | null,
     data,

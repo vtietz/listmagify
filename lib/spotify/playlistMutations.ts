@@ -85,14 +85,19 @@ export function useAddTracks() {
       return { previousData };
     },
     onSuccess: (data, params) => {
-      // Update snapshotId without refetching (optimistic add stays)
+      // Invalidate the infinite query to refetch with the new tracks
+      // We can't do optimistic updates for add because we only have URIs, not full Track objects
+      queryClient.invalidateQueries({ 
+        queryKey: playlistTracksInfinite(params.playlistId),
+      });
+
+      // Also invalidate legacy query if it exists
       const currentData = queryClient.getQueryData<PlaylistTracksData>(
         playlistTracks(params.playlistId)
       );
       if (currentData) {
-        queryClient.setQueryData(playlistTracks(params.playlistId), {
-          ...currentData,
-          snapshotId: data.snapshotId,
+        queryClient.invalidateQueries({ 
+          queryKey: playlistTracks(params.playlistId),
         });
       }
 

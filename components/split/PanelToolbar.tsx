@@ -71,7 +71,7 @@ export function PanelToolbar({
       <div className="flex-1 min-w-0 px-2">
         <PlaylistSelector
           selectedPlaylistId={playlistId}
-          selectedPlaylistName={playlistName}
+          selectedPlaylistName={playlistName ?? ''}
           onSelectPlaylist={onLoadPlaylist}
         />
       </div>
