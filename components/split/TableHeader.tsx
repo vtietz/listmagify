@@ -17,20 +17,31 @@ interface TableHeaderProps {
   showLikedColumn?: boolean;
 }
 
+/** Grid template for consistent column alignment between header and rows */
+export const TRACK_GRID_CLASSES = 'grid items-center gap-3 px-4';
+export const TRACK_GRID_STYLE = {
+  // Play | Grip | Heart | # | Title (flex) | Artist (flex) | Time
+  gridTemplateColumns: '32px 16px 32px 40px minmax(150px, 1fr) minmax(120px, 1fr) 60px',
+};
+export const TRACK_GRID_STYLE_WITH_ALBUM = {
+  // Play | Grip | Heart | # | Title (flex) | Artist (flex) | Album (flex) | Time
+  gridTemplateColumns: '32px 16px 32px 40px minmax(150px, 2fr) minmax(120px, 1fr) minmax(120px, 1fr) 60px',
+};
+
 export function TableHeader({ isEditable, sortKey, sortDirection, onSort, showLikedColumn = true }: TableHeaderProps) {
   const SortIcon = sortDirection === 'asc' ? ArrowUp : ArrowDown;
 
-  const renderColumnHeader = (label: string, key: SortKey, width?: string) => {
+  const renderColumnHeader = (label: string, key: SortKey, align: 'left' | 'right' = 'left') => {
     const isActive = sortKey === key;
     
     return (
       <button
         onClick={() => onSort(key)}
         className={`
-          flex items-center gap-1 px-2 h-full text-left text-xs font-medium uppercase tracking-wide
+          flex items-center gap-1 w-full h-full text-xs font-medium uppercase tracking-wide
           hover:text-foreground transition-colors
           ${isActive ? 'text-foreground' : 'text-muted-foreground'}
-          ${width || ''}
+          ${align === 'right' ? 'justify-end' : ''}
         `}
         title={`Sort by ${label}`}
       >
@@ -41,48 +52,44 @@ export function TableHeader({ isEditable, sortKey, sortDirection, onSort, showLi
   };
 
   return (
-    <div data-table-header="true" className="sticky top-0 z-20 flex items-center gap-3 px-4 h-10 border-b border-border bg-card backdrop-blur-sm text-muted-foreground min-w-max">
-      {/* Play button column placeholder */}
-      <div className="flex-shrink-0 w-8 flex items-center justify-center" title="Play">
+    <div 
+      data-table-header="true" 
+      className={`sticky top-0 z-20 h-10 border-b border-border bg-card backdrop-blur-sm text-muted-foreground ${TRACK_GRID_CLASSES}`}
+      style={TRACK_GRID_STYLE_WITH_ALBUM}
+    >
+      {/* Play button column */}
+      <div className="flex items-center justify-center" title="Play">
         <Play className="h-3 w-3" />
       </div>
 
-      {/* Grip column placeholder - always show for alignment */}
-      <div className="flex-shrink-0 w-4">
+      {/* Grip column */}
+      <div className="flex items-center justify-center">
         <GripVertical className="h-3 w-3 opacity-30" />
       </div>
 
-      {/* Liked status column - non-sortable */}
-      {showLikedColumn && (
-        <div className="flex-shrink-0 w-8 flex items-center justify-center" title="Liked status">
+      {/* Liked status column */}
+      {showLikedColumn ? (
+        <div className="flex items-center justify-center" title="Liked status">
           <Heart className="h-3 w-3" />
         </div>
+      ) : (
+        <div />
       )}
 
       {/* Position */}
-      <div className="flex-shrink-0 w-10">
-        {renderColumnHeader('#', 'position', 'w-10')}
-      </div>
+      <div>{renderColumnHeader('#', 'position')}</div>
 
       {/* Title */}
-      <div className="flex-shrink-0 w-[200px]">
-        {renderColumnHeader('Title', 'name', 'w-[200px]')}
-      </div>
+      <div>{renderColumnHeader('Title', 'name')}</div>
 
       {/* Artist */}
-      <div className="flex-shrink-0 w-[160px]">
-        {renderColumnHeader('Artist', 'artist', 'w-[160px]')}
-      </div>
+      <div>{renderColumnHeader('Artist', 'artist')}</div>
 
-      {/* Album - hidden on small screens */}
-      <div className="hidden lg:block flex-shrink-0 w-[160px]">
-        {renderColumnHeader('Album', 'album', 'w-[160px]')}
-      </div>
+      {/* Album - hidden on small screens, but keep grid slot */}
+      <div className="hidden lg:block">{renderColumnHeader('Album', 'album')}</div>
 
-      {/* Duration */}
-      <div className="flex-shrink-0 w-[60px] text-right">
-        {renderColumnHeader('Time', 'duration', 'w-[60px]')}
-      </div>
+      {/* Duration - right aligned */}
+      <div className="text-right">{renderColumnHeader('Time', 'duration', 'right')}</div>
     </div>
   );
 }

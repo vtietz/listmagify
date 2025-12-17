@@ -11,6 +11,7 @@ import { makeCompositeId, getTrackPosition } from '@/lib/dnd/id';
 import { cn } from '@/lib/utils';
 import { formatDuration } from '@/lib/utils/format';
 import { GripVertical, Heart, Play, Pause, Loader2 } from 'lucide-react';
+import { TRACK_GRID_CLASSES, TRACK_GRID_STYLE_WITH_ALBUM } from './TableHeader';
 
 interface TrackRowProps {
   track: Track;
@@ -142,9 +143,10 @@ export function TrackRow({
   return (
     <div
       ref={setNodeRef}
-      style={style}
+      style={{ ...style, ...TRACK_GRID_STYLE_WITH_ALBUM }}
       className={cn(
-        'flex items-center gap-3 px-4 h-12 border-b border-border transition-colors min-w-max',
+        TRACK_GRID_CLASSES,
+        'h-12 border-b border-border transition-colors',
         !isSelected && 'hover:bg-accent/40 hover:text-foreground',
         isSelected && 'bg-accent/70 text-foreground hover:bg-accent/80',
         // Visual feedback during drag - apply to dragged item OR all selected items in multi-select
@@ -170,7 +172,7 @@ export function TrackRow({
         onClick={handlePlayClick}
         disabled={isLocalFile || isPlaybackLoading}
         className={cn(
-          'flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full transition-all',
+          'h-8 w-8 flex items-center justify-center rounded-full transition-all',
           isLocalFile && 'opacity-30 cursor-not-allowed',
           !isLocalFile && 'hover:scale-110 hover:bg-green-500 hover:text-white',
           isPlaying ? 'bg-green-500 text-white' : 'text-muted-foreground',
@@ -193,18 +195,18 @@ export function TrackRow({
         )}
       </button>
 
-      {/* Grip handle for dragging - always show column for alignment */}
-      <div className="flex-shrink-0 w-4 text-muted-foreground hover:text-foreground pointer-events-none">
+      {/* Grip handle for dragging */}
+      <div className="flex items-center justify-center text-muted-foreground hover:text-foreground pointer-events-none">
         {!locked && <GripVertical className="h-4 w-4" />}
       </div>
 
       {/* Liked status button */}
-      {showLikedColumn && (
+      {showLikedColumn ? (
         <button
           onClick={handleHeartClick}
           disabled={isLocalFile}
           className={cn(
-            'flex-shrink-0 w-8 flex items-center justify-center transition-colors',
+            'flex items-center justify-center transition-colors',
             isLocalFile && 'opacity-30 cursor-not-allowed',
             !isLocalFile && 'hover:scale-110',
             isLiked ? 'text-green-500' : 'text-muted-foreground hover:text-foreground',
@@ -222,15 +224,17 @@ export function TrackRow({
             className={cn('h-4 w-4', isLiked && 'fill-current')}
           />
         </button>
+      ) : (
+        <div />
       )}
 
       {/* Position number */}
-      <div className="flex-shrink-0 w-10 text-sm text-muted-foreground tabular-nums">
+      <div className="text-sm text-muted-foreground tabular-nums">
         {track.position != null ? track.position + 1 : index + 1}
       </div>
 
       {/* Track title */}
-      <div className="flex-shrink-0 w-[200px] min-w-0">
+      <div className="min-w-0">
         <div className="text-sm truncate">
           {track.id ? (
             <a
@@ -249,7 +253,7 @@ export function TrackRow({
       </div>
 
       {/* Artist */}
-      <div className="flex-shrink-0 w-[160px] min-w-0">
+      <div className="min-w-0">
         <div className="text-sm text-muted-foreground truncate">
           {track.artistObjects && track.artistObjects.length > 0 ? (
             track.artistObjects.map((artist, idx) => (
@@ -276,9 +280,9 @@ export function TrackRow({
         </div>
       </div>
 
-      {/* Album - hidden on small screens */}
-      {track.album?.name && (
-        <div className="hidden lg:block flex-shrink-0 w-[160px] min-w-0">
+      {/* Album - hidden on small screens, but keep grid slot */}
+      <div className="hidden lg:block min-w-0">
+        {track.album?.name && (
           <div className="text-sm text-muted-foreground truncate">
             {track.album.id ? (
               <a
@@ -294,11 +298,11 @@ export function TrackRow({
               track.album.name
             )}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
-      {/* Duration */}
-      <div className="flex-shrink-0 w-[60px] text-sm text-muted-foreground tabular-nums text-right">
+      {/* Duration - right aligned */}
+      <div className="text-sm text-muted-foreground tabular-nums text-right">
         {formatDuration(track.durationMs)}
       </div>
     </div>

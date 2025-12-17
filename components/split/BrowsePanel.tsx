@@ -33,7 +33,7 @@ interface SearchResponse {
 }
 
 export function BrowsePanel() {
-  const { isOpen, searchQuery, width, close, setSearchQuery, setWidth } = useBrowsePanelStore();
+  const { isOpen, searchQuery, width, setSearchQuery, setWidth } = useBrowsePanelStore();
   const { isLiked, toggleLiked } = useSavedTracksIndex();
   
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -200,27 +200,13 @@ export function BrowsePanel() {
         )} />
       </div>
       
-      {/* Header */}
-      <div className="flex items-center gap-2 p-3 border-b border-border">
-        <h2 className="font-semibold text-sm flex-1">Browse Spotify</h2>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7"
-          onClick={close}
-          aria-label="Close browse panel"
-        >
-          <X className="h-4 w-4" />
-        </Button>
-      </div>
-      
       {/* Search input */}
       <div className="p-3 border-b border-border">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             ref={inputRef}
-            type="search"
+            type="text"
             placeholder="Search tracks, artists, albums..."
             value={localQuery}
             onChange={(e) => setLocalQuery(e.target.value)}
