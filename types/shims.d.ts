@@ -44,3 +44,46 @@ declare module 'next/server' {
 declare module 'next-auth' {
   export function getServerSession(...args: any[]): Promise<any>;
 }
+
+declare module '@tanstack/react-query' {
+  export function useInfiniteQuery<
+    TQueryFnData = unknown,
+    TError = unknown,
+    TData = TQueryFnData,
+    TQueryKey extends any[] = any[],
+    TPageParam = unknown
+  >(options: {
+    queryKey: TQueryKey;
+    queryFn: (context: { pageParam: TPageParam }) => Promise<TQueryFnData>;
+    initialPageParam: TPageParam;
+    getNextPageParam: (lastPage: TQueryFnData) => TPageParam | null | undefined;
+    enabled?: boolean;
+    staleTime?: number;
+    [key: string]: any;
+  }): {
+    data: { pages: TQueryFnData[]; pageParams: TPageParam[] } | undefined;
+    fetchNextPage: () => Promise<any>;
+    hasNextPage: boolean;
+    isFetchingNextPage: boolean;
+    isLoading: boolean;
+    isError: boolean;
+    error: TError | null;
+    refetch: () => Promise<any>;
+    [key: string]: any;
+  };
+  export function useQuery<TData = unknown, TError = unknown>(options: any): any;
+  export function useMutation<TData = unknown, TError = unknown>(options: any): any;
+  export function useQueryClient(): any;
+  export class QueryClient {
+    constructor(config?: any);
+    setQueryData(key: any, data: any): void;
+    getQueryData(key: any): any;
+    invalidateQueries(filters?: any): Promise<void>;
+    [key: string]: any;
+  }
+  export function QueryClientProvider(props: { client: QueryClient; children: any }): any;
+  export type InfiniteData<T, TPageParam = unknown> = {
+    pages: T[];
+    pageParams: TPageParam[];
+  };
+}

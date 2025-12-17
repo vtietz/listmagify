@@ -2,7 +2,10 @@
 
 import React from "react";
 import Link from "next/link";
+import { Search } from "lucide-react";
 import { Separator } from "@radix-ui/react-separator";
+import { Button } from "@/components/ui/button";
+import { useBrowsePanelStore } from "@/hooks/useBrowsePanelStore";
 
 type AppShellProps = {
   headerTitle?: string;
@@ -19,6 +22,8 @@ export function AppShell({ headerTitle = "Spotify Playlist Editor", children }: 
 }
 
 function Header({ title }: { title: string }) {
+  const { isOpen, toggle } = useBrowsePanelStore();
+  
   return (
     <header className="h-12 flex items-center justify-between px-4 border-b">
       <div className="flex items-center gap-2">
@@ -36,6 +41,16 @@ function Header({ title }: { title: string }) {
         <Link href="/split-editor" className="hover:underline">
           Split Editor
         </Link>
+        <Separator orientation="vertical" className="h-4" />
+        <Button
+          variant={isOpen ? "secondary" : "ghost"}
+          size="sm"
+          onClick={toggle}
+          className="h-7 gap-1.5"
+        >
+          <Search className="h-3.5 w-3.5" />
+          Browse
+        </Button>
         <Separator orientation="vertical" className="h-4" />
         <Link href="/logout" className="text-muted-foreground hover:underline">
           Logout

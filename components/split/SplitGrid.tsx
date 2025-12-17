@@ -9,9 +9,11 @@
 
 import { DndContext, DragOverlay } from '@dnd-kit/core';
 import { useSplitGridStore } from '@/hooks/useSplitGridStore';
+import { useBrowsePanelStore } from '@/hooks/useBrowsePanelStore';
 import { useDndOrchestrator } from '@/hooks/useDndOrchestrator';
 import { useSplitUrlSync } from '@/hooks/useSplitUrlSync';
 import { SplitNodeView } from './SplitNodeView';
+import { BrowsePanel } from './BrowsePanel';
 
 export function SplitGrid() {
   // Sync split grid state with URL for sharing/bookmarking
@@ -19,6 +21,7 @@ export function SplitGrid() {
 
   const root = useSplitGridStore((state) => state.root);
   const panels = useSplitGridStore((state) => state.panels);
+  const isBrowsePanelOpen = useBrowsePanelStore((state) => state.isOpen);
 
   // Use the orchestrator hook to manage all DnD state and logic
   const {
@@ -42,8 +45,14 @@ export function SplitGrid() {
 
   if (!root || panels.length === 0) {
     return (
-      <div className="flex items-center justify-center h-full text-muted-foreground">
-        <p>Click &quot;Split Horizontal&quot; or &quot;Split Vertical&quot; to add a panel</p>
+      <div className="flex h-full">
+        <div className="flex-1 flex items-center justify-center text-muted-foreground">
+          <p>Click &quot;Split Horizontal&quot; or &quot;Split Vertical&quot; to add a panel</p>
+        </div>
+        {/* Browse panel outside DnD context when no panels */}
+        {isBrowsePanelOpen && (
+          <BrowsePanel />
+        )}
       </div>
     );
   }
@@ -61,16 +70,24 @@ export function SplitGrid() {
       // which correctly targets only the panel under the pointer.
       autoScroll={false}
     >
-      <div className="h-full w-full p-2">
-        <SplitNodeView
-          node={root}
-          onRegisterVirtualizer={registerVirtualizer}
-          onUnregisterVirtualizer={unregisterVirtualizer}
-          activePanelId={activePanelId}
-          sourcePanelId={sourcePanelId}
-          dropIndicatorIndex={dropIndicatorIndex}
-          ephemeralInsertion={ephemeralInsertion}
-        />
+      <div className="h-full w-full flex">
+        {/* Main split panel area */}
+        <div className="flex-1 min-w-0 p-2">
+          <SplitNodeView
+            node={root}
+            onRegisterVirtualizer={registerVirtualizer}
+            onUnregisterVirtualizer={unregisterVirtualizer}
+            activePanelId={activePanelId}
+            sourcePanelId={sourcePanelId}
+            dropIndicatorIndex={dropIndicatorIndex}
+            ephemeralInsertion={ephemeralInsertion}
+          />
+        </div>
+        
+        {/* Browse panel (Spotify search) */}
+        {isBrowsePanelOpen && (
+          <BrowsePanel />
+        )}
       </div>
 
       <DragOverlay 
