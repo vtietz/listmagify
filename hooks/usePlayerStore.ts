@@ -31,6 +31,9 @@ interface PlayerStore {
   // Current playback context (for auto-play next)
   playbackContext: PlaybackContext | null;
   
+  // UI state
+  isPlayerVisible: boolean;
+  
   // Actions
   setPlaybackState: (state: PlaybackState | null) => void;
   setDevices: (devices: SpotifyDevice[]) => void;
@@ -39,6 +42,8 @@ interface PlayerStore {
   setPlaybackContext: (context: PlaybackContext | null) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
+  setPlayerVisible: (visible: boolean) => void;
+  togglePlayerVisible: () => void;
   
   // Computed: currently playing track ID
   currentTrackId: () => string | null;
@@ -53,6 +58,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
   selectedDeviceId: null,
   isDeviceSelectorOpen: false,
   playbackContext: null,
+  isPlayerVisible: false, // Hidden by default
 
   // Actions
   setPlaybackState: (playbackState) => set({ playbackState }),
@@ -62,6 +68,8 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
   setPlaybackContext: (playbackContext) => set({ playbackContext }),
   setLoading: (isLoading) => set({ isLoading }),
   setError: (error) => set({ error }),
+  setPlayerVisible: (isPlayerVisible) => set({ isPlayerVisible }),
+  togglePlayerVisible: () => set((state) => ({ isPlayerVisible: !state.isPlayerVisible })),
 
   // Computed
   currentTrackId: () => {

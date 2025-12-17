@@ -1,6 +1,7 @@
 /**
  * SpotifyPlayer component - Mini player bar at the bottom of the app.
  * Shows currently playing track, playback controls, and device selector.
+ * Can be toggled visible/hidden via the header menu. Auto-shows when playback starts.
  */
 
 'use client';
@@ -33,6 +34,7 @@ export function SpotifyPlayer() {
     selectedDeviceId,
     devices,
     isDeviceSelectorOpen,
+    isPlayerVisible,
     togglePlayPause,
     next,
     previous,
@@ -123,6 +125,11 @@ export function SpotifyPlayer() {
   }, [refreshDevices, openDeviceSelector]);
 
   const progressPercent = durationMs > 0 ? (localProgress / durationMs) * 100 : 0;
+
+  // Hidden state - render nothing (toggle is in the header menu)
+  if (!isPlayerVisible) {
+    return null;
+  }
 
   // If nothing is playing, show minimal bar
   if (!track) {

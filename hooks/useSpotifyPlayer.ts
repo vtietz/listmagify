@@ -40,6 +40,7 @@ export function useSpotifyPlayer() {
     playbackContext,
     isLoading,
     error,
+    isPlayerVisible,
     setPlaybackState,
     setDevices,
     setSelectedDevice,
@@ -47,6 +48,8 @@ export function useSpotifyPlayer() {
     setPlaybackContext,
     setLoading,
     setError,
+    setPlayerVisible,
+    togglePlayerVisible,
     currentTrackId,
   } = usePlayerStore();
 
@@ -272,10 +275,13 @@ export function useSpotifyPlayer() {
           ...(options.playlistId ? { playlistId: options.playlistId } : {}),
         } as PlaybackContext);
       }
+      
+      // Auto-show player when playing
+      setPlayerVisible(true);
     } finally {
       setLoading(false);
     }
-  }, [selectedDeviceId, controlMutation, setLoading, setError, setPlaybackContext]);
+  }, [selectedDeviceId, controlMutation, setLoading, setError, setPlaybackContext, setPlayerVisible]);
 
   // Pause playback
   const pause = useCallback(async () => {
@@ -491,5 +497,11 @@ export function useSpotifyPlayer() {
     openDeviceSelector: () => setDeviceSelectorOpen(true),
     closeDeviceSelector: () => setDeviceSelectorOpen(false),
     refreshDevices,
+    
+    // Player visibility
+    isPlayerVisible,
+    showPlayer: () => setPlayerVisible(true),
+    hidePlayer: () => setPlayerVisible(false),
+    togglePlayerVisible,
   };
 }

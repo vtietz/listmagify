@@ -2,10 +2,12 @@
 
 import React from "react";
 import Link from "next/link";
-import { Search } from "lucide-react";
-import { Separator } from "@radix-ui/react-separator";
+import { usePathname } from "next/navigation";
+import { Search, Music2, ListMusic, Columns2, LogIn, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useBrowsePanelStore } from "@/hooks/useBrowsePanelStore";
+import { usePlayerStore } from "@/hooks/usePlayerStore";
+import { useSessionUser } from "@/hooks/useSessionUser";
 import { SpotifyPlayer } from "@/components/player";
 
 type AppShellProps = {
@@ -24,7 +26,13 @@ export function AppShell({ headerTitle = "Spotify Playlist Editor", children }: 
 }
 
 function Header({ title }: { title: string }) {
+  const pathname = usePathname();
   const { isOpen, toggle } = useBrowsePanelStore();
+  const { isPlayerVisible, togglePlayerVisible } = usePlayerStore();
+  const { authenticated, loading } = useSessionUser();
+  
+  const isPlaylistsActive = pathname === '/playlists' || pathname.startsWith('/playlists/');
+  const isSplitEditorActive = pathname === '/split-editor';
   
   return (
     <header className="h-12 flex items-center justify-between px-4 border-b">
@@ -35,28 +43,82 @@ function Header({ title }: { title: string }) {
         </Link>
       </div>
 
-      <nav className="flex items-center gap-3 text-sm">
-        <Link href="/playlists" className="hover:underline">
-          Playlists
-        </Link>
-        <Separator orientation="vertical" className="h-4" />
-        <Link href="/split-editor" className="hover:underline">
-          Split Editor
-        </Link>
-        <Separator orientation="vertical" className="h-4" />
-        <Button
-          variant={isOpen ? "secondary" : "ghost"}
-          size="sm"
-          onClick={toggle}
-          className="h-7 gap-1.5"
-        >
-          <Search className="h-3.5 w-3.5" />
-          Browse
-        </Button>
-        <Separator orientation="vertical" className="h-4" />
-        <Link href="/logout" className="text-muted-foreground hover:underline">
-          Logout
-        </Link>
+      <nav className="flex items-center gap-1 text-sm">
+        {/* Only show nav items when authenticated */}
+        {authenticated && (
+          <>
+            <Button
+              variant={isPlaylistsActive ? "secondary" : "ghost"}
+              size="sm"
+              asChild
+              className="h-7 gap-1.5 cursor-pointer"
+            >
+              <Link href="/playlists">
+                <ListMusic className="h-3.5 w-3.5" />
+                Playlists
+              </Link>
+            </Button>
+            <Button
+              variant={isSplitEditorActive ? "secondary" : "ghost"}
+              size="sm"
+              asChild
+              className="h-7 gap-1.5 cursor-pointer"
+            >
+              <Link href="/split-editor">
+                <Columns2 className="h-3.5 w-3.5" />
+                Split Editor
+              </Link>
+            </Button>
+            <Button
+              variant={isOpen ? "secondary" : "ghost"}
+              size="sm"
+              onClick={toggle}
+              className="h-7 gap-1.5 cursor-pointer"
+            >
+              <Search className="h-3.5 w-3.5" />
+              Browse
+            </Button>
+            <Button
+              variant={isPlayerVisible ? "secondary" : "ghost"}
+              size="sm"
+              onClick={togglePlayerVisible}
+              className="h-7 gap-1.5 cursor-pointer"
+            >
+              <Music2 className="h-3.5 w-3.5" />
+              Player
+            </Button>
+            <div className="w-px h-4 bg-border mx-2" />
+          </>
+        )}
+        
+        {/* Show Login or Logout based on auth state */}
+        {!loading && (
+          authenticated ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              asChild
+              className="h-7 gap-1.5 cursor-pointer text-muted-foreground"
+            >
+              <Link href="/logout">
+                <LogOut className="h-3.5 w-3.5" />
+                Logout
+              </Link>
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              asChild
+              className="h-7 gap-1.5 cursor-pointer"
+            >
+              <Link href="/login">
+                <LogIn className="h-3.5 w-3.5" />
+                Login
+              </Link>
+            </Button>
+          )
+        )}
       </nav>
     </header>
   );
