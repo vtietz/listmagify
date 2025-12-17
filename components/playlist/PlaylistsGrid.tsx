@@ -6,6 +6,7 @@ import { PlaylistCard } from "@/components/playlist/PlaylistCard";
 import { apiFetch, ApiError } from "@/lib/api/client";
 import { useAutoLoadPaginated } from "@/hooks/useAutoLoadPaginated";
 import { LIKED_SONGS_METADATA } from "@/hooks/useLikedVirtualPlaylist";
+import { useLikedSongsTotal } from "@/hooks/useSavedTracksIndex";
 
 export interface PlaylistsGridProps {
   initialItems: Playlist[];
@@ -39,6 +40,9 @@ export function PlaylistsGrid({
     itemsKey: "items",
   });
 
+  // Get cached liked songs total (fetches on mount if not cached)
+  const likedSongsTotal = useLikedSongsTotal();
+
   // Handle refresh from parent
   useEffect(() => {
     if (isRefreshing) {
@@ -64,6 +68,7 @@ export function PlaylistsGrid({
   }, [isRefreshing]); // Intentionally limited deps
 
   // Virtual playlist for Liked Songs (shown first)
+  // Uses cached total from saved tracks index (populated when user visits split-editor)
   const likedSongsPlaylist: Playlist = useMemo(() => ({
     id: LIKED_SONGS_METADATA.id,
     name: LIKED_SONGS_METADATA.name,
@@ -71,8 +76,8 @@ export function PlaylistsGrid({
     ownerName: LIKED_SONGS_METADATA.ownerName,
     image: LIKED_SONGS_METADATA.image,
     isPublic: LIKED_SONGS_METADATA.isPublic,
-    tracksTotal: 0, // Will be fetched when viewing the playlist
-  }), []);
+    tracksTotal: likedSongsTotal,
+  }), [likedSongsTotal]);
 
   // Filter items by search term (case-insensitive, name and owner)
   const filteredItems = useMemo(() => {

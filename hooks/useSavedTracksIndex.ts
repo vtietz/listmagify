@@ -16,7 +16,7 @@
 
 import { create } from 'zustand';
 import { persist, createJSONStorage, StateStorage } from 'zustand/middleware';
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { apiFetch } from '@/lib/api/client';
 
 /**
@@ -181,9 +181,15 @@ export function useSavedTracksIndex() {
   const error = useSavedTracksStore((state) => state.error);
   const lastUpdatedAt = useSavedTracksStore((state) => state.lastUpdatedAt);
   
-  // Convert array to Set for efficient O(1) lookups
-  const likedSet = new Set(likedIds);
-  const pendingSet = new Set(pendingContainsIds);
+  // Convert array to Set for efficient O(1) lookups - memoized to prevent re-renders
+  const likedSet = useMemo(() => new Set(likedIds), [likedIds]);
+  const pendingSet = useMemo(() => new Set(pendingContainsIds), [pendingContainsIds]);
+  
+  // Refs to access current values without causing callback recreation
+  const likedSetRef = useRef(likedSet);
+  const pendingSetRef = useRef(pendingSet);
+  useEffect(() => { likedSetRef.current = likedSet; }, [likedSet]);
+  useEffect(() => { pendingSetRef.current = pendingSet; }, [pendingSet]);
   
   const {
     addToLikedSet,
@@ -290,11 +296,12 @@ export function useSavedTracksIndex() {
    * Ensure coverage for specific track IDs.
    * Uses batched /contains calls for IDs not yet in likedSet.
    * Debounced and deduped to minimize API calls.
+   * Stable callback reference - uses refs to access current state.
    */
   const ensureCoverage = useCallback((ids: string[]) => {
-    // Filter to IDs not in likedSet and not already pending
+    // Filter to IDs not in likedSet and not already pending (using refs for stability)
     const unknownIds = ids.filter(
-      id => id && !likedSet.has(id) && !pendingSet.has(id)
+      id => id && !likedSetRef.current.has(id) && !pendingSetRef.current.has(id)
     );
     
     if (unknownIds.length === 0) return;
@@ -354,7 +361,7 @@ export function useSavedTracksIndex() {
         removePendingContains(idsToCheck);
       }
     }, ENSURE_COVERAGE_DEBOUNCE);
-  }, [likedSet, pendingSet, addPendingContains, removePendingContains, addToLikedSet, setError]);
+  }, [addPendingContains, removePendingContains, addToLikedSet, setError]); // Removed likedSet/pendingSet - using refs
 
   /**
    * Check if a track is liked (in likedSet)
@@ -462,4 +469,43 @@ export function usePrefetchSavedTracks() {
       prefetchAllSavedTracks();
     }
   }, [prefetchAllSavedTracks, isPrefetching, isPrefetchComplete, isCacheStale]);
+}
+
+/**
+ * Hook to fetch just the liked songs total count.
+ * Makes a single lightweight API call (limit=1) if total is not already cached.
+ * Ideal for displaying track count on playlist cards without full prefetch.
+ */
+export function useLikedSongsTotal() {
+  const total = useSavedTracksStore((state) => state.total);
+  const setTotal = useSavedTracksStore((state) => state.setTotal);
+  const lastUpdatedAt = useSavedTracksStore((state) => state.lastUpdatedAt);
+  
+  useEffect(() => {
+    // Only fetch if we don't have a cached total yet
+    if (total > 0) return;
+    
+    // Don't re-fetch if we've checked recently (within last hour)
+    const oneHourAgo = Date.now() - 60 * 60 * 1000;
+    if (lastUpdatedAt > oneHourAgo && total === 0) {
+      // We checked recently and it was 0, might actually be 0 liked songs
+      return;
+    }
+    
+    const fetchTotal = async () => {
+      try {
+        // Use limit=1 to minimize data transfer - we only need the total
+        const response = await apiFetch<{ total: number }>('/api/liked/tracks?limit=1');
+        if (response.total !== undefined) {
+          setTotal(response.total);
+        }
+      } catch {
+        // Silent fail - will try again on next visit
+      }
+    };
+    
+    fetchTotal();
+  }, [total, lastUpdatedAt, setTotal]);
+  
+  return total;
 }
