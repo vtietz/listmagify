@@ -30,21 +30,25 @@ export function PlaylistsContainer({
   }, []);
 
   return (
-    <div className="space-y-6">
-      <PlaylistsToolbar
-        searchTerm={searchTerm}
-        onSearchChange={setSearchTerm}
-        isRefreshing={isRefreshing}
-        onRefresh={handleRefresh}
-      />
+    <div className="flex-1 min-h-0 flex flex-col gap-6 mt-6">
+      <div className="flex-shrink-0">
+        <PlaylistsToolbar
+          searchTerm={searchTerm}
+          onSearchChange={setSearchTerm}
+          isRefreshing={isRefreshing}
+          onRefresh={handleRefresh}
+        />
+      </div>
 
-      <PlaylistsGrid
-        initialItems={initialItems}
-        initialNextCursor={initialNextCursor}
-        searchTerm={searchTerm}
-        isRefreshing={isRefreshing}
-        onRefreshComplete={handleRefreshComplete}
-      />
+      <div className="flex-1 min-h-0 overflow-auto">
+        <PlaylistsGrid
+          initialItems={initialItems}
+          initialNextCursor={initialNextCursor}
+          searchTerm={searchTerm}
+          isRefreshing={isRefreshing}
+          onRefreshComplete={handleRefreshComplete}
+        />
+      </div>
     </div>
   );
 }

@@ -430,7 +430,6 @@ export function useSplitUrlSync(): void {
     const unsubscribe = useSplitGridStore.subscribe((state) => {
       // Double-check we're still on a supported path (pathname could have changed)
       if (!isLayoutSyncPath(pathnameRef.current)) return;
-      if (!state.root) return;
 
       // Debounce URL updates
       if (debounceTimer.current) {
@@ -440,7 +439,13 @@ export function useSplitUrlSync(): void {
       debounceTimer.current = setTimeout(() => {
         // Final check before updating
         if (!isLayoutSyncPath(pathnameRef.current)) return;
-        if (!state.root) return;
+        
+        // If no root (all panels closed), redirect to playlists page
+        if (!state.root) {
+          router.replace('/playlists', { scroll: false });
+          lastEncodedLayout.current = null;
+          return;
+        }
         
         // Check if this is a /playlists/[id] route with just the default single panel
         const routePlaylistId = extractPlaylistIdFromPath(pathnameRef.current);
