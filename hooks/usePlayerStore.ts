@@ -1,0 +1,71 @@
+/**
+ * Zustand store for Spotify playback state and controls.
+ * Manages player UI state, device selection, and playback queue context.
+ */
+
+import { create } from 'zustand';
+import type { SpotifyDevice, PlaybackState } from '@/lib/spotify/playerTypes';
+
+export interface PlaybackContext {
+  /** Playlist, album, or artist URI */
+  contextUri?: string;
+  /** List of track URIs for the current playlist/context */
+  trackUris: string[];
+  /** Current track index in the list */
+  currentIndex: number;
+  /** Playlist ID if playing from a playlist */
+  playlistId?: string;
+}
+
+interface PlayerStore {
+  // Playback state
+  playbackState: PlaybackState | null;
+  isLoading: boolean;
+  error: string | null;
+  
+  // Device management
+  devices: SpotifyDevice[];
+  selectedDeviceId: string | null;
+  isDeviceSelectorOpen: boolean;
+  
+  // Current playback context (for auto-play next)
+  playbackContext: PlaybackContext | null;
+  
+  // Actions
+  setPlaybackState: (state: PlaybackState | null) => void;
+  setDevices: (devices: SpotifyDevice[]) => void;
+  setSelectedDevice: (deviceId: string | null) => void;
+  setDeviceSelectorOpen: (open: boolean) => void;
+  setPlaybackContext: (context: PlaybackContext | null) => void;
+  setLoading: (loading: boolean) => void;
+  setError: (error: string | null) => void;
+  
+  // Computed: currently playing track ID
+  currentTrackId: () => string | null;
+}
+
+export const usePlayerStore = create<PlayerStore>((set, get) => ({
+  // Initial state
+  playbackState: null,
+  isLoading: false,
+  error: null,
+  devices: [],
+  selectedDeviceId: null,
+  isDeviceSelectorOpen: false,
+  playbackContext: null,
+
+  // Actions
+  setPlaybackState: (playbackState) => set({ playbackState }),
+  setDevices: (devices) => set({ devices }),
+  setSelectedDevice: (selectedDeviceId) => set({ selectedDeviceId }),
+  setDeviceSelectorOpen: (isDeviceSelectorOpen) => set({ isDeviceSelectorOpen }),
+  setPlaybackContext: (playbackContext) => set({ playbackContext }),
+  setLoading: (isLoading) => set({ isLoading }),
+  setError: (error) => set({ error }),
+
+  // Computed
+  currentTrackId: () => {
+    const { playbackState } = get();
+    return playbackState?.track?.id ?? null;
+  },
+}));

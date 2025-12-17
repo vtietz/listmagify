@@ -22,6 +22,7 @@ import { usePlaylistTracksInfinite } from '@/hooks/usePlaylistTracksInfinite';
 import { useSavedTracksIndex, usePrefetchSavedTracks } from '@/hooks/useSavedTracksIndex';
 import { useLikedVirtualPlaylist, isLikedSongsPlaylist, LIKED_SONGS_METADATA } from '@/hooks/useLikedVirtualPlaylist';
 import { useRemoveTracks } from '@/lib/spotify/playlistMutations';
+import { useTrackPlayback } from '@/hooks/useTrackPlayback';
 import { getTrackSelectionKey } from '@/lib/dnd/selection';
 import { PanelToolbar } from './PanelToolbar';
 import { TableHeader } from './TableHeader';
@@ -373,6 +374,23 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
     );
   }, [sortedTracks, searchQuery]);
 
+  // Track URIs for playback context (auto-play next)
+  const trackUris = useMemo(() => 
+    filteredTracks.map((t: Track) => t.uri),
+    [filteredTracks]
+  );
+
+  // Playback integration for play buttons
+  const playlistUri = playlistId && !isLikedPlaylist 
+    ? `spotify:playlist:${playlistId}` 
+    : undefined;
+  
+  const { isTrackPlaying, isTrackLoading, playTrack, pausePlayback } = useTrackPlayback({
+    trackUris,
+    playlistId,
+    playlistUri,
+  });
+
   // Virtualization with constant row height
   const virtualizer = useVirtualizer({
     count: filteredTracks.length,
@@ -691,6 +709,10 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
                       showLikedColumn={true}
                       isLiked={track.id ? isLiked(track.id) : false}
                       onToggleLiked={handleToggleLiked}
+                      isPlaying={track.id ? isTrackPlaying(track.id) : false}
+                      isPlaybackLoading={isTrackLoading(track.uri)}
+                      onPlay={playTrack}
+                      onPause={pausePlayback}
                     />
                   </div>
                 );

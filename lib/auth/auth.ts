@@ -142,8 +142,8 @@ export const authOptions: NextAuthOptions = {
       clientSecret: serverEnv.SPOTIFY_CLIENT_SECRET,
       authorization: {
         params: {
-          // Scopes for playlist viewing/editing and user library (liked songs)
-          scope: "user-read-email playlist-read-private playlist-modify-private playlist-modify-public user-library-read user-library-modify",
+          // Scopes for playlist viewing/editing, user library (liked songs), and playback control
+          scope: "user-read-email playlist-read-private playlist-modify-private playlist-modify-public user-library-read user-library-modify user-read-playback-state user-modify-playback-state streaming",
         },
       },
       // Enable PKCE for Authorization Code flow

@@ -12,6 +12,7 @@ import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { Search, X, Loader2 } from 'lucide-react';
 import { useBrowsePanelStore } from '@/hooks/useBrowsePanelStore';
 import { useSavedTracksIndex } from '@/hooks/useSavedTracksIndex';
+import { useTrackPlayback } from '@/hooks/useTrackPlayback';
 import { apiFetch } from '@/lib/api/client';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { Input } from '@/components/ui/input';
@@ -109,6 +110,17 @@ export function BrowsePanel() {
       makeCompositeId(BROWSE_PANEL_ID, track.id || track.uri, track.position ?? idx)
     );
   }, [allTracks]);
+
+  // Track URIs for playback
+  const trackUris = useMemo(() => 
+    allTracks.map((t: Track) => t.uri),
+    [allTracks]
+  );
+
+  // Playback integration
+  const { isTrackPlaying, isTrackLoading, playTrack, pausePlayback } = useTrackPlayback({
+    trackUris,
+  });
   
   // Virtualizer for efficient rendering
   const virtualizer = useVirtualizer({
@@ -297,6 +309,10 @@ export function BrowsePanel() {
                         showLikedColumn={true}
                         isLiked={liked}
                         onToggleLiked={handleToggleLiked}
+                        isPlaying={track.id ? isTrackPlaying(track.id) : false}
+                        isPlaybackLoading={isTrackLoading(track.uri)}
+                        onPlay={playTrack}
+                        onPause={pausePlayback}
                       />
                     </div>
                   );

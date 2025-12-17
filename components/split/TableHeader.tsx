@@ -5,7 +5,7 @@
 
 'use client';
 
-import { ArrowUp, ArrowDown, GripVertical, Heart } from 'lucide-react';
+import { ArrowUp, ArrowDown, GripVertical, Heart, Play } from 'lucide-react';
 import type { SortKey, SortDirection } from '@/hooks/usePlaylistSort';
 
 interface TableHeaderProps {
@@ -42,6 +42,11 @@ export function TableHeader({ isEditable, sortKey, sortDirection, onSort, showLi
 
   return (
     <div data-table-header="true" className="sticky top-0 z-20 flex items-center gap-3 px-4 h-10 border-b border-border bg-card backdrop-blur-sm text-muted-foreground min-w-max">
+      {/* Play button column placeholder */}
+      <div className="flex-shrink-0 w-8 flex items-center justify-center" title="Play">
+        <Play className="h-3 w-3" />
+      </div>
+
       {/* Grip column placeholder - always show for alignment */}
       <div className="flex-shrink-0 w-4">
         <GripVertical className="h-3 w-3 opacity-30" />

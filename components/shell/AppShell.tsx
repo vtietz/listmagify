@@ -6,6 +6,7 @@ import { Search } from "lucide-react";
 import { Separator } from "@radix-ui/react-separator";
 import { Button } from "@/components/ui/button";
 import { useBrowsePanelStore } from "@/hooks/useBrowsePanelStore";
+import { SpotifyPlayer } from "@/components/player";
 
 type AppShellProps = {
   headerTitle?: string;
@@ -17,6 +18,7 @@ export function AppShell({ headerTitle = "Spotify Playlist Editor", children }: 
     <div className="h-dvh flex flex-col bg-background text-foreground overflow-hidden">
       <Header title={headerTitle} />
       <main className="flex-1 min-h-0 overflow-hidden">{children}</main>
+      <SpotifyPlayer />
     </div>
   );
 }

@@ -10,7 +10,7 @@ import type { Track } from '@/lib/spotify/types';
 import { makeCompositeId, getTrackPosition } from '@/lib/dnd/id';
 import { cn } from '@/lib/utils';
 import { formatDuration } from '@/lib/utils/format';
-import { GripVertical, Heart } from 'lucide-react';
+import { GripVertical, Heart, Play, Pause, Loader2 } from 'lucide-react';
 
 interface TrackRowProps {
   track: Track;
@@ -32,6 +32,14 @@ interface TrackRowProps {
   isLiked?: boolean;
   /** Callback to toggle liked status */
   onToggleLiked?: (trackId: string, currentlyLiked: boolean) => void;
+  /** Whether this track is currently playing */
+  isPlaying?: boolean;
+  /** Whether playback is loading for this track */
+  isPlaybackLoading?: boolean;
+  /** Callback to play this track */
+  onPlay?: (trackUri: string) => void;
+  /** Callback to pause playback */
+  onPause?: () => void;
 }
 
 export function TrackRow({
@@ -50,6 +58,10 @@ export function TrackRow({
   showLikedColumn = true,
   isLiked = false,
   onToggleLiked,
+  isPlaying = false,
+  isPlaybackLoading = false,
+  onPlay,
+  onPause,
 }: TrackRowProps) {
   // Create globally unique composite ID scoped by panel and position
   // Position is required to distinguish duplicate tracks (same song multiple times)
@@ -112,6 +124,18 @@ export function TrackRow({
     onToggleLiked?.(track.id, isLiked);
   };
 
+  const handlePlayClick = (e: React.MouseEvent) => {
+    // Stop propagation to prevent row selection/DnD interference
+    e.stopPropagation();
+    e.preventDefault();
+    
+    if (isPlaying) {
+      onPause?.();
+    } else {
+      onPlay?.(track.uri);
+    }
+  };
+
   // Local files can't be saved to library
   const isLocalFile = track.id === null;
 
@@ -141,6 +165,34 @@ export function TrackRow({
       }
       {...(!locked ? { ...restAttributes, ...listeners } : {})}
     >
+      {/* Play button */}
+      <button
+        onClick={handlePlayClick}
+        disabled={isLocalFile || isPlaybackLoading}
+        className={cn(
+          'flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full transition-all',
+          isLocalFile && 'opacity-30 cursor-not-allowed',
+          !isLocalFile && 'hover:scale-110 hover:bg-green-500 hover:text-white',
+          isPlaying ? 'bg-green-500 text-white' : 'text-muted-foreground',
+        )}
+        title={
+          isLocalFile
+            ? 'Local files cannot be played'
+            : isPlaying
+              ? 'Pause'
+              : 'Play'
+        }
+        aria-label={isPlaying ? 'Pause track' : 'Play track'}
+      >
+        {isPlaybackLoading ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : isPlaying ? (
+          <Pause className="h-4 w-4" />
+        ) : (
+          <Play className="h-4 w-4 ml-0.5" />
+        )}
+      </button>
+
       {/* Grip handle for dragging - always show column for alignment */}
       <div className="flex-shrink-0 w-4 text-muted-foreground hover:text-foreground pointer-events-none">
         {!locked && <GripVertical className="h-4 w-4" />}
