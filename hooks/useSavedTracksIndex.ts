@@ -8,31 +8,42 @@
  * - Progressive background prefetch of all saved tracks
  * - Batched /contains fallback for immediate coverage of unknown IDs
  * - Optimistic updates on toggle with rollback on error
- * - Event-driven updates for UI synchronization
+ * - localStorage persistence for instant loading on page refresh
+ * - Smart cache invalidation with timestamps (24h TTL)
  */
 
 'use client';
 
 import { create } from 'zustand';
+import { persist, createJSONStorage, StateStorage } from 'zustand/middleware';
 import { useCallback, useEffect, useRef } from 'react';
 import { apiFetch } from '@/lib/api/client';
 
 /**
+ * Cache duration for localStorage (24 hours in ms)
+ * After this time, we'll re-fetch from API even if cache exists
+ */
+const CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+/**
  * Store state for the saved tracks index
+ * Note: likedIds is stored as array for JSON serialization, converted to Set in hook
  */
 interface SavedTracksIndexState {
-  /** Set of track IDs that are saved to the user's library */
-  likedSet: Set<string>;
+  /** Array of track IDs that are saved (persisted, converted to Set in hook) */
+  likedIds: string[];
   /** Total number of saved tracks (from API) */
   total: number;
   /** Whether we've started prefetching */
   isPrefetching: boolean;
   /** Whether prefetch is complete */
   isPrefetchComplete: boolean;
-  /** IDs currently being checked via /contains */
-  pendingContainsIds: Set<string>;
-  /** Error from last operation */
-  error: Error | null;
+  /** IDs currently being checked via /contains (not persisted) */
+  pendingContainsIds: string[];
+  /** Error from last operation (not persisted) */
+  error: string | null;
+  /** Timestamp when cache was last updated (for invalidation) */
+  lastUpdatedAt: number;
   
   // Actions
   /** Add IDs to the liked set */
@@ -50,60 +61,102 @@ interface SavedTracksIndexState {
   /** Remove IDs from pending contains check */
   removePendingContains: (ids: string[]) => void;
   /** Set error state */
-  setError: (error: Error | null) => void;
+  setError: (error: string | null) => void;
   /** Reset the entire state (for testing or logout) */
   reset: () => void;
 }
 
 const initialState = {
-  likedSet: new Set<string>(),
+  likedIds: [] as string[],
   total: 0,
   isPrefetching: false,
   isPrefetchComplete: false,
-  pendingContainsIds: new Set<string>(),
-  error: null,
+  pendingContainsIds: [] as string[],
+  error: null as string | null,
+  lastUpdatedAt: 0,
 };
 
 /**
- * Zustand store for saved tracks index
+ * Custom storage wrapper for SSR safety
  */
-export const useSavedTracksStore = create<SavedTracksIndexState>((set) => ({
-  ...initialState,
-  
-  addToLikedSet: (ids) => set((state) => {
-    const newSet = new Set(state.likedSet);
-    ids.forEach(id => newSet.add(id));
-    return { likedSet: newSet };
-  }),
-  
-  removeFromLikedSet: (ids) => set((state) => {
-    const newSet = new Set(state.likedSet);
-    ids.forEach(id => newSet.delete(id));
-    return { likedSet: newSet };
-  }),
-  
-  setTotal: (total) => set({ total }),
-  
-  startPrefetch: () => set({ isPrefetching: true }),
-  
-  completePrefetch: () => set({ isPrefetching: false, isPrefetchComplete: true }),
-  
-  addPendingContains: (ids) => set((state) => {
-    const newSet = new Set(state.pendingContainsIds);
-    ids.forEach(id => newSet.add(id));
-    return { pendingContainsIds: newSet };
-  }),
-  
-  removePendingContains: (ids) => set((state) => {
-    const newSet = new Set(state.pendingContainsIds);
-    ids.forEach(id => newSet.delete(id));
-    return { pendingContainsIds: newSet };
-  }),
-  
-  setError: (error) => set({ error }),
-  
-  reset: () => set(initialState),
-}));
+const customStorage: StateStorage = {
+  getItem: (name: string): string | null => {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem(name);
+  },
+  setItem: (name: string, value: string): void => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem(name, value);
+  },
+  removeItem: (name: string): void => {
+    if (typeof window === 'undefined') return;
+    localStorage.removeItem(name);
+  },
+};
+
+/**
+ * Zustand store for saved tracks index with localStorage persistence
+ */
+export const useSavedTracksStore = create<SavedTracksIndexState>()(
+  persist(
+    (set) => ({
+      ...initialState,
+      
+      addToLikedSet: (ids) => set((state) => {
+        const newSet = new Set(state.likedIds);
+        ids.forEach(id => newSet.add(id));
+        return { 
+          likedIds: Array.from(newSet),
+          lastUpdatedAt: Date.now(),
+        };
+      }),
+      
+      removeFromLikedSet: (ids) => set((state) => {
+        const idsToRemove = new Set(ids);
+        return { 
+          likedIds: state.likedIds.filter(id => !idsToRemove.has(id)),
+          lastUpdatedAt: Date.now(),
+        };
+      }),
+      
+      setTotal: (total) => set({ total }),
+      
+      startPrefetch: () => set({ isPrefetching: true }),
+      
+      completePrefetch: () => set({ 
+        isPrefetching: false, 
+        isPrefetchComplete: true,
+        lastUpdatedAt: Date.now(),
+      }),
+      
+      addPendingContains: (ids) => set((state) => {
+        const newSet = new Set(state.pendingContainsIds);
+        ids.forEach(id => newSet.add(id));
+        return { pendingContainsIds: Array.from(newSet) };
+      }),
+      
+      removePendingContains: (ids) => set((state) => {
+        const idsToRemove = new Set(ids);
+        return { pendingContainsIds: state.pendingContainsIds.filter(id => !idsToRemove.has(id)) };
+      }),
+      
+      setError: (error) => set({ error }),
+      
+      reset: () => set(initialState),
+    }),
+    {
+      name: 'spotify-liked-tracks-cache',
+      storage: createJSONStorage(() => customStorage),
+      // Only persist essential data, not transient state
+      partialize: (state) => ({
+        likedIds: state.likedIds,
+        total: state.total,
+        isPrefetchComplete: state.isPrefetchComplete,
+        lastUpdatedAt: state.lastUpdatedAt,
+      }),
+    },
+  ),
+);
 
 /**
  * Maximum IDs per /contains API request
@@ -120,12 +173,17 @@ const ENSURE_COVERAGE_DEBOUNCE = 300;
  * for prefetching, coverage checking, and toggle operations.
  */
 export function useSavedTracksIndex() {
-  const likedSet = useSavedTracksStore((state) => state.likedSet);
+  const likedIds = useSavedTracksStore((state) => state.likedIds);
   const total = useSavedTracksStore((state) => state.total);
   const isPrefetching = useSavedTracksStore((state) => state.isPrefetching);
   const isPrefetchComplete = useSavedTracksStore((state) => state.isPrefetchComplete);
   const pendingContainsIds = useSavedTracksStore((state) => state.pendingContainsIds);
   const error = useSavedTracksStore((state) => state.error);
+  const lastUpdatedAt = useSavedTracksStore((state) => state.lastUpdatedAt);
+  
+  // Convert array to Set for efficient O(1) lookups
+  const likedSet = new Set(likedIds);
+  const pendingSet = new Set(pendingContainsIds);
   
   const {
     addToLikedSet,
@@ -136,6 +194,7 @@ export function useSavedTracksIndex() {
     addPendingContains,
     removePendingContains,
     setError,
+    reset,
   } = useSavedTracksStore.getState();
 
   // Ref to track if prefetch has been initiated this session
@@ -146,21 +205,44 @@ export function useSavedTracksIndex() {
   const pendingEnsureIdsRef = useRef<Set<string>>(new Set());
 
   /**
-   * Progressively prefetch all saved tracks in the background.
-   * Should be called once per app session.
+   * Check if cache is stale and needs refresh
    */
-  const prefetchAllSavedTracks = useCallback(async () => {
-    // Guard against duplicate runs
-    if (prefetchInitiatedRef.current || isPrefetching || isPrefetchComplete) {
+  const isCacheStale = useCallback(() => {
+    if (!isPrefetchComplete || lastUpdatedAt === 0) return true;
+    return Date.now() - lastUpdatedAt > CACHE_MAX_AGE_MS;
+  }, [isPrefetchComplete, lastUpdatedAt]);
+
+  /**
+   * Progressively prefetch all saved tracks in the background.
+   * Should be called once per app session. Skips if valid cache exists.
+   */
+  const prefetchAllSavedTracks = useCallback(async (forceRefresh = false) => {
+    // Guard against duplicate runs (unless force refresh)
+    if (!forceRefresh && (prefetchInitiatedRef.current || isPrefetching)) {
+      return;
+    }
+    
+    // If we have valid cached data, skip prefetch
+    if (!forceRefresh && isPrefetchComplete && !isCacheStale()) {
+      console.log('📦 Using cached liked tracks:', likedIds.length, 'tracks');
       return;
     }
     
     prefetchInitiatedRef.current = true;
+    
+    // If force refresh, clear existing data first
+    if (forceRefresh) {
+      reset();
+    }
+    
     startPrefetch();
     
     try {
       let nextCursor: string | null = null;
       let hasMore = true;
+      const allIds: string[] = [];
+      
+      console.log('🔄 Fetching liked tracks from Spotify...');
       
       while (hasMore) {
         const url = nextCursor 
@@ -178,7 +260,7 @@ export function useSavedTracksIndex() {
           .map(t => t.id)
           .filter((id): id is string => id !== null);
         
-        addToLikedSet(ids);
+        allIds.push(...ids);
         setTotal(response.total);
         
         nextCursor = response.nextCursor;
@@ -190,12 +272,17 @@ export function useSavedTracksIndex() {
         }
       }
       
+      // Add all IDs at once for efficiency
+      addToLikedSet(allIds);
       completePrefetch();
+      console.log('✅ Loaded', allIds.length, 'liked tracks');
     } catch (err) {
-      setError(err instanceof Error ? err : new Error('Failed to prefetch saved tracks'));
-      completePrefetch(); // Mark as complete even on error to prevent retries
+      const errorMsg = err instanceof Error ? err.message : 'Failed to prefetch saved tracks';
+      setError(errorMsg);
+      completePrefetch(); // Mark as complete even on error to prevent infinite retries
+      console.error('❌ Failed to load liked tracks:', errorMsg);
     }
-  }, [isPrefetching, isPrefetchComplete, startPrefetch, addToLikedSet, setTotal, completePrefetch, setError]);
+  }, [isPrefetching, isPrefetchComplete, isCacheStale, likedIds.length, startPrefetch, reset, setTotal, addToLikedSet, completePrefetch, setError]);
 
   /**
    * Ensure coverage for specific track IDs.
@@ -205,7 +292,7 @@ export function useSavedTracksIndex() {
   const ensureCoverage = useCallback((ids: string[]) => {
     // Filter to IDs not in likedSet and not already pending
     const unknownIds = ids.filter(
-      id => id && !likedSet.has(id) && !pendingContainsIds.has(id)
+      id => id && !likedSet.has(id) && !pendingSet.has(id)
     );
     
     if (unknownIds.length === 0) return;
@@ -243,26 +330,27 @@ export function useSavedTracksIndex() {
         );
         
         // Process results and update likedSet
-        const likedIds: string[] = [];
+        const likedIdsFound: string[] = [];
         batches.forEach((batch, batchIndex) => {
           const booleans = results[batchIndex];
           batch.forEach((id, idIndex) => {
             if (booleans[idIndex]) {
-              likedIds.push(id);
+              likedIdsFound.push(id);
             }
           });
         });
         
-        if (likedIds.length > 0) {
-          addToLikedSet(likedIds);
+        if (likedIdsFound.length > 0) {
+          addToLikedSet(likedIdsFound);
         }
       } catch (err) {
-        setError(err instanceof Error ? err : new Error('Failed to check track status'));
+        const errorMsg = err instanceof Error ? err.message : 'Failed to check track status';
+        setError(errorMsg);
       } finally {
         removePendingContains(idsToCheck);
       }
     }, ENSURE_COVERAGE_DEBOUNCE);
-  }, [likedSet, pendingContainsIds, addPendingContains, removePendingContains, addToLikedSet, setError]);
+  }, [likedSet, pendingSet, addPendingContains, removePendingContains, addToLikedSet, setError]);
 
   /**
    * Check if a track is liked (in likedSet)
@@ -304,10 +392,19 @@ export function useSavedTracksIndex() {
       } else {
         removeFromLikedSet([trackId]);
       }
-      setError(err instanceof Error ? err : new Error('Failed to toggle track'));
+      const errorMsg = err instanceof Error ? err.message : 'Failed to toggle track';
+      setError(errorMsg);
       throw err;
     }
   }, [addToLikedSet, removeFromLikedSet, setError]);
+
+  /**
+   * Force refresh cache from API (ignores cache TTL)
+   */
+  const refreshCache = useCallback(() => {
+    prefetchInitiatedRef.current = false;
+    return prefetchAllSavedTracks(true);
+  }, [prefetchAllSavedTracks]);
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -319,7 +416,7 @@ export function useSavedTracksIndex() {
   }, []);
 
   return {
-    /** Set of liked track IDs */
+    /** Set of liked track IDs (derived from persisted array) */
     likedSet,
     /** Total saved tracks count */
     total,
@@ -327,12 +424,18 @@ export function useSavedTracksIndex() {
     isPrefetching,
     /** Whether prefetch is complete */
     isPrefetchComplete,
+    /** Whether cache is stale and needs refresh */
+    isCacheStale: isCacheStale(),
     /** Coverage percentage (likedSet size vs total) */
     coverage: total > 0 ? likedSet.size / total : 0,
-    /** Last error */
+    /** Last error message */
     error,
+    /** When cache was last updated (timestamp) */
+    lastUpdatedAt,
     /** Start background prefetch of all saved tracks */
     prefetchAllSavedTracks,
+    /** Force refresh cache from API */
+    refreshCache,
     /** Ensure coverage for specific IDs (debounced, batched) */
     ensureCoverage,
     /** Check if a track is liked */
@@ -344,13 +447,15 @@ export function useSavedTracksIndex() {
 
 /**
  * Hook to auto-start prefetch on mount (use in app root or first panel)
+ * Respects cache TTL - only refetches if cache is stale or missing
  */
 export function usePrefetchSavedTracks() {
-  const { prefetchAllSavedTracks, isPrefetching, isPrefetchComplete } = useSavedTracksIndex();
+  const { prefetchAllSavedTracks, isPrefetching, isPrefetchComplete, isCacheStale } = useSavedTracksIndex();
   
   useEffect(() => {
-    if (!isPrefetching && !isPrefetchComplete) {
+    // Start prefetch if not already running and (cache is stale or not complete)
+    if (!isPrefetching && (!isPrefetchComplete || isCacheStale)) {
       prefetchAllSavedTracks();
     }
-  }, [prefetchAllSavedTracks, isPrefetching, isPrefetchComplete]);
+  }, [prefetchAllSavedTracks, isPrefetching, isPrefetchComplete, isCacheStale]);
 }

@@ -97,7 +97,20 @@ export function SplitGrid() {
               
               {/* Track title */}
               <div className="flex-shrink-0 w-[200px] min-w-0">
-                <div className="text-sm truncate">{activeTrack.name}</div>
+                <div className="text-sm truncate">
+                  {activeTrack.id ? (
+                    <a
+                      href={`https://open.spotify.com/track/${activeTrack.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="hover:underline hover:text-green-500"
+                    >
+                      {activeTrack.name}
+                    </a>
+                  ) : (
+                    activeTrack.name
+                  )}
+                </div>
               </div>
 
               {/* Artist */}
@@ -111,7 +124,18 @@ export function SplitGrid() {
               {activeTrack.album?.name && (
                 <div className="flex-shrink-0 w-[160px] min-w-0">
                   <div className="text-sm text-muted-foreground truncate">
-                    {activeTrack.album.name}
+                    {activeTrack.album.id ? (
+                      <a
+                        href={`https://open.spotify.com/album/${activeTrack.album.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="hover:underline hover:text-green-500"
+                      >
+                        {activeTrack.album.name}
+                      </a>
+                    ) : (
+                      activeTrack.album.name
+                    )}
                   </div>
                 </div>
               )}

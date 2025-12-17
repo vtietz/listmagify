@@ -75,12 +75,13 @@ describe('useLikedVirtualPlaylist', () => {
   beforeEach(() => {
     // Reset store state
     useSavedTracksStore.setState({
-      likedSet: new Set(),
+      likedIds: [],
       total: 0,
       isPrefetching: false,
       isPrefetchComplete: false,
-      pendingCoverageIds: new Set(),
-      coverageDebounceTimer: null,
+      pendingContainsIds: [],
+      error: null,
+      lastUpdatedAt: 0,
     });
     vi.clearAllMocks();
   });
@@ -157,8 +158,9 @@ describe('useLikedVirtualPlaylist', () => {
 
     await waitFor(() => {
       const store = useSavedTracksStore.getState();
-      expect(store.likedSet.has('track-1')).toBe(true);
-      expect(store.likedSet.has('track-2')).toBe(true);
+      // Store now uses likedIds array instead of likedSet
+      expect(store.likedIds.includes('track-1')).toBe(true);
+      expect(store.likedIds.includes('track-2')).toBe(true);
     });
   });
 

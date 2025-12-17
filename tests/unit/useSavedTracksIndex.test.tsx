@@ -20,12 +20,13 @@ describe('useSavedTracksIndex', () => {
   beforeEach(() => {
     // Reset the store state before each test
     useSavedTracksStore.setState({
-      likedSet: new Set(),
+      likedIds: [],
       total: 0,
       isPrefetching: false,
       isPrefetchComplete: false,
-      pendingCoverageIds: new Set(),
-      coverageDebounceTimer: null,
+      pendingContainsIds: [],
+      error: null,
+      lastUpdatedAt: 0,
     });
     vi.clearAllMocks();
   });
@@ -43,7 +44,7 @@ describe('useSavedTracksIndex', () => {
     it('should return true for liked track', () => {
       // Pre-populate store with liked track
       useSavedTracksStore.setState({
-        likedSet: new Set(['track-1', 'track-2']),
+        likedIds: ['track-1', 'track-2'],
       });
 
       const { result } = renderHook(() => useSavedTracksIndex());
@@ -77,7 +78,7 @@ describe('useSavedTracksIndex', () => {
     it('should optimistically remove track from likedSet when unsaving', async () => {
       // Pre-populate store with liked track
       useSavedTracksStore.setState({
-        likedSet: new Set(['track-1']),
+        likedIds: ['track-1'],
       });
 
       mockApiFetch.mockResolvedValueOnce(undefined);
@@ -126,7 +127,7 @@ describe('useSavedTracksIndex', () => {
     it('should not call API for tracks already in likedSet', async () => {
       // Pre-populate store
       useSavedTracksStore.setState({
-        likedSet: new Set(['track-1', 'track-2']),
+        likedIds: ['track-1', 'track-2'],
         isPrefetchComplete: true,
       });
 
@@ -157,12 +158,13 @@ describe('useSavedTracksIndex', () => {
 describe('usePrefetchSavedTracks', () => {
   beforeEach(() => {
     useSavedTracksStore.setState({
-      likedSet: new Set(),
+      likedIds: [],
       total: 0,
       isPrefetching: false,
       isPrefetchComplete: false,
-      pendingCoverageIds: new Set(),
-      coverageDebounceTimer: null,
+      pendingContainsIds: [],
+      error: null,
+      lastUpdatedAt: 0,
     });
     vi.clearAllMocks();
   });
@@ -186,6 +188,7 @@ describe('usePrefetchSavedTracks', () => {
   it('should not call API if prefetch already complete', () => {
     useSavedTracksStore.setState({
       isPrefetchComplete: true,
+      lastUpdatedAt: Date.now(), // Fresh cache
     });
 
     renderHook(() => usePrefetchSavedTracks());

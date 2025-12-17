@@ -114,13 +114,41 @@ function SortableRow({ track, index, isDragEnabled }: SortableRowProps) {
         )}
       </td>
       <td className="py-2 px-4">
-        <div className="font-medium">{track.name}</div>
+        <div className="font-medium">
+          {track.id ? (
+            <a
+              href={`https://open.spotify.com/track/${track.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:underline hover:text-green-500"
+            >
+              {track.name}
+            </a>
+          ) : (
+            track.name
+          )}
+        </div>
       </td>
       <td className="py-2 px-4 text-sm text-muted-foreground">
         {track.artists.join(", ") || "—"}
       </td>
       <td className="py-2 px-4 text-sm text-muted-foreground">
-        {track.album?.name || "—"}
+        {track.album?.name ? (
+          track.album.id ? (
+            <a
+              href={`https://open.spotify.com/album/${track.album.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:underline hover:text-green-500"
+            >
+              {track.album.name}
+            </a>
+          ) : (
+            track.album.name
+          )
+        ) : (
+          "—"
+        )}
       </td>
       <td className="py-2 px-4 text-sm text-muted-foreground text-right">
         {formatDuration(track.durationMs)}
