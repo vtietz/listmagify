@@ -92,7 +92,7 @@ export function TrackRow({
       ref={setNodeRef}
       style={style}
       className={cn(
-        'flex items-center gap-3 px-4 h-12 border-b border-border transition-colors',
+        'flex items-center gap-3 px-4 h-12 border-b border-border transition-colors min-w-max',
         !isSelected && 'hover:bg-accent/40 hover:text-foreground',
         isSelected && 'bg-accent/70 text-foreground hover:bg-accent/80',
         // Cursor feedback - show grab/copy only when draggable

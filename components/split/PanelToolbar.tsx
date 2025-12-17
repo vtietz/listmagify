@@ -83,9 +83,9 @@ export function PanelToolbar({
   };
 
   return (
-    <div className="flex items-center gap-2 p-2 border-b border-border bg-card overflow-x-auto">
-      {/* Playlist selector (always shown as combobox) */}
-      <div className="flex-1 min-w-0 px-2">
+    <div className="flex flex-wrap items-center gap-1.5 p-2 border-b border-border bg-card relative z-20">
+      {/* Playlist selector - takes available space but has max-width */}
+      <div className="flex-1 min-w-[80px] max-w-[180px]">
         <PlaylistSelector
           selectedPlaylistId={playlistId}
           selectedPlaylistName={playlistName ?? ''}
@@ -95,7 +95,7 @@ export function PanelToolbar({
 
       {/* Sort indicator */}
       {playlistId && sortKey !== 'position' && (
-        <div className="flex items-center gap-1 px-2 h-8 text-xs text-muted-foreground border border-border rounded whitespace-nowrap shrink-0">
+        <div className="flex items-center gap-1 px-2 h-8 text-xs text-muted-foreground border border-border rounded whitespace-nowrap">
           <ArrowUpDown className="h-3 w-3" />
           <span>Sorted by {sortKey}</span>
         </div>
@@ -103,7 +103,7 @@ export function PanelToolbar({
 
       {/* Search */}
       {playlistId && (
-        <div className="relative w-40 shrink-0">
+        <div className="relative flex-1 min-w-[60px] max-w-[120px]">
           <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
           <Input
             type="text"

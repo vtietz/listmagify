@@ -39,7 +39,7 @@ export function TableHeader({ isEditable, sortKey, sortDirection, onSort }: Tabl
   };
 
   return (
-    <div data-table-header="true" className="sticky top-0 z-10 flex items-center gap-3 px-4 h-10 border-b border-border bg-card/95 backdrop-blur-sm text-muted-foreground">
+    <div data-table-header="true" className="sticky top-0 z-20 flex items-center gap-3 px-4 h-10 border-b border-border bg-card backdrop-blur-sm text-muted-foreground min-w-max">
       {/* Grip column placeholder */}
       {isEditable && (
         <div className="flex-shrink-0 w-4">

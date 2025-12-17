@@ -453,7 +453,7 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
         ref={scrollRef}
         data-testid="track-list-scroll"
         className="flex-1 overflow-auto focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
-        style={{ paddingBottom: TRACK_ROW_HEIGHT * 2 }}
+        style={{ paddingBottom: TRACK_ROW_HEIGHT * 2, overscrollBehaviorX: 'none' }}
         role="listbox"
         aria-multiselectable="true"
         aria-activedescendant={focusedIndex !== null ? `option-${panelId}-${focusedIndex}` : undefined}
