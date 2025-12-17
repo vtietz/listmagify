@@ -19,6 +19,7 @@ export interface DropPositionResult {
  * @param virtualizer - TanStack Virtual virtualizer instance
  * @param filteredTracks - Currently visible/filtered tracks
  * @param pointerY - Current Y position of the pointer (client coordinates)
+ * @param headerOffset - Height of any fixed content (like TableHeader) before the virtualized list
  * @returns Drop position data or null if calculation fails
  * 
  * @example
@@ -27,7 +28,8 @@ export interface DropPositionResult {
  *   scrollRef,
  *   virtualizer,
  *   filteredTracks,
- *   pointerY
+ *   pointerY,
+ *   40 // header height
  * );
  * 
  * if (dropData) {
@@ -40,12 +42,14 @@ export function calculateDropPosition(
   scrollContainer: HTMLElement,
   virtualizer: Virtualizer<HTMLDivElement, Element>,
   filteredTracks: Track[],
-  pointerY: number
+  pointerY: number,
+  headerOffset: number = 0
 ): DropPositionResult | null {
   // Calculate relative Y position within the scrollable container
   const containerRect = scrollContainer.getBoundingClientRect();
   const scrollTop = scrollContainer.scrollTop;
-  const relativeY = pointerY - containerRect.top + scrollTop;
+  // Subtract headerOffset to get position relative to virtualizer content start
+  const relativeY = pointerY - containerRect.top + scrollTop - headerOffset;
 
   // Adjust pointer position to represent the top edge of the drag overlay
   // The drag overlay is typically 48-60px tall, and the pointer is often in the middle/bottom
@@ -55,7 +59,7 @@ export function calculateDropPosition(
   const adjustedY = relativeY - (rowSize / 2);
 
   // Find the insertion index in the filtered view
-  // If adjusted Y is above a row's middle, insert before that row
+  // When pointer crosses the middle of a row, we insert BEFORE that row
   let insertionIndexFiltered = filteredTracks.length; // Default: append to end
 
   for (let i = 0; i < virtualItems.length; i++) {

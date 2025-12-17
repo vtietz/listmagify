@@ -24,10 +24,11 @@ import { useLikedVirtualPlaylist, isLikedSongsPlaylist, LIKED_SONGS_METADATA } f
 import { useRemoveTracks } from '@/lib/spotify/playlistMutations';
 import { useTrackPlayback } from '@/hooks/useTrackPlayback';
 import { getTrackSelectionKey } from '@/lib/dnd/selection';
+import { useCompactModeStore } from '@/hooks/useCompactModeStore';
 import { PanelToolbar } from './PanelToolbar';
 import { TableHeader } from './TableHeader';
 import { TrackRow } from './TrackRow';
-import { TRACK_ROW_HEIGHT, VIRTUALIZATION_OVERSCAN } from './constants';
+import { TRACK_ROW_HEIGHT, TRACK_ROW_HEIGHT_COMPACT, VIRTUALIZATION_OVERSCAN } from './constants';
 import type { Track } from '@/lib/spotify/types';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -391,13 +392,22 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
     playlistUri,
   });
 
-  // Virtualization with constant row height
+  // Get compact mode state for dynamic row height
+  const isCompact = useCompactModeStore((state) => state.isCompact);
+  const rowHeight = isCompact ? TRACK_ROW_HEIGHT_COMPACT : TRACK_ROW_HEIGHT;
+
+  // Virtualization with dynamic row height based on compact mode
   const virtualizer = useVirtualizer({
     count: filteredTracks.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => TRACK_ROW_HEIGHT,
+    estimateSize: () => rowHeight,
     overscan: VIRTUALIZATION_OVERSCAN,
   });
+
+  // Re-measure all items when compact mode changes
+  useEffect(() => {
+    virtualizer.measure();
+  }, [isCompact, virtualizer]);
 
   const items = virtualizer.getVirtualItems();
 

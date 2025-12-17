@@ -11,7 +11,8 @@ import { makeCompositeId, getTrackPosition } from '@/lib/dnd/id';
 import { cn } from '@/lib/utils';
 import { formatDuration } from '@/lib/utils/format';
 import { GripVertical, Heart, Play, Pause, Loader2 } from 'lucide-react';
-import { TRACK_GRID_CLASSES, TRACK_GRID_STYLE_WITH_ALBUM } from './TableHeader';
+import { useCompactModeStore } from '@/hooks/useCompactModeStore';
+import { TRACK_GRID_CLASSES, TRACK_GRID_CLASSES_NORMAL, TRACK_GRID_CLASSES_COMPACT, TRACK_GRID_STYLE_WITH_ALBUM } from './TableHeader';
 
 interface TrackRowProps {
   track: Track;
@@ -64,6 +65,8 @@ export function TrackRow({
   onPlay,
   onPause,
 }: TrackRowProps) {
+  const { isCompact } = useCompactModeStore();
+  
   // Create globally unique composite ID scoped by panel and position
   // Position is required to distinguish duplicate tracks (same song multiple times)
   const trackId = track.id || track.uri;
@@ -146,7 +149,8 @@ export function TrackRow({
       style={{ ...style, ...TRACK_GRID_STYLE_WITH_ALBUM }}
       className={cn(
         TRACK_GRID_CLASSES,
-        'h-12 border-b border-border transition-colors',
+        isCompact ? 'h-7 ' + TRACK_GRID_CLASSES_COMPACT : 'h-10 ' + TRACK_GRID_CLASSES_NORMAL,
+        'border-b border-border transition-colors',
         !isSelected && 'hover:bg-accent/40 hover:text-foreground',
         isSelected && 'bg-accent/70 text-foreground hover:bg-accent/80',
         // Visual feedback during drag - apply to dragged item OR all selected items in multi-select
@@ -172,7 +176,8 @@ export function TrackRow({
         onClick={handlePlayClick}
         disabled={isLocalFile || isPlaybackLoading}
         className={cn(
-          'h-8 w-8 flex items-center justify-center rounded-full transition-all',
+          'flex items-center justify-center rounded-full transition-all',
+          isCompact ? 'h-5 w-5' : 'h-6 w-6',
           isLocalFile && 'opacity-30 cursor-not-allowed',
           !isLocalFile && 'hover:scale-110 hover:bg-green-500 hover:text-white',
           isPlaying ? 'bg-green-500 text-white' : 'text-muted-foreground',
@@ -187,17 +192,17 @@ export function TrackRow({
         aria-label={isPlaying ? 'Pause track' : 'Play track'}
       >
         {isPlaybackLoading ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
+          <Loader2 className={isCompact ? 'h-3 w-3 animate-spin' : 'h-4 w-4 animate-spin'} />
         ) : isPlaying ? (
-          <Pause className="h-4 w-4" />
+          <Pause className={isCompact ? 'h-3 w-3' : 'h-4 w-4'} />
         ) : (
-          <Play className="h-4 w-4 ml-0.5" />
+          <Play className={isCompact ? 'h-3 w-3 ml-0.5' : 'h-4 w-4 ml-0.5'} />
         )}
       </button>
 
       {/* Grip handle for dragging */}
       <div className="flex items-center justify-center text-muted-foreground hover:text-foreground pointer-events-none">
-        {!locked && <GripVertical className="h-4 w-4" />}
+        {!locked && <GripVertical className={isCompact ? 'h-3 w-3' : 'h-4 w-4'} />}
       </div>
 
       {/* Liked status button */}
@@ -221,7 +226,7 @@ export function TrackRow({
           aria-label={isLiked ? 'Unlike track' : 'Like track'}
         >
           <Heart
-            className={cn('h-4 w-4', isLiked && 'fill-current')}
+            className={cn(isCompact ? 'h-3 w-3' : 'h-4 w-4', isLiked && 'fill-current')}
           />
         </button>
       ) : (
@@ -229,13 +234,13 @@ export function TrackRow({
       )}
 
       {/* Position number */}
-      <div className="text-sm text-muted-foreground tabular-nums">
+      <div className={cn('text-muted-foreground tabular-nums', isCompact ? 'text-xs' : 'text-sm')}>
         {track.position != null ? track.position + 1 : index + 1}
       </div>
 
       {/* Track title */}
       <div className="min-w-0">
-        <div className="text-sm truncate">
+        <div className={cn('truncate', isCompact ? 'text-xs' : 'text-sm')}>
           {track.id ? (
             <a
               href={`https://open.spotify.com/track/${track.id}`}
@@ -254,7 +259,7 @@ export function TrackRow({
 
       {/* Artist */}
       <div className="min-w-0">
-        <div className="text-sm text-muted-foreground truncate">
+        <div className={cn('text-muted-foreground truncate', isCompact ? 'text-xs' : 'text-sm')}>
           {track.artistObjects && track.artistObjects.length > 0 ? (
             track.artistObjects.map((artist, idx) => (
               <span key={artist.id || artist.name}>
@@ -283,7 +288,7 @@ export function TrackRow({
       {/* Album - hidden on small screens, but keep grid slot */}
       <div className="hidden lg:block min-w-0">
         {track.album?.name && (
-          <div className="text-sm text-muted-foreground truncate">
+          <div className={cn('text-muted-foreground truncate', isCompact ? 'text-xs' : 'text-sm')}>
             {track.album.id ? (
               <a
                 href={`https://open.spotify.com/album/${track.album.id}`}
@@ -302,7 +307,7 @@ export function TrackRow({
       </div>
 
       {/* Duration - right aligned */}
-      <div className="text-sm text-muted-foreground tabular-nums text-right">
+      <div className={cn('text-muted-foreground tabular-nums text-right', isCompact ? 'text-xs' : 'text-sm')}>
         {formatDuration(track.durationMs)}
       </div>
     </div>

@@ -3,10 +3,11 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Search, Music2, ListMusic, Columns2, LogIn, LogOut } from "lucide-react";
+import { Search, Music2, ListMusic, Columns2, LogIn, LogOut, Minimize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useBrowsePanelStore } from "@/hooks/useBrowsePanelStore";
 import { usePlayerStore } from "@/hooks/usePlayerStore";
+import { useCompactModeStore } from "@/hooks/useCompactModeStore";
 import { useSessionUser } from "@/hooks/useSessionUser";
 import { SpotifyPlayer } from "@/components/player";
 
@@ -29,6 +30,7 @@ function Header({ title }: { title: string }) {
   const pathname = usePathname();
   const { isOpen, toggle } = useBrowsePanelStore();
   const { isPlayerVisible, togglePlayerVisible } = usePlayerStore();
+  const { isCompact, toggle: toggleCompact } = useCompactModeStore();
   const { authenticated, loading } = useSessionUser();
   
   const isPlaylistsActive = pathname === '/playlists' || pathname.startsWith('/playlists/');
@@ -86,6 +88,16 @@ function Header({ title }: { title: string }) {
             >
               <Music2 className="h-3.5 w-3.5" />
               Player
+            </Button>
+            <Button
+              variant={isCompact ? "secondary" : "ghost"}
+              size="sm"
+              onClick={toggleCompact}
+              className="h-7 gap-1.5 cursor-pointer"
+              title="Toggle compact mode"
+            >
+              <Minimize2 className="h-3.5 w-3.5" />
+              Compact
             </Button>
             <div className="w-px h-4 bg-border mx-2" />
           </>

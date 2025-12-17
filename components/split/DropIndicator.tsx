@@ -7,7 +7,8 @@
 
 import { logDebug } from '@/lib/utils/debug';
 import type { VirtualItem } from '@tanstack/react-virtual';
-import { TRACK_ROW_HEIGHT } from './constants';
+import { useCompactModeStore } from '@/hooks/useCompactModeStore';
+import { TRACK_ROW_HEIGHT, TRACK_ROW_HEIGHT_COMPACT } from './constants';
 
 interface DropIndicatorProps {
   /** Panel ID for debug logging */
@@ -43,6 +44,9 @@ export function DropIndicator({
   virtualItems,
   filteredTracksCount,
 }: DropIndicatorProps) {
+  const isCompact = useCompactModeStore((state) => state.isCompact);
+  const rowHeight = isCompact ? TRACK_ROW_HEIGHT_COMPACT : TRACK_ROW_HEIGHT;
+
   // Don't render if no valid drop index
   if (dropIndicatorIndex === null || dropIndicatorIndex === undefined) {
     return null;
@@ -53,6 +57,7 @@ export function DropIndicator({
     dropIndicatorIndex,
     virtualItemsCount: virtualItems.length,
     filteredTracksCount,
+    rowHeight,
   });
 
   // Find the virtual item at the drop index
@@ -60,9 +65,9 @@ export function DropIndicator({
 
   if (!virtualItem) {
     // Dropping after the last track.
-    // Use the absolute content end based on constant row height to work even if
+    // Use the absolute content end based on current row height to work even if
     // the last row is not currently virtualized (e.g., due to extra bottom padding).
-    const dropY = Math.max(0, filteredTracksCount * TRACK_ROW_HEIGHT);
+    const dropY = Math.max(0, filteredTracksCount * rowHeight);
     logDebug('[DropIndicator] After last track at absolute end Y:', dropY);
 
     return (

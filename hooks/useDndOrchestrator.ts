@@ -18,6 +18,8 @@ import { useState, useRef, useCallback, useMemo } from 'react';
 import { usePointerTracker } from './usePointerTracker';
 import { autoScrollEdge } from './useAutoScrollEdge';
 import { calculateDropPosition } from './useDropPosition';
+import { useCompactModeStore } from './useCompactModeStore';
+import { TABLE_HEADER_HEIGHT, TABLE_HEADER_HEIGHT_COMPACT } from '@/components/split/constants';
 import {
   KeyboardSensor,
   PointerSensor,
@@ -179,6 +181,10 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
     panelVirtualizersRef.current.delete(panelId);
   }, []);
 
+  // Get compact mode state for header offset calculation
+  const isCompact = useCompactModeStore((state) => state.isCompact);
+  const headerOffset = isCompact ? TABLE_HEADER_HEIGHT_COMPACT : TABLE_HEADER_HEIGHT;
+
   // Compute global playlist position and filtered index from pointer Y in target panel
   const computeDropPosition = useCallback((
     targetPanelId: string,
@@ -195,8 +201,8 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
       return null;
     }
 
-    return calculateDropPosition(scrollContainer, virtualizer, filteredTracks, pointerY);
-  }, []);
+    return calculateDropPosition(scrollContainer, virtualizer, filteredTracks, pointerY, headerOffset);
+  }, [headerOffset]);
 
   /**
    * Helper: Find panel under pointer that accepts drops

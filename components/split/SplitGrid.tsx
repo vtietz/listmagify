@@ -10,10 +10,12 @@
 import { DndContext, DragOverlay } from '@dnd-kit/core';
 import { useSplitGridStore } from '@/hooks/useSplitGridStore';
 import { useBrowsePanelStore } from '@/hooks/useBrowsePanelStore';
+import { useCompactModeStore } from '@/hooks/useCompactModeStore';
 import { useDndOrchestrator } from '@/hooks/useDndOrchestrator';
 import { useSplitUrlSync } from '@/hooks/useSplitUrlSync';
 import { SplitNodeView } from './SplitNodeView';
 import { BrowsePanel } from './BrowsePanel';
+import { TRACK_ROW_HEIGHT, TRACK_ROW_HEIGHT_COMPACT } from './constants';
 
 export function SplitGrid() {
   // Sync split grid state with URL for sharing/bookmarking
@@ -22,6 +24,7 @@ export function SplitGrid() {
   const root = useSplitGridStore((state) => state.root);
   const panels = useSplitGridStore((state) => state.panels);
   const isBrowsePanelOpen = useBrowsePanelStore((state) => state.isOpen);
+  const isCompact = useCompactModeStore((state) => state.isCompact);
 
   // Use the orchestrator hook to manage all DnD state and logic
   const {
@@ -103,83 +106,41 @@ export function SplitGrid() {
             : (effectiveMode === 'move' ? 'grabbing' : 'copy');
 
           const extraCount = Math.max(0, (activeSelectionCount || 1) - 1);
+          const rowHeight = isCompact ? TRACK_ROW_HEIGHT_COMPACT : TRACK_ROW_HEIGHT;
           
           return (
             <div 
-              className="flex items-center gap-3 px-4 py-1.5 bg-card border-2 border-primary rounded shadow-2xl opacity-95 min-w-[600px]"
-              style={{ cursor: cursorStyle, height: '48px' }}
+              className={`flex items-center bg-card border-2 border-primary rounded shadow-2xl opacity-95 ${isCompact ? 'gap-1 px-1.5 text-xs' : 'gap-2 px-3 text-sm'}`}
+              style={{ cursor: cursorStyle, height: `${rowHeight}px`, minWidth: isCompact ? '400px' : '500px' }}
             >
-              {/* Position placeholder */}
-              <div className="flex-shrink-0 w-10" />
-              
               {/* Track title */}
-              <div className="flex-shrink-0 w-[200px] min-w-0">
-                <div className="text-sm truncate">
-                  {activeTrack.id ? (
-                    <a
-                      href={`https://open.spotify.com/track/${activeTrack.id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="hover:underline hover:text-green-500"
-                    >
-                      {activeTrack.name}
-                    </a>
-                  ) : (
-                    activeTrack.name
-                  )}
+              <div className={`flex-shrink-0 min-w-0 ${isCompact ? 'w-[140px]' : 'w-[180px]'}`}>
+                <div className="truncate">
+                  {activeTrack.name}
                 </div>
               </div>
 
               {/* Artist */}
-              <div className="flex-shrink-0 w-[160px] min-w-0">
-                <div className="text-sm text-muted-foreground truncate">
-                  {activeTrack.artistObjects && activeTrack.artistObjects.length > 0 ? (
-                    activeTrack.artistObjects.map((artist, idx) => (
-                      <span key={artist.id || artist.name}>
-                        {artist.id ? (
-                          <a
-                            href={`https://open.spotify.com/artist/${artist.id}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="hover:underline hover:text-green-500"
-                          >
-                            {artist.name}
-                          </a>
-                        ) : (
-                          artist.name
-                        )}
-                        {idx < activeTrack.artistObjects!.length - 1 && ', '}
-                      </span>
-                    ))
-                  ) : (
-                    activeTrack.artists.join(', ')
-                  )}
+              <div className={`flex-shrink-0 min-w-0 ${isCompact ? 'w-[100px]' : 'w-[140px]'}`}>
+                <div className="text-muted-foreground truncate">
+                  {activeTrack.artistObjects && activeTrack.artistObjects.length > 0
+                    ? activeTrack.artistObjects.map(a => a.name).join(', ')
+                    : activeTrack.artists.join(', ')}
                 </div>
               </div>
 
               {/* Album */}
               {activeTrack.album?.name && (
-                <div className="flex-shrink-0 w-[160px] min-w-0">
-                  <div className="text-sm text-muted-foreground truncate">
-                    {activeTrack.album.id ? (
-                      <a
-                        href={`https://open.spotify.com/album/${activeTrack.album.id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="hover:underline hover:text-green-500"
-                      >
-                        {activeTrack.album.name}
-                      </a>
-                    ) : (
-                      activeTrack.album.name
-                    )}
+                <div className={`flex-shrink-0 min-w-0 ${isCompact ? 'w-[100px]' : 'w-[140px]'}`}>
+                  <div className="text-muted-foreground truncate">
+                    {activeTrack.album.name}
                   </div>
                 </div>
               )}
 
               {extraCount > 0 && (
                 <div className="flex-shrink-0 text-xs font-medium text-muted-foreground">
-                  +{extraCount} more
+                  +{extraCount}
                 </div>
               )}
             </div>

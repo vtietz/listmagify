@@ -11,6 +11,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { Search, X, Loader2 } from 'lucide-react';
 import { useBrowsePanelStore } from '@/hooks/useBrowsePanelStore';
+import { useCompactModeStore } from '@/hooks/useCompactModeStore';
 import { useSavedTracksIndex } from '@/hooks/useSavedTracksIndex';
 import { useTrackPlayback } from '@/hooks/useTrackPlayback';
 import { apiFetch } from '@/lib/api/client';
@@ -18,7 +19,7 @@ import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { TrackRow } from './TrackRow';
-import { TRACK_ROW_HEIGHT, VIRTUALIZATION_OVERSCAN } from './constants';
+import { TRACK_ROW_HEIGHT, TRACK_ROW_HEIGHT_COMPACT, VIRTUALIZATION_OVERSCAN } from './constants';
 import { makeCompositeId } from '@/lib/dnd/id';
 import { cn } from '@/lib/utils';
 import type { Track } from '@/lib/spotify/types';
@@ -35,6 +36,7 @@ interface SearchResponse {
 export function BrowsePanel() {
   const { isOpen, searchQuery, width, setSearchQuery, setWidth } = useBrowsePanelStore();
   const { isLiked, toggleLiked } = useSavedTracksIndex();
+  const isCompact = useCompactModeStore((state) => state.isCompact);
   
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -121,14 +123,22 @@ export function BrowsePanel() {
   const { isTrackPlaying, isTrackLoading, playTrack, pausePlayback } = useTrackPlayback({
     trackUris,
   });
+
+  // Dynamic row height based on compact mode
+  const rowHeight = isCompact ? TRACK_ROW_HEIGHT_COMPACT : TRACK_ROW_HEIGHT;
   
   // Virtualizer for efficient rendering
   const virtualizer = useVirtualizer({
     count: allTracks.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => TRACK_ROW_HEIGHT,
+    estimateSize: () => rowHeight,
     overscan: VIRTUALIZATION_OVERSCAN,
   });
+
+  // Re-measure when compact mode changes
+  useEffect(() => {
+    virtualizer.measure();
+  }, [isCompact, virtualizer]);
   
   // Auto-load more when scrolling near the bottom
   useEffect(() => {
