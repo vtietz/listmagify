@@ -176,7 +176,7 @@ export function PanelToolbar({
           </Button>
 
           {/* Delete Selected Tracks */}
-          {isEditable && selectedCount > 0 && (
+          {isEditable && !locked && selectedCount > 0 && (
             selectedCount === 1 ? (
               <Button
                 variant="ghost"

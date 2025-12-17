@@ -77,6 +77,7 @@ This ensures you have accurate, current API documentation rather than relying on
 2. **Verify the build** if applicable
 3. **Run linting/formatting** checks if configured
 4. **Do not skip validation steps** — automated testing prevents regressions
+5. **Prvode a one-line commit message** summarizing all changes made using Commit Message Guidelines
 
 If tests fail after your changes:
 - Analyze the failure
