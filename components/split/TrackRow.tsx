@@ -64,7 +64,7 @@ export function TrackRow({
     isDragging,
   } = useSortable({
     id: compositeId, // Globally unique ID
-    disabled: !isEditable || locked, // Disable if not editable OR locked
+    disabled: locked, // Disable drag if panel is locked (read-only panels can still be drag sources in copy mode)
     animateLayoutChanges: () => false, // Disable "make room" animation for non-active items
     data: {
       type: 'track',
@@ -139,10 +139,10 @@ export function TrackRow({
             ? 'Click and drag to copy (Ctrl to move)'
             : 'Click and drag to move (Ctrl to copy)'
       }
-      {...(isEditable && !locked ? { ...restAttributes, ...listeners } : {})}
+      {...(!locked ? { ...restAttributes, ...listeners } : {})}
     >
       {/* Grip handle for dragging */}
-      {isEditable && (
+      {!locked && (
         <div className="flex-shrink-0 text-muted-foreground hover:text-foreground pointer-events-none">
           <GripVertical className="h-4 w-4" />
         </div>

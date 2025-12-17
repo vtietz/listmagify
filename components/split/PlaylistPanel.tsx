@@ -276,9 +276,10 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
     : storedDndMode;
   
   // Separate drag source and drop target locking:
-  // - Can drag FROM sorted table (if not locked and editable)
+  // - Can drag FROM panel if not user-locked (read-only panels are forced to copy mode)
   // - Cannot drop INTO sorted table (prevents reordering when sorted)
-  const canDrag = !locked && isEditable;
+  // - Read-only panels can be drag sources since copy doesn't modify the source
+  const canDrag = !locked;
 
   // Update store when permissions are loaded
   useEffect(() => {

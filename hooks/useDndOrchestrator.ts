@@ -332,14 +332,30 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
       const panelData = sourcePanel ? panelVirtualizersRef.current.get(sourcePanel) : null;
       const orderedTracks = panelData?.filteredTracks ?? [];
 
+      // Find the index of the dragged track
+      const draggedTrackIndex = orderedTracks.findIndex(t => t.uri === track.uri && t.position === track.position);
+      const draggedTrackKey = getTrackSelectionKey(track, draggedTrackIndex);
+      
+      // Check if the dragged track is part of the current selection
+      const isDraggedTrackSelected = panelSelection.has(draggedTrackKey);
+
       // Snapshot tracks and selected indices for stable reference during drag
       orderedTracksSnapshotRef.current = orderedTracks;
-      const selectedWithIndices = orderedTracks
-        .map((t, idx) => ({ t, idx }))
-        .filter(({ t, idx }) => panelSelection.has(getTrackSelectionKey(t, idx)));
-      selectedIndicesRef.current = selectedWithIndices.map(({ idx }) => idx);
-      const selectedTracks = selectedWithIndices.map(({ t }) => t);
-      const dragTracks = selectedTracks.length > 0 ? selectedTracks : [track];
+      
+      let dragTracks: Track[];
+      
+      if (isDraggedTrackSelected && panelSelection.size > 0) {
+        // Dragged track is in selection - use all selected tracks
+        const selectedWithIndices = orderedTracks
+          .map((t, idx) => ({ t, idx }))
+          .filter(({ t, idx }) => panelSelection.has(getTrackSelectionKey(t, idx)));
+        selectedIndicesRef.current = selectedWithIndices.map(({ idx }) => idx);
+        dragTracks = selectedWithIndices.map(({ t }) => t);
+      } else {
+        // Dragged track is NOT in selection - just drag this single track
+        selectedIndicesRef.current = draggedTrackIndex >= 0 ? [draggedTrackIndex] : [];
+        dragTracks = [track];
+      }
 
       activeDragTracksRef.current = dragTracks;
       // Always show the track that was actually clicked/dragged in the overlay
@@ -349,8 +365,9 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
       
       // Simple readable log - server side
       logDebug('🎵 DRAG START:', {
+        isDraggedTrackSelected,
         selected: selectedIndicesRef.current,
-        selectedPositions: selectedTracks.map(t => t?.position).filter(p => p != null),
+        selectedPositions: dragTracks.map(t => t?.position).filter(p => p != null),
         dragging: dragTracks.map(t => `#${t?.position ?? '?'} ${t?.name ?? 'unknown'}`).join(', ')
       });
       
@@ -362,7 +379,8 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
         selectedCount: selectedIndicesRef.current.length,
         selectedIndices: selectedIndicesRef.current.slice(0, 25),
         draggedTrack: track.name,
-        draggedTrackKey: getTrackSelectionKey(track, orderedTracks.findIndex(t => t.uri === track.uri)),
+        draggedTrackKey,
+        isDraggedTrackSelected,
         firstFewKeys: orderedTracks.slice(0, 5).map((t, idx) => ({
           name: t.name,
           position: t.position,

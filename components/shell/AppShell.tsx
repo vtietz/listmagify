@@ -23,7 +23,9 @@ function Header({ title }: { title: string }) {
     <header className="h-12 flex items-center justify-between px-4 border-b">
       <div className="flex items-center gap-2">
         <Logo />
-        <span className="font-semibold">{title}</span>
+        <Link href="/" className="font-semibold hover:underline">
+          {title}
+        </Link>
       </div>
 
       <nav className="flex items-center gap-3 text-sm">
