@@ -6,7 +6,7 @@ import { SplitGrid } from '@/components/split/SplitGrid';
 
 export default function SplitEditorPage() {
   return (
-    <div className="h-[calc(100vh-3rem)]">
+    <div className="h-full">
       <SplitGrid />
     </div>
   );
