@@ -49,16 +49,16 @@ function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
 
-function generatePanelId(): string {
+export function generatePanelId(): string {
   return `panel-${generateId()}`;
 }
 
-function generateGroupId(): string {
+export function generateGroupId(): string {
   return `group-${generateId()}`;
 }
 
 /** Create a new empty panel config */
-function createPanelConfig(playlistId: string | null = null): PanelConfig {
+export function createPanelConfig(playlistId: string | null = null): PanelConfig {
   return {
     id: generatePanelId(),
     playlistId,
@@ -72,7 +72,7 @@ function createPanelConfig(playlistId: string | null = null): PanelConfig {
 }
 
 /** Create a panel node from a panel config */
-function createPanelNode(panel: PanelConfig): PanelNode {
+export function createPanelNode(panel: PanelConfig): PanelNode {
   return {
     kind: 'panel',
     id: panel.id,
@@ -302,6 +302,7 @@ interface SplitGridState {
   loadPlaylist: (panelId: string, playlistId: string, isEditable: boolean) => void;
   selectPlaylist: (panelId: string, playlistId: string) => void;
   initializeSinglePanel: (playlistId: string) => void;
+  initializeFromRoot: (root: SplitNode) => void;
   setSearch: (panelId: string, query: string) => void;
   setSelection: (panelId: string, trackIds: string[]) => void;
   toggleSelection: (panelId: string, trackId: string) => void;
@@ -386,6 +387,13 @@ export const useSplitGridStore = create<SplitGridState>()(
         set({ 
           root: panelNode,
           panels: [panel],
+        });
+      },
+
+      initializeFromRoot: (root) => {
+        set({
+          root,
+          panels: flattenPanels(root),
         });
       },
 

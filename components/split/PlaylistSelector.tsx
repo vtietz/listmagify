@@ -64,10 +64,17 @@ export function PlaylistSelector({ selectedPlaylistId, selectedPlaylistName, onS
     }
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-  const allPlaylists = useMemo(
-    () => (data?.pages ? data.pages.flatMap((p) => p.items) : []),
-    [data]
-  );
+  const allPlaylists = useMemo(() => {
+    if (!data?.pages) return [];
+    const all = data.pages.flatMap((p) => p.items);
+    // Deduplicate by playlist ID (pagination can return duplicates)
+    const seen = new Set<string>();
+    return all.filter((p) => {
+      if (seen.has(p.id)) return false;
+      seen.add(p.id);
+      return true;
+    });
+  }, [data]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();

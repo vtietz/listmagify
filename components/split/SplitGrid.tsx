@@ -10,9 +10,13 @@
 import { DndContext, DragOverlay } from '@dnd-kit/core';
 import { useSplitGridStore } from '@/hooks/useSplitGridStore';
 import { useDndOrchestrator } from '@/hooks/useDndOrchestrator';
+import { useSplitUrlSync } from '@/hooks/useSplitUrlSync';
 import { SplitNodeView } from './SplitNodeView';
 
 export function SplitGrid() {
+  // Sync split grid state with URL for sharing/bookmarking
+  useSplitUrlSync();
+
   const root = useSplitGridStore((state) => state.root);
   const panels = useSplitGridStore((state) => state.panels);
 
