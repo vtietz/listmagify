@@ -44,6 +44,7 @@ interface PanelVirtualizerData {
   virtualizer: any;
   scrollRef: React.RefObject<HTMLDivElement>;
   filteredTracks: Track[];
+  canDrop: boolean; // Whether this panel accepts drops (false when sorted)
 }
 
 /**
@@ -123,7 +124,8 @@ interface UseDndOrchestratorReturn {
     panelId: string,
     virtualizer: any,
     scrollRef: React.RefObject<HTMLDivElement>,
-    filteredTracks: Track[]
+    filteredTracks: Track[],
+    canDrop: boolean
   ) => void;
   unregisterVirtualizer: (panelId: string) => void;
   
@@ -166,9 +168,10 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
     panelId: string,
     virtualizer: any,
     scrollRef: React.RefObject<HTMLDivElement>,
-    filteredTracks: Track[]
+    filteredTracks: Track[],
+    canDrop: boolean
   ) => {
-    panelVirtualizersRef.current.set(panelId, { virtualizer, scrollRef, filteredTracks });
+    panelVirtualizersRef.current.set(panelId, { virtualizer, scrollRef, filteredTracks, canDrop });
   }, []);
 
   const unregisterVirtualizer = useCallback((panelId: string) => {
@@ -195,13 +198,17 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
   }, []);
 
   /**
-   * Helper: Find panel under pointer when over is null (fallback for virtualization gaps)
+   * Helper: Find panel under pointer that accepts drops
+   * Only returns panels where canDrop is true (not sorted)
    */
   const findPanelUnderPointer = useCallback((): { panelId: string } | null => {
     const { x: pointerX, y: pointerY } = pointerTracker.getPosition();
     
     for (const [panelId, panelData] of panelVirtualizersRef.current.entries()) {
-      const { scrollRef } = panelData;
+      const { scrollRef, canDrop } = panelData;
+      // Skip panels that don't accept drops (sorted panels)
+      if (!canDrop) continue;
+      
       const container = scrollRef.current;
       if (!container) continue;
       
@@ -239,22 +246,39 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
       (collision) => collision.data?.droppableContainer?.data?.current?.type === 'track'
     );
     
-    // If we have track collisions, validate they belong to the correct panel
-    if (trackCollisions.length > 0 && panelUnderPointer) {
-      // Filter to only tracks from the panel that actually contains the pointer
-      const validTrackCollisions = trackCollisions.filter((collision) => {
-        const trackPanelId = collision.data?.droppableContainer?.data?.current?.panelId;
-        return trackPanelId === panelUnderPointer.panelId;
-      });
-      
-      if (validTrackCollisions.length > 0) {
-        return validTrackCollisions;
+    // If we have track collisions, validate they belong to a panel that accepts drops
+    if (trackCollisions.length > 0) {
+      if (panelUnderPointer) {
+        // Check if the target panel accepts drops
+        const targetPanelData = panelVirtualizersRef.current.get(panelUnderPointer.panelId);
+        if (!targetPanelData?.canDrop) {
+          // Panel is sorted - don't accept any drops
+          return [];
+        }
+        
+        // Filter to only tracks from the panel that actually contains the pointer
+        const validTrackCollisions = trackCollisions.filter((collision) => {
+          const trackPanelId = collision.data?.droppableContainer?.data?.current?.panelId;
+          return trackPanelId === panelUnderPointer.panelId;
+        });
+        
+        if (validTrackCollisions.length > 0) {
+          return validTrackCollisions;
+        }
+        // If no valid track collisions, fall through to panel detection
+      } else {
+        // No panel under pointer that accepts drops - filter track collisions to only those from droppable panels
+        const validTrackCollisions = trackCollisions.filter((collision) => {
+          const trackPanelId = collision.data?.droppableContainer?.data?.current?.panelId;
+          if (!trackPanelId) return false;
+          const panelData = panelVirtualizersRef.current.get(trackPanelId);
+          return panelData?.canDrop === true;
+        });
+        
+        if (validTrackCollisions.length > 0) {
+          return validTrackCollisions;
+        }
       }
-      // If no valid track collisions, fall through to panel detection
-    } else if (trackCollisions.length > 0) {
-      // No panel under pointer but have track collisions - return them as-is
-      // This can happen at edges
-      return trackCollisions;
     }
     
     // For panel detection (gaps between tracks), use our bounds-based findPanelUnderPointer

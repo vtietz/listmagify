@@ -8,25 +8,38 @@ import type { Track } from '@/lib/spotify/types';
 
 describe('DnD ID Utilities', () => {
   describe('makeCompositeId', () => {
-    it('should create composite ID from panel and track IDs', () => {
-      const compositeId = makeCompositeId('panel-1', 'track-abc123');
+    it('should create composite ID from panel, track ID and position', () => {
+      const compositeId = makeCompositeId('panel-1', 'track-abc123', 5);
       
-      expect(compositeId).toBe('panel-1:track-abc123');
+      expect(compositeId).toBe('panel-1:track-abc123:5');
     });
 
-    it('should handle different panel IDs with same track ID', () => {
-      const compositeId1 = makeCompositeId('panel-1', 'track-xyz');
-      const compositeId2 = makeCompositeId('panel-2', 'track-xyz');
+    it('should handle different panel IDs with same track ID and position', () => {
+      const compositeId1 = makeCompositeId('panel-1', 'track-xyz', 0);
+      const compositeId2 = makeCompositeId('panel-2', 'track-xyz', 0);
       
-      expect(compositeId1).toBe('panel-1:track-xyz');
-      expect(compositeId2).toBe('panel-2:track-xyz');
+      expect(compositeId1).toBe('panel-1:track-xyz:0');
+      expect(compositeId2).toBe('panel-2:track-xyz:0');
       expect(compositeId1).not.toBe(compositeId2);
     });
 
     it('should handle URIs as track IDs', () => {
-      const compositeId = makeCompositeId('panel-1', 'spotify:track:1234567890');
+      const compositeId = makeCompositeId('panel-1', 'spotify:track:1234567890', 3);
       
-      expect(compositeId).toBe('panel-1:spotify:track:1234567890');
+      expect(compositeId).toBe('panel-1:spotify:track:1234567890:3');
+    });
+
+    it('should distinguish duplicate tracks by position', () => {
+      // Same track ID in same panel at different positions
+      const compositeId1 = makeCompositeId('panel-1', 'track-duplicate', 0);
+      const compositeId2 = makeCompositeId('panel-1', 'track-duplicate', 5);
+      const compositeId3 = makeCompositeId('panel-1', 'track-duplicate', 10);
+      
+      expect(compositeId1).toBe('panel-1:track-duplicate:0');
+      expect(compositeId2).toBe('panel-1:track-duplicate:5');
+      expect(compositeId3).toBe('panel-1:track-duplicate:10');
+      expect(compositeId1).not.toBe(compositeId2);
+      expect(compositeId2).not.toBe(compositeId3);
     });
   });
 

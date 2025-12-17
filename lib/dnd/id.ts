@@ -7,20 +7,24 @@ import type { Track } from '@/lib/spotify/types';
 
 /**
  * Creates a globally unique composite ID for a track within a panel.
- * Format: `panelId:trackId`
+ * Format: `panelId:trackId:position`
+ * 
+ * The position is required to distinguish duplicate tracks (same song
+ * appearing multiple times in a playlist).
  * 
  * @param panelId - Unique panel identifier
  * @param trackId - Spotify track ID or URI
+ * @param position - Track position in the playlist
  * @returns Composite ID string
  * 
  * @example
  * ```ts
- * makeCompositeId('panel-1', 'track-abc123')
- * // => 'panel-1:track-abc123'
+ * makeCompositeId('panel-1', 'track-abc123', 5)
+ * // => 'panel-1:track-abc123:5'
  * ```
  */
-export function makeCompositeId(panelId: string, trackId: string): string {
-  return `${panelId}:${trackId}`;
+export function makeCompositeId(panelId: string, trackId: string, position: number): string {
+  return `${panelId}:${trackId}:${position}`;
 }
 
 /**

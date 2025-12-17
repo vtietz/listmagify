@@ -39,9 +39,11 @@ export function TrackRow({
   playlistId,
   dndMode = 'copy',
 }: TrackRowProps) {
-  // Create globally unique composite ID scoped by panel
+  // Create globally unique composite ID scoped by panel and position
+  // Position is required to distinguish duplicate tracks (same song multiple times)
   const trackId = track.id || track.uri;
-  const compositeId = panelId ? makeCompositeId(panelId, trackId) : trackId;
+  const position = getTrackPosition(track, index);
+  const compositeId = panelId ? makeCompositeId(panelId, trackId, position) : trackId;
 
   const {
     attributes,
@@ -58,7 +60,7 @@ export function TrackRow({
       track,
       panelId,
       playlistId,
-      position: getTrackPosition(track, index), // Global position for mutations
+      position, // Global position for mutations
     },
   });
 

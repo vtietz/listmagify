@@ -35,7 +35,8 @@ interface PlaylistPanelProps {
         panelId: string,
         virtualizer: any,
         scrollRef: { current: HTMLDivElement | null },
-        filteredTracks: Track[]
+        filteredTracks: Track[],
+        canDrop: boolean
       ) => void)
     | undefined;
   onUnregisterVirtualizer: ((panelId: string) => void) | undefined;
@@ -81,7 +82,9 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
 
   // Derive locked and canDrop state early (needed for droppable hook)
   const locked = panel?.locked || false;
-  const canDrop = !locked && sortKey === 'position'; // Only accept drops when sorted by position
+  // Only accept drops when sorted by position in ascending order
+  // Reverse order would require different drop position calculations
+  const canDrop = !locked && sortKey === 'position' && sortDirection === 'asc';
 
   // Panel-level droppable for hover detection (gaps, padding, background)
   // Attached to scroll container (not outer wrapper) for precise collision bounds
@@ -276,14 +279,14 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
   // Register virtualizer with parent for drop position calculation
   useEffect(() => {
     if (onRegisterVirtualizer && playlistId) {
-      onRegisterVirtualizer(panelId, virtualizer, scrollRef, filteredTracks);
+      onRegisterVirtualizer(panelId, virtualizer, scrollRef, filteredTracks, canDrop);
     }
     return () => {
       if (onUnregisterVirtualizer) {
         onUnregisterVirtualizer(panelId);
       }
     };
-  }, [panelId, virtualizer, filteredTracks, playlistId, onRegisterVirtualizer, onUnregisterVirtualizer]);
+  }, [panelId, virtualizer, filteredTracks, playlistId, canDrop, onRegisterVirtualizer, onUnregisterVirtualizer]);
 
   // Handlers
   const handleSearchChange = useCallback(

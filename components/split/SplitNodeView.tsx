@@ -17,7 +17,8 @@ interface SplitNodeViewProps {
         panelId: string,
         virtualizer: unknown,
         scrollRef: { current: HTMLDivElement | null },
-        filteredTracks: Track[]
+        filteredTracks: Track[],
+        canDrop: boolean
       ) => void)
     | undefined;
   onUnregisterVirtualizer: ((panelId: string) => void) | undefined;
