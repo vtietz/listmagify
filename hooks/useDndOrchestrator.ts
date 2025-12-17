@@ -287,7 +287,9 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
       const dragTracks = selectedTracks.length > 0 ? selectedTracks : [track];
 
       activeDragTracksRef.current = dragTracks;
-      setActiveTrack(dragTracks[0] ?? null);
+      // Always show the track that was actually clicked/dragged in the overlay
+      // (not the first selected track which may be different)
+      setActiveTrack(track);
       setActiveSelectionCount(dragTracks.length);
       
       // Simple readable log - server side
