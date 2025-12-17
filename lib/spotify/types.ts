@@ -46,6 +46,15 @@ export type Track = {
     name?: string | null;
     image?: Image | null;
   } | null;
+  // Audio features (optional, fetched separately from Spotify)
+  tempoBpm?: number | null;
+  musicalKey?: number | null;
+  mode?: number | null;
+  acousticness?: number | null;
+  energy?: number | null;
+  instrumentalness?: number | null;
+  liveness?: number | null;
+  valence?: number | null;
 };
 
 export type PageResult<T> = {

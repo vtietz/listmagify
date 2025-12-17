@@ -32,3 +32,39 @@ export function formatCumulativeDuration(tracks: { durationMs: number }[], endIn
   
   return formatDuration(totalMs);
 }
+
+/**
+ * Format BPM (beats per minute) value
+ * @param bpm - Tempo in BPM
+ * @returns Formatted BPM string (rounded to nearest integer)
+ */
+export function formatBpm(bpm: number): string {
+  return Math.round(bpm).toString();
+}
+
+/**
+ * Musical key names (Pitch Class Notation)
+ * Index corresponds to Spotify's key value (0-11)
+ */
+const KEY_NAMES = ["C", "C♯", "D", "D♯", "E", "F", "F♯", "G", "G♯", "A", "A♯", "B"];
+
+/**
+ * Format musical key and mode
+ * @param key - Key value (0-11, where 0=C, 1=C♯, etc.)
+ * @param mode - Mode (0=minor, 1=major)
+ * @returns Formatted key string (e.g., "C major", "A♯ minor")
+ */
+export function formatKey(key: number, mode?: number | null): string {
+  const keyName = KEY_NAMES[key] ?? "?";
+  const modeName = mode === 1 ? "maj" : mode === 0 ? "min" : "";
+  return modeName ? `${keyName} ${modeName}` : keyName;
+}
+
+/**
+ * Format a 0-1 value as a percentage
+ * @param value - Value between 0 and 1
+ * @returns Formatted percentage string (e.g., "75%")
+ */
+export function formatPercent(value: number): string {
+  return `${Math.round(value * 100)}%`;
+}

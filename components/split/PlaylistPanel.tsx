@@ -115,18 +115,20 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
   const searchQuery = panel?.searchQuery || '';
   const selection = panel?.selection || new Set();
 
-  // Derive locked and canDrop state early (needed for droppable hook)
+  // User-toggled lock state (only for owned playlists)
   const locked = panel?.locked || false;
-  // Only accept drops when sorted by position in ascending order
-  // Reverse order would require different drop position calculations
-  const canDrop = !locked && sortKey === 'position' && sortDirection === 'asc';
+  
+  // Early canDrop calculation for droppable hook (will be refined after permissions load)
+  // Can only drop when sorted by position ascending and not user-locked
+  // Note: isEditable check happens in drop handler since permissions may not be loaded yet
+  const canDropBasic = !locked && sortKey === 'position' && sortDirection === 'asc';
 
   // Panel-level droppable for hover detection (gaps, padding, background)
   // Attached to scroll container (not outer wrapper) for precise collision bounds
   // Disable drops when sorted (to prevent reordering in non-position sort)
   const { setNodeRef: setDroppableRef } = useDroppable({
     id: `panel-${panelId}`,
-    disabled: !canDrop,
+    disabled: !canDropBasic,
     data: {
       type: 'panel',
       panelId,
@@ -259,14 +261,37 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
   // Liked Songs playlist is not editable (can't reorder/add), but can unlike tracks
   const isEditable = isLikedPlaylist ? false : (permissionsData?.isEditable || false);
 
-  // Read-only playlists are always in 'copy' mode
-  const storedDndMode = isEditable ? (panel?.dndMode || 'copy') : 'copy';
+  // ═══════════════════════════════════════════════════════════════════════════
+  // DnD Permissions Model (simplified):
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 
+  // | Playlist Type              | Can Drag FROM | Can Drop INTO | Lock Toggle |
+  // |----------------------------|---------------|---------------|-------------|
+  // | Liked Songs                | ✅ (copy)     | ❌            | Hidden      |
+  // | Other user's playlist      | ✅ (copy)     | ❌            | Hidden      |
+  // | Your playlist (unlocked)   | ✅ (move/copy)| ✅            | Enabled     |
+  // | Your playlist (locked)     | ✅ (copy)     | ❌            | Enabled     |
+  // 
+  // Key insight:
+  // - `locked` controls DROP TARGET only (can't receive tracks when locked)
+  // - All playlists can be DRAG SOURCES (non-editable forced to copy mode)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // Can always drag FROM any playlist (copy mode for non-editable/locked)
+  const canDrag = true;
+  
+  // Can only drop INTO editable, unlocked, position-sorted playlists
+  const canDrop = isEditable && !locked && sortKey === 'position' && sortDirection === 'asc';
+
+  // DnD mode: non-editable or locked playlists force copy mode
+  const canMove = isEditable && !locked;
+  const storedDndMode = canMove ? (panel?.dndMode || 'copy') : 'copy';
   
   // Preview mode: invert when Ctrl is pressed
   // - During drag (isDragSource is boolean): only the source panel shows inverted mode
   // - When not dragging (isDragSource is undefined): panel under mouse shows inverted mode
   const isDragging = isDragSource !== undefined;
-  const showCtrlInvert = isCtrlPressed && isEditable && (
+  const showCtrlInvert = isCtrlPressed && canMove && (
     (isDragging && isDragSource) ||  // During drag: only source panel
     (!isDragging && isMouseOver)      // No drag: panel under mouse
   );
@@ -274,12 +299,6 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
   const dndMode = showCtrlInvert
     ? (storedDndMode === 'copy' ? 'move' : 'copy')
     : storedDndMode;
-  
-  // Separate drag source and drop target locking:
-  // - Can drag FROM panel if not user-locked (read-only panels are forced to copy mode)
-  // - Cannot drop INTO sorted table (prevents reordering when sorted)
-  // - Read-only panels can be drag sources since copy doesn't modify the source
-  const canDrag = !locked;
 
   // Update store when permissions are loaded
   useEffect(() => {

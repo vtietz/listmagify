@@ -141,12 +141,10 @@ export function TrackRow({
       }
       {...(!locked ? { ...restAttributes, ...listeners } : {})}
     >
-      {/* Grip handle for dragging */}
-      {!locked && (
-        <div className="flex-shrink-0 text-muted-foreground hover:text-foreground pointer-events-none">
-          <GripVertical className="h-4 w-4" />
-        </div>
-      )}
+      {/* Grip handle for dragging - always show column for alignment */}
+      <div className="flex-shrink-0 w-4 text-muted-foreground hover:text-foreground pointer-events-none">
+        {!locked && <GripVertical className="h-4 w-4" />}
+      </div>
 
       {/* Liked status button */}
       {showLikedColumn && (

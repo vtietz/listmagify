@@ -42,12 +42,10 @@ export function TableHeader({ isEditable, sortKey, sortDirection, onSort, showLi
 
   return (
     <div data-table-header="true" className="sticky top-0 z-20 flex items-center gap-3 px-4 h-10 border-b border-border bg-card backdrop-blur-sm text-muted-foreground min-w-max">
-      {/* Grip column placeholder */}
-      {isEditable && (
-        <div className="flex-shrink-0 w-4">
-          <GripVertical className="h-3 w-3 opacity-30" />
-        </div>
-      )}
+      {/* Grip column placeholder - always show for alignment */}
+      <div className="flex-shrink-0 w-4">
+        <GripVertical className="h-3 w-3 opacity-30" />
+      </div>
 
       {/* Liked status column - non-sortable */}
       {showLikedColumn && (
