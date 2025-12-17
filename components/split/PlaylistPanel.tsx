@@ -30,16 +30,26 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 interface PlaylistPanelProps {
   panelId: string;
-  onRegisterVirtualizer?: (panelId: string, virtualizer: any, scrollRef: { current: HTMLDivElement | null }, filteredTracks: Track[]) => void;
-  onUnregisterVirtualizer?: (panelId: string) => void;
-  isActiveDropTarget?: boolean; // True when mouse is hovering over this panel during drag
-  dropIndicatorIndex?: number | null; // Filtered index where drop indicator line should appear
-  ephemeralInsertion?: {
-    activeId: string; // Composite ID of dragged item
-    sourcePanelId: string; // Panel where drag originated
-    targetPanelId: string; // Panel being hovered over
-    insertionIndex: number; // Filtered index where item should be inserted
-  } | null; // For multi-container "make room" animation
+  onRegisterVirtualizer:
+    | ((
+        panelId: string,
+        virtualizer: any,
+        scrollRef: { current: HTMLDivElement | null },
+        filteredTracks: Track[]
+      ) => void)
+    | undefined;
+  onUnregisterVirtualizer: ((panelId: string) => void) | undefined;
+  isActiveDropTarget?: boolean | undefined; // True when mouse is hovering over this panel during drag
+  dropIndicatorIndex?: number | null | undefined; // Filtered index where drop indicator line should appear
+  ephemeralInsertion?:
+    | {
+        activeId: string; // Composite ID of dragged item
+        sourcePanelId: string; // Panel where drag originated
+        targetPanelId: string; // Panel being hovered over
+        insertionIndex: number; // Filtered index where item should be inserted
+      }
+    | null
+    | undefined; // For multi-container "make room" animation
 }
 
 export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirtualizer, isActiveDropTarget, dropIndicatorIndex, ephemeralInsertion }: PlaylistPanelProps) {
@@ -55,7 +65,7 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
   const toggleSelection = useSplitGridStore((state: any) => state.toggleSelection);
   const setScroll = useSplitGridStore((state: any) => state.setScroll);
   const closePanel = useSplitGridStore((state: any) => state.closePanel);
-  const clonePanel = useSplitGridStore((state: any) => state.clonePanel);
+  const splitPanel = useSplitGridStore((state: any) => state.splitPanel);
   const setPanelDnDMode = useSplitGridStore((state: any) => state.setPanelDnDMode);
   const togglePanelLock = useSplitGridStore((state: any) => state.togglePanelLock);
   const loadPlaylist = useSplitGridStore((state: any) => state.loadPlaylist);
@@ -74,6 +84,7 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
   const canDrop = !locked && sortKey === 'position'; // Only accept drops when sorted by position
 
   // Panel-level droppable for hover detection (gaps, padding, background)
+  // Attached to scroll container (not outer wrapper) for precise collision bounds
   // Disable drops when sorted (to prevent reordering in non-position sort)
   const { setNodeRef: setDroppableRef } = useDroppable({
     id: `panel-${panelId}`,
@@ -84,6 +95,18 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
       playlistId,
     },
   });
+
+  // Combined ref callback to attach both scrollRef and droppableRef to scroll container
+  // This ensures panel droppable bounds match the actual track list viewport
+  const scrollDroppableRef = useCallback(
+    (el: HTMLDivElement | null) => {
+      // Update our local scrollRef
+      (scrollRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
+      // Register with dnd-kit droppable
+      setDroppableRef(el);
+    },
+    [setDroppableRef]
+  );
 
   // Use infinite query as single source of truth for playlist tracks
   const { 
@@ -282,12 +305,12 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
   }, [panelId, closePanel]);
 
   const handleSplitHorizontal = useCallback(() => {
-    clonePanel(panelId, 'horizontal');
-  }, [panelId, clonePanel]);
+    splitPanel(panelId, 'horizontal');
+  }, [panelId, splitPanel]);
 
   const handleSplitVertical = useCallback(() => {
-    clonePanel(panelId, 'vertical');
-  }, [panelId, clonePanel]);
+    splitPanel(panelId, 'vertical');
+  }, [panelId, splitPanel]);
 
   const handleDndModeToggle = useCallback(() => {
     const newMode = dndMode === 'move' ? 'copy' : 'move';
@@ -414,11 +437,10 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
 
   return (
     <div 
-      ref={setDroppableRef}
       data-testid="playlist-panel"
       data-editable={isEditable}
-      className={`flex flex-col h-full border rounded-lg overflow-hidden bg-card transition-all ${
-        isActiveDropTarget ? 'border-primary border-2 shadow-lg' : 'border-border'
+      className={`flex flex-col h-full border border-border rounded-lg overflow-hidden transition-all ${
+        isActiveDropTarget ? 'bg-primary/10' : 'bg-card'
       }`}
     >
       <PanelToolbar
@@ -450,7 +472,7 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
       />
 
       <div
-        ref={scrollRef}
+        ref={scrollDroppableRef}
         data-testid="track-list-scroll"
         className="flex-1 overflow-auto focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
         style={{ paddingBottom: TRACK_ROW_HEIGHT * 2, overscrollBehaviorX: 'none' }}

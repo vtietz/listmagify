@@ -98,40 +98,6 @@ function buildTracksWithPositions(
 }
 
 /**
- * Custom collision detection that prioritizes track droppables over panel droppables.
- * 
- * Strategy:
- * 1. Use pointerWithin for accurate collision detection
- * 2. If track collisions exist, return only tracks (sorted by distance)
- * 3. Otherwise, return panel collisions
- * 4. This ensures tracks take priority for "make room" animation,
- *    while panels provide reliable hover detection in gaps/background
- */
-const panelAwarePointerWithin: CollisionDetection = (args) => {
-  const pointerCollisions = pointerWithin(args);
-  
-  if (pointerCollisions.length === 0) {
-    return [];
-  }
-  
-  // Partition collisions by type
-  const trackCollisions = pointerCollisions.filter(
-    (collision) => collision.data?.droppableContainer?.data?.current?.type === 'track'
-  );
-  const panelCollisions = pointerCollisions.filter(
-    (collision) => collision.data?.droppableContainer?.data?.current?.type === 'panel'
-  );
-  
-  // Prefer track collisions (for precise drop positioning and "make room")
-  if (trackCollisions.length > 0) {
-    return trackCollisions;
-  }
-  
-  // Fallback to panel collisions (for highlight and gap detection)
-  return panelCollisions;
-};
-
-/**
  * Hook return type
  */
 interface UseDndOrchestratorReturn {
@@ -150,6 +116,7 @@ interface UseDndOrchestratorReturn {
   onDragStart: (event: DragStartEvent) => void;
   onDragOver: (event: DragOverEvent) => void;
   onDragEnd: (event: DragEndEvent) => void;
+  onDragCancel: () => void;
   
   // Panel virtualizer registry
   registerVirtualizer: (
@@ -252,6 +219,69 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
     return null;
   }, [pointerTracker]);
 
+  /**
+   * Custom collision detection that prioritizes track droppables over panel droppables.
+   * 
+   * For tracks: Use pointerWithin but validate against panel scroll bounds
+   * For panels: Use our own findPanelUnderPointer() for precise bounds-based detection
+   * 
+   * This ensures all collision detection is based solely on scroll container bounds,
+   * not on dnd-kit's collision detection which may be affected by DOM structure.
+   */
+  const collisionDetection: CollisionDetection = useCallback((args) => {
+    const pointerCollisions = pointerWithin(args);
+    
+    // First, determine which panel the pointer is actually in using our bounds check
+    const panelUnderPointer = findPanelUnderPointer();
+    
+    // Get track collisions from pointerWithin
+    const trackCollisions = pointerCollisions.filter(
+      (collision) => collision.data?.droppableContainer?.data?.current?.type === 'track'
+    );
+    
+    // If we have track collisions, validate they belong to the correct panel
+    if (trackCollisions.length > 0 && panelUnderPointer) {
+      // Filter to only tracks from the panel that actually contains the pointer
+      const validTrackCollisions = trackCollisions.filter((collision) => {
+        const trackPanelId = collision.data?.droppableContainer?.data?.current?.panelId;
+        return trackPanelId === panelUnderPointer.panelId;
+      });
+      
+      if (validTrackCollisions.length > 0) {
+        return validTrackCollisions;
+      }
+      // If no valid track collisions, fall through to panel detection
+    } else if (trackCollisions.length > 0) {
+      // No panel under pointer but have track collisions - return them as-is
+      // This can happen at edges
+      return trackCollisions;
+    }
+    
+    // For panel detection (gaps between tracks), use our bounds-based findPanelUnderPointer
+    if (panelUnderPointer) {
+      // Find the matching panel droppable from the collision args
+      const droppableContainers = args.droppableContainers;
+      const panelDroppableId = `panel-${panelUnderPointer.panelId}`;
+      const panelContainer = droppableContainers.find(
+        (container) => container.id === panelDroppableId
+      );
+      
+      if (panelContainer) {
+        // Return only the panel that actually contains the pointer
+        return [{
+          id: panelDroppableId,
+          data: {
+            droppableContainer: panelContainer,
+            value: 0, // Distance value (0 = direct hit)
+          },
+        }];
+      }
+    }
+    
+    // No collisions found
+    return [];
+  }, [findPanelUnderPointer]);
+
   // Set up DnD sensors (disable auto-scroll to prevent source panel scrolling)
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -347,20 +377,21 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
     }
 
     // Get target panel ID from either track or panel droppable
+    // The collision detection already validates that collisions are within correct panel bounds
     let targetPanelId: string | null = null;
     
     if (over) {
       const targetData = over.data.current;
       
       if (targetData?.type === 'track') {
-        // Hovering over a track droppable
+        // Hovering over a track droppable (already validated by collision detection)
         targetPanelId = targetData.panelId;
       } else if (targetData?.type === 'panel') {
-        // Hovering over panel background/gaps
-        targetPanelId = targetData.panelId;
+        // Hovering over panel background/gaps (already validated by collision detection)
+        targetPanelId = targetData.panelId as string;
       }
     } else {
-      // Fallback: No collision detected (virtualization gap), find panel under pointer
+      // No collision detected - find panel under pointer as fallback
       const panelUnderPointer = findPanelUnderPointer();
       if (panelUnderPointer) {
         targetPanelId = panelUnderPointer.panelId;
@@ -404,10 +435,19 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
     const scrollContainer = scrollRef.current;
     
     // Auto-scroll when pointer is near the edges of the current target panel
-    // Note: targetPanelId is determined by pointer position, so we always scroll 
-    // whichever panel the pointer is currently over. This is the expected behavior.
+    // Only scroll if pointer is actually within the panel's bounds
     if (scrollContainer) {
-      autoScrollEdge(scrollContainer, pointerY);
+      const rect = scrollContainer.getBoundingClientRect();
+      const { x: pointerX } = pointerTracker.getPosition();
+      const isPointerInPanel = 
+        pointerX >= rect.left && 
+        pointerX <= rect.right && 
+        pointerY >= rect.top && 
+        pointerY <= rect.bottom;
+      
+      if (isPointerInPanel) {
+        autoScrollEdge(scrollContainer, pointerY);
+      }
     }
 
     // Compute insertion index in filtered view for "make room" animation
@@ -811,6 +851,22 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
   }, [sourcePanelId, panels, pointerTracker]);
 
   /**
+   * Handle drag cancel (ESC key pressed)
+   * Resets all drag state without performing any mutations
+   */
+  const handleDragCancel = useCallback(() => {
+    setActiveId(null);
+    setActiveTrack(null);
+    setActiveSelectionCount(0);
+    setSourcePanelId(null);
+    setComputedDropPosition(null);
+    setDropIndicatorIndex(null);
+    setActivePanelId(null);
+    setEphemeralInsertion(null);
+    pointerTracker.stopTracking();
+  }, [pointerTracker]);
+
+  /**
    * Check if the current target panel is editable
    */
   const isTargetEditable = useCallback((): boolean => {
@@ -832,10 +888,11 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
     
     // DnD context props
     sensors,
-    collisionDetection: panelAwarePointerWithin,
+    collisionDetection,
     onDragStart: handleDragStart,
     onDragOver: handleDragOver,
     onDragEnd: handleDragEnd,
+    onDragCancel: handleDragCancel,
     
     // Panel virtualizer registry
     registerVirtualizer,

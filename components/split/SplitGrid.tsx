@@ -1,8 +1,8 @@
 ﻿/**
  * SplitGrid container for managing multiple playlist panels.
- * Handles grid layout, DnD context, and panel orchestration.
+ * Handles tree-based grid layout, DnD context, and panel orchestration.
  * 
- * Refactored to use useDndOrchestrator hook for centralized DnD logic.
+ * Uses a recursive split tree model for nested horizontal/vertical splits.
  */
 
 'use client';
@@ -10,9 +10,10 @@
 import { DndContext, DragOverlay } from '@dnd-kit/core';
 import { useSplitGridStore } from '@/hooks/useSplitGridStore';
 import { useDndOrchestrator } from '@/hooks/useDndOrchestrator';
-import { PlaylistPanel } from './PlaylistPanel';
+import { SplitNodeView } from './SplitNodeView';
 
 export function SplitGrid() {
+  const root = useSplitGridStore((state) => state.root);
   const panels = useSplitGridStore((state) => state.panels);
 
   // Use the orchestrator hook to manage all DnD state and logic
@@ -28,16 +29,17 @@ export function SplitGrid() {
     onDragStart,
     onDragOver,
     onDragEnd,
+    onDragCancel,
     registerVirtualizer,
     unregisterVirtualizer,
     getEffectiveDndMode,
     isTargetEditable,
   } = useDndOrchestrator(panels);
 
-  if (panels.length === 0) {
+  if (!root || panels.length === 0) {
     return (
       <div className="flex items-center justify-center h-full text-muted-foreground">
-        <p>Click "Split Horizontal" or "Split Vertical" to add a panel</p>
+        <p>Click &quot;Split Horizontal&quot; or &quot;Split Vertical&quot; to add a panel</p>
       </div>
     );
   }
@@ -49,36 +51,22 @@ export function SplitGrid() {
       onDragStart={onDragStart}
       onDragOver={onDragOver}
       onDragEnd={onDragEnd}
-      autoScroll={{
-        enabled: true,
-        threshold: {
-          x: 0.2,
-          y: 0.2,
-        },
-        acceleration: 10,
-      }}
+      onDragCancel={onDragCancel}
+      // Disable dnd-kit's built-in autoScroll to prevent it from scrolling
+      // unrelated panels. We use our own autoScrollEdge in useDndOrchestrator
+      // which correctly targets only the panel under the pointer.
+      autoScroll={false}
     >
-      <div
-        className="h-full w-full p-2"
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))',
-          gridAutoRows: 'minmax(240px, 1fr)',
-          gap: '0.5rem',
-        }}
-      >
-        {panels.map((panel) => (
-          <div key={panel.id} className="min-h-0 min-w-0">
-            <PlaylistPanel 
-              panelId={panel.id}
-              onRegisterVirtualizer={registerVirtualizer}
-              onUnregisterVirtualizer={unregisterVirtualizer}
-              isActiveDropTarget={activePanelId === panel.id}
-              dropIndicatorIndex={activePanelId === panel.id || sourcePanelId === panel.id ? dropIndicatorIndex : null}
-              ephemeralInsertion={ephemeralInsertion}
-            />
-          </div>
-        ))}
+      <div className="h-full w-full p-2">
+        <SplitNodeView
+          node={root}
+          onRegisterVirtualizer={registerVirtualizer}
+          onUnregisterVirtualizer={unregisterVirtualizer}
+          activePanelId={activePanelId}
+          sourcePanelId={sourcePanelId}
+          dropIndicatorIndex={dropIndicatorIndex}
+          ephemeralInsertion={ephemeralInsertion}
+        />
       </div>
 
       <DragOverlay 
