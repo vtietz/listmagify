@@ -231,16 +231,34 @@ export function applyReorderToInfinitePages(
 /**
  * Apply a remove operation to infinite query data.
  * Removes tracks matching the given URIs.
+ * If positions are provided, only removes tracks at those specific positions.
  */
 export function applyRemoveToInfinitePages(
   data: InfiniteData<PlaylistTracksPage>,
-  trackUris: string[]
+  trackUris: string[],
+  tracksWithPositions?: Array<{ uri: string; positions: number[] }>
 ): InfiniteData<PlaylistTracksPage> {
-  const uriSet = new Set(trackUris);
-  
-  // Flatten and filter
+  // Flatten all tracks
   const allTracks = flattenInfinitePages(data, false);
-  const filteredTracks = allTracks.filter(track => !uriSet.has(track.uri));
+  
+  let filteredTracks: Track[];
+  
+  if (tracksWithPositions && tracksWithPositions.length > 0) {
+    // Position-based removal: only remove tracks at specific positions
+    const positionsToRemove = new Set<number>();
+    tracksWithPositions.forEach(({ positions }) => {
+      positions.forEach(pos => positionsToRemove.add(pos));
+    });
+    
+    filteredTracks = allTracks.filter((track, index) => {
+      const position = track.position ?? index;
+      return !positionsToRemove.has(position);
+    });
+  } else {
+    // Legacy: remove ALL tracks matching the URIs
+    const uriSet = new Set(trackUris);
+    filteredTracks = allTracks.filter(track => !uriSet.has(track.uri));
+  }
   
   // Rebuild pages with updated total
   const newData = rebuildInfinitePages(data, filteredTracks);

@@ -19,6 +19,7 @@ import { useSplitGridStore } from '@/hooks/useSplitGridStore';
 import { usePlaylistSort, type SortKey, type SortDirection } from '@/hooks/usePlaylistSort';
 import { useTrackListSelection } from '@/hooks/useTrackListSelection';
 import { usePlaylistTracksInfinite } from '@/hooks/usePlaylistTracksInfinite';
+import { useRemoveTracks } from '@/lib/spotify/playlistMutations';
 import { getTrackSelectionKey } from '@/lib/dnd/selection';
 import { PanelToolbar } from './PanelToolbar';
 import { TableHeader } from './TableHeader';
@@ -98,6 +99,9 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
     playlistId,
     enabled: !!playlistId,
   });
+
+  // Remove tracks mutation for delete functionality
+  const removeTracks = useRemoveTracks();
 
   // Show reload animation when auto-loading or manually refetching
   const isReloading = isAutoLoading || isRefetching;
@@ -294,6 +298,44 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
     togglePanelLock(panelId);
   }, [panelId, togglePanelLock]);
 
+  const handleDeleteSelected = useCallback(() => {
+    if (!playlistId || selection.size === 0) return;
+
+    // Build tracks array with positions for precise removal (handles duplicate tracks)
+    // Selection keys are in format "trackId::position"
+    const tracksToRemove: Array<{ uri: string; positions: number[] }> = [];
+    const uriToPositions = new Map<string, number[]>();
+
+    filteredTracks.forEach((track: Track, index: number) => {
+      const key = getTrackSelectionKey(track, index);
+      if (selection.has(key)) {
+        // Use the track's actual playlist position, not the filtered index
+        const position = track.position ?? index;
+        const positions = uriToPositions.get(track.uri) || [];
+        positions.push(position);
+        uriToPositions.set(track.uri, positions);
+      }
+    });
+
+    // Convert map to array format expected by API
+    uriToPositions.forEach((positions, uri) => {
+      tracksToRemove.push({ uri, positions });
+    });
+
+    if (tracksToRemove.length === 0) return;
+
+    const mutationParams = snapshotId
+      ? { playlistId, tracks: tracksToRemove, snapshotId }
+      : { playlistId, tracks: tracksToRemove };
+
+    removeTracks.mutate(mutationParams, {
+      onSuccess: () => {
+        // Clear selection after successful deletion
+        setSelection(panelId, []);
+      },
+    });
+  }, [playlistId, selection, filteredTracks, removeTracks, snapshotId, panelId, setSelection]);
+
   const handleSort = useCallback((key: SortKey) => {
     // Toggle direction if clicking the same column
     if (key === sortKey) {
@@ -390,6 +432,8 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
         isReloading={isReloading}
         sortKey={sortKey}
         sortDirection={sortDirection}
+        selectedCount={selection.size}
+        isDeleting={removeTracks.isPending}
         onSearchChange={handleSearchChange}
         onSortChange={(key, direction) => {
           setSortKey(key);
@@ -402,6 +446,7 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
         onDndModeToggle={handleDndModeToggle}
         onLockToggle={handleLockToggle}
         onLoadPlaylist={handleLoadPlaylist}
+        onDeleteSelected={handleDeleteSelected}
       />
 
       <div

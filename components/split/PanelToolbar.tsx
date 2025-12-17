@@ -6,11 +6,22 @@
 'use client';
 
 import { useState, ChangeEvent } from 'react';
-import { Search, RefreshCw, Lock, LockOpen, X, SplitSquareHorizontal, SplitSquareVertical, Move, Copy, ArrowUpDown } from 'lucide-react';
+import { Search, RefreshCw, Lock, LockOpen, X, SplitSquareHorizontal, SplitSquareVertical, Move, Copy, ArrowUpDown, Trash2 } from 'lucide-react';
 import { PlaylistSelector } from './PlaylistSelector';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 import type { SortKey, SortDirection } from '@/hooks/usePlaylistSort';
 
@@ -25,6 +36,8 @@ interface PanelToolbarProps {
   isReloading?: boolean;
   sortKey?: SortKey;
   sortDirection?: SortDirection;
+  selectedCount?: number;
+  isDeleting?: boolean;
   onSearchChange: (query: string) => void;
   onSortChange?: (key: SortKey, direction: SortDirection) => void;
   onReload: () => void;
@@ -34,6 +47,7 @@ interface PanelToolbarProps {
   onDndModeToggle: () => void;
   onLockToggle: () => void;
   onLoadPlaylist: (playlistId: string) => void;
+  onDeleteSelected?: () => void;
 }
 
 export function PanelToolbar({
@@ -47,6 +61,8 @@ export function PanelToolbar({
   isReloading = false,
   sortKey = 'position',
   sortDirection = 'asc',
+  selectedCount = 0,
+  isDeleting = false,
   onSearchChange,
   onSortChange,
   onReload,
@@ -56,6 +72,7 @@ export function PanelToolbar({
   onDndModeToggle,
   onLockToggle,
   onLoadPlaylist,
+  onDeleteSelected,
 }: PanelToolbarProps) {
   const [localSearch, setLocalSearch] = useState(searchQuery);
 
@@ -154,6 +171,55 @@ export function PanelToolbar({
             )}
             <span className="sr-only">{locked ? 'Locked' : 'Unlocked'}</span>
           </Button>
+
+          {/* Delete Selected Tracks */}
+          {isEditable && selectedCount > 0 && (
+            selectedCount === 1 ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onDeleteSelected}
+                disabled={isDeleting}
+                className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                title="Delete selected track"
+              >
+                <Trash2 className={cn('h-4 w-4', isDeleting && 'animate-pulse')} />
+                <span className="sr-only">Delete selected track</span>
+              </Button>
+            ) : (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={isDeleting}
+                    className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                    title={`Delete ${selectedCount} selected tracks`}
+                  >
+                    <Trash2 className={cn('h-4 w-4', isDeleting && 'animate-pulse')} />
+                    <span className="sr-only">Delete selected tracks</span>
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete {selectedCount} tracks?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will remove {selectedCount} tracks from the playlist. This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={onDeleteSelected}
+                      className="bg-destructive text-white hover:bg-destructive/90"
+                    >
+                      Delete
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )
+          )}
         </div>
       )}
 

@@ -24,9 +24,14 @@ interface AddTracksParams {
   snapshotId?: string;
 }
 
+interface TrackToRemove {
+  uri: string;
+  positions?: number[];  // Specific positions to remove (for duplicate tracks)
+}
+
 interface RemoveTracksParams {
   playlistId: string;
-  trackUris: string[];
+  tracks: TrackToRemove[];
   snapshotId?: string;
 }
 
@@ -132,7 +137,7 @@ export function useRemoveTracks() {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          trackUris: params.trackUris,
+          tracks: params.tracks,
           snapshotId: params.snapshotId,
         }),
       });
@@ -150,19 +155,36 @@ export function useRemoveTracks() {
         playlistTracks(params.playlistId)
       );
 
+      // Extract URIs for legacy compatibility
+      const trackUris = params.tracks.map(t => t.uri);
+
       // Optimistically remove tracks from infinite query (primary)
       if (previousInfiniteData) {
-        const newData = applyRemoveToInfinitePages(previousInfiniteData, params.trackUris);
+        const newData = applyRemoveToInfinitePages(previousInfiniteData, trackUris, params.tracks);
         queryClient.setQueryData(playlistTracksInfinite(params.playlistId), newData);
       }
 
       // Also update legacy single-page query for backwards compatibility
       if (previousData) {
-        const uriSet = new Set(params.trackUris);
+        // For legacy query, use position-based filtering if available
+        const positionsToRemove = new Set<number>();
+        params.tracks.forEach(t => {
+          if (t.positions) {
+            t.positions.forEach(pos => positionsToRemove.add(pos));
+          }
+        });
+        
+        const filteredTracks = positionsToRemove.size > 0
+          ? previousData.tracks.filter((track, index) => {
+              const position = track.position ?? index;
+              return !positionsToRemove.has(position);
+            })
+          : previousData.tracks.filter((track) => !trackUris.includes(track.uri));
+        
         queryClient.setQueryData(playlistTracks(params.playlistId), {
           ...previousData,
-          tracks: previousData.tracks.filter((track) => !uriSet.has(track.uri)),
-          total: previousData.total - params.trackUris.length,
+          tracks: filteredTracks,
+          total: filteredTracks.length,
         });
       }
 

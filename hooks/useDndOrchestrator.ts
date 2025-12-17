@@ -68,6 +68,36 @@ interface EphemeralInsertion {
 }
 
 /**
+ * Builds tracks array with positions for precise removal (handles duplicate tracks).
+ * Groups tracks by URI and collects their positions.
+ */
+function buildTracksWithPositions(
+  dragTracks: Track[],
+  orderedTracks: Track[]
+): Array<{ uri: string; positions: number[] }> {
+  const uriToPositions = new Map<string, number[]>();
+
+  dragTracks.forEach((track) => {
+    // Find the track's index in orderedTracks to get its position
+    const idx = orderedTracks.findIndex(
+      (ot) => (ot.id || ot.uri) === (track.id || track.uri) && ot.position === track.position
+    );
+    const position = track.position ?? (idx >= 0 ? idx : 0);
+    
+    const positions = uriToPositions.get(track.uri) || [];
+    positions.push(position);
+    uriToPositions.set(track.uri, positions);
+  });
+
+  const result: Array<{ uri: string; positions: number[] }> = [];
+  uriToPositions.forEach((positions, uri) => {
+    result.push({ uri, positions });
+  });
+
+  return result;
+}
+
+/**
  * Custom collision detection that prioritizes track droppables over panel droppables.
  * 
  * Strategy:
@@ -640,6 +670,10 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
         toIndex: effectiveTargetIndex,
         trackCount: dragTrackUris.length
       });
+
+      // Build tracks with positions for precise removal (handles duplicate tracks)
+      const tracksWithPositions = buildTracksWithPositions(dragTracks, orderedTracks);
+
       addTracks.mutate({
         playlistId: targetPlaylistId,
         trackUris: dragTrackUris,
@@ -648,7 +682,7 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
         onSuccess: () => {
           removeTracks.mutate({
             playlistId: sourcePlaylistId,
-            trackUris: dragTrackUris,
+            tracks: tracksWithPositions,
           });
         },
       });
@@ -732,9 +766,11 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
           onSuccess: () => {
             // Only remove from source if it's editable
             if (sourcePanel.isEditable) {
+              // Build tracks with positions for precise removal (handles duplicate tracks)
+              const tracksWithPositions = buildTracksWithPositions(dragTracks, orderedTracks);
               removeTracks.mutate({
                 playlistId: sourcePlaylistId,
-                trackUris: dragTrackUris,
+                tracks: tracksWithPositions,
               });
             }
           },

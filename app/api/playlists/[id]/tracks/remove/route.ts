@@ -33,15 +33,26 @@ export async function DELETE(
     }
 
     const body = await request.json().catch(() => ({}));
-    const { trackUris, snapshotId } = body;
+    const { tracks, trackUris, snapshotId } = body;
 
-    // Validate track URIs
-    if (!Array.isArray(trackUris) || trackUris.length === 0) {
-      return NextResponse.json({ error: 'trackUris must be a non-empty array' }, { status: 400 });
-    }
-
-    if (!trackUris.every((uri) => typeof uri === 'string' && uri.startsWith('spotify:track:'))) {
-      return NextResponse.json({ error: 'All track URIs must be valid Spotify URIs' }, { status: 400 });
+    // Support both new format (tracks with positions) and legacy format (trackUris)
+    let tracksToRemove: Array<{ uri: string; positions?: number[] }>;
+    
+    if (Array.isArray(tracks) && tracks.length > 0) {
+      // New format: tracks array with optional positions
+      tracksToRemove = tracks;
+      
+      if (!tracks.every((t: any) => typeof t.uri === 'string' && t.uri.startsWith('spotify:track:'))) {
+        return NextResponse.json({ error: 'All track URIs must be valid Spotify URIs' }, { status: 400 });
+      }
+    } else if (Array.isArray(trackUris) && trackUris.length > 0) {
+      // Legacy format: just URIs (removes all instances)
+      if (!trackUris.every((uri: any) => typeof uri === 'string' && uri.startsWith('spotify:track:'))) {
+        return NextResponse.json({ error: 'All track URIs must be valid Spotify URIs' }, { status: 400 });
+      }
+      tracksToRemove = trackUris.map((uri: string) => ({ uri }));
+    } else {
+      return NextResponse.json({ error: 'tracks or trackUris must be a non-empty array' }, { status: 400 });
     }
 
     // Spotify API: DELETE /playlists/{id}/tracks
@@ -49,7 +60,7 @@ export async function DELETE(
     const path = `/playlists/${encodeURIComponent(playlistId)}/tracks`;
 
     const requestBody: Record<string, any> = {
-      tracks: trackUris.map((uri) => ({ uri })),
+      tracks: tracksToRemove,
     };
 
     if (snapshotId && typeof snapshotId === 'string') {
