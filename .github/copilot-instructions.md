@@ -77,7 +77,7 @@ This ensures you have accurate, current API documentation rather than relying on
 2. **Verify the build** if applicable
 3. **Run linting/formatting** checks if configured
 4. **Do not skip validation steps** — automated testing prevents regressions
-5. **Prvode a one-line commit message** summarizing all changes made using Commit Message Guidelines
+5. **Prvode a one-line commit message** summarizing all changes made using Commit Message Guidelines (se e below)
 
 If tests fail after your changes:
 - Analyze the failure
@@ -181,7 +181,7 @@ Follow these best practices when writing or modifying code:
 - **Process**: 
   1. Use `get_changed_files` tool to examine all uncommitted changes
   2. Review the diffs to understand the scope of changes
-  3. Identify the primary purpose (feature, refactor, fix, etc.)
+  3. Identify the primary purpose (feature, refactor, fix, chore, etc.)
   4. Summarize all significant changes in one concise message
 - **Examples**:
   - ✅ `Add auto-load pagination hook with comprehensive tests`

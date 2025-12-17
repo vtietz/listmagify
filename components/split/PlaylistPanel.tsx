@@ -41,6 +41,7 @@ interface PlaylistPanelProps {
     | undefined;
   onUnregisterVirtualizer: ((panelId: string) => void) | undefined;
   isActiveDropTarget?: boolean | undefined; // True when mouse is hovering over this panel during drag
+  isDragSource?: boolean | undefined; // True when this panel is the source of an active drag
   dropIndicatorIndex?: number | null | undefined; // Filtered index where drop indicator line should appear
   ephemeralInsertion?:
     | {
@@ -53,9 +54,41 @@ interface PlaylistPanelProps {
     | undefined; // For multi-container "make room" animation
 }
 
-export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirtualizer, isActiveDropTarget, dropIndicatorIndex, ephemeralInsertion }: PlaylistPanelProps) {
+export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirtualizer, isActiveDropTarget, isDragSource, dropIndicatorIndex, ephemeralInsertion }: PlaylistPanelProps) {
   const queryClient = useQueryClient();
   const scrollRef = useRef<HTMLDivElement>(null);
+  
+  // Track if mouse is over this panel for Ctrl+hover mode preview
+  const [isMouseOver, setIsMouseOver] = useState(false);
+  const [isCtrlPressed, setIsCtrlPressed] = useState(false);
+  
+  // Global Ctrl key tracking for mode preview
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Control') {
+        setIsCtrlPressed(true);
+      }
+    };
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'Control') {
+        setIsCtrlPressed(false);
+      }
+    };
+    // Also reset on window blur (e.g., user switches tabs while holding Ctrl)
+    const handleBlur = () => {
+      setIsCtrlPressed(false);
+    };
+    
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('blur', handleBlur);
+    
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('blur', handleBlur);
+    };
+  }, []);
   
   const panel = useSplitGridStore((state: any) =>
     state.panels.find((p: any) => p.id === panelId)
@@ -174,7 +207,20 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
   const isEditable = permissionsData?.isEditable || false;
 
   // Read-only playlists are always in 'copy' mode
-  const dndMode = isEditable ? (panel?.dndMode || 'copy') : 'copy';
+  const storedDndMode = isEditable ? (panel?.dndMode || 'copy') : 'copy';
+  
+  // Preview mode: invert when Ctrl is pressed
+  // - During drag (isDragSource is boolean): only the source panel shows inverted mode
+  // - When not dragging (isDragSource is undefined): panel under mouse shows inverted mode
+  const isDragging = isDragSource !== undefined;
+  const showCtrlInvert = isCtrlPressed && isEditable && (
+    (isDragging && isDragSource) ||  // During drag: only source panel
+    (!isDragging && isMouseOver)      // No drag: panel under mouse
+  );
+  
+  const dndMode = showCtrlInvert
+    ? (storedDndMode === 'copy' ? 'move' : 'copy')
+    : storedDndMode;
   
   // Separate drag source and drop target locking:
   // - Can drag FROM sorted table (if not locked and editable)
@@ -445,6 +491,8 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
       className={`flex flex-col h-full border border-border rounded-lg overflow-hidden transition-all ${
         isActiveDropTarget ? 'bg-primary/10' : 'bg-card'
       }`}
+      onMouseEnter={() => setIsMouseOver(true)}
+      onMouseLeave={() => setIsMouseOver(false)}
     >
       <PanelToolbar
         panelId={panelId}
@@ -563,6 +611,7 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
                       panelId={panelId}
                       playlistId={playlistId}
                       dndMode={dndMode}
+                      isDragSourceSelected={isDragSource && selection.has(selectionId)}
                     />
                   </div>
                 );

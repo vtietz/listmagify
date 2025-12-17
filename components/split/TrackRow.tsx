@@ -24,6 +24,8 @@ interface TrackRowProps {
   panelId?: string;
   playlistId?: string;
   dndMode?: 'copy' | 'move';
+  /** True if this track is selected AND a drag is in progress from this panel */
+  isDragSourceSelected?: boolean;
 }
 
 export function TrackRow({
@@ -38,6 +40,7 @@ export function TrackRow({
   panelId,
   playlistId,
   dndMode = 'copy',
+  isDragSourceSelected = false,
 }: TrackRowProps) {
   // Create globally unique composite ID scoped by panel and position
   // Position is required to distinguish duplicate tracks (same song multiple times)
@@ -100,9 +103,9 @@ export function TrackRow({
         // Cursor feedback - show grab/copy only when draggable
         !locked && isEditable && dndMode === 'move' && 'cursor-grab active:cursor-grabbing',
         !locked && isEditable && dndMode === 'copy' && 'cursor-copy',
-        // Visual feedback during drag
-        isDragging && dndMode === 'move' && 'opacity-0',
-        isDragging && dndMode === 'copy' && 'opacity-50',
+        // Visual feedback during drag - apply to dragged item OR all selected items in multi-select
+        (isDragging || isDragSourceSelected) && dndMode === 'move' && 'opacity-0',
+        (isDragging || isDragSourceSelected) && dndMode === 'copy' && 'opacity-50',
       )}
       id={`option-${panelId}-${index}`}
       role="option"

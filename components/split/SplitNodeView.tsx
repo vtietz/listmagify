@@ -51,6 +51,7 @@ export function SplitNodeView({
           onRegisterVirtualizer={onRegisterVirtualizer}
           onUnregisterVirtualizer={onUnregisterVirtualizer}
           isActiveDropTarget={activePanelId === node.panel.id}
+          isDragSource={sourcePanelId === node.panel.id}
           dropIndicatorIndex={
             // Only show drop indicator in the panel being hovered (target), not in source panel
             activePanelId === node.panel.id ? dropIndicatorIndex : null
