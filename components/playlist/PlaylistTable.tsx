@@ -130,7 +130,27 @@ function SortableRow({ track, index, isDragEnabled }: SortableRowProps) {
         </div>
       </td>
       <td className="py-2 px-4 text-sm text-muted-foreground">
-        {track.artists.join(", ") || "—"}
+        {track.artistObjects && track.artistObjects.length > 0 ? (
+          track.artistObjects.map((artist, idx) => (
+            <span key={artist.id || artist.name}>
+              {artist.id ? (
+                <a
+                  href={`https://open.spotify.com/artist/${artist.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:underline hover:text-green-500"
+                >
+                  {artist.name}
+                </a>
+              ) : (
+                artist.name
+              )}
+              {idx < track.artistObjects!.length - 1 && ', '}
+            </span>
+          ))
+        ) : (
+          track.artists.join(", ") || "—"
+        )}
       </td>
       <td className="py-2 px-4 text-sm text-muted-foreground">
         {track.album?.name ? (

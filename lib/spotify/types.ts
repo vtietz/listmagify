@@ -9,11 +9,21 @@ export type Image = {
   height?: number | null;
 };
 
+export type Artist = {
+  id: string | null;
+  name: string;
+};
+
 export type Playlist = {
   id: string;
   name: string;
   description?: string | null;
   ownerName?: string | null;
+  /** Owner object with id and displayName for linking */
+  owner?: {
+    id?: string | null;
+    displayName?: string | null;
+  } | null;
   image?: Image | null;
   tracksTotal: number;
   isPublic?: boolean | null;
@@ -23,7 +33,10 @@ export type Track = {
   id: string | null; // local files can be null
   uri: string;
   name: string;
+  /** Artist names (for display) */
   artists: string[];
+  /** Artist objects with IDs (for linking) */
+  artistObjects?: Artist[];
   durationMs: number;
   addedAt?: string; // ISO
   position?: number; // Original position in playlist (0-indexed)
@@ -59,6 +72,10 @@ export function mapPlaylist(raw: any): Playlist {
     name: String(raw?.name ?? ""),
     description: raw?.description ?? null,
     ownerName: raw?.owner?.display_name ?? null,
+    owner: raw?.owner ? {
+      id: raw.owner.id ?? null,
+      displayName: raw.owner.display_name ?? null,
+    } : null,
     image: images?.[0] ?? null,
     tracksTotal: Number(raw?.tracks?.total ?? 0),
     isPublic: typeof raw?.public === "boolean" ? raw.public : null,
@@ -80,11 +97,19 @@ export function mapPlaylistItemToTrack(raw: any): Track {
     ? t.artists.map((a: any) => String(a?.name ?? "")).filter(Boolean)
     : [];
 
+  const artistObjects = Array.isArray(t?.artists)
+    ? t.artists.map((a: any) => ({
+        id: a?.id ?? null,
+        name: String(a?.name ?? ""),
+      })).filter((a: { name: string }) => a.name)
+    : [];
+
   return {
     id: t?.id ?? null,
     uri: String(t?.uri ?? ""),
     name: String(t?.name ?? ""),
     artists,
+    artistObjects,
     durationMs: Number(t?.duration_ms ?? 0),
     addedAt: raw?.added_at ?? undefined,
     album: t?.album

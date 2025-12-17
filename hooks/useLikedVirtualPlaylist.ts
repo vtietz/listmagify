@@ -87,7 +87,7 @@ export function useLikedVirtualPlaylist(): UseLikedVirtualPlaylistResult {
     dataUpdatedAt,
   } = useInfiniteQuery({
     queryKey: likedPlaylistKey(),
-    queryFn: async ({ pageParam }): Promise<LikedTracksPage> => {
+    queryFn: async ({ pageParam }: { pageParam: string | null }): Promise<LikedTracksPage> => {
       const url = pageParam
         ? `/api/liked/tracks?limit=50&nextCursor=${encodeURIComponent(pageParam)}`
         : '/api/liked/tracks?limit=50';
@@ -107,7 +107,7 @@ export function useLikedVirtualPlaylist(): UseLikedVirtualPlaylistResult {
       return response;
     },
     initialPageParam: null as string | null,
-    getNextPageParam: (lastPage) => lastPage.nextCursor,
+    getNextPageParam: (lastPage: LikedTracksPage) => lastPage.nextCursor,
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 10 * 60 * 1000, // 10 minutes
   });
@@ -117,8 +117,8 @@ export function useLikedVirtualPlaylist(): UseLikedVirtualPlaylistResult {
     if (!data?.pages) return [];
     
     let position = 0;
-    return data.pages.flatMap((page) =>
-      page.tracks.map((track) => ({
+    return data.pages.flatMap((page: LikedTracksPage) =>
+      page.tracks.map((track: Track) => ({
         ...track,
         position: position++,
         originalPosition: track.position ?? position - 1,

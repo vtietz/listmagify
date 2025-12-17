@@ -116,7 +116,27 @@ export function SplitGrid() {
               {/* Artist */}
               <div className="flex-shrink-0 w-[160px] min-w-0">
                 <div className="text-sm text-muted-foreground truncate">
-                  {activeTrack.artists.join(', ')}
+                  {activeTrack.artistObjects && activeTrack.artistObjects.length > 0 ? (
+                    activeTrack.artistObjects.map((artist, idx) => (
+                      <span key={artist.id || artist.name}>
+                        {artist.id ? (
+                          <a
+                            href={`https://open.spotify.com/artist/${artist.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hover:underline hover:text-green-500"
+                          >
+                            {artist.name}
+                          </a>
+                        ) : (
+                          artist.name
+                        )}
+                        {idx < activeTrack.artistObjects!.length - 1 && ', '}
+                      </span>
+                    ))
+                  ) : (
+                    activeTrack.artists.join(', ')
+                  )}
                 </div>
               </div>
 

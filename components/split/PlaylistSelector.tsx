@@ -47,14 +47,14 @@ export function PlaylistSelector({ selectedPlaylistId, selectedPlaylistName, onS
     refetch,
   } = useInfiniteQuery({
     queryKey: userPlaylists(),
-    queryFn: async ({ pageParam = null }): Promise<PlaylistsResponse> => {
+    queryFn: async ({ pageParam }: { pageParam: string | null }): Promise<PlaylistsResponse> => {
       const url = pageParam
-        ? `/api/me/playlists?nextCursor=${encodeURIComponent(pageParam as string)}`
+        ? `/api/me/playlists?nextCursor=${encodeURIComponent(pageParam)}`
         : '/api/me/playlists';
       return apiFetch<PlaylistsResponse>(url);
     },
-    getNextPageParam: (lastPage) => lastPage.nextCursor,
-    initialPageParam: null,
+    getNextPageParam: (lastPage: PlaylistsResponse) => lastPage.nextCursor,
+    initialPageParam: null as string | null,
     staleTime: 60_000,
   });
 
@@ -67,10 +67,10 @@ export function PlaylistSelector({ selectedPlaylistId, selectedPlaylistName, onS
 
   const allPlaylists = useMemo(() => {
     if (!data?.pages) return [];
-    const all = data.pages.flatMap((p) => p.items);
+    const all = data.pages.flatMap((p: PlaylistsResponse) => p.items);
     // Deduplicate by playlist ID (pagination can return duplicates)
     const seen = new Set<string>();
-    return all.filter((p) => {
+    return all.filter((p: Playlist) => {
       if (seen.has(p.id)) return false;
       seen.add(p.id);
       return true;
@@ -82,7 +82,7 @@ export function PlaylistSelector({ selectedPlaylistId, selectedPlaylistName, onS
 
     const base = q
       ? allPlaylists.filter(
-          (p) =>
+          (p: Playlist) =>
             p.name.toLowerCase().includes(q) ||
             (p.owner?.displayName?.toLowerCase().includes(q))
         )
@@ -111,7 +111,7 @@ export function PlaylistSelector({ selectedPlaylistId, selectedPlaylistName, onS
   }, [query]);
 
   const selected = useMemo(
-    () => allPlaylists.find((p) => p.id === selectedPlaylistId) || null,
+    () => allPlaylists.find((p: Playlist) => p.id === selectedPlaylistId) || null,
     [allPlaylists, selectedPlaylistId]
   );
 

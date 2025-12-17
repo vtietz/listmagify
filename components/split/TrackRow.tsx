@@ -181,13 +181,48 @@ export function TrackRow({
 
       {/* Track title */}
       <div className="flex-shrink-0 w-[200px] min-w-0">
-        <div className="text-sm truncate">{track.name}</div>
+        <div className="text-sm truncate">
+          {track.id ? (
+            <a
+              href={`https://open.spotify.com/track/${track.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:underline hover:text-green-500"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {track.name}
+            </a>
+          ) : (
+            track.name
+          )}
+        </div>
       </div>
 
       {/* Artist */}
       <div className="flex-shrink-0 w-[160px] min-w-0">
         <div className="text-sm text-muted-foreground truncate">
-          {track.artists.join(', ')}
+          {track.artistObjects && track.artistObjects.length > 0 ? (
+            track.artistObjects.map((artist, idx) => (
+              <span key={artist.id || artist.name}>
+                {artist.id ? (
+                  <a
+                    href={`https://open.spotify.com/artist/${artist.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:underline hover:text-green-500"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {artist.name}
+                  </a>
+                ) : (
+                  artist.name
+                )}
+                {idx < track.artistObjects!.length - 1 && ', '}
+              </span>
+            ))
+          ) : (
+            track.artists.join(', ')
+          )}
         </div>
       </div>
 
@@ -195,7 +230,19 @@ export function TrackRow({
       {track.album?.name && (
         <div className="hidden lg:block flex-shrink-0 w-[160px] min-w-0">
           <div className="text-sm text-muted-foreground truncate">
-            {track.album.name}
+            {track.album.id ? (
+              <a
+                href={`https://open.spotify.com/album/${track.album.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:underline hover:text-green-500"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {track.album.name}
+              </a>
+            ) : (
+              track.album.name
+            )}
           </div>
         </div>
       )}

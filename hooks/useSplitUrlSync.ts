@@ -361,7 +361,7 @@ function isLayoutSyncPath(pathname: string): boolean {
  */
 function extractPlaylistIdFromPath(pathname: string): string | null {
   const match = pathname.match(/^\/playlists\/([^/]+)$/);
-  return match ? match[1] : null;
+  return match?.[1] ?? null;
 }
 
 /**

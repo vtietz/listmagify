@@ -245,20 +245,22 @@ export function useSavedTracksIndex() {
       console.log('🔄 Fetching liked tracks from Spotify...');
       
       while (hasMore) {
-        const url = nextCursor 
+        const url: string = nextCursor 
           ? `/api/liked/tracks?limit=50&nextCursor=${encodeURIComponent(nextCursor)}`
           : '/api/liked/tracks?limit=50';
         
-        const response = await apiFetch<{
+        interface LikedTracksResponse {
           tracks: Array<{ id: string | null }>;
           total: number;
           nextCursor: string | null;
-        }>(url);
+        }
+        
+        const response: LikedTracksResponse = await apiFetch<LikedTracksResponse>(url);
         
         // Extract IDs (filter out local files with null ID)
         const ids = response.tracks
-          .map(t => t.id)
-          .filter((id): id is string => id !== null);
+          .map((t: { id: string | null }) => t.id)
+          .filter((id: string | null): id is string => id !== null);
         
         allIds.push(...ids);
         setTotal(response.total);
@@ -333,11 +335,13 @@ export function useSavedTracksIndex() {
         const likedIdsFound: string[] = [];
         batches.forEach((batch, batchIndex) => {
           const booleans = results[batchIndex];
-          batch.forEach((id, idIndex) => {
-            if (booleans[idIndex]) {
-              likedIdsFound.push(id);
-            }
-          });
+          if (booleans) {
+            batch.forEach((id, idIndex) => {
+              if (booleans[idIndex]) {
+                likedIdsFound.push(id);
+              }
+            });
+          }
         });
         
         if (likedIdsFound.length > 0) {

@@ -38,24 +38,25 @@ import { toast } from 'sonner';
 import type { Track } from '@/lib/spotify/types';
 
 /**
+ * Minimal panel configuration required for DnD operations.
+ * Compatible with the full PanelConfig from useSplitGridStore.
+ */
+interface PanelConfig {
+  id: string;
+  playlistId: string | null;
+  isEditable: boolean;
+  dndMode?: 'move' | 'copy';
+  selection?: Set<string>;
+}
+
+/**
  * Panel data stored in virtualizer registry
  */
 interface PanelVirtualizerData {
   virtualizer: any;
-  scrollRef: React.RefObject<HTMLDivElement>;
+  scrollRef: { current: HTMLDivElement | null };
   filteredTracks: Track[];
   canDrop: boolean; // Whether this panel accepts drops (false when sorted)
-}
-
-/**
- * Panel configuration for DnD operations
- */
-interface PanelConfig {
-  id: string;
-  isEditable: boolean;
-  dndMode?: 'copy' | 'move';
-  playlistId?: string;
-  selection?: Set<string>;
 }
 
 /**
@@ -122,8 +123,8 @@ interface UseDndOrchestratorReturn {
   // Panel virtualizer registry
   registerVirtualizer: (
     panelId: string,
-    virtualizer: any,
-    scrollRef: React.RefObject<HTMLDivElement>,
+    virtualizer: unknown,
+    scrollRef: { current: HTMLDivElement | null },
     filteredTracks: Track[],
     canDrop: boolean
   ) => void;
@@ -166,8 +167,8 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
   // Register panel virtualizer for drop calculations
   const registerVirtualizer = useCallback((
     panelId: string,
-    virtualizer: any,
-    scrollRef: React.RefObject<HTMLDivElement>,
+    virtualizer: unknown,
+    scrollRef: { current: HTMLDivElement | null },
     filteredTracks: Track[],
     canDrop: boolean
   ) => {
