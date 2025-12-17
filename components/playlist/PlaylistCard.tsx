@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import React from "react";
+import { Heart } from "lucide-react";
 import { type Playlist } from "@/lib/spotify/types";
 import { cn } from "@/lib/utils";
+import { isLikedSongsPlaylist } from "@/hooks/useLikedVirtualPlaylist";
 
 type PlaylistCardProps = {
   playlist: Playlist;
@@ -12,6 +14,8 @@ type PlaylistCardProps = {
 
 export function PlaylistCard({ playlist, className }: PlaylistCardProps) {
   const cover = playlist.image?.url;
+  const isLiked = isLikedSongsPlaylist(playlist.id);
+  
   return (
     <Link
       href={`/playlists/${encodeURIComponent(playlist.id)}`}
@@ -30,6 +34,10 @@ export function PlaylistCard({ playlist, className }: PlaylistCardProps) {
             className="w-full h-full object-cover transition-transform group-hover:scale-[1.03]"
             loading="lazy"
           />
+        ) : isLiked ? (
+          <div className="w-full h-full grid place-items-center bg-gradient-to-br from-indigo-600 to-purple-500">
+            <Heart className="w-16 h-16 text-white fill-white" />
+          </div>
         ) : (
           <div className="w-full h-full grid place-items-center text-sm text-muted-foreground">
             No cover

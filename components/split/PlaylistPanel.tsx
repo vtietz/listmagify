@@ -12,13 +12,15 @@ import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { useDroppable } from '@dnd-kit/core';
 import { apiFetch } from '@/lib/api/client';
 import { playlistMeta, playlistPermissions } from '@/lib/api/queryKeys';
-import { makeCompositeId } from '@/lib/dnd/id';
+import { makeCompositeId, getTrackPosition } from '@/lib/dnd/id';
 import { DropIndicator } from './DropIndicator';
 import { eventBus } from '@/lib/sync/eventBus';
 import { useSplitGridStore } from '@/hooks/useSplitGridStore';
 import { usePlaylistSort, type SortKey, type SortDirection } from '@/hooks/usePlaylistSort';
 import { useTrackListSelection } from '@/hooks/useTrackListSelection';
 import { usePlaylistTracksInfinite } from '@/hooks/usePlaylistTracksInfinite';
+import { useSavedTracksIndex, usePrefetchSavedTracks } from '@/hooks/useSavedTracksIndex';
+import { useLikedVirtualPlaylist, isLikedSongsPlaylist, LIKED_SONGS_METADATA } from '@/hooks/useLikedVirtualPlaylist';
 import { useRemoveTracks } from '@/lib/spotify/playlistMutations';
 import { getTrackSelectionKey } from '@/lib/dnd/selection';
 import { PanelToolbar } from './PanelToolbar';
@@ -144,20 +146,68 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
     [setDroppableRef]
   );
 
-  // Use infinite query as single source of truth for playlist tracks
-  const { 
-    allTracks: tracks, 
+  // Check if this is the virtual "Liked Songs" playlist
+  const isLikedPlaylist = isLikedSongsPlaylist(playlistId);
+
+  // Use liked virtual playlist for "Liked Songs", regular playlist for others
+  const likedPlaylistData = useLikedVirtualPlaylist();
+  const regularPlaylistData = usePlaylistTracksInfinite({
+    playlistId: isLikedPlaylist ? null : playlistId,
+    enabled: !!playlistId && !isLikedPlaylist,
+  });
+
+  // Select the appropriate data source
+  const {
+    allTracks: tracks,
     snapshotId,
-    isLoading, 
+    isLoading,
     isFetchingNextPage: isAutoLoading,
     isRefetching,
     hasLoadedAll,
     error,
     dataUpdatedAt,
-  } = usePlaylistTracksInfinite({
-    playlistId,
-    enabled: !!playlistId,
-  });
+  } = isLikedPlaylist
+    ? {
+        allTracks: likedPlaylistData.allTracks,
+        snapshotId: 'liked-songs', // Virtual playlist has no snapshot
+        isLoading: likedPlaylistData.isLoading,
+        isFetchingNextPage: likedPlaylistData.isFetchingNextPage,
+        isRefetching: false,
+        hasLoadedAll: likedPlaylistData.hasLoadedAll,
+        error: likedPlaylistData.error,
+        dataUpdatedAt: likedPlaylistData.dataUpdatedAt,
+      }
+    : {
+        allTracks: regularPlaylistData.allTracks,
+        snapshotId: regularPlaylistData.snapshotId,
+        isLoading: regularPlaylistData.isLoading,
+        isFetchingNextPage: regularPlaylistData.isFetchingNextPage,
+        isRefetching: regularPlaylistData.isRefetching,
+        hasLoadedAll: regularPlaylistData.hasLoadedAll,
+        error: regularPlaylistData.error,
+        dataUpdatedAt: regularPlaylistData.dataUpdatedAt,
+      };
+
+  // Start background prefetch of all saved tracks (once per session)
+  usePrefetchSavedTracks();
+
+  // Global saved tracks index for heart icons
+  const { isLiked, toggleLiked, ensureCoverage } = useSavedTracksIndex();
+
+  // Ensure coverage for visible tracks (debounced, for unknown IDs only)
+  useEffect(() => {
+    if (tracks.length > 0 && hasLoadedAll) {
+      const trackIds = tracks
+        .map(t => t.id)
+        .filter((id): id is string => id !== null);
+      ensureCoverage(trackIds);
+    }
+  }, [tracks, hasLoadedAll, ensureCoverage]);
+
+  // Callback for heart button clicks
+  const handleToggleLiked = useCallback((trackId: string, currentlyLiked: boolean) => {
+    toggleLiked(trackId, currentlyLiked);
+  }, [toggleLiked]);
 
   // Remove tracks mutation for delete functionality
   const removeTracks = useRemoveTracks();
@@ -165,11 +215,11 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
   // Show reload animation when auto-loading or manually refetching
   const isReloading = isAutoLoading || isRefetching;
 
-  // Fetch playlist metadata for name
+  // Fetch playlist metadata for name (skip for virtual liked playlist)
   const { data: playlistMetaData } = useQuery({
-    queryKey: playlistId ? playlistMeta(playlistId) : ['playlist', null],
+    queryKey: playlistId && !isLikedPlaylist ? playlistMeta(playlistId) : ['playlist', null],
     queryFn: async () => {
-      if (!playlistId) throw new Error('No playlist ID');
+      if (!playlistId || isLikedPlaylist) throw new Error('No playlist ID');
       const result = await apiFetch<{
         id: string;
         name: string;
@@ -179,32 +229,35 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
       }>(`/api/playlists/${playlistId}`);
       return result;
     },
-    enabled: !!playlistId,
+    enabled: !!playlistId && !isLikedPlaylist,
     staleTime: 60000, // 1 minute
   });
 
   useEffect(() => {
-    if (playlistMetaData?.name) {
+    if (isLikedPlaylist) {
+      setPlaylistName(LIKED_SONGS_METADATA.name);
+    } else if (playlistMetaData?.name) {
       setPlaylistName(playlistMetaData.name);
     }
-  }, [playlistMetaData]);
+  }, [playlistMetaData, isLikedPlaylist]);
 
-  // Fetch playlist permissions
+  // Fetch playlist permissions (virtual liked playlist is always editable for unlike)
   const { data: permissionsData } = useQuery({
-    queryKey: playlistId ? playlistPermissions(playlistId) : ['playlist-permissions', null],
+    queryKey: playlistId && !isLikedPlaylist ? playlistPermissions(playlistId) : ['playlist-permissions', null],
     queryFn: async () => {
-      if (!playlistId) throw new Error('No playlist ID');
+      if (!playlistId || isLikedPlaylist) throw new Error('No playlist ID');
       const result = await apiFetch<{ isEditable: boolean }>(
         `/api/playlists/${playlistId}/permissions`
       );
       return result;
     },
-    enabled: !!playlistId,
+    enabled: !!playlistId && !isLikedPlaylist,
     staleTime: 60000, // 1 minute
   });
 
   // Derive isEditable from query result
-  const isEditable = permissionsData?.isEditable || false;
+  // Liked Songs playlist is not editable (can't reorder/add), but can unlike tracks
+  const isEditable = isLikedPlaylist ? false : (permissionsData?.isEditable || false);
 
   // Read-only playlists are always in 'copy' mode
   const storedDndMode = isEditable ? (panel?.dndMode || 'copy') : 'copy';
@@ -313,7 +366,9 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
   // Compute contextItems with ephemeral insertion for "make room" animation
   const contextItems = useMemo(() => {
     // Use composite IDs scoped by panel for globally unique identification
-    const baseItems = filteredTracks.map((t: Track) => makeCompositeId(panelId, t.id || t.uri));
+    const baseItems = filteredTracks.map((t: Track, index: number) => 
+      makeCompositeId(panelId, t.id || t.uri, getTrackPosition(t, index))
+    );
     
     // For cross-panel drags, we use a visual drop indicator line instead of
     // ephemeral insertion to avoid interfering with @dnd-kit's native animations.
@@ -560,6 +615,7 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
               sortKey={sortKey}
               sortDirection={sortDirection}
               onSort={handleSort}
+              showLikedColumn={true}
             />
             <SortableContext
               items={contextItems}
@@ -612,6 +668,9 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
                       playlistId={playlistId}
                       dndMode={dndMode}
                       isDragSourceSelected={isDragSource && selection.has(selectionId)}
+                      showLikedColumn={true}
+                      isLiked={track.id ? isLiked(track.id) : false}
+                      onToggleLiked={handleToggleLiked}
                     />
                   </div>
                 );

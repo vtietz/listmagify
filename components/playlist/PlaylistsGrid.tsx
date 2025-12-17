@@ -5,6 +5,7 @@ import type { Playlist } from "@/lib/spotify/types";
 import { PlaylistCard } from "@/components/playlist/PlaylistCard";
 import { apiFetch, ApiError } from "@/lib/api/client";
 import { useAutoLoadPaginated } from "@/hooks/useAutoLoadPaginated";
+import { LIKED_SONGS_METADATA } from "@/hooks/useLikedVirtualPlaylist";
 
 export interface PlaylistsGridProps {
   initialItems: Playlist[];
@@ -62,19 +63,41 @@ export function PlaylistsGrid({
     }
   }, [isRefreshing]); // Intentionally limited deps
 
+  // Virtual playlist for Liked Songs (shown first)
+  const likedSongsPlaylist: Playlist = useMemo(() => ({
+    id: LIKED_SONGS_METADATA.id,
+    name: LIKED_SONGS_METADATA.name,
+    description: LIKED_SONGS_METADATA.description,
+    ownerName: LIKED_SONGS_METADATA.ownerName,
+    image: LIKED_SONGS_METADATA.image,
+    isPublic: LIKED_SONGS_METADATA.isPublic,
+    tracksTotal: 0, // Will be fetched when viewing the playlist
+  }), []);
+
   // Filter items by search term (case-insensitive, name and owner)
   const filteredItems = useMemo(() => {
-    if (!searchTerm.trim()) {
-      return items;
+    const query = searchTerm.trim().toLowerCase();
+    
+    // Filter regular playlists
+    let filtered: Playlist[];
+    if (!query) {
+      filtered = items;
+    } else {
+      filtered = items.filter((playlist) => {
+        const nameMatch = playlist.name.toLowerCase().includes(query);
+        const ownerMatch = playlist.ownerName?.toLowerCase().includes(query) ?? false;
+        return nameMatch || ownerMatch;
+      });
     }
-
-    const query = searchTerm.toLowerCase();
-    return items.filter((playlist) => {
-      const nameMatch = playlist.name.toLowerCase().includes(query);
-      const ownerMatch = playlist.ownerName?.toLowerCase().includes(query) ?? false;
-      return nameMatch || ownerMatch;
-    });
-  }, [items, searchTerm]);
+    
+    // Check if Liked Songs matches search (or show if no search)
+    const likedMatches = !query || 
+      likedSongsPlaylist.name.toLowerCase().includes(query) ||
+      likedSongsPlaylist.ownerName?.toLowerCase().includes(query);
+    
+    // Prepend Liked Songs if it matches
+    return likedMatches ? [likedSongsPlaylist, ...filtered] : filtered;
+  }, [items, searchTerm, likedSongsPlaylist]);
 
   if (filteredItems.length === 0) {
     return (

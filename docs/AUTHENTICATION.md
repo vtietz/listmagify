@@ -194,7 +194,7 @@ Before deploying to production, ensure:
 
 Current scopes (with editing capabilities):
 ```typescript
-scope: "user-read-email playlist-read-private playlist-modify-private playlist-modify-public"
+scope: "user-read-email playlist-read-private playlist-modify-private playlist-modify-public user-library-read user-library-modify"
 ```
 
 **Scopes breakdown**:
@@ -202,6 +202,8 @@ scope: "user-read-email playlist-read-private playlist-modify-private playlist-m
 - `playlist-read-private`: View user's private playlists
 - `playlist-modify-private`: Edit user's private playlists (reorder, add/remove tracks)
 - `playlist-modify-public`: Edit user's public playlists (reorder, add/remove tracks)
+- `user-library-read`: Read access to user's "Liked Songs" library
+- `user-library-modify`: Save/remove tracks from user's "Liked Songs" library
 
 **Note**: Changing scopes requires users to re-authenticate to grant new permissions. Users who authenticated before the scope update will need to log out and log back in.
 

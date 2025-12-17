@@ -207,12 +207,12 @@ describe('PlaylistSelector', () => {
     // Wait for playlists to load
     const searchInput = await screen.findByPlaceholderText('Search playlists...');
     
-    // Press ArrowDown
+    // Press ArrowDown - moves from index 0 (Liked Songs) to index 1 (Another Playlist)
     await user.keyboard('{ArrowDown}');
     
-    // Second item should be highlighted (bg-accent class)
+    // "Another Playlist" should be highlighted (first regular playlist after Liked Songs)
     await waitFor(() => {
-      const playlistButton = screen.getByText('My Playlist 1').closest('button');
+      const playlistButton = screen.getByText('Another Playlist').closest('button');
       expect(playlistButton).toHaveClass('bg-accent');
     });
   });
@@ -228,13 +228,13 @@ describe('PlaylistSelector', () => {
     // Wait for search input
     await screen.findByPlaceholderText('Search playlists...');
     
-    // Press Enter (should select first item)
+    // Press Enter (should select first item - "Liked Songs" at index 0)
     await user.keyboard('{Enter}');
     
-    // Verify callback was called
+    // Verify callback was called with 'liked' (the virtual Liked Songs playlist ID)
     await waitFor(() => {
       expect(mockOnSelectPlaylist).toHaveBeenCalledTimes(1);
-      expect(mockOnSelectPlaylist).toHaveBeenCalledWith('playlist3'); // Sorted alphabetically, so "Another Playlist" is first
+      expect(mockOnSelectPlaylist).toHaveBeenCalledWith('liked');
     });
   });
 

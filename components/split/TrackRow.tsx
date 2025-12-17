@@ -10,7 +10,7 @@ import type { Track } from '@/lib/spotify/types';
 import { makeCompositeId, getTrackPosition } from '@/lib/dnd/id';
 import { cn } from '@/lib/utils';
 import { formatDuration } from '@/lib/utils/format';
-import { GripVertical } from 'lucide-react';
+import { GripVertical, Heart } from 'lucide-react';
 
 interface TrackRowProps {
   track: Track;
@@ -26,6 +26,12 @@ interface TrackRowProps {
   dndMode?: 'copy' | 'move';
   /** True if this track is selected AND a drag is in progress from this panel */
   isDragSourceSelected?: boolean;
+  /** Whether to show the liked status column */
+  showLikedColumn?: boolean;
+  /** Whether this track is liked (saved to user's library) */
+  isLiked?: boolean;
+  /** Callback to toggle liked status */
+  onToggleLiked?: (trackId: string, currentlyLiked: boolean) => void;
 }
 
 export function TrackRow({
@@ -41,6 +47,9 @@ export function TrackRow({
   playlistId,
   dndMode = 'copy',
   isDragSourceSelected = false,
+  showLikedColumn = true,
+  isLiked = false,
+  onToggleLiked,
 }: TrackRowProps) {
   // Create globally unique composite ID scoped by panel and position
   // Position is required to distinguish duplicate tracks (same song multiple times)
@@ -92,6 +101,20 @@ export function TrackRow({
     }
   };
 
+  const handleHeartClick = (e: React.MouseEvent) => {
+    // Stop propagation to prevent row selection/DnD interference
+    e.stopPropagation();
+    e.preventDefault();
+    
+    // Local files have null ID - can't be saved to library
+    if (!track.id) return;
+    
+    onToggleLiked?.(track.id, isLiked);
+  };
+
+  // Local files can't be saved to library
+  const isLocalFile = track.id === null;
+
   return (
     <div
       ref={setNodeRef}
@@ -123,6 +146,32 @@ export function TrackRow({
         <div className="flex-shrink-0 text-muted-foreground hover:text-foreground pointer-events-none">
           <GripVertical className="h-4 w-4" />
         </div>
+      )}
+
+      {/* Liked status button */}
+      {showLikedColumn && (
+        <button
+          onClick={handleHeartClick}
+          disabled={isLocalFile}
+          className={cn(
+            'flex-shrink-0 w-8 flex items-center justify-center transition-colors',
+            isLocalFile && 'opacity-30 cursor-not-allowed',
+            !isLocalFile && 'hover:scale-110',
+            isLiked ? 'text-green-500' : 'text-muted-foreground hover:text-foreground',
+          )}
+          title={
+            isLocalFile
+              ? 'Local files cannot be saved to library'
+              : isLiked
+                ? 'Remove from Liked Songs'
+                : 'Save to Liked Songs'
+          }
+          aria-label={isLiked ? 'Unlike track' : 'Like track'}
+        >
+          <Heart
+            className={cn('h-4 w-4', isLiked && 'fill-current')}
+          />
+        </button>
       )}
 
       {/* Position number */}

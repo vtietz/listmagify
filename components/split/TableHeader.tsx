@@ -5,7 +5,7 @@
 
 'use client';
 
-import { ArrowUp, ArrowDown, GripVertical } from 'lucide-react';
+import { ArrowUp, ArrowDown, GripVertical, Heart } from 'lucide-react';
 import type { SortKey, SortDirection } from '@/hooks/usePlaylistSort';
 
 interface TableHeaderProps {
@@ -13,9 +13,11 @@ interface TableHeaderProps {
   sortKey: SortKey;
   sortDirection: SortDirection;
   onSort: (key: SortKey) => void;
+  /** Whether to show the liked status column */
+  showLikedColumn?: boolean;
 }
 
-export function TableHeader({ isEditable, sortKey, sortDirection, onSort }: TableHeaderProps) {
+export function TableHeader({ isEditable, sortKey, sortDirection, onSort, showLikedColumn = true }: TableHeaderProps) {
   const SortIcon = sortDirection === 'asc' ? ArrowUp : ArrowDown;
 
   const renderColumnHeader = (label: string, key: SortKey, width?: string) => {
@@ -44,6 +46,13 @@ export function TableHeader({ isEditable, sortKey, sortDirection, onSort }: Tabl
       {isEditable && (
         <div className="flex-shrink-0 w-4">
           <GripVertical className="h-3 w-3 opacity-30" />
+        </div>
+      )}
+
+      {/* Liked status column - non-sortable */}
+      {showLikedColumn && (
+        <div className="flex-shrink-0 w-8 flex items-center justify-center" title="Liked status">
+          <Heart className="h-3 w-3" />
         </div>
       )}
 

@@ -10,10 +10,11 @@ import { createPortal } from 'react-dom';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ChevronsUpDown, Check } from 'lucide-react';
+import { ChevronsUpDown, Check, Heart } from 'lucide-react';
 import { apiFetch } from '@/lib/api/client';
 import { userPlaylists } from '@/lib/api/queryKeys';
 import { cn } from '@/lib/utils';
+import { LIKED_SONGS_PLAYLIST_ID, LIKED_SONGS_METADATA, isLikedSongsPlaylist } from '@/hooks/useLikedVirtualPlaylist';
 import type { Playlist } from '@/lib/spotify/types';
 
 interface PlaylistSelectorProps {
@@ -88,10 +89,26 @@ export function PlaylistSelector({ selectedPlaylistId, selectedPlaylistName, onS
       : allPlaylists;
 
     // Sort by name ascending (case-insensitive)
-    return [...base].sort((a, b) =>
+    const sorted = [...base].sort((a, b) =>
       a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
     );
+
+    // Check if "Liked Songs" matches the query (or no query = show all)
+    const showLikedSongs = !q || 
+      LIKED_SONGS_METADATA.name.toLowerCase().includes(q) ||
+      'liked'.includes(q);
+
+    return sorted;
   }, [allPlaylists, query]);
+
+  // Determine if "Liked Songs" should be shown based on search query
+  const showLikedSongs = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return !q || 
+      LIKED_SONGS_METADATA.name.toLowerCase().includes(q) ||
+      'liked'.includes(q) ||
+      'saved'.includes(q);
+  }, [query]);
 
   const selected = useMemo(
     () => allPlaylists.find((p) => p.id === selectedPlaylistId) || null,
@@ -154,25 +171,34 @@ export function PlaylistSelector({ selectedPlaylistId, selectedPlaylistName, onS
     [onSelectPlaylist]
   );
 
+  // Total items: Liked Songs (if shown) + filtered playlists
+  const totalItems = (showLikedSongs ? 1 : 0) + filtered.length;
+
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
       if (!open) return;
       if (e.key === 'ArrowDown') {
         e.preventDefault();
-        setActiveIndex((i) => Math.min(i + 1, Math.max(filtered.length - 1, 0)));
+        setActiveIndex((i) => Math.min(i + 1, Math.max(totalItems - 1, 0)));
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
         setActiveIndex((i) => Math.max(i - 1, 0));
       } else if (e.key === 'Enter') {
         e.preventDefault();
-        const item = filtered[activeIndex];
-        if (item) handleSelect(item.id);
+        // Index 0 = Liked Songs (if shown), otherwise adjust for playlist index
+        if (showLikedSongs && activeIndex === 0) {
+          handleSelect(LIKED_SONGS_PLAYLIST_ID);
+        } else {
+          const playlistIndex = showLikedSongs ? activeIndex - 1 : activeIndex;
+          const item = filtered[playlistIndex];
+          if (item) handleSelect(item.id);
+        }
       } else if (e.key === 'Escape') {
         e.preventDefault();
         setOpen(false);
       }
     },
-    [filtered, activeIndex, handleSelect, open]
+    [filtered, activeIndex, handleSelect, open, showLikedSongs, totalItems]
   );
 
   return (
@@ -186,8 +212,14 @@ export function PlaylistSelector({ selectedPlaylistId, selectedPlaylistName, onS
         onClick={handleToggle}
         title="Select playlist"
       >
-        <span className="truncate">
-          {selectedPlaylistName || selected?.name || 'Select a playlist...'}
+        <span className="truncate flex items-center gap-1.5">
+          {isLikedSongsPlaylist(selectedPlaylistId) && (
+            <Heart className="h-3.5 w-3.5 fill-green-500 text-green-500 shrink-0" />
+          )}
+          {selectedPlaylistName || 
+           (isLikedSongsPlaylist(selectedPlaylistId) ? LIKED_SONGS_METADATA.name : null) || 
+           selected?.name || 
+           'Select a playlist...'}
         </span>
         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
       </Button>
@@ -217,38 +249,69 @@ export function PlaylistSelector({ selectedPlaylistId, selectedPlaylistName, onS
           <div className="max-h-64 overflow-auto">
             {isLoading && allPlaylists.length === 0 ? (
               <div className="p-2 text-sm text-muted-foreground">Loading...</div>
-            ) : filtered.length === 0 ? (
+            ) : !showLikedSongs && filtered.length === 0 ? (
               <div className="p-2 text-sm text-muted-foreground">No playlists found.</div>
             ) : (
               <>
-                {filtered.map((p, idx) => (
+                {/* Virtual "Liked Songs" playlist - always first */}
+                {showLikedSongs && (
                   <button
-                    key={p.id}
+                    key={LIKED_SONGS_PLAYLIST_ID}
                     type="button"
-                    onClick={() => handleSelect(p.id)}
+                    onClick={() => handleSelect(LIKED_SONGS_PLAYLIST_ID)}
                     className={cn(
                       'w-full text-left px-2 py-1 rounded hover:bg-accent hover:text-accent-foreground',
-                      idx === activeIndex ? 'bg-accent text-accent-foreground' : ''
+                      activeIndex === 0 ? 'bg-accent text-accent-foreground' : ''
                     )}
                   >
                     <div className="flex items-start gap-2">
                       <Check
                         className={cn(
                           'mt-0.5 h-4 w-4',
-                          selectedPlaylistId === p.id ? 'opacity-100' : 'opacity-0'
+                          isLikedSongsPlaylist(selectedPlaylistId) ? 'opacity-100' : 'opacity-0'
                         )}
                       />
-                      <div className="min-w-0">
-                        <div className="truncate">{p.name}</div>
-                        {p.owner?.displayName && (
-                          <div className="text-xs text-muted-foreground truncate">
-                            {p.owner.displayName}
-                          </div>
-                        )}
+                      <div className="min-w-0 flex items-center gap-1.5">
+                        <Heart className="h-3.5 w-3.5 fill-green-500 text-green-500 shrink-0" />
+                        <div className="truncate">{LIKED_SONGS_METADATA.name}</div>
                       </div>
                     </div>
                   </button>
-                ))}
+                )}
+
+                {/* Regular playlists */}
+                {filtered.map((p, idx) => {
+                  // Adjust index to account for Liked Songs at position 0
+                  const adjustedIndex = showLikedSongs ? idx + 1 : idx;
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => handleSelect(p.id)}
+                      className={cn(
+                        'w-full text-left px-2 py-1 rounded hover:bg-accent hover:text-accent-foreground',
+                        adjustedIndex === activeIndex ? 'bg-accent text-accent-foreground' : ''
+                      )}
+                    >
+                      <div className="flex items-start gap-2">
+                        <Check
+                          className={cn(
+                            'mt-0.5 h-4 w-4',
+                            selectedPlaylistId === p.id ? 'opacity-100' : 'opacity-0'
+                          )}
+                        />
+                        <div className="min-w-0">
+                          <div className="truncate">{p.name}</div>
+                          {p.owner?.displayName && (
+                            <div className="text-xs text-muted-foreground truncate">
+                              {p.owner.displayName}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
                 
                 {/* Show loading indicator when auto-loading more playlists */}
                 {isFetchingNextPage && (
