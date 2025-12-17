@@ -50,7 +50,7 @@ declare module '@tanstack/react-query' {
     TQueryFnData = unknown,
     TError = unknown,
     TData = TQueryFnData,
-    TQueryKey extends any[] = any[],
+    TQueryKey extends readonly unknown[] = readonly unknown[],
     TPageParam = unknown
   >(options: {
     queryKey: TQueryKey;

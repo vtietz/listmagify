@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth/auth";
 import { SignInButton } from "@/components/auth/SignInButton";
 import Link from "next/link";
+import { Music } from "lucide-react";
 
 type Props = {
   searchParams: Promise<{ next?: string; reason?: string }>;
@@ -18,7 +19,7 @@ export default async function LoginPage({ searchParams }: Props) {
   const { next, reason } = await searchParams;
 
   // Default return path if none specified
-  const returnTo = next && next.startsWith("/") ? next : "/playlists";
+  const returnTo = next && next.startsWith("/") ? next : "/split-editor";
 
   // If already authenticated, redirect to intended destination
   if (session) {
@@ -30,17 +31,27 @@ export default async function LoginPage({ searchParams }: Props) {
     reason === "expired"
       ? "Your session has expired. Please sign in again."
       : reason === "unauthenticated"
-      ? "You need to sign in to access this page."
-      : "To get started, please sign in with your Spotify account.";
+      ? "Sign in to access this page."
+      : null;
 
   return (
     <div className="flex min-h-dvh items-center justify-center p-8">
-      <div className="max-w-md text-center space-y-3">
-        <h1 className="text-2xl font-semibold">Welcome to Spotify Playlist Editor</h1>
-        <p className="text-muted-foreground">{message}</p>
-        <div className="flex justify-center gap-3">
+      <div className="max-w-md text-center space-y-6">
+        <Link href="/" className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
+          <Music className="h-8 w-8 text-primary" />
+          <span className="text-xl font-semibold text-foreground">Spotify Playlist Studio</span>
+        </Link>
+        {message && (
+          <p className="text-muted-foreground">{message}</p>
+        )}
+        <div className="flex justify-center">
           <SignInButton callbackUrl={returnTo} />
         </div>
+        <p className="text-sm text-muted-foreground">
+          <Link href="/" className="hover:text-foreground transition-colors underline">
+            ← Back to home
+          </Link>
+        </p>
       </div>
     </div>
   );

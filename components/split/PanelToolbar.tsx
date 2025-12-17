@@ -320,7 +320,7 @@ export function PanelToolbar({
                 <DeleteDialog
                   trigger={
                     <DropdownMenuItem
-                      onSelect={(e) => e.preventDefault()}
+                      onSelect={(e: Event) => e.preventDefault()}
                       disabled={isDeleting}
                       className="text-destructive focus:text-destructive"
                     >

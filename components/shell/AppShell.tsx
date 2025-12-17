@@ -16,7 +16,26 @@ type AppShellProps = {
   children?: React.ReactNode;
 };
 
-export function AppShell({ headerTitle = "Spotify Playlist Editor", children }: AppShellProps) {
+export function AppShell({ headerTitle = "Spotify Playlist Studio", children }: AppShellProps) {
+  const pathname = usePathname();
+  
+  // Pages that need fixed viewport height (no global scrolling)
+  const isFixedHeightPage = pathname === '/split-editor' || 
+                            pathname === '/playlists' || 
+                            pathname.startsWith('/playlists/');
+  
+  // Landing page and other pages can scroll normally
+  if (!isFixedHeightPage) {
+    return (
+      <div className="min-h-dvh flex flex-col bg-background text-foreground">
+        <Header title={headerTitle} />
+        <main className="flex-1">{children}</main>
+        <SpotifyPlayer />
+      </div>
+    );
+  }
+
+  // Split editor and playlist pages use fixed height layout
   return (
     <div className="h-dvh flex flex-col bg-background text-foreground overflow-hidden">
       <Header title={headerTitle} />
