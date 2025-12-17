@@ -20,8 +20,8 @@ export function PlaylistCard({ playlist, className }: PlaylistCardProps) {
     <Link
       href={`/playlists/${encodeURIComponent(playlist.id)}`}
       className={cn(
-        "group rounded-lg border bg-card text-card-foreground shadow-sm overflow-hidden",
-        "transition hover:shadow-md focus:outline-none focus:ring-2 ring-offset-2 ring-emerald-500",
+        "group rounded-lg bg-card text-card-foreground overflow-hidden",
+        "transition hover:shadow-md focus:outline-none focus:ring-2 ring-emerald-500",
         className
       )}
     >
