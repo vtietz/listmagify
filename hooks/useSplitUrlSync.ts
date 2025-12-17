@@ -356,6 +356,30 @@ function isLayoutSyncPath(pathname: string): boolean {
 }
 
 /**
+ * Extract playlist ID from /playlists/[id] path.
+ * Returns null for other paths.
+ */
+function extractPlaylistIdFromPath(pathname: string): string | null {
+  const match = pathname.match(/^\/playlists\/([^/]+)$/);
+  return match ? match[1] : null;
+}
+
+/**
+ * Check if the layout is just a single panel with the given playlist ID and no special flags.
+ * In this case, we don't need a layout param since the route already specifies the playlist.
+ */
+function isDefaultSinglePanelLayout(root: SplitNode, playlistId: string): boolean {
+  if (root.kind !== 'panel') return false;
+  const { panel } = root;
+  return (
+    panel.playlistId === playlistId &&
+    !panel.searchQuery &&
+    !panel.locked &&
+    panel.dndMode === 'copy'
+  );
+}
+
+/**
  * Hook that synchronizes split grid state with URL query params.
  * - Hydrates state from URL on mount (if layout param present)
  * - Updates URL when state changes (debounced)
@@ -418,13 +442,37 @@ export function useSplitUrlSync(): void {
         if (!isLayoutSyncPath(pathnameRef.current)) return;
         if (!state.root) return;
         
+        // Check if this is a /playlists/[id] route with just the default single panel
+        const routePlaylistId = extractPlaylistIdFromPath(pathnameRef.current);
+        if (routePlaylistId && isDefaultSinglePanelLayout(state.root, routePlaylistId)) {
+          // Don't add layout param - the route already specifies the playlist
+          // Remove layout param if it exists
+          const params = new URLSearchParams(window.location.search);
+          if (params.has('layout')) {
+            params.delete('layout');
+            const newUrl = params.toString() 
+              ? `${pathnameRef.current}?${params.toString()}`
+              : pathnameRef.current;
+            router.replace(newUrl, { scroll: false });
+          }
+          lastEncodedLayout.current = null;
+          return;
+        }
+        
         const encoded = encodeLayout(state.root);
         
         // Only update if actually changed
         if (encoded === lastEncodedLayout.current) return;
         lastEncodedLayout.current = encoded;
 
-        // Build new URL with updated layout param
+        // If we're on /playlists/[id] with a non-default layout (multi-panel or different playlist),
+        // redirect to /split-editor since the layout contains all the playlist info
+        if (routePlaylistId) {
+          router.replace(`/split-editor?layout=${encoded}`, { scroll: false });
+          return;
+        }
+
+        // Build new URL with updated layout param (for /split-editor)
         const params = new URLSearchParams(window.location.search);
         params.set('layout', encoded);
         
