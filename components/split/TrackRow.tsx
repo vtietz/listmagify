@@ -100,9 +100,6 @@ export function TrackRow({
         'flex items-center gap-3 px-4 h-12 border-b border-border transition-colors min-w-max',
         !isSelected && 'hover:bg-accent/40 hover:text-foreground',
         isSelected && 'bg-accent/70 text-foreground hover:bg-accent/80',
-        // Cursor feedback - show grab/copy only when draggable
-        !locked && isEditable && dndMode === 'move' && 'cursor-grab active:cursor-grabbing',
-        !locked && isEditable && dndMode === 'copy' && 'cursor-copy',
         // Visual feedback during drag - apply to dragged item OR all selected items in multi-select
         (isDragging || isDragSourceSelected) && dndMode === 'move' && 'opacity-0',
         (isDragging || isDragSourceSelected) && dndMode === 'copy' && 'opacity-50',
