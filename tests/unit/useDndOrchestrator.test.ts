@@ -117,7 +117,7 @@ describe('useDndOrchestrator', () => {
       const mockTracks: Track[] = [];
 
       act(() => {
-        result.current.registerVirtualizer('panel-1', mockVirtualizer, mockScrollRef, mockTracks);
+        result.current.registerVirtualizer('panel-1', mockVirtualizer, mockScrollRef, mockTracks, true);
       });
 
       // No error means registration succeeded
@@ -132,7 +132,7 @@ describe('useDndOrchestrator', () => {
       const mockTracks: Track[] = [];
 
       act(() => {
-        result.current.registerVirtualizer('panel-1', mockVirtualizer, mockScrollRef, mockTracks);
+        result.current.registerVirtualizer('panel-1', mockVirtualizer, mockScrollRef, mockTracks, true);
         result.current.unregisterVirtualizer('panel-1');
       });
 
@@ -380,7 +380,7 @@ describe('useDndOrchestrator', () => {
       const mockScrollRef = { current: document.createElement('div') };
 
       act(() => {
-        result.current.registerVirtualizer('panel-1', mockVirtualizer, mockScrollRef, [trackA, trackB, trackC]);
+        result.current.registerVirtualizer('panel-1', mockVirtualizer, mockScrollRef, [trackA, trackB, trackC], true);
       });
 
       act(() => {
@@ -431,7 +431,7 @@ describe('useDndOrchestrator', () => {
       }).not.toThrow();
 
       expect(reorderTracksMutate).toHaveBeenCalledTimes(1);
-      const callArgs = reorderTracksMutate.mock.calls[0][0];
+      const callArgs = reorderTracksMutate.mock.calls[0]![0];
       expect(callArgs.playlistId).toBe('playlist-1');
       expect(callArgs.rangeLength).toBe(2);
     });

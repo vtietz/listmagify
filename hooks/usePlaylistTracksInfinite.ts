@@ -83,10 +83,10 @@ export function usePlaylistTracksInfinite({
     PlaylistTracksPage,
     Error,
     InfiniteData<PlaylistTracksPage>,
-    ReturnType<typeof playlistTracksInfinite>,
+    readonly ['playlist-tracks-infinite', string | null],
     string | null
   >({
-    queryKey: playlistId ? playlistTracksInfinite(playlistId) : ['playlist-tracks-infinite', null],
+    queryKey: playlistId ? playlistTracksInfinite(playlistId) : ['playlist-tracks-infinite', null] as const,
     queryFn: async ({ pageParam = null }): Promise<PlaylistTracksPage> => {
       if (!playlistId) throw new Error('No playlist ID');
       

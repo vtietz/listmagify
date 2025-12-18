@@ -75,7 +75,7 @@ export function useAddTracks() {
         }),
       });
     },
-    onMutate: async (params) => {
+    onMutate: async (params: AddTracksParams) => {
       // Cancel outgoing refetches
       await queryClient.cancelQueries({ queryKey: playlistTracks(params.playlistId) });
 
@@ -89,7 +89,7 @@ export function useAddTracks() {
 
       return { previousData };
     },
-    onSuccess: (data, params) => {
+    onSuccess: (_data: MutationResponse, params: AddTracksParams) => {
       // Invalidate the infinite query to refetch with the new tracks
       // We can't do optimistic updates for add because we only have URIs, not full Track objects
       queryClient.invalidateQueries({ 
@@ -111,7 +111,7 @@ export function useAddTracks() {
 
       toast.success('Tracks added successfully');
     },
-    onError: (error, params, context) => {
+    onError: (error: Error, params: AddTracksParams, context: { previousData?: PlaylistTracksData } | undefined) => {
       // Rollback on error
       if (context?.previousData) {
         queryClient.setQueryData(
@@ -142,7 +142,7 @@ export function useRemoveTracks() {
         }),
       });
     },
-    onMutate: async (params) => {
+    onMutate: async (params: RemoveTracksParams) => {
       // Cancel outgoing refetches for both query keys
       await queryClient.cancelQueries({ queryKey: playlistTracksInfinite(params.playlistId) });
       await queryClient.cancelQueries({ queryKey: playlistTracks(params.playlistId) });
@@ -156,7 +156,7 @@ export function useRemoveTracks() {
       );
 
       // Extract URIs for legacy compatibility
-      const trackUris = params.tracks.map(t => t.uri);
+      const trackUris = params.tracks.map((t: TrackToRemove) => t.uri);
 
       // Optimistically remove tracks from infinite query (primary)
       if (previousInfiniteData) {
@@ -190,13 +190,13 @@ export function useRemoveTracks() {
 
       return { previousInfiniteData, previousData };
     },
-    onSuccess: (data, params) => {
+    onSuccess: (data: MutationResponse, params: RemoveTracksParams) => {
       // Update snapshotId in infinite query without refetching
       const currentInfiniteData = queryClient.getQueryData<InfinitePlaylistData>(
         playlistTracksInfinite(params.playlistId)
       );
       if (currentInfiniteData?.pages?.length) {
-        const updatedPages = currentInfiniteData.pages.map(page => ({
+        const updatedPages = currentInfiniteData.pages.map((page: PlaylistTracksData) => ({
           ...page,
           snapshotId: data.snapshotId,
         }));
@@ -220,7 +220,7 @@ export function useRemoveTracks() {
       eventBus.emit('playlist:update', { playlistId: params.playlistId, cause: 'remove' });
       toast.success('Tracks removed successfully');
     },
-    onError: (error, params, context) => {
+    onError: (error: Error, params: RemoveTracksParams, context: { previousInfiniteData?: InfinitePlaylistData; previousData?: PlaylistTracksData } | undefined) => {
       // Rollback both caches
       if (context?.previousInfiniteData) {
         queryClient.setQueryData(
@@ -258,7 +258,7 @@ export function useReorderTracks() {
         }),
       });
     },
-    onMutate: async (params) => {
+    onMutate: async (params: ReorderTracksParams) => {
       // Cancel outgoing refetches for both query keys
       await queryClient.cancelQueries({ queryKey: playlistTracksInfinite(params.playlistId) });
       await queryClient.cancelQueries({ queryKey: playlistTracks(params.playlistId) });
@@ -301,7 +301,7 @@ export function useReorderTracks() {
 
       return { previousInfiniteData, previousData };
     },
-    onSuccess: async (data, params) => {
+    onSuccess: async (data: MutationResponse, params: ReorderTracksParams) => {
       // Refetch from server to get correct positions
       // This ensures the UI reflects the exact server state after reorder
       await queryClient.refetchQueries({
@@ -322,7 +322,7 @@ export function useReorderTracks() {
       eventBus.emit('playlist:update', { playlistId: params.playlistId, cause: 'reorder' });
       toast.success('Tracks reordered successfully');
     },
-    onError: (error, params, context) => {
+    onError: (error: Error, params: ReorderTracksParams, context: { previousInfiniteData?: InfinitePlaylistData; previousData?: PlaylistTracksData } | undefined) => {
       // Rollback both caches
       if (context?.previousInfiniteData) {
         queryClient.setQueryData(

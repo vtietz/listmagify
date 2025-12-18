@@ -150,6 +150,15 @@ declare module 'next/server' {
 
 declare module 'next-auth' {
   export function getServerSession(...args: any[]): Promise<any>;
+  export type AuthOptions = any;
+  export interface Session {
+    user?: {
+      name?: string | null;
+      email?: string | null;
+      image?: string | null;
+    };
+    expires: string;
+  }
 }
 
 declare module '@tanstack/react-query' {
@@ -180,12 +189,14 @@ declare module '@tanstack/react-query' {
   };
   export function useQuery<TData = unknown, TError = unknown>(options: any): any;
   export function useMutation<TData = unknown, TError = unknown>(options: any): any;
-  export function useQueryClient(): any;
+  export function useQueryClient(): QueryClient;
   export class QueryClient {
     constructor(config?: any);
     setQueryData(key: any, data: any): void;
-    getQueryData(key: any): any;
+    getQueryData<T = unknown>(key: any): T | undefined;
+    cancelQueries(filters?: any): Promise<void>;
     invalidateQueries(filters?: any): Promise<void>;
+    refetchQueries(filters?: any): Promise<void>;
     [key: string]: any;
   }
   export function QueryClientProvider(props: { client: QueryClient; children: any }): any;

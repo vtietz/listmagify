@@ -3,8 +3,14 @@
  */
 import { describe, it, expect } from "vitest";
 import { renderHook } from "@testing-library/react";
-import { usePlaylistSort } from "@/hooks/usePlaylistSort";
+import { usePlaylistSort, type SortKey, type SortDirection } from "@/hooks/usePlaylistSort";
 import type { Track } from "@/lib/spotify/types";
+
+interface TestProps {
+  tracks: Track[];
+  sortKey: SortKey;
+  sortDirection?: SortDirection;
+}
 
 // Test fixture factory
 function createTrack(overrides: Partial<Track> = {}): Track {
@@ -133,7 +139,7 @@ describe("usePlaylistSort", () => {
   });
 
   it("re-sorts when sortKey changes", () => {
-    const { result, rerender } = renderHook(
+    const { result, rerender } = renderHook<Track[], TestProps>(
       (props) =>
         usePlaylistSort({
           tracks: props.tracks,
@@ -142,7 +148,7 @@ describe("usePlaylistSort", () => {
       {
         initialProps: {
           tracks,
-          sortKey: "name" as const,
+          sortKey: "name",
         },
       }
     );
@@ -162,18 +168,18 @@ describe("usePlaylistSort", () => {
   });
 
   it("re-sorts when sortDirection changes", () => {
-    const { result, rerender } = renderHook(
+    const { result, rerender } = renderHook<Track[], TestProps>(
       (props) =>
         usePlaylistSort({
           tracks: props.tracks,
           sortKey: props.sortKey,
-          sortDirection: props.sortDirection,
+          sortDirection: props.sortDirection ?? "asc",
         }),
       {
         initialProps: {
           tracks,
-          sortKey: "name" as const,
-          sortDirection: "asc" as const,
+          sortKey: "name",
+          sortDirection: "asc",
         },
       }
     );

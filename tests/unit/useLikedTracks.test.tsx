@@ -177,11 +177,11 @@ describe("useLikedTracksStatus", () => {
     expect(mockApiFetch).toHaveBeenCalledTimes(2);
     
     // First call should have 50 IDs
-    const firstCallIds = (mockApiFetch.mock.calls[0][0] as string).split("ids=")[1].split(",");
+    const firstCallIds = (mockApiFetch.mock.calls[0]![0] as string).split("ids=")[1]!.split(",");
     expect(firstCallIds.length).toBe(50);
     
     // Second call should have 25 IDs
-    const secondCallIds = (mockApiFetch.mock.calls[1][0] as string).split("ids=")[1].split(",");
+    const secondCallIds = (mockApiFetch.mock.calls[1]![0] as string).split("ids=")[1]!.split(",");
     expect(secondCallIds.length).toBe(25);
 
     // Verify map contains all tracks
@@ -285,9 +285,9 @@ describe("useToggleSavedTrack", () => {
     });
 
     // Check optimistic update was applied
-    const updatedMap = queryClient.getQueryData<Map<string, boolean>>(
+    const updatedMap = queryClient.getQueryData(
       likedTracksKey("playlist1", "snapshot1")
-    );
+    ) as Map<string, boolean> | undefined;
     expect(updatedMap?.get("track1")).toBe(true);
   });
 
@@ -322,9 +322,9 @@ describe("useToggleSavedTrack", () => {
     });
 
     // Check optimistic update was applied
-    const updatedMap = queryClient.getQueryData<Map<string, boolean>>(
+    const updatedMap = queryClient.getQueryData(
       likedTracksKey("playlist1", "snapshot1")
-    );
+    ) as Map<string, boolean> | undefined;
     expect(updatedMap?.get("track1")).toBe(false);
   });
 
@@ -353,9 +353,9 @@ describe("useToggleSavedTrack", () => {
     });
 
     // Check that cache was rolled back
-    const rolledBackMap = queryClient.getQueryData<Map<string, boolean>>(
+    const rolledBackMap = queryClient.getQueryData(
       likedTracksKey("playlist1", "snapshot1")
-    );
+    ) as Map<string, boolean> | undefined;
     expect(rolledBackMap?.get("track1")).toBe(false);
   });
 
@@ -386,9 +386,9 @@ describe("useToggleSavedTrack", () => {
     });
 
     // Before API resolves, cache should be optimistically updated
-    const optimisticMap = queryClient.getQueryData<Map<string, boolean>>(
+    const optimisticMap = queryClient.getQueryData(
       likedTracksKey("playlist1", "snapshot1")
-    );
+    ) as Map<string, boolean> | undefined;
     expect(optimisticMap?.get("track1")).toBe(true);
 
     // Now resolve the API call

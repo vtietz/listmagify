@@ -115,7 +115,7 @@ interface PlaylistTracksPage {
   nextCursor: string | null;
 }
 
-interface InfiniteData<T> {
+export interface InfiniteData<T> {
   pages: T[];
   pageParams: unknown[];
 }
@@ -236,7 +236,7 @@ export function applyReorderToInfinitePages(
 export function applyRemoveToInfinitePages(
   data: InfiniteData<PlaylistTracksPage>,
   trackUris: string[],
-  tracksWithPositions?: Array<{ uri: string; positions: number[] }>
+  tracksWithPositions?: Array<{ uri: string; positions?: number[] }>
 ): InfiniteData<PlaylistTracksPage> {
   // Flatten all tracks
   const allTracks = flattenInfinitePages(data, false);
@@ -247,11 +247,13 @@ export function applyRemoveToInfinitePages(
     // Position-based removal: only remove tracks at specific positions
     const positionsToRemove = new Set<number>();
     tracksWithPositions.forEach(({ positions }) => {
-      positions.forEach(pos => positionsToRemove.add(pos));
+      if (positions) {
+        positions.forEach(pos => positionsToRemove.add(pos));
+      }
     });
     
     filteredTracks = allTracks.filter((track, index) => {
-      const position = track.position ?? index;
+      const position = typeof track.position === 'number' ? track.position : index;
       return !positionsToRemove.has(position);
     });
   } else {

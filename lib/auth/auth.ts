@@ -1,5 +1,5 @@
-import type { NextAuthOptions } from "next-auth";
 import SpotifyProvider from "next-auth/providers/spotify";
+import type { AuthOptions } from "next-auth";
 import { serverEnv, summarizeEnv } from "@/lib/env";
 
 console.log(
@@ -64,7 +64,7 @@ async function refreshAccessToken(token: Record<string, any>) {
  * - Access token stored in JWT and auto-refreshed on expiry
  * - httpOnly, secure cookies prevent XSS token exposure
  */
-export const authOptions: NextAuthOptions = {
+export const authOptions: AuthOptions = {
   secret: serverEnv.NEXTAUTH_SECRET,
   session: {
     strategy: "jwt",

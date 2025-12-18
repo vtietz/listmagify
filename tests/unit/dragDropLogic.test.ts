@@ -38,13 +38,13 @@ function computeDropPositionFromY(
   if (insertionIndexFiltered >= filteredTracks.length) {
     // Dropping after last visible track
     const lastTrack = filteredTracks[filteredTracks.length - 1];
-    const globalPosition = lastTrack.position + 1;
+    const globalPosition = lastTrack!.position + 1;
     return { filteredIndex: insertionIndexFiltered, globalPosition };
   }
 
   // Get the global position of the track at the insertion point
   const targetTrack = filteredTracks[insertionIndexFiltered];
-  const globalPosition = targetTrack.position;
+  const globalPosition = targetTrack!.position;
   return { filteredIndex: insertionIndexFiltered, globalPosition };
 }
 
@@ -269,7 +269,7 @@ describe('Collision Detection Priority', () => {
     );
 
     expect(trackCollisions).toHaveLength(1);
-    expect(trackCollisions[0].id).toBe('panel-1:track-1');
+    expect(trackCollisions[0]!.id).toBe('panel-1:track-1');
   });
 
   it('should fallback to panel collisions when no track collisions', () => {
@@ -289,6 +289,6 @@ describe('Collision Detection Priority', () => {
 
     expect(trackCollisions).toHaveLength(0);
     expect(panelCollisions).toHaveLength(1);
-    expect(panelCollisions[0].id).toBe('panel-1');
+    expect(panelCollisions[0]!.id).toBe('panel-1');
   });
 });

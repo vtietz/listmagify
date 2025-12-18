@@ -186,7 +186,7 @@ function removePanelFromTree(node: SplitNode | null, panelId: string): SplitNode
   
   // If only one child left, collapse the group
   if (updatedChildren.length === 1) {
-    return updatedChildren[0];
+    return updatedChildren[0]!;
   }
   
   return { ...node, children: updatedChildren };
@@ -271,7 +271,7 @@ function migrateLegacyPanels(panels: unknown[]): SplitNode | null {
   
   // If only one panel, return it directly
   if (panelNodes.length === 1) {
-    return panelNodes[0];
+    return panelNodes[0]!;
   }
   
   // Multiple panels - create a horizontal group (side by side)

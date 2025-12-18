@@ -112,7 +112,7 @@ describe('useLikedVirtualPlaylist', () => {
 
     expect(mockApiFetch).toHaveBeenCalledWith('/api/liked/tracks?limit=50');
     expect(result.current.allTracks).toHaveLength(2);
-    expect(result.current.allTracks[0].name).toBe('Track 1');
+    expect(result.current.allTracks[0]!.name).toBe('Track 1');
   });
 
   it('should handle pagination', async () => {

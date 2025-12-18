@@ -19,9 +19,9 @@ describe('useInsertionPointsStore', () => {
       
       const markers = getMarkers('playlist-1');
       expect(markers).toHaveLength(1);
-      expect(markers[0].index).toBe(5);
-      expect(markers[0].markerId).toBeDefined();
-      expect(markers[0].createdAt).toBeDefined();
+      expect(markers[0]!.index).toBe(5);
+      expect(markers[0]!.markerId).toBeDefined();
+      expect(markers[0]!.createdAt).toBeDefined();
     });
 
     it('should be idempotent - no duplicates for same index', () => {
@@ -68,7 +68,7 @@ describe('useInsertionPointsStore', () => {
       
       const markers = getMarkers('playlist-1');
       expect(markers).toHaveLength(1);
-      expect(markers[0].index).toBe(10);
+      expect(markers[0]!.index).toBe(10);
     });
 
     it('should be safe to call on non-existent marker', () => {
