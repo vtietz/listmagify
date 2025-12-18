@@ -223,7 +223,7 @@ export function TrackRow({
       ref={setNodeRef}
       style={{ ...style, ...TRACK_GRID_STYLE_WITH_ALBUM }}
       className={cn(
-        'relative group/row', // Add relative and group for the insertion marker toggle
+        'relative group/row bg-card', // relative and group for the insertion marker toggle
         TRACK_GRID_CLASSES,
         isCompact ? 'h-7 ' + TRACK_GRID_CLASSES_COMPACT : 'h-10 ' + TRACK_GRID_CLASSES_NORMAL,
         'border-b border-border transition-colors',

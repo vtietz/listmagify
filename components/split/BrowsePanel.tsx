@@ -14,11 +14,13 @@ import { useBrowsePanelStore } from '@/hooks/useBrowsePanelStore';
 import { useCompactModeStore } from '@/hooks/useCompactModeStore';
 import { useSavedTracksIndex } from '@/hooks/useSavedTracksIndex';
 import { useTrackPlayback } from '@/hooks/useTrackPlayback';
+import { usePlaylistSort, type SortKey, type SortDirection } from '@/hooks/usePlaylistSort';
 import { apiFetch } from '@/lib/api/client';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { TrackRow } from './TrackRow';
+import { TableHeader } from './TableHeader';
 import { TRACK_ROW_HEIGHT, TRACK_ROW_HEIGHT_COMPACT, VIRTUALIZATION_OVERSCAN } from './constants';
 import { makeCompositeId } from '@/lib/dnd/id';
 import { cn } from '@/lib/utils';
@@ -44,6 +46,10 @@ export function BrowsePanel() {
   
   // Track resize dragging state for visual feedback
   const [isResizing, setIsResizing] = useState(false);
+  
+  // Sorting state
+  const [sortKey, setSortKey] = useState<SortKey>('position');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   
   // Local input state for immediate feedback
   const [localQuery, setLocalQuery] = useState(searchQuery);
@@ -104,19 +110,38 @@ export function BrowsePanel() {
     );
   }, [data?.pages]);
   
+  // Sort tracks
+  const sortedTracks = usePlaylistSort({
+    tracks: allTracks,
+    sortKey,
+    sortDirection,
+  });
+  
+  // Handle sort column click
+  const handleSort = useCallback((key: SortKey) => {
+    if (key === sortKey) {
+      // Toggle direction if same column
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      // New column: default to ascending
+      setSortKey(key);
+      setSortDirection('asc');
+    }
+  }, [sortKey]);
+  
   const totalResults = data?.pages[0]?.total ?? 0;
   
   // Create composite IDs for sortable context
   const sortableIds = useMemo(() => {
-    return allTracks.map((track: Track & { position: number }, idx: number) =>
+    return sortedTracks.map((track, idx) =>
       makeCompositeId(BROWSE_PANEL_ID, track.id || track.uri, track.position ?? idx)
     );
-  }, [allTracks]);
+  }, [sortedTracks]);
 
   // Track URIs for playback
   const trackUris = useMemo(() => 
-    allTracks.map((t: Track) => t.uri),
-    [allTracks]
+    sortedTracks.map((t: Track) => t.uri),
+    [sortedTracks]
   );
 
   // Playback integration
@@ -129,7 +154,7 @@ export function BrowsePanel() {
   
   // Virtualizer for efficient rendering
   const virtualizer = useVirtualizer({
-    count: allTracks.length,
+    count: sortedTracks.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => rowHeight,
     overscan: VIRTUALIZATION_OVERSCAN,
@@ -255,7 +280,7 @@ export function BrowsePanel() {
           <div className="flex items-center justify-center h-32 text-sm text-muted-foreground">
             Enter a search term to find tracks
           </div>
-        ) : allTracks.length === 0 ? (
+        ) : sortedTracks.length === 0 ? (
           <div className="flex items-center justify-center h-32 text-sm text-muted-foreground">
             No tracks found for &quot;{debouncedQuery}&quot;
           </div>
@@ -265,14 +290,24 @@ export function BrowsePanel() {
               ref={scrollRef}
               className="h-full overflow-auto"
             >
-              <div
-                style={{
-                  height: virtualizer.getTotalSize(),
-                  position: 'relative',
-                }}
-              >
+              {/* Inner content wrapper - sizes to intrinsic grid width for horizontal scroll */}
+              <div className="relative w-max min-w-full">
+                {/* Sortable Table Header - inside scroll container with sticky positioning */}
+                <TableHeader
+                  isEditable={false}
+                  sortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onSort={handleSort}
+                  showLikedColumn={true}
+                />
+                <div
+                  style={{
+                    height: virtualizer.getTotalSize(),
+                    position: 'relative',
+                  }}
+                >
                 {virtualizer.getVirtualItems().map((virtualRow) => {
-                  const track = allTracks[virtualRow.index];
+                  const track = sortedTracks[virtualRow.index];
                   if (!track) return null; // Guard for noUncheckedIndexedAccess
                   const trackId = track.id || track.uri;
                   const position = track.position ?? virtualRow.index;
@@ -312,7 +347,8 @@ export function BrowsePanel() {
                       />
                     </div>
                   );
-                })}
+                })}              
+                </div>
               </div>
               
               {/* Loading more indicator */}

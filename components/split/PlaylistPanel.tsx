@@ -671,6 +671,8 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
 
         {!isLoading && !error && filteredTracks.length > 0 && (
           <>
+            {/* Inner content wrapper - sizes to intrinsic grid width for horizontal scroll */}
+            <div className="relative w-max min-w-full">
             <TableHeader
               isEditable={isEditable}
               sortKey={sortKey}
@@ -685,7 +687,6 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
             <div
               style={{
                 height: `${virtualizer.getTotalSize()}px`,
-                width: '100%',
                 position: 'relative',
               }}
             >
@@ -755,6 +756,7 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
               })}
             </div>
           </SortableContext>
+          </div>
           </>
         )}
 

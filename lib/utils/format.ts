@@ -82,7 +82,7 @@ export function formatReleaseDate(
   if (!dateStr) return 'Unknown';
   
   const parts = dateStr.split('-');
-  const year = parts[0];
+  const year = parts[0] || 'Unknown';
   const month = parts[1];
   const day = parts[2];
   

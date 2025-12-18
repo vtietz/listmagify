@@ -87,7 +87,7 @@ export async function GET(
     const offset = parseInt(url.searchParams.get('offset') || '0', 10);
     
     // Map tracks with their original positions
-    const tracks: Track[] = rawItems.map((item, index) => ({
+    const tracks: Track[] = rawItems.map((item: unknown, index: number) => ({
       ...mapPlaylistItemToTrack(item),
       position: offset + index,
     }));
