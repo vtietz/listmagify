@@ -7,7 +7,7 @@
 'use client';
 
 import { useState, useRef, useEffect, ChangeEvent } from 'react';
-import { Search, RefreshCw, Lock, LockOpen, X, SplitSquareHorizontal, SplitSquareVertical, Move, Copy, Trash2, MoreHorizontal } from 'lucide-react';
+import { Search, RefreshCw, Lock, LockOpen, X, SplitSquareHorizontal, SplitSquareVertical, Move, Copy, Trash2, MoreHorizontal, MapPinOff } from 'lucide-react';
 import { PlaylistSelector } from './PlaylistSelector';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -49,6 +49,7 @@ interface PanelToolbarProps {
   sortDirection?: SortDirection;
   selectedCount?: number;
   isDeleting?: boolean;
+  insertionMarkerCount?: number;
   onSearchChange: (query: string) => void;
   onSortChange?: (key: SortKey, direction: SortDirection) => void;
   onReload: () => void;
@@ -59,6 +60,7 @@ interface PanelToolbarProps {
   onLockToggle: () => void;
   onLoadPlaylist: (playlistId: string) => void;
   onDeleteSelected?: () => void;
+  onClearInsertionMarkers?: () => void;
 }
 
 export function PanelToolbar({
@@ -74,6 +76,7 @@ export function PanelToolbar({
   sortDirection = 'asc',
   selectedCount = 0,
   isDeleting = false,
+  insertionMarkerCount = 0,
   onSearchChange,
   onSortChange,
   onReload,
@@ -84,6 +87,7 @@ export function PanelToolbar({
   onLockToggle,
   onLoadPlaylist,
   onDeleteSelected,
+  onClearInsertionMarkers,
 }: PanelToolbarProps) {
   const [localSearch, setLocalSearch] = useState(searchQuery);
   const [isCompact, setIsCompact] = useState(true);
@@ -219,6 +223,19 @@ export function PanelToolbar({
             />
           )}
 
+          {/* Clear Insertion Markers */}
+          {playlistId && isEditable && !locked && insertionMarkerCount > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onClearInsertionMarkers}
+              className="h-8 w-8 p-0 shrink-0 text-orange-500 hover:text-orange-600"
+              title={`Clear ${insertionMarkerCount} insertion marker${insertionMarkerCount > 1 ? 's' : ''}`}
+            >
+              <MapPinOff className="h-4 w-4" />
+            </Button>
+          )}
+
           <Separator orientation="vertical" className="h-6 mx-0.5" />
 
           {/* Split Horizontal */}
@@ -330,6 +347,14 @@ export function PanelToolbar({
                   }
                 />
               </>
+            )}
+
+            {/* Clear Insertion Markers */}
+            {playlistId && isEditable && !locked && insertionMarkerCount > 0 && (
+              <DropdownMenuItem onClick={onClearInsertionMarkers} className="text-orange-500 focus:text-orange-600">
+                <MapPinOff className="h-4 w-4 mr-2" />
+                Clear {insertionMarkerCount} marker{insertionMarkerCount > 1 ? 's' : ''}
+              </DropdownMenuItem>
             )}
 
             {playlistId && <DropdownMenuSeparator />}

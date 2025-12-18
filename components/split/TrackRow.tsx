@@ -5,14 +5,17 @@
 
 'use client';
 
+import * as React from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import type { Track } from '@/lib/spotify/types';
 import { makeCompositeId, getTrackPosition } from '@/lib/dnd/id';
 import { cn } from '@/lib/utils';
 import { formatDuration } from '@/lib/utils/format';
-import { GripVertical, Heart, Play, Pause, Loader2 } from 'lucide-react';
+import { GripVertical, Heart, Play, Pause, Loader2, MapPin } from 'lucide-react';
 import { useCompactModeStore } from '@/hooks/useCompactModeStore';
 import { useBrowsePanelStore } from '@/hooks/useBrowsePanelStore';
+import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
+import { AddToMarkedButton } from './AddToMarkedButton';
 import { TRACK_GRID_CLASSES, TRACK_GRID_CLASSES_NORMAL, TRACK_GRID_CLASSES_COMPACT, TRACK_GRID_STYLE_WITH_ALBUM } from './TableHeader';
 
 interface TrackRowProps {
@@ -43,6 +46,10 @@ interface TrackRowProps {
   onPlay?: (trackUri: string) => void;
   /** Callback to pause playback */
   onPause?: () => void;
+  /** Whether there's an insertion marker before this row */
+  hasInsertionMarker?: boolean;
+  /** Whether there's an insertion marker after this row (for last item) */
+  hasInsertionMarkerAfter?: boolean;
 }
 
 export function TrackRow({
@@ -65,9 +72,16 @@ export function TrackRow({
   isPlaybackLoading = false,
   onPlay,
   onPause,
+  hasInsertionMarker = false,
+  hasInsertionMarkerAfter = false,
 }: TrackRowProps) {
   const { isCompact } = useCompactModeStore();
   const { open: openBrowsePanel, setSearchQuery } = useBrowsePanelStore();
+  const togglePoint = useInsertionPointsStore((s) => s.togglePoint);
+  
+  // Track whether mouse is near top/bottom edge for insertion marker toggle
+  // null = not near edge, 'top' = near top edge, 'bottom' = near bottom edge
+  const [nearEdge, setNearEdge] = React.useState<'top' | 'bottom' | null>(null);
   
   // Create globally unique composite ID scoped by panel and position
   // Position is required to distinguish duplicate tracks (same song multiple times)
@@ -158,6 +172,49 @@ export function TrackRow({
     }
   };
 
+  const handleInsertionMarkerToggle = (e: React.MouseEvent) => {
+    // Stop propagation to prevent row selection/DnD interference
+    e.stopPropagation();
+    e.preventDefault();
+    
+    if (playlistId && isEditable && !locked) {
+      // Toggle marker at index (before this row) or index+1 (after this row)
+      const targetIndex = nearEdge === 'bottom' ? index + 1 : index;
+      togglePoint(playlistId, targetIndex);
+    }
+  };
+
+  // Edge detection thresholds in pixels
+  const EDGE_THRESHOLD_Y = 8;  // Vertical: how close to top/bottom edge
+  const EDGE_THRESHOLD_X = 30; // Horizontal: how close to left edge
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const relativeX = e.clientX - rect.left;
+    const relativeY = e.clientY - rect.top;
+    
+    // Only show toggle when mouse is near left edge AND near top/bottom edge
+    const nearLeftEdge = relativeX <= EDGE_THRESHOLD_X;
+    
+    if (!nearLeftEdge) {
+      setNearEdge(null);
+      return;
+    }
+    
+    // Check if mouse is near top or bottom edge
+    if (relativeY <= EDGE_THRESHOLD_Y) {
+      setNearEdge('top');
+    } else if (relativeY >= rect.height - EDGE_THRESHOLD_Y) {
+      setNearEdge('bottom');
+    } else {
+      setNearEdge(null);
+    }
+  };
+
+  const handleMouseLeave = () => {
+    setNearEdge(null);
+  };
+
   // Local files can't be saved to library
   const isLocalFile = track.id === null;
 
@@ -166,6 +223,7 @@ export function TrackRow({
       ref={setNodeRef}
       style={{ ...style, ...TRACK_GRID_STYLE_WITH_ALBUM }}
       className={cn(
+        'relative group/row', // Add relative and group for the insertion marker toggle
         TRACK_GRID_CLASSES,
         isCompact ? 'h-7 ' + TRACK_GRID_CLASSES_COMPACT : 'h-10 ' + TRACK_GRID_CLASSES_NORMAL,
         'border-b border-border transition-colors',
@@ -179,6 +237,8 @@ export function TrackRow({
       role="option"
       onClick={handleClick}
       onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
       aria-selected={isSelected}
       title={
         locked
@@ -217,6 +277,13 @@ export function TrackRow({
           <Play className={isCompact ? 'h-3 w-3 ml-0.5' : 'h-4 w-4 ml-0.5'} />
         )}
       </button>
+
+      {/* Add to marked insertion points button */}
+      <AddToMarkedButton
+        trackUri={track.uri}
+        trackName={track.name}
+        {...(playlistId ? { excludePlaylistId: playlistId } : {})}
+      />
 
       {/* Grip handle for dragging */}
       <div className="flex items-center justify-center text-muted-foreground hover:text-foreground pointer-events-none">
@@ -302,7 +369,7 @@ export function TrackRow({
           <div className={cn('text-muted-foreground truncate', isCompact ? 'text-xs' : 'text-sm')}>
             <button
               className="hover:underline hover:text-green-500 text-left cursor-pointer truncate max-w-full"
-              onClick={(e) => handleAlbumClick(e, track.album!.name)}
+              onClick={(e) => handleAlbumClick(e, track.album!.name as string)}
               title={`Search for tracks from "${track.album.name}"`}
             >
               {track.album.name}
@@ -315,6 +382,55 @@ export function TrackRow({
       <div className={cn('text-muted-foreground tabular-nums text-right', isCompact ? 'text-xs' : 'text-sm')}>
         {formatDuration(track.durationMs)}
       </div>
+
+      {/* Insertion marker line - shown at top edge when marked (before this row) */}
+      {hasInsertionMarker && (
+        <div
+          className="absolute left-0 right-0 top-0 h-[3px] bg-orange-500 pointer-events-none z-10"
+          style={{ boxShadow: '0 0 6px rgba(249, 115, 22, 0.7)' }}
+        />
+      )}
+
+      {/* Insertion marker line - shown at bottom edge when marked (after this row) */}
+      {hasInsertionMarkerAfter && (
+        <div
+          className="absolute left-0 right-0 bottom-0 h-[3px] bg-orange-500 pointer-events-none z-10"
+          style={{ boxShadow: '0 0 6px rgba(249, 115, 22, 0.7)' }}
+        />
+      )}
+
+      {/* Insertion marker toggle button - only appears when mouse is near top/bottom edge */}
+      {isEditable && !locked && nearEdge !== null && (
+        <button
+          onClick={handleInsertionMarkerToggle}
+          className={cn(
+            'absolute z-20 rounded-full transition-all duration-150',
+            'focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-1',
+            isCompact ? 'w-4 h-4 -left-1' : 'w-5 h-5 -left-1.5',
+            // Position at top or bottom based on which edge mouse is near
+            nearEdge === 'bottom'
+              ? (isCompact ? '-bottom-2' : '-bottom-2.5')
+              : (isCompact ? '-top-2' : '-top-2.5'),
+            // Show as active if there's a marker at the relevant position
+            (nearEdge === 'bottom' ? hasInsertionMarkerAfter : hasInsertionMarker)
+              ? 'bg-orange-500 text-white hover:bg-orange-600'
+              : 'bg-muted text-muted-foreground hover:bg-orange-100 hover:text-orange-600 dark:hover:bg-orange-950',
+          )}
+          title={
+            nearEdge === 'bottom'
+              ? (hasInsertionMarkerAfter ? 'Remove insertion marker' : 'Add insertion marker after this row')
+              : (hasInsertionMarker ? 'Remove insertion marker' : 'Add insertion marker before this row')
+          }
+          aria-pressed={nearEdge === 'bottom' ? hasInsertionMarkerAfter : hasInsertionMarker}
+          aria-label={
+            nearEdge === 'bottom'
+              ? (hasInsertionMarkerAfter ? `Remove insertion point after row ${index + 1}` : `Add insertion point after row ${index + 1}`)
+              : (hasInsertionMarker ? `Remove insertion point before row ${index + 1}` : `Add insertion point before row ${index + 1}`)
+          }
+        >
+          <MapPin className={cn(isCompact ? 'w-2.5 h-2.5' : 'w-3 h-3', 'mx-auto')} />
+        </button>
+      )}
     </div>
   );
 }

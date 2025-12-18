@@ -25,9 +25,11 @@ import { useRemoveTracks } from '@/lib/spotify/playlistMutations';
 import { useTrackPlayback } from '@/hooks/useTrackPlayback';
 import { getTrackSelectionKey } from '@/lib/dnd/selection';
 import { useCompactModeStore } from '@/hooks/useCompactModeStore';
+import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
 import { PanelToolbar } from './PanelToolbar';
 import { TableHeader } from './TableHeader';
 import { TrackRow } from './TrackRow';
+import { InsertionMarkersOverlay } from './InsertionMarker';
 import { TRACK_ROW_HEIGHT, TRACK_ROW_HEIGHT_COMPACT, VIRTUALIZATION_OVERSCAN } from './constants';
 import type { Track } from '@/lib/spotify/types';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -148,6 +150,15 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
       setDroppableRef(el);
     },
     [setDroppableRef]
+  );
+
+  // Get insertion markers for this playlist
+  // Use getMarkers directly which returns a stable empty array when no markers exist
+  const insertionMarkers = useInsertionPointsStore((s) => s.getMarkers(playlistId ?? ''));
+  const clearInsertionMarkers = useInsertionPointsStore((s) => s.clearPlaylist);
+  const activeMarkerIndices = useMemo(() => 
+    new Set(insertionMarkers.map(m => m.index)),
+    [insertionMarkers]
   );
 
   // Check if this is the virtual "Liked Songs" playlist
@@ -610,6 +621,7 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
         sortDirection={sortDirection}
         selectedCount={selection.size}
         isDeleting={removeTracks.isPending}
+        insertionMarkerCount={activeMarkerIndices.size}
         onSearchChange={handleSearchChange}
         onSortChange={(key, direction) => {
           setSortKey(key);
@@ -623,6 +635,7 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
         onLockToggle={handleLockToggle}
         onLoadPlaylist={handleLoadPlaylist}
         onDeleteSelected={handleDeleteSelected}
+        onClearInsertionMarkers={() => playlistId && clearInsertionMarkers(playlistId)}
       />
 
       <div
@@ -684,6 +697,17 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
                 filteredTracksCount={filteredTracks.length}
               />
 
+              {/* Insertion point markers (orange lines) */}
+              {playlistId && isEditable && activeMarkerIndices.size > 0 && (
+                <InsertionMarkersOverlay
+                  playlistId={playlistId}
+                  totalTracks={filteredTracks.length}
+                  rowHeight={rowHeight}
+                  showToggles={!isDragSource}
+                  activeIndices={activeMarkerIndices}
+                />
+              )}
+
               {items.map((virtualRow) => {
                 const track = filteredTracks[virtualRow.index];
                 if (!track) return null;
@@ -723,6 +747,8 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
                       isPlaybackLoading={isTrackLoading(track.uri)}
                       onPlay={playTrack}
                       onPause={pausePlayback}
+                      hasInsertionMarker={activeMarkerIndices.has(virtualRow.index)}
+                      hasInsertionMarkerAfter={activeMarkerIndices.has(virtualRow.index + 1)}
                     />
                   </div>
                 );

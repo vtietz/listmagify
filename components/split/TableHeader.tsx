@@ -5,8 +5,9 @@
 
 'use client';
 
-import { ArrowUp, ArrowDown, GripVertical, Heart, Play } from 'lucide-react';
+import { ArrowUp, ArrowDown, GripVertical, Heart, Play, Plus } from 'lucide-react';
 import { useCompactModeStore } from '@/hooks/useCompactModeStore';
+import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
 import type { SortKey, SortDirection } from '@/hooks/usePlaylistSort';
 
 interface TableHeaderProps {
@@ -23,12 +24,12 @@ export const TRACK_GRID_CLASSES = 'grid items-center';
 export const TRACK_GRID_CLASSES_NORMAL = 'gap-2 px-3';
 export const TRACK_GRID_CLASSES_COMPACT = 'gap-1 px-1.5';
 export const TRACK_GRID_STYLE = {
-  // Play | Grip | Heart | # | Title (flex) | Artist (flex) | Time
-  gridTemplateColumns: '24px 12px 24px 32px minmax(150px, 1fr) minmax(120px, 1fr) 50px',
+  // Play | Add | Grip | Heart | # | Title (flex) | Artist (flex) | Time
+  gridTemplateColumns: '24px 24px 12px 24px 32px minmax(150px, 1fr) minmax(120px, 1fr) 50px',
 };
 export const TRACK_GRID_STYLE_WITH_ALBUM = {
-  // Play | Grip | Heart | # | Title (flex) | Artist (flex) | Album (flex) | Time
-  gridTemplateColumns: '24px 12px 24px 32px minmax(150px, 2fr) minmax(120px, 1fr) minmax(120px, 1fr) 50px',
+  // Play | Add | Grip | Heart | # | Title (flex) | Artist (flex) | Album (flex) | Time
+  gridTemplateColumns: '24px 24px 12px 24px 32px minmax(150px, 2fr) minmax(120px, 1fr) minmax(120px, 1fr) 50px',
 };
 
 export function TableHeader({ isEditable, sortKey, sortDirection, onSort, showLikedColumn = true }: TableHeaderProps) {
@@ -65,6 +66,11 @@ export function TableHeader({ isEditable, sortKey, sortDirection, onSort, showLi
       {/* Play button column */}
       <div className="flex items-center justify-center" title="Play">
         <Play className={isCompact ? 'h-2.5 w-2.5' : 'h-3 w-3'} />
+      </div>
+
+      {/* Add to marked column */}
+      <div className="flex items-center justify-center" title="Add to marked insertion points">
+        <Plus className={isCompact ? 'h-2.5 w-2.5' : 'h-3 w-3'} />
       </div>
 
       {/* Grip column */}
