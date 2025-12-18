@@ -52,6 +52,35 @@ export default async function Home() {
         </div>
       </div>
 
+      {/* Screenshot Showcase */}
+      <div className="container mx-auto px-4 py-12">
+        <div className="max-w-6xl mx-auto space-y-8">
+          {/* Split Editor Screenshot */}
+          <div className="rounded-xl overflow-hidden border border-border shadow-2xl">
+            <img
+              src="/screenshot-split-editor.png"
+              alt="Split Editor - Edit multiple playlists side by side with drag and drop"
+              className="w-full h-auto"
+            />
+          </div>
+          <p className="text-center text-sm text-muted-foreground">
+            Edit multiple playlists simultaneously with the split panel editor
+          </p>
+          
+          {/* Playlists Screenshot */}
+          <div className="rounded-xl overflow-hidden border border-border shadow-2xl">
+            <img
+              src="/screenshot-playlists.png"
+              alt="Playlist Library - Browse and manage your entire Spotify collection"
+              className="w-full h-auto"
+            />
+          </div>
+          <p className="text-center text-sm text-muted-foreground">
+            Browse your entire playlist library with integrated search and playback
+          </p>
+        </div>
+      </div>
+
       {/* Features Grid */}
       <div className="container mx-auto px-4 py-16">
         <h2 className="text-2xl font-semibold text-center mb-12">

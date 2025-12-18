@@ -2,6 +2,8 @@
 
 A professional playlist management tool for Spotify. Edit multiple playlists side-by-side with drag-and-drop, bulk operations, and real-time sync.
 
+![Split Editor](public/screenshot-split-editor.png)
+
 ## Features
 
 - **Multi-Panel Editor** – Work with multiple playlists simultaneously in split views
