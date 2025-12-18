@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils';
 import { formatDuration } from '@/lib/utils/format';
 import { GripVertical, Heart, Play, Pause, Loader2 } from 'lucide-react';
 import { useCompactModeStore } from '@/hooks/useCompactModeStore';
+import { useBrowsePanelStore } from '@/hooks/useBrowsePanelStore';
 import { TRACK_GRID_CLASSES, TRACK_GRID_CLASSES_NORMAL, TRACK_GRID_CLASSES_COMPACT, TRACK_GRID_STYLE_WITH_ALBUM } from './TableHeader';
 
 interface TrackRowProps {
@@ -66,6 +67,7 @@ export function TrackRow({
   onPause,
 }: TrackRowProps) {
   const { isCompact } = useCompactModeStore();
+  const { open: openBrowsePanel, setSearchQuery } = useBrowsePanelStore();
   
   // Create globally unique composite ID scoped by panel and position
   // Position is required to distinguish duplicate tracks (same song multiple times)
@@ -97,6 +99,22 @@ export function TrackRow({
   const style = {};
 
   const { role: _attrRole, ...restAttributes } = attributes;
+  
+  // Handler to search for artist in browse panel
+  const handleArtistClick = (e: React.MouseEvent, artistName: string) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setSearchQuery(`artist:"${artistName}"`);
+    openBrowsePanel();
+  };
+  
+  // Handler to search for album in browse panel
+  const handleAlbumClick = (e: React.MouseEvent, albumName: string) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setSearchQuery(`album:"${albumName}"`);
+    openBrowsePanel();
+  };
 
   const handleClick = (e: React.MouseEvent) => {
     // Prevent text selection when using modifier-based range/toggle selection
@@ -238,70 +256,57 @@ export function TrackRow({
         {track.position != null ? track.position + 1 : index + 1}
       </div>
 
-      {/* Track title */}
+      {/* Track title - no link, just text */}
       <div className="min-w-0">
         <div className={cn('truncate', isCompact ? 'text-xs' : 'text-sm')}>
-          {track.id ? (
-            <a
-              href={`https://open.spotify.com/track/${track.id}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:underline hover:text-green-500"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {track.name}
-            </a>
-          ) : (
-            track.name
-          )}
+          {track.name}
         </div>
       </div>
 
-      {/* Artist */}
+      {/* Artist - click to search in browse panel */}
       <div className="min-w-0">
         <div className={cn('text-muted-foreground truncate', isCompact ? 'text-xs' : 'text-sm')}>
           {track.artistObjects && track.artistObjects.length > 0 ? (
             track.artistObjects.map((artist, idx) => (
               <span key={artist.id || artist.name}>
-                {artist.id ? (
-                  <a
-                    href={`https://open.spotify.com/artist/${artist.id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="hover:underline hover:text-green-500"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {artist.name}
-                  </a>
-                ) : (
-                  artist.name
-                )}
+                <button
+                  className="hover:underline hover:text-green-500 text-left cursor-pointer"
+                  onClick={(e) => handleArtistClick(e, artist.name)}
+                  title={`Search for tracks by "${artist.name}"`}
+                >
+                  {artist.name}
+                </button>
                 {idx < track.artistObjects!.length - 1 && ', '}
               </span>
             ))
           ) : (
-            track.artists.join(', ')
+            track.artists.map((artistName, idx) => (
+              <span key={artistName}>
+                <button
+                  className="hover:underline hover:text-green-500 text-left cursor-pointer"
+                  onClick={(e) => handleArtistClick(e, artistName)}
+                  title={`Search for tracks by "${artistName}"`}
+                >
+                  {artistName}
+                </button>
+                {idx < track.artists.length - 1 && ', '}
+              </span>
+            ))
           )}
         </div>
       </div>
 
-      {/* Album - hidden on small screens, but keep grid slot */}
+      {/* Album - click to search in browse panel, hidden on small screens */}
       <div className="hidden lg:block min-w-0">
         {track.album?.name && (
           <div className={cn('text-muted-foreground truncate', isCompact ? 'text-xs' : 'text-sm')}>
-            {track.album.id ? (
-              <a
-                href={`https://open.spotify.com/album/${track.album.id}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:underline hover:text-green-500"
-                onClick={(e) => e.stopPropagation()}
-              >
-                {track.album.name}
-              </a>
-            ) : (
-              track.album.name
-            )}
+            <button
+              className="hover:underline hover:text-green-500 text-left cursor-pointer truncate max-w-full"
+              onClick={(e) => handleAlbumClick(e, track.album!.name)}
+              title={`Search for tracks from "${track.album.name}"`}
+            >
+              {track.album.name}
+            </button>
           </div>
         )}
       </div>
