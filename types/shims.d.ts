@@ -32,6 +32,113 @@ declare namespace JSX {
     [elemName: string]: any;
   }
 }
+
+/**
+ * Spotify Web Playback SDK type declarations.
+ * @see https://developer.spotify.com/documentation/web-playback-sdk/reference
+ */
+interface Window {
+  onSpotifyWebPlaybackSDKReady: () => void;
+  Spotify: typeof Spotify;
+}
+
+declare namespace Spotify {
+  interface PlayerOptions {
+    name: string;
+    getOAuthToken: (cb: (token: string) => void) => void;
+    volume?: number;
+  }
+
+  interface WebPlaybackTrack {
+    uri: string;
+    id: string | null;
+    type: 'track' | 'episode' | 'ad';
+    media_type: 'audio' | 'video';
+    name: string;
+    is_playable: boolean;
+    album: {
+      uri: string;
+      name: string;
+      images: Array<{ url: string; height: number; width: number }>;
+    };
+    artists: Array<{
+      uri: string;
+      name: string;
+    }>;
+  }
+
+  interface WebPlaybackState {
+    context: {
+      uri: string | null;
+      metadata: Record<string, unknown>;
+    };
+    disallows: {
+      pausing: boolean;
+      peeking_next: boolean;
+      peeking_prev: boolean;
+      resuming: boolean;
+      seeking: boolean;
+      skipping_next: boolean;
+      skipping_prev: boolean;
+    };
+    paused: boolean;
+    position: number;
+    repeat_mode: 0 | 1 | 2;
+    shuffle: boolean;
+    track_window: {
+      current_track: WebPlaybackTrack;
+      previous_tracks: WebPlaybackTrack[];
+      next_tracks: WebPlaybackTrack[];
+    };
+    duration: number;
+    timestamp: number;
+  }
+
+  interface WebPlaybackError {
+    message: string;
+  }
+
+  interface ReadyEvent {
+    device_id: string;
+  }
+
+  interface NotReadyEvent {
+    device_id: string;
+  }
+
+  type PlayerEventCallback<T> = (event: T) => void;
+
+  class Player {
+    constructor(options: PlayerOptions);
+
+    connect(): Promise<boolean>;
+    disconnect(): void;
+    
+    addListener(event: 'ready', callback: PlayerEventCallback<ReadyEvent>): boolean;
+    addListener(event: 'not_ready', callback: PlayerEventCallback<NotReadyEvent>): boolean;
+    addListener(event: 'player_state_changed', callback: PlayerEventCallback<WebPlaybackState | null>): boolean;
+    addListener(event: 'initialization_error', callback: PlayerEventCallback<WebPlaybackError>): boolean;
+    addListener(event: 'authentication_error', callback: PlayerEventCallback<WebPlaybackError>): boolean;
+    addListener(event: 'account_error', callback: PlayerEventCallback<WebPlaybackError>): boolean;
+    addListener(event: 'playback_error', callback: PlayerEventCallback<WebPlaybackError>): boolean;
+    addListener(event: 'autoplay_failed', callback: PlayerEventCallback<void>): boolean;
+    
+    removeListener(event: string, callback?: (...args: any[]) => void): boolean;
+    
+    getCurrentState(): Promise<WebPlaybackState | null>;
+    setName(name: string): Promise<void>;
+    getVolume(): Promise<number>;
+    setVolume(volume: number): Promise<void>;
+    pause(): Promise<void>;
+    resume(): Promise<void>;
+    togglePlay(): Promise<void>;
+    seek(positionMs: number): Promise<void>;
+    previousTrack(): Promise<void>;
+    nextTrack(): Promise<void>;
+    activateElement(): Promise<void>;
+  }
+}
+
 // Temporary shims to satisfy VS Code on host without local node_modules.
 // Remove these when host-side node_modules is available or when using Dev Containers.
 

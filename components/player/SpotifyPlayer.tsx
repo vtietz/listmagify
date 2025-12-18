@@ -2,6 +2,7 @@
  * SpotifyPlayer component - Mini player bar at the bottom of the app.
  * Shows currently playing track, playback controls, and device selector.
  * Can be toggled visible/hidden via the header menu. Auto-shows when playback starts.
+ * Initializes the Web Playback SDK to enable in-browser playback.
  */
 
 'use client';
@@ -22,11 +23,15 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useSpotifyPlayer } from '@/hooks/useSpotifyPlayer';
+import { useWebPlaybackSDK } from '@/hooks/useWebPlaybackSDK';
 import { DeviceSelector } from './DeviceSelector';
 import { cn } from '@/lib/utils';
 import { formatDuration } from '@/lib/utils/format';
 
 export function SpotifyPlayer() {
+  // Initialize the Web Playback SDK for in-browser playback
+  const { isReady: isWebPlayerReady, isInitializing: isWebPlayerInitializing } = useWebPlaybackSDK();
+  
   const {
     playbackState,
     isPlaying,
@@ -131,13 +136,27 @@ export function SpotifyPlayer() {
     return null;
   }
 
-  // If nothing is playing, show minimal bar
+  // If nothing is playing, show minimal bar with status
   if (!track) {
     return (
       <div className="h-20 border-t border-border bg-background/95 backdrop-blur px-4 flex items-center justify-center">
         <div className="flex items-center gap-3 text-muted-foreground">
-          <MonitorSpeaker className="h-5 w-5" />
-          <span className="text-sm">No active playback</span>
+          {isWebPlayerInitializing ? (
+            <>
+              <Loader2 className="h-5 w-5 animate-spin" />
+              <span className="text-sm">Initializing player...</span>
+            </>
+          ) : isWebPlayerReady ? (
+            <>
+              <MonitorSpeaker className="h-5 w-5 text-green-500" />
+              <span className="text-sm">Ready to play</span>
+            </>
+          ) : (
+            <>
+              <MonitorSpeaker className="h-5 w-5" />
+              <span className="text-sm">No active playback</span>
+            </>
+          )}
           <Button
             variant="outline"
             size="sm"

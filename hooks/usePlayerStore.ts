@@ -28,6 +28,10 @@ interface PlayerStore {
   selectedDeviceId: string | null;
   isDeviceSelectorOpen: boolean;
   
+  // Web Playback SDK state
+  webPlayerDeviceId: string | null;
+  isWebPlayerReady: boolean;
+  
   // Current playback context (for auto-play next)
   playbackContext: PlaybackContext | null;
   
@@ -39,6 +43,8 @@ interface PlayerStore {
   setDevices: (devices: SpotifyDevice[]) => void;
   setSelectedDevice: (deviceId: string | null) => void;
   setDeviceSelectorOpen: (open: boolean) => void;
+  setWebPlayerDeviceId: (deviceId: string | null) => void;
+  setWebPlayerReady: (ready: boolean) => void;
   setPlaybackContext: (context: PlaybackContext | null) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
@@ -57,6 +63,8 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
   devices: [],
   selectedDeviceId: null,
   isDeviceSelectorOpen: false,
+  webPlayerDeviceId: null,
+  isWebPlayerReady: false,
   playbackContext: null,
   isPlayerVisible: false, // Hidden by default
 
@@ -65,6 +73,8 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
   setDevices: (devices) => set({ devices }),
   setSelectedDevice: (selectedDeviceId) => set({ selectedDeviceId }),
   setDeviceSelectorOpen: (isDeviceSelectorOpen) => set({ isDeviceSelectorOpen }),
+  setWebPlayerDeviceId: (webPlayerDeviceId) => set({ webPlayerDeviceId }),
+  setWebPlayerReady: (isWebPlayerReady) => set({ isWebPlayerReady }),
   setPlaybackContext: (playbackContext) => set({ playbackContext }),
   setLoading: (isLoading) => set({ isLoading }),
   setError: (error) => set({ error }),

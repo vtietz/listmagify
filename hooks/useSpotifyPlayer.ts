@@ -41,6 +41,8 @@ export function useSpotifyPlayer() {
     isLoading,
     error,
     isPlayerVisible,
+    webPlayerDeviceId,
+    isWebPlayerReady,
     setPlaybackState,
     setDevices,
     setSelectedDevice,
@@ -240,14 +242,25 @@ export function useSpotifyPlayer() {
   }) => {
     setLoading(true);
     setError(null);
+    
+    // Auto-show player when playing
+    setPlayerVisible(true);
 
     try {
-      const deviceId = selectedDeviceId || undefined;
+      // Get the device to use - prefer selected, fall back to web player
+      const { webPlayerDeviceId, isWebPlayerReady, selectedDeviceId: currentSelectedDeviceId } = usePlayerStore.getState();
+      let deviceId = currentSelectedDeviceId;
+      
+      // If no device selected but web player is ready, use it
+      if (!deviceId && isWebPlayerReady && webPlayerDeviceId) {
+        deviceId = webPlayerDeviceId;
+        setSelectedDevice(webPlayerDeviceId);
+      }
       
       // Build play request
       const params: ControlParams = {
         action: 'play',
-        deviceId,
+        deviceId: deviceId || undefined,
       };
 
       if (options?.contextUri) {
@@ -275,13 +288,10 @@ export function useSpotifyPlayer() {
           ...(options.playlistId ? { playlistId: options.playlistId } : {}),
         } as PlaybackContext);
       }
-      
-      // Auto-show player when playing
-      setPlayerVisible(true);
     } finally {
       setLoading(false);
     }
-  }, [selectedDeviceId, controlMutation, setLoading, setError, setPlaybackContext, setPlayerVisible]);
+  }, [controlMutation, setLoading, setError, setPlaybackContext, setPlayerVisible, setSelectedDevice]);
 
   // Pause playback
   const pause = useCallback(async () => {
@@ -481,6 +491,10 @@ export function useSpotifyPlayer() {
     error,
     isPlaying: playbackState?.isPlaying ?? false,
     currentTrackId: currentTrackId(),
+    
+    // Web Playback SDK state
+    webPlayerDeviceId,
+    isWebPlayerReady,
     
     // Actions
     play,
