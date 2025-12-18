@@ -66,18 +66,6 @@ export default async function Home() {
           <p className="text-center text-sm text-muted-foreground">
             Edit multiple playlists simultaneously with the split panel editor
           </p>
-          
-          {/* Playlists Screenshot */}
-          <div className="rounded-xl overflow-hidden border border-border shadow-2xl">
-            <img
-              src="/screenshot-playlists.png"
-              alt="Playlist Library - Browse and manage your entire Spotify collection"
-              className="w-full h-auto"
-            />
-          </div>
-          <p className="text-center text-sm text-muted-foreground">
-            Browse your entire playlist library with integrated search and playback
-          </p>
         </div>
       </div>
 
