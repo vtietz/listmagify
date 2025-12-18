@@ -180,7 +180,7 @@ export function SpotifyPlayer() {
       </div>
 
       {/* Playback controls */}
-      <div className="flex-1 flex flex-col items-center gap-1 max-w-[600px]">
+      <div className="flex-1 flex flex-col items-center gap-1">
         <div className="flex items-center gap-2">
           {/* Shuffle */}
           <Button

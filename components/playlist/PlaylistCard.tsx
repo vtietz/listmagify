@@ -6,6 +6,7 @@ import { Heart } from "lucide-react";
 import { type Playlist } from "@/lib/spotify/types";
 import { cn } from "@/lib/utils";
 import { isLikedSongsPlaylist } from "@/hooks/useLikedVirtualPlaylist";
+import { useCompactModeStore } from "@/hooks/useCompactModeStore";
 
 type PlaylistCardProps = {
   playlist: Playlist;
@@ -13,6 +14,7 @@ type PlaylistCardProps = {
 };
 
 export function PlaylistCard({ playlist, className }: PlaylistCardProps) {
+  const { isCompact } = useCompactModeStore();
   const cover = playlist.image?.url;
   const isLiked = isLikedSongsPlaylist(playlist.id);
   
@@ -36,7 +38,7 @@ export function PlaylistCard({ playlist, className }: PlaylistCardProps) {
           />
         ) : isLiked ? (
           <div className="w-full h-full grid place-items-center bg-gradient-to-br from-indigo-600 to-purple-500">
-            <Heart className="w-16 h-16 text-white fill-white" />
+            <Heart className={cn("text-white fill-white", isCompact ? "w-8 h-8" : "w-16 h-16")} />
           </div>
         ) : (
           <div className="w-full h-full grid place-items-center text-sm text-muted-foreground">
@@ -44,10 +46,10 @@ export function PlaylistCard({ playlist, className }: PlaylistCardProps) {
           </div>
         )}
       </div>
-      <div className="p-3 space-y-1">
-        <div className="font-medium line-clamp-1">{playlist.name}</div>
-        <div className="text-xs text-muted-foreground line-clamp-1">
-          by {playlist.ownerName ?? "Unknown"} • {playlist.tracksTotal ?? 0} tracks
+      <div className={cn("space-y-0.5", isCompact ? "p-1.5" : "p-3 space-y-1")}>
+        <div className={cn("font-medium line-clamp-1", isCompact && "text-xs")}>{playlist.name}</div>
+        <div className={cn("text-muted-foreground line-clamp-1", isCompact ? "text-[10px]" : "text-xs")}>
+          {isCompact ? playlist.tracksTotal ?? 0 : `by ${playlist.ownerName ?? "Unknown"} • ${playlist.tracksTotal ?? 0}`} tracks
         </div>
       </div>
     </Link>

@@ -14,7 +14,7 @@ export default async function PlaylistDetailPage({
   const { id } = await params;
 
   return (
-    <div className="h-[calc(100vh-3rem)]">
+    <div className="h-full">
       <SinglePlaylistView playlistId={id} />
     </div>
   );

@@ -7,6 +7,8 @@ import { apiFetch, ApiError } from "@/lib/api/client";
 import { useAutoLoadPaginated } from "@/hooks/useAutoLoadPaginated";
 import { LIKED_SONGS_METADATA } from "@/hooks/useLikedVirtualPlaylist";
 import { useLikedSongsTotal } from "@/hooks/useSavedTracksIndex";
+import { useCompactModeStore } from "@/hooks/useCompactModeStore";
+import { cn } from "@/lib/utils";
 
 export interface PlaylistsGridProps {
   initialItems: Playlist[];
@@ -32,6 +34,8 @@ export function PlaylistsGrid({
   isRefreshing,
   onRefreshComplete,
 }: PlaylistsGridProps) {
+  const { isCompact } = useCompactModeStore();
+  
   // Auto-load all playlists for instant search
   const { items, isAutoLoading, setItems, setNextCursor } = useAutoLoadPaginated({
     initialItems,
@@ -116,7 +120,12 @@ export function PlaylistsGrid({
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+      <div className={cn(
+        "grid",
+        isCompact 
+          ? "grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-2" 
+          : "grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4"
+      )}>
         {filteredItems.map((playlist) => (
           <PlaylistCard key={playlist.id} playlist={playlist} />
         ))}
