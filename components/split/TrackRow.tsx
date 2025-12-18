@@ -223,7 +223,7 @@ export function TrackRow({
       ref={setNodeRef}
       style={{ ...style, ...TRACK_GRID_STYLE_WITH_ALBUM }}
       className={cn(
-        'relative group/row bg-card', // relative and group for the insertion marker toggle
+        'relative group/row bg-card cursor-default', // relative and group for the insertion marker toggle, default cursor for row
         TRACK_GRID_CLASSES,
         isCompact ? 'h-7 ' + TRACK_GRID_CLASSES_COMPACT : 'h-10 ' + TRACK_GRID_CLASSES_NORMAL,
         'border-b border-border transition-colors',
@@ -314,13 +314,13 @@ export function TrackRow({
       )}
 
       {/* Position number */}
-      <div className={cn('text-muted-foreground tabular-nums cursor-pointer select-none', isCompact ? 'text-xs' : 'text-sm')}>
+      <div className={cn('text-muted-foreground tabular-nums select-none', isCompact ? 'text-xs' : 'text-sm')}>
         {track.position != null ? track.position + 1 : index + 1}
       </div>
 
       {/* Track title - no link, just text */}
       <div className="min-w-0">
-        <div className={cn('truncate cursor-pointer select-none', isCompact ? 'text-xs' : 'text-sm')}>
+        <div className={cn('truncate select-none', isCompact ? 'text-xs' : 'text-sm')}>
           {track.name}
         </div>
       </div>
@@ -375,7 +375,7 @@ export function TrackRow({
 
       {/* Release Year - shows year, tooltip shows full date */}
       <div 
-        className={cn('text-muted-foreground tabular-nums text-center cursor-pointer select-none', isCompact ? 'text-xs' : 'text-sm')}
+        className={cn('text-muted-foreground tabular-nums text-center select-none', isCompact ? 'text-xs' : 'text-sm')}
         title={track.album?.releaseDate ? `Released: ${formatReleaseDate(track.album.releaseDate, track.album.releaseDatePrecision)}` : 'Release date unknown'}
       >
         {track.album?.releaseDate ? track.album.releaseDate.substring(0, 4) : '—'}
@@ -383,7 +383,7 @@ export function TrackRow({
 
       {/* Popularity bar - visual representation of 0-100 popularity */}
       <div 
-        className="flex items-center justify-center cursor-pointer select-none"
+        className="flex items-center justify-center select-none"
         title={track.popularity != null ? `Popularity: ${track.popularity}%` : 'Popularity: Unknown'}
       >
         {track.popularity != null ? (
@@ -404,7 +404,7 @@ export function TrackRow({
       </div>
 
       {/* Duration - right aligned */}
-      <div className={cn('text-muted-foreground tabular-nums text-right cursor-pointer select-none', isCompact ? 'text-xs' : 'text-sm')}>
+      <div className={cn('text-muted-foreground tabular-nums text-right select-none', isCompact ? 'text-xs' : 'text-sm')}>
         {formatDuration(track.durationMs)}
       </div>
 
