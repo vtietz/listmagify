@@ -210,13 +210,12 @@ export function useWebPlaybackSDK(): UseWebPlaybackSDKResult {
         setError(message);
         setIsInitializing(false);
         
-        // Invalid token scopes means user needs to re-authenticate with updated scopes
-        if (message.includes('Invalid token scopes') || message.includes('scope')) {
-          toast.error('Please log out and log back in to enable web playback', {
-            duration: 8000,
-            description: 'Your session needs updated permissions for in-browser playback.',
-          });
-        }
+        // Authentication errors typically mean user needs to re-authenticate
+        // This includes invalid/expired tokens or missing scopes
+        toast.error('Web playback authentication failed', {
+          duration: 10000,
+          description: 'Try: 1) Log out and back in, 2) Revoke app access at spotify.com/account/apps, then log in again. Note: Spotify Premium is required.',
+        });
       });
 
       player.addListener('account_error', ({ message }) => {
@@ -267,16 +266,21 @@ export function useWebPlaybackSDK(): UseWebPlaybackSDKResult {
     }
   }, [setWebPlayerDeviceId, setWebPlayerReady]);
 
-  // Initialize on mount when authenticated
-  useEffect(() => {
-    if (authenticated) {
-      initialize();
-    }
-    
-    return () => {
-      disconnect();
-    };
-  }, [authenticated, initialize, disconnect]);
+  // NOTE: Web Playback SDK may require extended quota mode for new Spotify apps
+  // as of Nov 27, 2024. Disabled auto-initialization for now.
+  // See: https://developer.spotify.com/blog/2024-11-27-changes-to-the-web-api
+  // To enable, uncomment the useEffect below and ensure your app has extended quota mode.
+  
+  // Initialize on mount when authenticated - DISABLED for dev mode apps
+  // useEffect(() => {
+  //   if (authenticated) {
+  //     initialize();
+  //   }
+  //   
+  //   return () => {
+  //     disconnect();
+  //   };
+  // }, [authenticated, initialize, disconnect]);
 
   return {
     webPlayerDeviceId,

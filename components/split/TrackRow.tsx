@@ -373,6 +373,28 @@ export function TrackRow({
         )}
       </div>
 
+      {/* Popularity bar - visual representation of 0-100 popularity */}
+      <div 
+        className="flex items-center justify-center cursor-pointer select-none"
+        title={track.popularity != null ? `Popularity: ${track.popularity}%` : 'Popularity: Unknown'}
+      >
+        {track.popularity != null ? (
+          <div className={cn('w-full rounded-full bg-muted/50', isCompact ? 'h-1' : 'h-1.5')}>
+            <div 
+              className={cn(
+                'h-full rounded-full transition-all',
+                track.popularity >= 70 ? 'bg-green-500' : 
+                track.popularity >= 40 ? 'bg-yellow-500' : 
+                'bg-muted-foreground/50'
+              )}
+              style={{ width: `${track.popularity}%` }}
+            />
+          </div>
+        ) : (
+          <div className={cn('w-full rounded-full bg-muted/30', isCompact ? 'h-1' : 'h-1.5')} />
+        )}
+      </div>
+
       {/* Duration - right aligned */}
       <div className={cn('text-muted-foreground tabular-nums text-right cursor-pointer select-none', isCompact ? 'text-xs' : 'text-sm')}>
         {formatDuration(track.durationMs)}

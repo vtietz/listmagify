@@ -46,15 +46,11 @@ export type Track = {
     name?: string | null;
     image?: Image | null;
   } | null;
-  // Audio features (optional, fetched separately from Spotify)
-  tempoBpm?: number | null;
-  musicalKey?: number | null;
-  mode?: number | null;
-  acousticness?: number | null;
-  energy?: number | null;
-  instrumentalness?: number | null;
-  liveness?: number | null;
-  valence?: number | null;
+  /** Track popularity (0-100, 100 = most popular) */
+  popularity?: number | null;
+  // NOTE: Audio features (tempo, key, energy, etc.) are DEPRECATED for new Spotify apps
+  // as of Nov 27, 2024. Only apps with extended quota mode can access them.
+  // See: https://developer.spotify.com/blog/2024-11-27-changes-to-the-web-api
 };
 
 export type PageResult<T> = {
@@ -128,6 +124,7 @@ export function mapPlaylistItemToTrack(raw: any): Track {
           image: albumImages?.[0] ?? null,
         }
       : null,
+    popularity: typeof t?.popularity === 'number' ? t.popularity : null,
   };
 }
 

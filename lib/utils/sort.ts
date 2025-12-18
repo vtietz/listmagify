@@ -10,7 +10,8 @@ export type SortKey =
   | "name"
   | "artist"
   | "album"
-  | "duration";
+  | "duration"
+  | "popularity";
 
 export type SortDirection = "asc" | "desc";
 
@@ -84,6 +85,16 @@ export function compareByDuration(a: Track, b: Track): number {
 }
 
 /**
+ * Sort by popularity (0-100)
+ */
+export function compareByPopularity(a: Track, b: Track): number {
+  const aPop = a.popularity ?? 0;
+  const bPop = b.popularity ?? 0;
+  const result = aPop - bPop;
+  return result !== 0 ? result : stableSort(a, b);
+}
+
+/**
  * Get comparator function for a given sort key
  */
 export function getComparator(sortKey: SortKey): (a: Track, b: Track) => number {
@@ -98,6 +109,8 @@ export function getComparator(sortKey: SortKey): (a: Track, b: Track) => number 
       return compareByAlbum;
     case "duration":
       return compareByDuration;
+    case "popularity":
+      return compareByPopularity;
     default:
       return compareByPosition;
   }
