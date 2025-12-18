@@ -10,7 +10,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import type { Track } from '@/lib/spotify/types';
 import { makeCompositeId, getTrackPosition } from '@/lib/dnd/id';
 import { cn } from '@/lib/utils';
-import { formatDuration } from '@/lib/utils/format';
+import { formatDuration, formatReleaseDate } from '@/lib/utils/format';
 import { Heart, Play, Pause, Loader2, MapPin } from 'lucide-react';
 import { useCompactModeStore } from '@/hooks/useCompactModeStore';
 import { useBrowsePanelStore } from '@/hooks/useBrowsePanelStore';
@@ -371,6 +371,14 @@ export function TrackRow({
             </button>
           </div>
         )}
+      </div>
+
+      {/* Release Year - shows year, tooltip shows full date */}
+      <div 
+        className={cn('text-muted-foreground tabular-nums text-center cursor-pointer select-none', isCompact ? 'text-xs' : 'text-sm')}
+        title={track.album?.releaseDate ? `Released: ${formatReleaseDate(track.album.releaseDate, track.album.releaseDatePrecision)}` : 'Release date unknown'}
+      >
+        {track.album?.releaseDate ? track.album.releaseDate.substring(0, 4) : '—'}
       </div>
 
       {/* Popularity bar - visual representation of 0-100 popularity */}

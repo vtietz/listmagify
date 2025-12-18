@@ -68,3 +68,41 @@ export function formatKey(key: number, mode?: number | null): string {
 export function formatPercent(value: number): string {
   return `${Math.round(value * 100)}%`;
 }
+
+/**
+ * Format a release date for display
+ * @param dateStr - Date string in YYYY, YYYY-MM, or YYYY-MM-DD format
+ * @param precision - Precision of the date ('year', 'month', 'day')
+ * @returns Human-readable date string
+ */
+export function formatReleaseDate(
+  dateStr: string,
+  precision?: 'year' | 'month' | 'day' | null
+): string {
+  if (!dateStr) return 'Unknown';
+  
+  const parts = dateStr.split('-');
+  const year = parts[0];
+  const month = parts[1];
+  const day = parts[2];
+  
+  // Use precision if available, otherwise infer from parts
+  const effectivePrecision = precision || (day ? 'day' : month ? 'month' : 'year');
+  
+  if (effectivePrecision === 'year' || !month) {
+    return year;
+  }
+  
+  const monthNames = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+  const monthName = monthNames[parseInt(month, 10) - 1] || month;
+  
+  if (effectivePrecision === 'month' || !day) {
+    return `${monthName} ${year}`;
+  }
+  
+  // Full date
+  return `${monthName} ${parseInt(day, 10)}, ${year}`;
+}

@@ -54,7 +54,7 @@ export async function GET(
     } else {
       // Fetch tracks from Spotify (limit 100 per request)
       const limit = 100;
-      const fields = "items(track(id,uri,name,artists(name),duration_ms,album(id,name,images),popularity),added_at),next,total,snapshot_id";
+      const fields = "items(track(id,uri,name,artists(name),duration_ms,album(id,name,images,release_date,release_date_precision),popularity),added_at),next,total,snapshot_id";
       path = `/playlists/${encodeURIComponent(playlistId)}/tracks?limit=${limit}&fields=${encodeURIComponent(fields)}`;
     }
 

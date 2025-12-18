@@ -45,6 +45,10 @@ export type Track = {
     id?: string | null;
     name?: string | null;
     image?: Image | null;
+    /** Release date in format YYYY, YYYY-MM, or YYYY-MM-DD */
+    releaseDate?: string | null;
+    /** Precision of the release date: 'year', 'month', or 'day' */
+    releaseDatePrecision?: 'year' | 'month' | 'day' | null;
   } | null;
   /** Track popularity (0-100, 100 = most popular) */
   popularity?: number | null;
@@ -122,6 +126,10 @@ export function mapPlaylistItemToTrack(raw: any): Track {
           id: t?.album?.id ?? null,
           name: t?.album?.name ?? null,
           image: albumImages?.[0] ?? null,
+          releaseDate: t?.album?.release_date ?? null,
+          releaseDatePrecision: ['year', 'month', 'day'].includes(t?.album?.release_date_precision)
+            ? t?.album?.release_date_precision as 'year' | 'month' | 'day'
+            : null,
         }
       : null,
     popularity: typeof t?.popularity === 'number' ? t.popularity : null,

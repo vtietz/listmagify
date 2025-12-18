@@ -5,7 +5,7 @@
 
 'use client';
 
-import { ArrowUp, ArrowDown, Heart, Play, Plus, TrendingUp } from 'lucide-react';
+import { ArrowUp, ArrowDown, Heart, Play, Plus, TrendingUp, Calendar } from 'lucide-react';
 import { useCompactModeStore } from '@/hooks/useCompactModeStore';
 import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
 import type { SortKey, SortDirection } from '@/hooks/usePlaylistSort';
@@ -24,12 +24,12 @@ export const TRACK_GRID_CLASSES = 'grid items-center';
 export const TRACK_GRID_CLASSES_NORMAL = 'gap-2 px-3';
 export const TRACK_GRID_CLASSES_COMPACT = 'gap-1 px-1.5';
 export const TRACK_GRID_STYLE = {
-  // Play | Add | Heart | # | Title (flex) | Artist (flex) | Popularity | Time
-  gridTemplateColumns: '24px 24px 24px 32px minmax(150px, 1fr) minmax(120px, 1fr) 48px 50px',
+  // Play | Add | Heart | # | Title (flex) | Artist (flex) | Year | Popularity | Time
+  gridTemplateColumns: '24px 24px 24px 32px minmax(150px, 1fr) minmax(120px, 1fr) 44px 48px 50px',
 };
 export const TRACK_GRID_STYLE_WITH_ALBUM = {
-  // Play | Add | Heart | # | Title (flex) | Artist (flex) | Album (flex) | Popularity | Time
-  gridTemplateColumns: '24px 24px 24px 32px minmax(150px, 2fr) minmax(120px, 1fr) minmax(120px, 1fr) 48px 50px',
+  // Play | Add | Heart | # | Title (flex) | Artist (flex) | Album (flex) | Year | Popularity | Time
+  gridTemplateColumns: '24px 24px 24px 32px minmax(150px, 2fr) minmax(120px, 1fr) minmax(120px, 1fr) 44px 48px 50px',
 };
 
 export function TableHeader({ isEditable, sortKey, sortDirection, onSort, showLikedColumn = true }: TableHeaderProps) {
@@ -93,6 +93,17 @@ export function TableHeader({ isEditable, sortKey, sortDirection, onSort, showLi
 
       {/* Album - hidden on small screens, but keep grid slot */}
       <div className="hidden lg:block">{renderColumnHeader('Album', 'album')}</div>
+
+      {/* Year - sortable by release date */}
+      <div className="flex items-center justify-center" title="Release Year">
+        <button
+          onClick={() => onSort('year')}
+          className={`flex items-center gap-0.5 transition-colors hover:text-foreground ${sortKey === 'year' ? 'text-foreground' : 'text-muted-foreground'}`}
+        >
+          <Calendar className={isCompact ? 'h-2.5 w-2.5' : 'h-3 w-3'} />
+          {sortKey === 'year' && <SortIcon className={isCompact ? 'h-2 w-2' : 'h-2.5 w-2.5'} />}
+        </button>
+      </div>
 
       {/* Popularity */}
       <div className="flex items-center justify-center" title="Popularity">

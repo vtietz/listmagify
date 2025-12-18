@@ -11,7 +11,8 @@ export type SortKey =
   | "artist"
   | "album"
   | "duration"
-  | "popularity";
+  | "popularity"
+  | "year";
 
 export type SortDirection = "asc" | "desc";
 
@@ -95,6 +96,28 @@ export function compareByPopularity(a: Track, b: Track): number {
 }
 
 /**
+ * Sort by release date (album release date)
+ * Parses YYYY, YYYY-MM, or YYYY-MM-DD formats
+ */
+export function compareByReleaseDate(a: Track, b: Track): number {
+  // Parse release date to a comparable value (YYYYMMDD format as number)
+  const parseDate = (dateStr: string | null | undefined): number => {
+    if (!dateStr) return 0;
+    // Pad with 01 for missing month/day to ensure consistent comparison
+    const parts = dateStr.split('-');
+    const year = parts[0] || '0000';
+    const month = parts[1] || '01';
+    const day = parts[2] || '01';
+    return parseInt(`${year}${month}${day}`, 10);
+  };
+  
+  const aDate = parseDate(a.album?.releaseDate);
+  const bDate = parseDate(b.album?.releaseDate);
+  const result = aDate - bDate;
+  return result !== 0 ? result : stableSort(a, b);
+}
+
+/**
  * Get comparator function for a given sort key
  */
 export function getComparator(sortKey: SortKey): (a: Track, b: Track) => number {
@@ -111,6 +134,8 @@ export function getComparator(sortKey: SortKey): (a: Track, b: Track) => number 
       return compareByDuration;
     case "popularity":
       return compareByPopularity;
+    case "year":
+      return compareByReleaseDate;
     default:
       return compareByPosition;
   }
