@@ -11,7 +11,7 @@ import type { Track } from '@/lib/spotify/types';
 import { makeCompositeId, getTrackPosition } from '@/lib/dnd/id';
 import { cn } from '@/lib/utils';
 import { formatDuration } from '@/lib/utils/format';
-import { GripVertical, Heart, Play, Pause, Loader2, MapPin } from 'lucide-react';
+import { Heart, Play, Pause, Loader2, MapPin } from 'lucide-react';
 import { useCompactModeStore } from '@/hooks/useCompactModeStore';
 import { useBrowsePanelStore } from '@/hooks/useBrowsePanelStore';
 import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
@@ -285,11 +285,6 @@ export function TrackRow({
         {...(playlistId ? { excludePlaylistId: playlistId } : {})}
       />
 
-      {/* Grip handle for dragging */}
-      <div className="flex items-center justify-center text-muted-foreground hover:text-foreground pointer-events-none">
-        {!locked && <GripVertical className={isCompact ? 'h-3 w-3' : 'h-4 w-4'} />}
-      </div>
-
       {/* Liked status button */}
       {showLikedColumn ? (
         <button
@@ -319,13 +314,13 @@ export function TrackRow({
       )}
 
       {/* Position number */}
-      <div className={cn('text-muted-foreground tabular-nums', isCompact ? 'text-xs' : 'text-sm')}>
+      <div className={cn('text-muted-foreground tabular-nums cursor-pointer select-none', isCompact ? 'text-xs' : 'text-sm')}>
         {track.position != null ? track.position + 1 : index + 1}
       </div>
 
       {/* Track title - no link, just text */}
       <div className="min-w-0">
-        <div className={cn('truncate', isCompact ? 'text-xs' : 'text-sm')}>
+        <div className={cn('truncate cursor-pointer select-none', isCompact ? 'text-xs' : 'text-sm')}>
           {track.name}
         </div>
       </div>
@@ -379,7 +374,7 @@ export function TrackRow({
       </div>
 
       {/* Duration - right aligned */}
-      <div className={cn('text-muted-foreground tabular-nums text-right', isCompact ? 'text-xs' : 'text-sm')}>
+      <div className={cn('text-muted-foreground tabular-nums text-right cursor-pointer select-none', isCompact ? 'text-xs' : 'text-sm')}>
         {formatDuration(track.durationMs)}
       </div>
 
