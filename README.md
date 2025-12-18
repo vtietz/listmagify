@@ -1,4 +1,4 @@
-# Spotify Playlist Studio
+# Spotlisted
 
 A professional playlist management tool for Spotify. Edit multiple playlists side-by-side with drag-and-drop, bulk operations, and real-time sync.
 
@@ -14,7 +14,31 @@ A professional playlist management tool for Spotify. Edit multiple playlists sid
 - **Integrated Player** – Preview tracks without leaving the app
 - **Compact Mode** – Dense view to see more tracks on screen
 
-## Quick Start
+## Production Setup (spotlisted.com)
+
+To deploy to production:
+
+1. **Configure Environment Variables**:
+   ```env
+   NEXTAUTH_URL=https://spotlisted.com
+   NEXTAUTH_SECRET=your_generated_secret_here
+   SPOTIFY_CLIENT_ID=your_client_id
+   SPOTIFY_CLIENT_SECRET=your_client_secret
+   ```
+
+2. **Update Spotify Dashboard**:
+   - Add Redirect URI: `https://spotlisted.com/api/auth/callback/spotify`
+
+3. **Build & Run**:
+   ```bash
+   # Build the production image
+   docker build -f docker/Dockerfile.prod -t spotlisted .
+
+   # Run the container
+   docker run -p 3000:3000 --env-file .env.production spotlisted
+   ```
+
+## Quick Start (Local)
 
 1. **Set up environment**:
    ```cmd

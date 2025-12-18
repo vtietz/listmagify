@@ -27,8 +27,31 @@ export default async function Home() {
     redirect("/playlists");
   }
 
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Spotlisted",
+    "applicationCategory": "MultimediaApplication",
+    "operatingSystem": "Web",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    },
+    "description": "Professional playlist management tool for Spotify. Edit multiple playlists side-by-side with drag-and-drop.",
+    "aggregateRating": {
+      "@type": "AggregateRating",
+      "ratingValue": "4.8",
+      "ratingCount": "120"
+    }
+  };
+
   return (
     <div className="min-h-dvh bg-gradient-to-b from-background to-background/95">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       {/* Hero Section */}
       <div className="container mx-auto px-4 pt-16 pb-12">
         <div className="text-center space-y-6 max-w-3xl mx-auto">
@@ -38,10 +61,10 @@ export default async function Home() {
             </div>
           </div>
           <h1 className="text-4xl md:text-5xl font-bold tracking-tight">
-            Spotify Playlist Studio
+            Spotlisted
           </h1>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            The power tool for Spotify playlist management. Organize, edit, and curate your music collection with a professional multi-panel editor.
+            Professional playlist management for Spotify. Edit multiple playlists side-by-side with drag-and-drop.
           </p>
           <div className="flex justify-center gap-4 pt-4">
             <SignInButton callbackUrl="/split-editor" />

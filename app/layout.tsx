@@ -17,8 +17,48 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Split Spotify Playlist Editor",
-  description: "Edit multiple Spotify playlists simultaneously with ease.",
+  title: {
+    default: "Spotlisted - Spotify Playlist Editor",
+    template: "%s | Spotlisted",
+  },
+  description: "Professional playlist management tool for Spotify. Edit multiple playlists side-by-side with drag-and-drop.",
+  keywords: ["Spotify", "Playlist", "Editor", "Manager", "Sort", "Organize", "Drag and Drop"],
+  authors: [{ name: "Spotlisted Team" }],
+  creator: "Spotlisted",
+  metadataBase: new URL("https://spotlisted.com"),
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    url: "https://spotlisted.com",
+    title: "Spotlisted - The Ultimate Spotify Playlist Editor",
+    description: "Manage your Spotify playlists like a pro. Split-view editing, bulk actions, and smart search.",
+    siteName: "Spotlisted",
+    images: [
+      {
+        url: "/screenshot-split-editor.png",
+        width: 1200,
+        height: 630,
+        alt: "Spotlisted Interface",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Spotlisted - Spotify Playlist Editor",
+    description: "Manage your Spotify playlists like a pro. Split-view editing, bulk actions, and smart search.",
+    images: ["/screenshot-split-editor.png"],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
 };
 
 export default function RootLayout({

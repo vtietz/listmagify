@@ -17,7 +17,7 @@ type AppShellProps = {
   children?: React.ReactNode;
 };
 
-export function AppShell({ headerTitle = "Spotify Playlist Studio", children }: AppShellProps) {
+export function AppShell({ headerTitle = "Spotlisted", children }: AppShellProps) {
   const pathname = usePathname();
   
   // Pages that need fixed viewport height (no global scrolling)

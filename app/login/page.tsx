@@ -39,7 +39,7 @@ export default async function LoginPage({ searchParams }: Props) {
       <div className="max-w-md text-center space-y-6">
         <Link href="/" className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
           <Music className="h-8 w-8 text-primary" />
-          <span className="text-xl font-semibold text-foreground">Spotify Playlist Studio</span>
+          <span className="text-xl font-semibold text-foreground">Spotlisted</span>
         </Link>
         {message && (
           <p className="text-muted-foreground">{message}</p>
