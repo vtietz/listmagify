@@ -46,6 +46,9 @@ interface InsertionPointsState {
   /** Check if there are any active markers across all playlists */
   hasActiveMarkers: () => boolean;
   
+  /** Get count of playlists with markers and total marker count */
+  getMarkerStats: () => { playlistIds: string[]; playlistCount: number; totalMarkers: number };
+  
   /** Check if a specific index in a playlist has a marker */
   hasMarkerAt: (playlistId: string, index: number) => boolean;
   
@@ -150,6 +153,19 @@ export const useInsertionPointsStore = create<InsertionPointsState>()((set, get)
   hasActiveMarkers: () => {
     const state = get();
     return Object.values(state.playlists).some(p => p.markers.length > 0);
+  },
+
+  /** Get count of playlists with markers and total marker count */
+  getMarkerStats: () => {
+    const state = get();
+    const playlistIds = Object.keys(state.playlists).filter(
+      id => state.playlists[id]!.markers.length > 0
+    );
+    const totalMarkers = playlistIds.reduce(
+      (sum, id) => sum + state.playlists[id]!.markers.length,
+      0
+    );
+    return { playlistIds, playlistCount: playlistIds.length, totalMarkers };
   },
 
   hasMarkerAt: (playlistId, index) => {

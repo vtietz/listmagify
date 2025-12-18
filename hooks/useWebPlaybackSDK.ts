@@ -113,8 +113,17 @@ export function useWebPlaybackSDK(): UseWebPlaybackSDKResult {
 
   // Get a fresh access token for the SDK
   const getAccessToken = useCallback(async (): Promise<string> => {
-    const data = await apiFetch<TokenResponse>('/api/player/token');
-    return data.accessToken;
+    try {
+      const data = await apiFetch<TokenResponse>('/api/player/token');
+      return data.accessToken;
+    } catch (err: any) {
+      // Handle auth errors gracefully - user may need to re-login
+      if (err.status === 401) {
+        console.warn('[WebPlaybackSDK] Token request returned 401, user may need to re-authenticate');
+        throw new Error('Session expired - please log in again');
+      }
+      throw err;
+    }
   }, []);
 
   // Initialize the player
@@ -200,6 +209,14 @@ export function useWebPlaybackSDK(): UseWebPlaybackSDKResult {
         if (!mountedRef.current) return;
         setError(message);
         setIsInitializing(false);
+        
+        // Invalid token scopes means user needs to re-authenticate with updated scopes
+        if (message.includes('Invalid token scopes') || message.includes('scope')) {
+          toast.error('Please log out and log back in to enable web playback', {
+            duration: 8000,
+            description: 'Your session needs updated permissions for in-browser playback.',
+          });
+        }
       });
 
       player.addListener('account_error', ({ message }) => {

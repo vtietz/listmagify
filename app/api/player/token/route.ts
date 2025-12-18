@@ -11,16 +11,35 @@ export async function GET() {
   try {
     const session = await getServerSession(authOptions);
     
-    if (!session || !(session as any).accessToken) {
+    if (!session) {
       return NextResponse.json(
-        { error: 'Not authenticated' },
+        { error: 'Not authenticated - no session' },
         { status: 401 }
       );
     }
     
-    return NextResponse.json({
-      accessToken: (session as any).accessToken,
-    });
+    // Check for token refresh errors
+    if ((session as any).error === 'RefreshAccessTokenError') {
+      return NextResponse.json(
+        { error: 'token_expired' },
+        { status: 401 }
+      );
+    }
+    
+    const accessToken = (session as any).accessToken;
+    if (!accessToken) {
+      console.error('[api/player/token] Session exists but no accessToken:', {
+        hasSession: !!session,
+        sessionKeys: Object.keys(session),
+        error: (session as any).error,
+      });
+      return NextResponse.json(
+        { error: 'Not authenticated - no access token' },
+        { status: 401 }
+      );
+    }
+    
+    return NextResponse.json({ accessToken });
   } catch (error: any) {
     console.error('[api/player/token] Error:', error);
     return NextResponse.json(

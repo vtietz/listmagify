@@ -748,7 +748,7 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
                       onPlay={playTrack}
                       onPause={pausePlayback}
                       hasInsertionMarker={activeMarkerIndices.has(virtualRow.index)}
-                      hasInsertionMarkerAfter={activeMarkerIndices.has(virtualRow.index + 1)}
+                      hasInsertionMarkerAfter={false}
                     />
                   </div>
                 );
