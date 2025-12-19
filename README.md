@@ -155,6 +155,29 @@ STATS_ALLOWED_USER_IDS=your-spotify-user-id
 | `STATS_SALT` | Salt for hashing user IDs | `default-salt-change-me` |
 | `STATS_ALLOWED_USER_IDS` | Comma-separated Spotify IDs for /stats access | (none) |
 
+## Legal Pages (Imprint & Privacy)
+
+For EU compliance, configure your contact information for the Imprint and Privacy Policy pages:
+
+```env
+# .env
+CONTACT_NAME=John Doe
+CONTACT_STREET=123 Main Street
+CONTACT_POSTAL_CODE=12345
+CONTACT_CITY=Berlin
+CONTACT_COUNTRY=Germany
+CONTACT_EMAIL=contact@example.com
+```
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `CONTACT_NAME` | Your full legal name | `[Your Full Name]` |
+| `CONTACT_STREET` | Street address | `[Street Address]` |
+| `CONTACT_POSTAL_CODE` | Postal/ZIP code | `[Postal Code]` |
+| `CONTACT_CITY` | City | `[City]` |
+| `CONTACT_COUNTRY` | Country | `[Country]` |
+| `CONTACT_EMAIL` | Contact email | `[your@email.com]` |
+
 ## License
 
 MIT

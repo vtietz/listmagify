@@ -26,6 +26,13 @@ export const metadata: Metadata = {
   authors: [{ name: "Spotlisted Team" }],
   creator: "Spotlisted",
   metadataBase: new URL("https://spotlisted.com"),
+  icons: {
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico", sizes: "any" },
+    ],
+    apple: "/apple-icon.svg",
+  },
   openGraph: {
     type: "website",
     locale: "en_US",

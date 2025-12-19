@@ -1,5 +1,4 @@
 import { getServerSession } from "next-auth";
-import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth/auth";
 import Link from "next/link";
 import { SignInButton } from "@/components/auth/SignInButton";
@@ -17,15 +16,12 @@ import {
 } from "lucide-react";
 
 /**
- * Root page - Landing page for unauthenticated users, redirects to playlists if authenticated.
+ * Root page - Landing page shown to all users (authenticated or not).
+ * Authenticated users see "Open App" button, unauthenticated see "Sign in".
  */
 export default async function Home() {
   const session = await getServerSession(authOptions);
-
-  if (session) {
-    // User is authenticated, redirect to main app
-    redirect("/playlists");
-  }
+  const isAuthenticated = !!session;
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -67,7 +63,16 @@ export default async function Home() {
             Professional playlist management for Spotify. Edit multiple playlists side-by-side with drag-and-drop.
           </p>
           <div className="flex justify-center gap-4 pt-4">
-            <SignInButton callbackUrl="/split-editor" />
+            {isAuthenticated ? (
+              <Link
+                href="/playlists"
+                className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-6 py-3 text-sm font-medium hover:bg-primary/90 transition-colors"
+              >
+                Open Playlists
+              </Link>
+            ) : (
+              <SignInButton callbackUrl="/split-editor" />
+            )}
           </div>
           <p className="text-sm text-muted-foreground">
             Free to use • Requires Spotify account • Your data stays with Spotify
@@ -178,9 +183,21 @@ export default async function Home() {
             Ready to take control of your playlists?
           </h2>
           <p className="text-muted-foreground">
-            Sign in with Spotify to start organizing your music. No account creation needed – just connect and go.
+            {isAuthenticated 
+              ? "Jump back into the editor and continue organizing your music."
+              : "Sign in with Spotify to start organizing your music. No account creation needed – just connect and go."
+            }
           </p>
-          <SignInButton callbackUrl="/split-editor" />
+          {isAuthenticated ? (
+            <Link
+              href="/playlists"
+              className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-6 py-3 text-sm font-medium hover:bg-primary/90 transition-colors"
+            >
+              Open Playlists
+            </Link>
+          ) : (
+            <SignInButton callbackUrl="/split-editor" />
+          )}
         </div>
       </div>
 
@@ -189,6 +206,12 @@ export default async function Home() {
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 text-sm text-muted-foreground">
           <p>Built with Next.js, React, and the Spotify Web API</p>
           <div className="flex gap-4">
+            <Link href="/privacy" className="hover:text-foreground transition-colors">
+              Privacy
+            </Link>
+            <Link href="/imprint" className="hover:text-foreground transition-colors">
+              Imprint
+            </Link>
             <Link href="https://github.com/vtietz/spotify-playlist-studio" className="hover:text-foreground transition-colors">
               GitHub
             </Link>

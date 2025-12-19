@@ -21,14 +21,18 @@ export default async function LoginPage({ searchParams }: Props) {
   // Default return path if none specified
   const returnTo = next && next.startsWith("/") ? next : "/split-editor";
 
-  // If already authenticated, redirect to intended destination
-  if (session) {
+  // Check for session error (e.g., revoked refresh token)
+  const sessionError = (session as { error?: string } | null)?.error;
+  const hasValidSession = session && !sessionError;
+
+  // If authenticated with valid session, redirect to intended destination
+  if (hasValidSession) {
     redirect(returnTo);
   }
 
-  // Determine message based on reason
+  // Determine message based on reason or session error
   const message =
-    reason === "expired"
+    reason === "expired" || sessionError
       ? "Your session has expired. Please sign in again."
       : reason === "unauthenticated"
       ? "Sign in to access this page."

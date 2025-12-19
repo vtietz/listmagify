@@ -10,7 +10,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useDroppable } from '@dnd-kit/core';
-import { apiFetch } from '@/lib/api/client';
+import { AlertCircle, LogIn } from 'lucide-react';
+import { apiFetch, ApiError, AccessTokenExpiredError } from '@/lib/api/client';
 import { playlistMeta, playlistPermissions } from '@/lib/api/queryKeys';
 import { makeCompositeId, getTrackPosition } from '@/lib/dnd/id';
 import { DropIndicator } from './DropIndicator';
@@ -26,6 +27,7 @@ import { useTrackPlayback } from '@/hooks/useTrackPlayback';
 import { getTrackSelectionKey } from '@/lib/dnd/selection';
 import { useCompactModeStore } from '@/hooks/useCompactModeStore';
 import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
+import { SignInButton } from '@/components/auth/SignInButton';
 import { PanelToolbar } from './PanelToolbar';
 import { TableHeader } from './TableHeader';
 import { TrackRow } from './TrackRow';
@@ -658,8 +660,29 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
         )}
 
         {error && (
-          <div className="p-4 text-center text-red-500">
-            Failed to load playlist: {error instanceof Error ? error.message : 'Unknown error'}
+          <div className="p-4 flex flex-col items-center justify-center text-center gap-3">
+            <AlertCircle className="h-8 w-8 text-red-500" />
+            {error instanceof AccessTokenExpiredError || 
+             (error instanceof ApiError && (error.isUnauthorized || error.isForbidden)) ? (
+              <>
+                <p className="text-red-500 font-medium">Session expired</p>
+                <p className="text-sm text-muted-foreground">
+                  Please sign in again to access your playlists.
+                </p>
+                <SignInButton callbackUrl="/split-editor" className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-3 py-1.5 text-sm font-medium hover:bg-primary/90 transition-colors" />
+              </>
+            ) : error instanceof ApiError && error.isNotFound ? (
+              <>
+                <p className="text-red-500 font-medium">Playlist not found</p>
+                <p className="text-sm text-muted-foreground">
+                  This playlist may have been deleted or you don&apos;t have access to it.
+                </p>
+              </>
+            ) : (
+              <p className="text-red-500">
+                Failed to load playlist: {error instanceof Error ? error.message : 'Unknown error'}
+              </p>
+            )}
           </div>
         )}
 

@@ -8,13 +8,16 @@
 'use client';
 
 import { DndContext, DragOverlay } from '@dnd-kit/core';
+import { LogIn, Loader2 } from 'lucide-react';
 import { useSplitGridStore } from '@/hooks/useSplitGridStore';
 import { useBrowsePanelStore } from '@/hooks/useBrowsePanelStore';
 import { useCompactModeStore } from '@/hooks/useCompactModeStore';
 import { useDndOrchestrator } from '@/hooks/useDndOrchestrator';
 import { useSplitUrlSync } from '@/hooks/useSplitUrlSync';
+import { useSessionUser } from '@/hooks/useSessionUser';
 import { SplitNodeView } from './SplitNodeView';
 import { BrowsePanel } from './BrowsePanel';
+import { SignInButton } from '@/components/auth/SignInButton';
 import { TRACK_ROW_HEIGHT, TRACK_ROW_HEIGHT_COMPACT } from './constants';
 
 export function SplitGrid() {
@@ -25,7 +28,9 @@ export function SplitGrid() {
   const panels = useSplitGridStore((state) => state.panels);
   const isBrowsePanelOpen = useBrowsePanelStore((state) => state.isOpen);
   const isCompact = useCompactModeStore((state) => state.isCompact);
+  const { authenticated, loading } = useSessionUser();
 
+  // IMPORTANT: All hooks must be called before any conditional returns (Rules of Hooks)
   // Use the orchestrator hook to manage all DnD state and logic
   const {
     activeTrack,
@@ -45,6 +50,33 @@ export function SplitGrid() {
     getEffectiveDndMode,
     isTargetEditable,
   } = useDndOrchestrator(panels);
+
+  // Show loading state while checking auth
+  if (loading) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  // Show auth prompt if not authenticated
+  if (!authenticated) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <div className="flex flex-col items-center gap-4 max-w-md text-center p-8">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+            <LogIn className="h-8 w-8 text-primary" />
+          </div>
+          <h2 className="text-xl font-semibold">Sign in to continue</h2>
+          <p className="text-muted-foreground">
+            You need to be signed in with your Spotify account to use the playlist editor.
+          </p>
+          <SignInButton callbackUrl="/split-editor" />
+        </div>
+      </div>
+    );
+  }
 
   if (!root || panels.length === 0) {
     return (

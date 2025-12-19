@@ -75,12 +75,10 @@ function Header({ title }: { title: string }) {
   
   return (
     <header className="h-12 flex items-center justify-between px-4 border-b">
-      <div className="flex items-center gap-2">
+      <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
         <Logo />
-        <Link href="/" className="font-semibold hover:underline">
-          {title}
-        </Link>
-      </div>
+        <span className="font-semibold">{title}</span>
+      </Link>
 
       <nav className="flex items-center gap-1 text-sm">
         {/* Only show nav items when authenticated */}

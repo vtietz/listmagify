@@ -16,6 +16,8 @@ services:
       - CHOKIDAR_USEPOLLING=1
       - WATCHPACK_POLLING=true
       - PORT=${PORT:-3000}
+      # Fix HMR WebSocket connection in Docker - tell Next.js the external hostname
+      - HOSTNAME=0.0.0.0
     volumes:
       - ..:/usr/src/app:cached
       - node_modules:/usr/src/app/node_modules
