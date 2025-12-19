@@ -4,7 +4,7 @@ cd "$(dirname "$0")"
 
 usage() {
   cat <<EOF
-Usage: ./run.sh [compose|exec|run|install|start|test] [args...]
+Usage: ./run.sh [compose|exec|run|install|start|test|prod-up|prod-down] [args...]
 
 Examples:
   ./run.sh compose build
@@ -15,6 +15,8 @@ Examples:
   ./run.sh install
   ./run.sh start
   ./run.sh test -- --watch
+  ./run.sh prod-up        # Start production deployment
+  ./run.sh prod-down      # Stop production deployment
 EOF
 }
 
@@ -37,7 +39,8 @@ case "${1:-}" in
     ;;
   install)
     shift
-    docker compose -f docker/docker-compose.yml run --rm web pnpm install "$@"
+    # Rebuild better-sqlite3 for Linux after install (host may have different platform binaries)
+    docker compose -f docker/docker-compose.yml run --rm web sh -c "pnpm install $* && npm rebuild better-sqlite3"
     ;;
   start)
     shift
@@ -46,6 +49,14 @@ case "${1:-}" in
   test)
     shift
     docker compose -f docker/docker-compose.yml run --rm web pnpm test "$@"
+    ;;
+  prod-up)
+    shift
+    docker compose -f docker/docker-compose.prod.yml up -d "$@"
+    ;;
+  prod-down)
+    shift
+    docker compose -f docker/docker-compose.prod.yml down "$@"
     ;;
   *)
     usage; exit 1;;

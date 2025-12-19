@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/auth";
 import { spotifyFetch } from "@/lib/spotify/client";
+import { logTrackReorder } from '@/lib/metrics/api-helpers';
 
 /**
  * PUT /api/playlists/[id]/reorder
@@ -117,6 +118,9 @@ export async function PUT(
         { status: 500 }
       );
     }
+
+    // Log metrics (fire-and-forget, non-blocking)
+    logTrackReorder(playlistId, rangeLength).catch(() => {});
 
     return NextResponse.json({ snapshotId: newSnapshotId });
   } catch (error) {

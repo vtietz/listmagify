@@ -1,38 +1,81 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { signOut, useSession } from "next-auth/react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { LogIn, AlertCircle } from "lucide-react";
 
 /**
  * Client component that monitors session for token refresh errors.
  * If a RefreshAccessTokenError occurs (e.g., revoked refresh token),
- * automatically sign out the user to force re-authentication.
+ * shows a dialog prompting the user to log in again.
  * 
- * Does NOT trigger navigation - relies on middleware to handle redirects.
- * Rate-limits sign-out attempts to prevent hammering the auth endpoint.
- * 
+ * Provides a clean UX instead of silently failing or redirecting.
  * Mount this once in the root layout to apply globally.
  */
 export function SessionErrorHandler() {
   const { data: session, status } = useSession();
-  const [lastSignOutAttempt, setLastSignOutAttempt] = useState<number>(0);
+  const [showDialog, setShowDialog] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
   useEffect(() => {
     // Only handle RefreshAccessTokenError
     if (status === "authenticated" && session && (session as any).error === "RefreshAccessTokenError") {
-      const now = Date.now();
-      const timeSinceLastAttempt = now - lastSignOutAttempt;
-      
-      // Rate-limit: only sign out once every 5 seconds
-      if (timeSinceLastAttempt > 5000) {
-        console.warn("[auth] Refresh token invalid or expired, signing out...");
-        setLastSignOutAttempt(now);
-        
-        // Sign out without redirect - middleware will handle routing
-        void signOut({ redirect: false });
-      }
+      // Show dialog instead of silent sign-out
+      setShowDialog(true);
     }
-  }, [session, status, lastSignOutAttempt]);
+  }, [session, status]);
 
-  return null;
+  const handleLogin = useCallback(async () => {
+    setIsRedirecting(true);
+    
+    // Sign out first to clear invalid session
+    await signOut({ redirect: false });
+    
+    // Redirect to login with current path for return
+    const currentPath = window.location.pathname + window.location.search;
+    window.location.href = `/login?reason=expired&next=${encodeURIComponent(currentPath)}`;
+  }, []);
+
+  return (
+    <AlertDialog open={showDialog} onOpenChange={setShowDialog}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-500/10">
+              <AlertCircle className="h-5 w-5 text-orange-500" />
+            </div>
+            <AlertDialogTitle>Session Expired</AlertDialogTitle>
+          </div>
+          <AlertDialogDescription className="pt-2">
+            Your Spotify session has expired or been revoked. This can happen if:
+            <ul className="list-disc list-inside mt-2 space-y-1 text-sm">
+              <li>You haven&apos;t used the app in a while</li>
+              <li>You changed your Spotify password</li>
+              <li>You revoked access in Spotify settings</li>
+            </ul>
+            <p className="mt-3">Please log in again to continue using Spotlisted.</p>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogAction 
+            onClick={handleLogin}
+            disabled={isRedirecting}
+            className="gap-2"
+          >
+            <LogIn className="h-4 w-4" />
+            {isRedirecting ? "Redirecting..." : "Log in with Spotify"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
 }

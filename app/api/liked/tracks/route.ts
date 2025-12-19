@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { spotifyFetch } from '@/lib/spotify/client';
 import { mapPlaylistItemToTrack } from '@/lib/spotify/types';
+import { logLikedTracksFetch } from '@/lib/metrics/api-helpers';
 
 /**
  * GET /api/liked/tracks?limit=50&nextCursor=...
@@ -40,6 +41,9 @@ export async function GET(request: NextRequest) {
 
   // Map raw Spotify items to our Track type
   const tracks = (data.items || []).map((item: any) => mapPlaylistItemToTrack(item));
+
+  // Log metrics (fire-and-forget, non-blocking)
+  logLikedTracksFetch(tracks.length).catch(() => {});
 
   return NextResponse.json({
     tracks,

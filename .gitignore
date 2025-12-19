@@ -4,6 +4,9 @@ node_modules/
 .pnp.js
 .pnpm-store/
 
+# Local data (SQLite databases, etc.)
+data/
+
 # Testing
 coverage/
 *.log
@@ -51,3 +54,4 @@ docker/volumes/
 
 playwright-report/
 test-results/
+data/

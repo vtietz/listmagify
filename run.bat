@@ -35,7 +35,8 @@ if "%1"=="down" (
 )
 if "%1"=="install" (
   rem Install as root inside the container to avoid Windows bind-mount EACCES on rename/mkdir
-  docker compose -f docker\docker-compose.yml run --rm --user root web sh -lc "corepack prepare pnpm@10.18.3 --activate && pnpm install %2 %3 %4 %5 %6 %7 %8 %9"
+  rem Rebuild better-sqlite3 for Linux after install (host may have Windows binaries)
+  docker compose -f docker\docker-compose.yml run --rm --user root web sh -lc "corepack prepare pnpm@10.18.3 --activate && pnpm install %2 %3 %4 %5 %6 %7 %8 %9 && npm rebuild better-sqlite3"
   goto :eof
 )
 if "%1"=="build" (
@@ -44,6 +45,14 @@ if "%1"=="build" (
 )
 if "%1"=="start-prod" (
   docker compose -f docker\docker-compose.yml up prod %2 %3 %4 %5 %6 %7 %8 %9
+  goto :eof
+)
+if "%1"=="prod-up" (
+  docker compose -f docker\docker-compose.prod.yml up -d %2 %3 %4 %5 %6 %7 %8 %9
+  goto :eof
+)
+if "%1"=="prod-down" (
+  docker compose -f docker\docker-compose.prod.yml down %2 %3 %4 %5 %6 %7 %8 %9
   goto :eof
 )
 if "%1"=="test" (
@@ -93,10 +102,12 @@ if "%1"=="init-env" (
 :show_help
 echo Usage:
 echo.
-echo   run.bat up/down         - Start/stop all services
-echo   run.bat install         - Install dependencies in the container
-echo   run.bat build           - Create a production build
-echo   run.bat start-prod      - Start the production server
+echo   run.bat up/down         - Start/stop dev services
+ echo   run.bat install         - Install dependencies in the container
+ echo   run.bat build           - Create a production build
+ echo   run.bat start-prod      - Start the production server (dev compose)
+ echo   run.bat prod-up         - Start production deployment (prod compose)
+ echo   run.bat prod-down       - Stop production deployment
 echo   run.bat dev ^<cmd^>      - Execute a command in a temporary dev container (e.g., run pnpm lint)
 echo   run.bat prod ^<cmd^>     - Execute a command in a temporary prod container
 echo   run.bat test [args]     - Run tests (default: unit, args: --watch, ui, e2e, e2e:ui, e2e:ci)

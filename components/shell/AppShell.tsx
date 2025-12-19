@@ -3,13 +3,14 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Search, Music2, ListMusic, Columns2, LogIn, LogOut, Minimize2, MapPinOff } from "lucide-react";
+import { Search, Music2, ListMusic, Columns2, LogIn, LogOut, Minimize2, MapPinOff, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useBrowsePanelStore } from "@/hooks/useBrowsePanelStore";
 import { usePlayerStore } from "@/hooks/usePlayerStore";
 import { useCompactModeStore } from "@/hooks/useCompactModeStore";
 import { useInsertionPointsStore } from "@/hooks/useInsertionPointsStore";
 import { useSessionUser } from "@/hooks/useSessionUser";
+import { useStatsAccess } from "@/hooks/useStatsAccess";
 import { SpotifyPlayer } from "@/components/player";
 
 type AppShellProps = {
@@ -54,6 +55,7 @@ function Header({ title }: { title: string }) {
   const clearAllMarkers = useInsertionPointsStore((s) => s.clearAll);
   const playlists = useInsertionPointsStore((s) => s.playlists);
   const { authenticated, loading } = useSessionUser();
+  const { hasAccess: hasStatsAccess } = useStatsAccess();
   
   // Compute marker stats from playlists state
   const markerStats = React.useMemo(() => {
@@ -69,6 +71,7 @@ function Header({ title }: { title: string }) {
   
   const isPlaylistsActive = pathname === '/playlists' || pathname.startsWith('/playlists/');
   const isSplitEditorActive = pathname === '/split-editor';
+  const isStatsActive = pathname === '/stats' || pathname.startsWith('/stats/');
   
   return (
     <header className="h-12 flex items-center justify-between px-4 border-b">
@@ -152,6 +155,20 @@ function Header({ title }: { title: string }) {
                 </span>
               )}
             </Button>
+            {/* Stats link - only visible to allowed users */}
+            {hasStatsAccess && (
+              <Button
+                variant={isStatsActive ? "secondary" : "ghost"}
+                size="sm"
+                asChild
+                className="h-7 gap-1.5 cursor-pointer"
+              >
+                <Link href="/stats">
+                  <BarChart3 className="h-3.5 w-3.5" />
+                  Stats
+                </Link>
+              </Button>
+            )}
             <div className="w-px h-4 bg-border mx-2" />
           </>
         )}

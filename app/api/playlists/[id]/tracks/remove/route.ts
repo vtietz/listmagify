@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/auth';
 import { spotifyFetch } from '@/lib/spotify/client';
+import { logTrackRemove } from '@/lib/metrics/api-helpers';
 
 /**
  * DELETE /api/playlists/[id]/tracks/remove
@@ -106,6 +107,9 @@ export async function DELETE(
         { status: 500 }
       );
     }
+
+    // Log metrics (fire-and-forget, non-blocking)
+    logTrackRemove(playlistId, tracksToRemove.length).catch(() => {});
 
     return NextResponse.json({ snapshotId: newSnapshotId });
   } catch (error) {

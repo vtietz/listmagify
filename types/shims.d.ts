@@ -4,10 +4,59 @@
  */
 declare module 'next' {
   export type Metadata = {
-    title?: string;
+    title?: string | { default: string; template?: string };
     description?: string;
-    [key: string]: any;
+    metadataBase?: URL;
+    keywords?: string[];
+    authors?: Array<{ name?: string; url?: string }>;
+    openGraph?: {
+      title?: string;
+      description?: string;
+      url?: string;
+      siteName?: string;
+      locale?: string;
+      type?: string;
+      images?: string[] | Array<{ url: string; width?: number; height?: number; alt?: string }>;
+    };
+    twitter?: {
+      card?: string;
+      title?: string;
+      description?: string;
+      images?: string[];
+    };
+    robots?: {
+      index?: boolean;
+      follow?: boolean;
+      googleBot?: {
+        index?: boolean;
+        follow?: boolean;
+        [key: string]: unknown;
+      };
+    };
+    [key: string]: unknown;
   };
+
+  export namespace MetadataRoute {
+    export type Robots = {
+      rules?: Array<{
+        userAgent?: string | string[];
+        allow?: string | string[];
+        disallow?: string | string[];
+      }> | {
+        userAgent?: string | string[];
+        allow?: string | string[];
+        disallow?: string | string[];
+      };
+      sitemap?: string;
+    };
+
+    export type Sitemap = Array<{
+      url: string;
+      lastModified?: string | Date;
+      changeFrequency?: 'always' | 'hourly' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'never';
+      priority?: number;
+    }>;
+  }
 }
 
 declare module 'next/font/google' {

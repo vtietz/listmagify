@@ -28,7 +28,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 import type { SortKey, SortDirection } from '@/hooks/usePlaylistSort';
@@ -91,6 +90,7 @@ export function PanelToolbar({
 }: PanelToolbarProps) {
   const [localSearch, setLocalSearch] = useState(searchQuery);
   const [isCompact, setIsCompact] = useState(true);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const toolbarRef = useRef<HTMLDivElement>(null);
 
   // Track toolbar width to toggle between compact (dropdown) and expanded (inline buttons) mode
@@ -113,29 +113,10 @@ export function PanelToolbar({
     onSearchChange(value);
   };
 
-  // Delete confirmation dialog (shared between inline and dropdown)
-  const DeleteDialog = ({ trigger }: { trigger: React.ReactNode }) => (
-    <AlertDialog>
-      <AlertDialogTrigger asChild>{trigger}</AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Delete {selectedCount} track{selectedCount > 1 ? 's' : ''}?</AlertDialogTitle>
-          <AlertDialogDescription>
-            This will remove {selectedCount} track{selectedCount > 1 ? 's' : ''} from the playlist. This action cannot be undone.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            onClick={onDeleteSelected}
-            className="bg-destructive text-white hover:bg-destructive/90"
-          >
-            Delete
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  );
+  const handleDeleteConfirm = () => {
+    setDeleteDialogOpen(false);
+    onDeleteSelected?.();
+  };
 
   return (
     <div ref={toolbarRef} className="flex items-center gap-1.5 p-1.5 border-b border-border bg-card relative z-20">
@@ -208,19 +189,16 @@ export function PanelToolbar({
 
           {/* Delete Selected */}
           {playlistId && isEditable && !locked && selectedCount > 0 && (
-            <DeleteDialog
-              trigger={
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled={isDeleting}
-                  className="h-8 w-8 p-0 shrink-0 text-destructive hover:text-destructive"
-                  title={`Delete ${selectedCount} track${selectedCount > 1 ? 's' : ''}`}
-                >
-                  <Trash2 className={cn('h-4 w-4', isDeleting && 'animate-pulse')} />
-                </Button>
-              }
-            />
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={isDeleting}
+              onClick={() => setDeleteDialogOpen(true)}
+              className="h-8 w-8 p-0 shrink-0 text-destructive hover:text-destructive"
+              title={`Delete ${selectedCount} track${selectedCount > 1 ? 's' : ''}`}
+            >
+              <Trash2 className={cn('h-4 w-4', isDeleting && 'animate-pulse')} />
+            </Button>
           )}
 
           {/* Clear Insertion Markers */}
@@ -334,18 +312,14 @@ export function PanelToolbar({
             {playlistId && isEditable && !locked && selectedCount > 0 && (
               <>
                 <DropdownMenuSeparator />
-                <DeleteDialog
-                  trigger={
-                    <DropdownMenuItem
-                      onSelect={(e: Event) => e.preventDefault()}
-                      disabled={isDeleting}
-                      className="text-destructive focus:text-destructive"
-                    >
-                      <Trash2 className={cn('h-4 w-4 mr-2', isDeleting && 'animate-pulse')} />
-                      Delete {selectedCount} track{selectedCount > 1 ? 's' : ''}
-                    </DropdownMenuItem>
-                  }
-                />
+                <DropdownMenuItem
+                  onClick={() => setDeleteDialogOpen(true)}
+                  disabled={isDeleting}
+                  className="text-destructive focus:text-destructive"
+                >
+                  <Trash2 className={cn('h-4 w-4 mr-2', isDeleting && 'animate-pulse')} />
+                  Delete {selectedCount} track{selectedCount > 1 ? 's' : ''}
+                </DropdownMenuItem>
               </>
             )}
 
@@ -379,6 +353,27 @@ export function PanelToolbar({
           </DropdownMenuContent>
         </DropdownMenu>
       )}
+
+      {/* Delete confirmation dialog - controlled to prevent unmounting during re-renders */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selectedCount} track{selectedCount > 1 ? 's' : ''}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove {selectedCount} track{selectedCount > 1 ? 's' : ''} from the playlist. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              className="bg-destructive text-white hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

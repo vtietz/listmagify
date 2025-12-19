@@ -19,6 +19,7 @@ services:
     volumes:
       - ..:/usr/src/app:cached
       - node_modules:/usr/src/app/node_modules
+      - ../data:/usr/src/app/data
     command:
       - sh
       - -lc

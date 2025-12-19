@@ -1,0 +1,21 @@
+services:
+  web:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.prod
+      target: prod
+      args:
+        - NEXTAUTH_URL=${NEXTAUTH_URL}
+        - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+        - SPOTIFY_CLIENT_ID=${SPOTIFY_CLIENT_ID}
+        - SPOTIFY_CLIENT_SECRET=${SPOTIFY_CLIENT_SECRET}
+    image: sbs-web:prod
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=production
+    env_file:
+      - ../.env
+    volumes:
+      - ../data:/usr/src/app/data
+    restart: unless-stopped

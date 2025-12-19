@@ -74,13 +74,59 @@ All commands run inside Docker:
 | `run.bat test` | Run unit tests |
 | `run.bat test e2e` | Run E2E tests |
 
+## Production Deployment
+
+Build and run the production image:
+
+```cmd
+docker compose -f docker/docker-compose.prod.yml build
+docker compose -f docker/docker-compose.prod.yml up -d
+```
+
+The production setup includes:
+- Optimized Next.js production build
+- Persistent metrics database volume
+- No test/mock services
+- Automatic container restart
+
 ## Tech Stack
 
-- Next.js 15, React 19, TypeScript
+- Next.js 16, React 19, TypeScript
 - TanStack Query, TanStack Virtual
 - dnd-kit for drag-and-drop
 - NextAuth.js for Spotify OAuth
 - Tailwind CSS, shadcn/ui
+- better-sqlite3 for metrics
+
+## Usage Analytics (Optional)
+
+Spotlisted includes privacy-first usage analytics, disabled by default. When enabled:
+
+- **Privacy**: User IDs are SHA-256 hashed with a salt before storage
+- **Local Storage**: All data stored in local SQLite database
+- **Retention**: Raw events auto-deleted after 180 days
+- **Access Control**: Stats dashboard restricted to allowlisted user IDs
+
+### Enable Metrics
+
+```env
+# .env
+STATS_ENABLED=true
+STATS_SALT=your-random-secret-salt
+STATS_ALLOWED_USER_IDS=your-spotify-user-id
+```
+
+**How to get your Spotify user ID:**
+1. Go to https://www.spotify.com/account/overview/
+2. Your user ID is shown under "Username" (e.g., `31l77fd...`)
+3. Or from the app: Profile → ⋯ → Share → Copy link to profile → Extract ID from URL
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `STATS_ENABLED` | Enable/disable metrics | `false` |
+| `STATS_DB_PATH` | SQLite database path | `./data/metrics.db` |
+| `STATS_SALT` | Salt for hashing user IDs | `default-salt-change-me` |
+| `STATS_ALLOWED_USER_IDS` | Comma-separated Spotify IDs for /stats access | (none) |
 
 ## License
 

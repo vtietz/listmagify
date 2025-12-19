@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/auth';
 import { spotifyFetch } from '@/lib/spotify/client';
+import { logTrackAdd } from '@/lib/metrics/api-helpers';
 
 /**
  * POST /api/playlists/[id]/tracks/add
@@ -104,6 +105,9 @@ export async function POST(
         { status: 500 }
       );
     }
+
+    // Log metrics (fire-and-forget, non-blocking)
+    logTrackAdd(playlistId, trackUris.length).catch(() => {});
 
     return NextResponse.json({ snapshotId: newSnapshotId });
   } catch (error) {

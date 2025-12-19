@@ -1,6 +1,7 @@
 import SpotifyProvider from "next-auth/providers/spotify";
 import type { AuthOptions } from "next-auth";
 import { serverEnv, summarizeEnv } from "@/lib/env";
+import { logAuthEvent, startSession } from "@/lib/metrics";
 
 console.log(
   `[auth] env=${summarizeEnv()} | CALLBACK=${new URL(
@@ -203,19 +204,47 @@ export const authOptions: AuthOptions = {
     },
   },
   events: {
-    signIn(message: any) {
+    async signIn(message: any) {
       try {
+        const providerAccountId = message?.account?.providerAccountId;
+        const accessToken = message?.account?.access_token;
+        
+        // Fetch the actual Spotify user ID from /me endpoint
+        let spotifyUserId = providerAccountId;
+        if (accessToken) {
+          try {
+            const meRes = await fetch('https://api.spotify.com/v1/me', {
+              headers: { Authorization: `Bearer ${accessToken}` },
+            });
+            if (meRes.ok) {
+              const meData = await meRes.json();
+              spotifyUserId = meData.id;
+            }
+          } catch {
+            // Fall back to providerAccountId
+          }
+        }
+        
         console.log("[auth] NextAuth signIn", {
           provider: message?.account?.provider,
-          providerAccountId: message?.account?.providerAccountId,
+          providerAccountId,
+          spotifyUserId,
           user: message?.user?.email ?? message?.user?.name ?? "[unknown]",
         });
+        
+        // Log metrics (fire-and-forget)
+        if (spotifyUserId) {
+          logAuthEvent('login_success', spotifyUserId);
+          startSession(spotifyUserId, message?.user?.userAgent);
+        }
       } catch {
         // noop
       }
     },
     signOut(_message: any) {
       console.log("[auth] NextAuth signOut");
+      // Note: We don't have easy access to user ID on signOut
+      // Session tracking is handled by session duration calculation
     },
   },
   logger: {

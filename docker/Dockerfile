@@ -10,7 +10,7 @@ RUN corepack enable && corepack install -g pnpm@10.18.3
 
 # Dev image: install deps once, keep cache
 FROM base AS dev
-# Install OS deps if needed (git, openssl for Auth.js PKCE callbacks, etc.)
+# Install OS deps (git, openssl for Auth.js PKCE)
 RUN apk add --no-cache bash openssl
 # Dev image: no dependency install; dependencies are installed during development via docker/run.bat install
 COPY . .
