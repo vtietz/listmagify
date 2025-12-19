@@ -48,11 +48,22 @@ if "%1"=="start-prod" (
   goto :eof
 )
 if "%1"=="prod-up" (
-  docker compose -f docker\docker-compose.prod.yml up -d %2 %3 %4 %5 %6 %7 %8 %9
+  rem Check for override file
+  if exist "docker\docker-compose.prod.override.yml" (
+    echo Using production override file...
+    docker compose -f docker\docker-compose.prod.yml -f docker\docker-compose.prod.override.yml up -d %2 %3 %4 %5 %6 %7 %8 %9
+  ) else (
+    docker compose -f docker\docker-compose.prod.yml up -d %2 %3 %4 %5 %6 %7 %8 %9
+  )
   goto :eof
 )
 if "%1"=="prod-down" (
-  docker compose -f docker\docker-compose.prod.yml down %2 %3 %4 %5 %6 %7 %8 %9
+  rem Check for override file
+  if exist "docker\docker-compose.prod.override.yml" (
+    docker compose -f docker\docker-compose.prod.yml -f docker\docker-compose.prod.override.yml down %2 %3 %4 %5 %6 %7 %8 %9
+  ) else (
+    docker compose -f docker\docker-compose.prod.yml down %2 %3 %4 %5 %6 %7 %8 %9
+  )
   goto :eof
 )
 if "%1"=="test" (

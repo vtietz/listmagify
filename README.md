@@ -89,6 +89,33 @@ The production setup includes:
 - No test/mock services
 - Automatic container restart
 
+### Server-Specific Configuration (nginx-proxy, Let's Encrypt, etc.)
+
+For production deployments requiring custom networks, SSL certificates, or reverse proxy integration:
+
+1. **Copy the example override file:**
+   ```bash
+   cp docker/docker-compose.prod.override.example.yml docker/docker-compose.prod.override.yml
+   ```
+
+2. **Edit `docker/docker-compose.prod.override.yml` with your server-specific settings:**
+   - Custom networks (e.g., `nginx-proxy`)
+   - Let's Encrypt environment variables
+   - Domain names and SSL configuration
+   - Traefik labels (if applicable)
+
+3. **Deploy using both files:**
+   ```bash
+   # Option 1: Explicit file list
+   docker compose -f docker/docker-compose.prod.yml -f docker/docker-compose.prod.override.yml up -d
+   
+   # Option 2: Set COMPOSE_FILE environment variable
+   export COMPOSE_FILE=docker/docker-compose.prod.yml:docker/docker-compose.prod.override.yml
+   docker compose up -d
+   ```
+
+**Note:** The override file is git-ignored, so it won't be overwritten when pulling updates from the repo.
+
 ## Tech Stack
 
 - Next.js 16, React 19, TypeScript

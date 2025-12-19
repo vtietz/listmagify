@@ -52,11 +52,22 @@ case "${1:-}" in
     ;;
   prod-up)
     shift
-    docker compose -f docker/docker-compose.prod.yml up -d "$@"
+    # Check for override file
+    if [ -f docker/docker-compose.prod.override.yml ]; then
+      echo "Using production override file..."
+      docker compose -f docker/docker-compose.prod.yml -f docker/docker-compose.prod.override.yml up -d "$@"
+    else
+      docker compose -f docker/docker-compose.prod.yml up -d "$@"
+    fi
     ;;
   prod-down)
     shift
-    docker compose -f docker/docker-compose.prod.yml down "$@"
+    # Check for override file
+    if [ -f docker/docker-compose.prod.override.yml ]; then
+      docker compose -f docker/docker-compose.prod.yml -f docker/docker-compose.prod.override.yml down "$@"
+    else
+      docker compose -f docker/docker-compose.prod.yml down "$@"
+    fi
     ;;
   *)
     usage; exit 1;;

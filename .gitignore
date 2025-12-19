@@ -46,6 +46,9 @@ Thumbs.db
 # Docker
 docker/volumes/
 *.pid
+# Server-specific Docker Compose overrides
+docker-compose.*.override.yml
+docker/docker-compose.*.override.yml
 
 # Temporary files
 *.tmp

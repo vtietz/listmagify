@@ -1,0 +1,43 @@
+# Example production override for server-specific configuration
+# Copy this to docker-compose.prod.override.yml and customize for your server
+# 
+# Usage:
+#   docker compose -f docker/docker-compose.prod.yml -f docker/docker-compose.prod.override.yml up -d
+#
+# Or set COMPOSE_FILE environment variable:
+#   export COMPOSE_FILE=docker/docker-compose.prod.yml:docker/docker-compose.prod.override.yml
+#   docker compose up -d
+
+services:
+  web:
+    # Custom network for nginx-proxy
+    networks:
+      - nginx-proxy
+      - default
+
+    # Environment variables for Let's Encrypt / nginx-proxy
+    environment:
+      # Virtual host for nginx-proxy
+      - VIRTUAL_HOST=your-domain.com
+      - VIRTUAL_PORT=3000
+      
+      # Let's Encrypt configuration
+      - LETSENCRYPT_HOST=your-domain.com
+      - LETSENCRYPT_EMAIL=your-email@example.com
+      
+      # Production URL
+      - NEXTAUTH_URL=https://your-domain.com
+
+    # Custom labels (if using Traefik instead of nginx-proxy)
+    # labels:
+    #   - "traefik.enable=true"
+    #   - "traefik.http.routers.spotlisted.rule=Host(`your-domain.com`)"
+    #   - "traefik.http.routers.spotlisted.entrypoints=websecure"
+    #   - "traefik.http.routers.spotlisted.tls.certresolver=letsencrypt"
+    #   - "traefik.http.services.spotlisted.loadbalancer.server.port=3000"
+
+# External network for nginx-proxy
+networks:
+  nginx-proxy:
+    external: true
+    name: nginx-proxy
