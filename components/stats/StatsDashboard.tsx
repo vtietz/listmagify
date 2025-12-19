@@ -2,8 +2,14 @@
 
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import {
   Users,
   Activity,
@@ -13,6 +19,8 @@ import {
   AlertCircle,
   BarChart3,
   Calendar,
+  HelpCircle,
+  MousePointerClick,
 } from 'lucide-react';
 
 // Time range presets
@@ -95,10 +103,25 @@ interface TopPlaylist {
   interactions: number;
 }
 
+interface DailyUsers {
+  date: string;
+  users: number;
+}
+
+interface DailyActions {
+  date: string;
+  actions: number;
+  adds: number;
+  removes: number;
+  reorders: number;
+}
+
 interface EventsData {
   dailySummaries: DailySummary[];
   actionDistribution: ActionDistribution[];
   topPlaylists: TopPlaylist[];
+  dailyUsers: DailyUsers[];
+  dailyActions: DailyActions[];
 }
 
 function KPICard({
@@ -107,17 +130,31 @@ function KPICard({
   subtitle,
   icon: Icon,
   trend,
+  description,
 }: {
   title: string;
   value: string | number;
   subtitle?: string;
   icon: React.ComponentType<{ className?: string }>;
   trend?: 'up' | 'down' | 'neutral';
+  description?: string;
 }) {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        <CardTitle className="text-sm font-medium flex items-center gap-1.5">
+          {title}
+          {description && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-xs">
+                <p className="text-sm">{description}</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
+        </CardTitle>
         <Icon className="h-4 w-4 text-muted-foreground" />
       </CardHeader>
       <CardContent>
@@ -140,6 +177,11 @@ function formatPercent(value: number): string {
   return `${(value * 100).toFixed(1)}%`;
 }
 
+function formatDate(dateStr: string): string {
+  const date = new Date(dateStr);
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
 function SimpleBarChart({ data, label }: { data: DailySummary[]; label: string }) {
   const maxValue = Math.max(...data.map(d => d.total), 1);
   
@@ -148,17 +190,144 @@ function SimpleBarChart({ data, label }: { data: DailySummary[]; label: string }
       <div className="text-sm font-medium">{label}</div>
       <div className="flex items-end gap-1 h-32">
         {data.map((d, i) => (
-          <div
-            key={d.date}
-            className="flex-1 bg-primary/80 rounded-t hover:bg-primary transition-colors"
-            style={{ height: `${(d.total / maxValue) * 100}%`, minHeight: '2px' }}
-            title={`${d.date}: ${d.total} events`}
-          />
+          <Tooltip key={d.date}>
+            <TooltipTrigger asChild>
+              <div
+                className="flex-1 bg-primary/80 rounded-t hover:bg-primary transition-colors cursor-default"
+                style={{ height: `${(d.total / maxValue) * 100}%`, minHeight: '2px' }}
+              />
+            </TooltipTrigger>
+            <TooltipContent>
+              <div className="text-sm">
+                <div className="font-medium">{formatDate(d.date)}</div>
+                <div>{d.total} events</div>
+              </div>
+            </TooltipContent>
+          </Tooltip>
         ))}
       </div>
       <div className="flex justify-between text-xs text-muted-foreground">
-        <span>{data[0]?.date}</span>
-        <span>{data[data.length - 1]?.date}</span>
+        <span>{data[0]?.date ? formatDate(data[0].date) : ''}</span>
+        <span>{data.at(-1)?.date ? formatDate(data.at(-1)!.date) : ''}</span>
+      </div>
+    </div>
+  );
+}
+
+function UsersBarChart({ data }: { data: DailyUsers[] }) {
+  const maxValue = Math.max(...data.map(d => d.users), 1);
+  
+  if (data.length === 0) {
+    return (
+      <div className="h-32 flex items-center justify-center text-muted-foreground">
+        No data for selected period
+      </div>
+    );
+  }
+  
+  return (
+    <div className="space-y-2">
+      <div className="flex items-end gap-1 h-32">
+        {data.map((d) => (
+          <Tooltip key={d.date}>
+            <TooltipTrigger asChild>
+              <div
+                className="flex-1 bg-blue-500/80 rounded-t hover:bg-blue-500 transition-colors cursor-default"
+                style={{ height: `${(d.users / maxValue) * 100}%`, minHeight: '2px' }}
+              />
+            </TooltipTrigger>
+            <TooltipContent>
+              <div className="text-sm">
+                <div className="font-medium">{formatDate(d.date)}</div>
+                <div>{d.users} unique user{d.users !== 1 ? 's' : ''}</div>
+              </div>
+            </TooltipContent>
+          </Tooltip>
+        ))}
+      </div>
+      <div className="flex justify-between text-xs text-muted-foreground">
+        <span>{data[0]?.date ? formatDate(data[0].date) : ''}</span>
+        <span>{data.at(-1)?.date ? formatDate(data.at(-1)!.date) : ''}</span>
+      </div>
+    </div>
+  );
+}
+
+function ActionsBarChart({ data }: { data: DailyActions[] }) {
+  const maxValue = Math.max(...data.map(d => d.actions), 1);
+  
+  if (data.length === 0) {
+    return (
+      <div className="h-32 flex items-center justify-center text-muted-foreground">
+        No data for selected period
+      </div>
+    );
+  }
+  
+  return (
+    <div className="space-y-2">
+      <div className="flex items-end gap-1 h-32">
+        {data.map((d) => (
+          <Tooltip key={d.date}>
+            <TooltipTrigger asChild>
+              <div
+                className="flex-1 rounded-t transition-colors cursor-default flex flex-col justify-end"
+                style={{ height: `${(d.actions / maxValue) * 100}%`, minHeight: '2px' }}
+              >
+                {/* Stacked bar: adds (green), removes (red), reorders (blue) */}
+                <div 
+                  className="bg-green-500/80 hover:bg-green-500 w-full"
+                  style={{ height: `${d.actions > 0 ? (d.adds / d.actions) * 100 : 0}%` }}
+                />
+                <div 
+                  className="bg-red-500/80 hover:bg-red-500 w-full"
+                  style={{ height: `${d.actions > 0 ? (d.removes / d.actions) * 100 : 0}%` }}
+                />
+                <div 
+                  className="bg-blue-500/80 hover:bg-blue-500 w-full rounded-t"
+                  style={{ height: `${d.actions > 0 ? (d.reorders / d.actions) * 100 : 0}%` }}
+                />
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              <div className="text-sm space-y-1">
+                <div className="font-medium">{formatDate(d.date)}</div>
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 bg-green-500 rounded" />
+                  <span>{d.adds} added</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 bg-red-500 rounded" />
+                  <span>{d.removes} removed</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 bg-blue-500 rounded" />
+                  <span>{d.reorders} reordered</span>
+                </div>
+                <div className="border-t pt-1 mt-1 font-medium">{d.actions} total</div>
+              </div>
+            </TooltipContent>
+          </Tooltip>
+        ))}
+      </div>
+      <div className="flex justify-between text-xs text-muted-foreground">
+        <span>{data[0]?.date ? formatDate(data[0].date) : ''}</span>
+        <span>{data.at(-1)?.date ? formatDate(data.at(-1)!.date) : ''}</span>
+      </div>
+      {/* Legend */}
+      <div className="flex gap-4 justify-center text-xs">
+        <div className="flex items-center gap-1">
+          <span className="w-2 h-2 bg-green-500 rounded" />
+          <span>Added</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <span className="w-2 h-2 bg-red-500 rounded" />
+          <span>Removed</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <span className="w-2 h-2 bg-blue-500 rounded" />
+          <span>Reordered</span>
+        </div>
       </div>
     </div>
   );
@@ -265,10 +434,11 @@ export function StatsDashboard() {
   ];
 
   return (
-    <div className="space-y-6">
-      {/* Time Range Selector */}
-      <div className="flex items-center gap-2">
-        <Calendar className="h-4 w-4 text-muted-foreground" />
+    <TooltipProvider>
+      <div className="space-y-6">
+        {/* Time Range Selector */}
+        <div className="flex items-center gap-2">
+          <Calendar className="h-4 w-4 text-muted-foreground" />
         <span className="text-sm text-muted-foreground">Time Range:</span>
         <div className="flex gap-1">
           {timeRanges.map((r) => (
@@ -291,45 +461,53 @@ export function StatsDashboard() {
           value={overviewLoading ? '...' : kpis?.activeUsers ?? 0}
           subtitle={`${dateRange.from} to ${dateRange.to}`}
           icon={Users}
+          description="Number of unique users who have interacted with the app during the selected time period"
         />
         <KPICard
           title="Total Events"
           value={overviewLoading ? '...' : kpis?.totalEvents ?? 0}
           icon={Activity}
+          description="Sum of all tracked events including track additions, removals, reorders, and API calls"
         />
         <KPICard
           title="Tracks Added"
           value={overviewLoading ? '...' : kpis?.tracksAdded ?? 0}
           icon={Plus}
+          description="Number of tracks added to playlists by users"
         />
         <KPICard
           title="Tracks Removed"
           value={overviewLoading ? '...' : kpis?.tracksRemoved ?? 0}
           icon={Minus}
+          description="Number of tracks removed from playlists by users"
         />
         <KPICard
           title="Avg API Duration"
           value={overviewLoading ? '...' : formatDuration(kpis?.avgApiDurationMs ?? 0)}
           icon={Clock}
+          description="Average time taken for Spotify API calls to complete"
         />
         <KPICard
           title="Error Rate"
           value={overviewLoading ? '...' : formatPercent(kpis?.errorRate ?? 0)}
           icon={AlertCircle}
+          description="Percentage of API calls that resulted in errors"
         />
         <KPICard
           title="Total Sessions"
           value={overviewLoading ? '...' : kpis?.totalSessions ?? 0}
           icon={Users}
+          description="Number of unique user sessions started during the selected period"
         />
         <KPICard
           title="Avg Session Duration"
           value={overviewLoading ? '...' : formatDuration(kpis?.avgSessionDurationMs ?? 0)}
           icon={Clock}
+          description="Average time users spent in a single session"
         />
       </div>
 
-      {/* Charts Row */}
+      {/* Charts Row 1: Daily Activity */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <Card className="col-span-2">
           <CardHeader>
@@ -367,6 +545,45 @@ export function StatsDashboard() {
         </Card>
       </div>
 
+      {/* Charts Row 2: Users and Actions per Day */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              Users per Day
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {eventsLoading ? (
+              <div className="h-32 flex items-center justify-center text-muted-foreground">
+                Loading...
+              </div>
+            ) : (
+              <UsersBarChart data={events?.dailyUsers ?? []} />
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Activity className="h-4 w-4" />
+              Actions per Day
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {eventsLoading ? (
+              <div className="h-32 flex items-center justify-center text-muted-foreground">
+                Loading...
+              </div>
+            ) : (
+              <ActionsBarChart data={events?.dailyActions ?? []} />
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Top Playlists */}
       <Card>
         <CardHeader>
@@ -380,6 +597,7 @@ export function StatsDashboard() {
           )}
         </CardContent>
       </Card>
-    </div>
+      </div>
+    </TooltipProvider>
   );
 }

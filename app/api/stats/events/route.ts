@@ -7,12 +7,14 @@
  * - Daily summaries with event breakdown
  * - Event counts by type
  * - Action distribution
+ * - Daily users
+ * - Daily actions
  * 
  * Protected by middleware (STATS_ALLOWED_USER_IDS).
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getDailySummaries, getActionDistribution, getTopPlaylists } from '@/lib/metrics';
+import { getDailySummaries, getActionDistribution, getTopPlaylists, getDailyUsers, getDailyActions } from '@/lib/metrics';
 import { logPageView } from '@/lib/metrics';
 import { getToken } from 'next-auth/jwt';
 
@@ -27,10 +29,12 @@ export async function GET(request: NextRequest) {
   const to = searchParams.get('to') || today;
 
   try {
-    const [dailySummaries, actionDistribution, topPlaylists] = await Promise.all([
+    const [dailySummaries, actionDistribution, topPlaylists, dailyUsers, dailyActions] = await Promise.all([
       getDailySummaries({ from, to }),
       getActionDistribution({ from, to }),
       getTopPlaylists({ from, to }, 10),
+      getDailyUsers({ from, to }),
+      getDailyActions({ from, to }),
     ]);
     
     return NextResponse.json({
@@ -39,6 +43,8 @@ export async function GET(request: NextRequest) {
         dailySummaries,
         actionDistribution,
         topPlaylists,
+        dailyUsers,
+        dailyActions,
       },
       range: { from, to },
     });

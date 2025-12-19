@@ -34,6 +34,8 @@ export {
   getTopPlaylists,
   getSessionsByDay,
   getActionDistribution,
+  getDailyUsers,
+  getDailyActions,
   updateDailyAggregates,
   type DateRange,
   type EventCount,
@@ -41,4 +43,6 @@ export {
   type OverviewKPIs,
   type TopPlaylist,
   type SessionSummary,
+  type DailyUsers,
+  type DailyActions,
 } from './aggregations';

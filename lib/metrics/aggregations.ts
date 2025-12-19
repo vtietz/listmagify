@@ -201,6 +201,56 @@ export function getSessionsByDay(range: DateRange): SessionSummary[] {
 }
 
 /**
+ * Get unique users per day from events.
+ */
+export interface DailyUsers {
+  date: string;
+  users: number;
+}
+
+export function getDailyUsers(range: DateRange): DailyUsers[] {
+  return queryAll<DailyUsers>(
+    `SELECT 
+      date(ts) as date,
+      COUNT(DISTINCT user_hash) as users
+    FROM events
+    WHERE date(ts) BETWEEN ? AND ?
+    GROUP BY date(ts)
+    ORDER BY date(ts)`,
+    [range.from, range.to]
+  );
+}
+
+/**
+ * Get daily actions (track operations only).
+ */
+export interface DailyActions {
+  date: string;
+  actions: number;
+  adds: number;
+  removes: number;
+  reorders: number;
+}
+
+export function getDailyActions(range: DateRange): DailyActions[] {
+  return queryAll<DailyActions>(
+    `SELECT 
+      date(ts) as date,
+      COUNT(*) as actions,
+      SUM(CASE WHEN event = 'track_add' THEN 1 ELSE 0 END) as adds,
+      SUM(CASE WHEN event = 'track_remove' THEN 1 ELSE 0 END) as removes,
+      SUM(CASE WHEN event = 'track_reorder' THEN 1 ELSE 0 END) as reorders
+    FROM events
+    WHERE 
+      date(ts) BETWEEN ? AND ?
+      AND event IN ('track_add', 'track_remove', 'track_reorder')
+    GROUP BY date(ts)
+    ORDER BY date(ts)`,
+    [range.from, range.to]
+  );
+}
+
+/**
  * Get action distribution (add/remove/reorder).
  */
 export function getActionDistribution(range: DateRange): { event: string; count: number }[] {
