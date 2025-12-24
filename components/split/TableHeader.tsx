@@ -21,15 +21,17 @@ interface TableHeaderProps {
 
 /** Grid template for consistent column alignment between header and rows */
 export const TRACK_GRID_CLASSES = 'grid items-center';
-export const TRACK_GRID_CLASSES_NORMAL = 'gap-2 px-3';
-export const TRACK_GRID_CLASSES_COMPACT = 'gap-1 px-1.5';
+export const TRACK_GRID_CLASSES_NORMAL = 'gap-2 px-2';
+export const TRACK_GRID_CLASSES_COMPACT = 'gap-1 px-1';
 export const TRACK_GRID_STYLE = {
   // Play | Add | Heart | # | Title (flex) | Artist (flex) | Year | Popularity | Time
-  gridTemplateColumns: '24px 24px 24px 32px minmax(150px, 1fr) minmax(120px, 1fr) 44px 48px 50px',
+  // Minimum widths ensure readability while allowing shrink for 2 panels
+  gridTemplateColumns: '20px 20px 20px 28px minmax(80px, 2fr) minmax(60px, 1fr) 36px 36px 44px',
 };
 export const TRACK_GRID_STYLE_WITH_ALBUM = {
   // Play | Add | Heart | # | Title (flex) | Artist (flex) | Album (flex) | Year | Popularity | Time
-  gridTemplateColumns: '24px 24px 24px 32px minmax(150px, 2fr) minmax(120px, 1fr) minmax(120px, 1fr) 44px 48px 50px',
+  // Minimum widths ensure readability while allowing shrink for 2 panels
+  gridTemplateColumns: '20px 20px 20px 28px minmax(80px, 2fr) minmax(60px, 1fr) minmax(60px, 1fr) 36px 36px 44px',
 };
 
 export function TableHeader({ isEditable, sortKey, sortDirection, onSort, showLikedColumn = true }: TableHeaderProps) {

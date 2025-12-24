@@ -700,8 +700,8 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
 
         {!isLoading && !error && filteredTracks.length > 0 && (
           <>
-            {/* Inner content wrapper - sizes to intrinsic grid width for horizontal scroll */}
-            <div className="relative w-max min-w-full">
+            {/* Inner content wrapper - fills available width */}
+            <div className="relative w-full">
             <TableHeader
               isEditable={isEditable}
               sortKey={sortKey}

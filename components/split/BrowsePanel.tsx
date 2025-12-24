@@ -296,8 +296,8 @@ export function BrowsePanel() {
               ref={scrollRef}
               className="h-full overflow-auto"
             >
-              {/* Inner content wrapper - sizes to intrinsic grid width for horizontal scroll */}
-              <div className="relative w-max min-w-full">
+              {/* Inner content wrapper - fills available width */}
+              <div className="relative w-full">
                 {/* Sortable Table Header - inside scroll container with sticky positioning */}
                 <TableHeader
                   isEditable={false}
