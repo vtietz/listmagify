@@ -4,23 +4,38 @@ cd "$(dirname "$0")"
 
 usage() {
   cat <<EOF
-Usage: ./run.sh [compose|exec|run|install|start|test|prod-up|prod-down] [args...]
+Usage: ./run.sh [command] [args...]
+
+Commands:
+  up              Start dev server (docker compose up)
+  down            Stop dev server (docker compose down)
+  install         Install dependencies
+  test            Run tests
+  exec            Run command in container (e.g., exec pnpm add package)
+  compose         Run docker compose command (e.g., compose logs -f)
+  prod-up         Start production deployment
+  prod-down       Stop production deployment
 
 Examples:
-  ./run.sh compose build
-  ./run.sh compose up
-  ./run.sh compose down
-  ./run.sh exec pnpm test -- --watch
-  ./run.sh run pnpm lint
+  ./run.sh up
+  ./run.sh down
   ./run.sh install
-  ./run.sh start
+  ./run.sh test
   ./run.sh test -- --watch
-  ./run.sh prod-up        # Start production deployment
-  ./run.sh prod-down      # Stop production deployment
+  ./run.sh exec pnpm add lodash
+  ./run.sh compose logs -f
 EOF
 }
 
 case "${1:-}" in
+  up)
+    shift
+    docker compose --env-file .env -f docker/docker-compose.yml up web "$@"
+    ;;
+  down)
+    shift
+    docker compose --env-file .env -f docker/docker-compose.yml down "$@"
+    ;;
   compose)
     shift
     docker compose --env-file .env -f docker/docker-compose.yml "$@"
@@ -40,11 +55,11 @@ case "${1:-}" in
   install)
     shift
     # Rebuild better-sqlite3 for Linux after install (host may have different platform binaries)
-    docker compose --env-file .env -f docker/docker-compose.yml run --rm web sh -c "pnpm install $* && npm rebuild better-sqlite3"
+    docker compose --env-file .env -f docker/docker-compose.yml run --rm web sh -c "pnpm install $* && pnpm rebuild better-sqlite3"
     ;;
   start)
+    # Alias for 'up' (backwards compatibility)
     shift
-    # Start only the dev service (web) by default
     docker compose --env-file .env -f docker/docker-compose.yml up web "$@"
     ;;
   test)

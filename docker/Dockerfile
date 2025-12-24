@@ -4,11 +4,12 @@ FROM node:22-bookworm-slim AS base
 ENV NEXT_TELEMETRY_DISABLED=1 \
     CHOKIDAR_USEPOLLING=1 \
     WATCHPACK_POLLING=true \
-    COREPACK_ENABLE_STRICT=0
+    COREPACK_ENABLE_STRICT=0 \
+    COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 WORKDIR /usr/src/app
 # Ensure npm 11 is available globally
 RUN npm install -g npm@11.7.0 && npm -v
-RUN corepack enable && corepack install -g pnpm@10.18.3
+RUN corepack enable && corepack install -g pnpm@10.26.2
 
 # Dev image: install deps once, keep cache
 FROM base AS dev

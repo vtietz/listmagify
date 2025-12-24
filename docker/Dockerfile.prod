@@ -6,7 +6,7 @@ ENV NEXT_TELEMETRY_DISABLED=1 \
 WORKDIR /usr/src/app
 # Ensure npm 11 is available globally
 RUN npm install -g npm@11.7.0 && npm -v
-RUN corepack enable && corepack install -g pnpm@10.18.3
+RUN corepack enable && corepack install -g pnpm@10.26.2
 
 # --- Production Build Stage ---
 FROM base AS builder

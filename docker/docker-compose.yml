@@ -20,7 +20,8 @@ services:
       - HOSTNAME=0.0.0.0
     volumes:
       - ..:/usr/src/app:cached
-      - node_modules:/usr/src/app/node_modules
+      # Bind mount node_modules so VS Code can see types on host
+      - ../node_modules:/usr/src/app/node_modules:cached
       - ../data:/usr/src/app/data
     command:
       - sh
@@ -74,7 +75,7 @@ services:
       - SPOTIFY_BASE_URL=http://spotify-mock:8080
     volumes:
       - ..:/usr/src/app:cached
-      - node_modules:/usr/src/app/node_modules
+      - ../node_modules:/usr/src/app/node_modules:cached
     command:
       - sh
       - -lc
@@ -109,10 +110,10 @@ services:
     volumes:
       - ..:/work:cached
       - playwright-cache:/root/.cache/ms-playwright  # Persist browser downloads
-      - node_modules:/work/node_modules  # Use shared node_modules volume
+      - ../node_modules:/work/node_modules:cached  # Use bind mount for node_modules
     command: >
       sh -c "
-        npm install -g pnpm@10.18.3 &&
+        npm install -g pnpm@10.26.2 &&
         pnpm exec playwright install chromium --with-deps &&
         pnpm exec playwright test
       "
@@ -123,7 +124,6 @@ services:
       - test-network
 
 volumes:
-  node_modules:
   playwright-cache:  # Persist Playwright browser downloads
 
 networks:

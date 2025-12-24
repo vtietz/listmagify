@@ -56,9 +56,14 @@ To deploy to production:
    - Redirect URI: `http://127.0.0.1:3000/api/auth/callback/spotify`
 
 4. **Run**:
-   ```cmd
+   ```bash
+   # Windows
    run.bat install
-   run.bat start
+   run.bat up
+
+   # macOS/Linux
+   ./run.sh install
+   ./run.sh up
    ```
 
 5. Open [http://127.0.0.1:3000](http://127.0.0.1:3000)
@@ -67,12 +72,14 @@ To deploy to production:
 
 All commands run inside Docker:
 
-| Command | Description |
-|---------|-------------|
-| `run.bat install` | Install dependencies |
-| `run.bat start` | Start dev server |
-| `run.bat test` | Run unit tests |
-| `run.bat test e2e` | Run E2E tests |
+| Task | Windows | macOS/Linux |
+|------|---------|-------------|
+| Install dependencies | `run.bat install` | `./run.sh install` |
+| Start dev server | `run.bat up` | `./run.sh up` |
+| Stop dev server | `run.bat down` | `./run.sh down` |
+| Run unit tests | `run.bat test` | `./run.sh test` |
+| Run E2E tests | `run.bat test e2e` | `./run.sh test e2e` |
+| Add package | `run.bat dev pnpm add <pkg>` | `./run.sh exec pnpm add <pkg>` |
 
 ## Production Deployment
 

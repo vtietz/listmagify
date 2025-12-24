@@ -16,5 +16,5 @@
       ]
     }
   },
-  "postCreateCommand": "corepack use pnpm@10.18.3 && pnpm install"
+  "postCreateCommand": "corepack use pnpm@10.26.2 && pnpm install"
 }

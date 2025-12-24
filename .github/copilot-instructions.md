@@ -48,7 +48,8 @@ PowerShell commands you'll use frequently:
 | Install dependencies     | `run.bat install`                | `.\run.bat install`              | `./run.sh install`               |
 | Add new package          | `run.bat dev pnpm add <package>` | `.\run.bat dev pnpm add <package>`| `./run.sh exec pnpm add <package>`|
 | Remove package           | `run.bat dev pnpm remove <package>`| `.\run.bat dev pnpm remove <package>`| `./run.sh exec pnpm remove <package>`|
-| Start dev server         | `run.bat up`                     | `.\run.bat up`                   | `./run.sh start`                 |
+| Start dev server         | `run.bat up`                     | `.\run.bat up`                   | `./run.sh up`                    |
+| Stop dev server          | `run.bat down`                   | `.\run.bat down`                 | `./run.sh down`                  |
 | Run tests                | `run.bat test`                   | `.\run.bat test`                 | `./run.sh test`                  |
 | Run tests (watch mode)   | `run.bat test --watch`           | `.\run.bat test --watch`         | `./run.sh test -- --watch`       |
 | Execute arbitrary command| `run.bat dev <cmd>`              | `.\run.bat dev <cmd>`            | `./run.sh exec <cmd>`            |

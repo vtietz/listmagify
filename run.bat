@@ -36,7 +36,7 @@ if "%1"=="down" (
 if "%1"=="install" (
   rem Install as root inside the container to avoid Windows bind-mount EACCES on rename/mkdir
   rem Rebuild better-sqlite3 for Linux after install (host may have Windows binaries)
-  docker compose -f docker\docker-compose.yml run --rm --user root web sh -lc "corepack prepare pnpm@10.18.3 --activate && pnpm install %2 %3 %4 %5 %6 %7 %8 %9 && npm rebuild better-sqlite3"
+  docker compose -f docker\docker-compose.yml run --rm --user root web sh -c "pnpm install %2 %3 %4 %5 %6 %7 %8 %9 && pnpm rebuild better-sqlite3"
   goto :eof
 )
 if "%1"=="build" (
