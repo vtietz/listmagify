@@ -31,13 +31,26 @@ type ClientEnv = z.infer<typeof clientSchema>;
 /**
  * Parse and export typed envs.
  * Throws fast during boot if any required value is missing/invalid.
+ * During build/dev without .env values, use safe defaults (auth won't work but app loads).
  */
-export const serverEnv: ServerEnv = serverSchema.parse({
-  NEXTAUTH_URL: process.env.NEXTAUTH_URL,
-  NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
-  SPOTIFY_CLIENT_ID: process.env.SPOTIFY_CLIENT_ID,
-  SPOTIFY_CLIENT_SECRET: process.env.SPOTIFY_CLIENT_SECRET,
-});
+export const serverEnv: ServerEnv = (() => {
+  // Allow app to load without env vars (auth won't work but pages render)
+  if (!process.env.NEXTAUTH_URL) {
+    console.warn('[env] Missing NEXTAUTH_URL - using defaults. Auth will not work.');
+    return {
+      NEXTAUTH_URL: 'http://localhost:3000',
+      NEXTAUTH_SECRET: 'dev-placeholder-secret',
+      SPOTIFY_CLIENT_ID: 'missing-client-id',
+      SPOTIFY_CLIENT_SECRET: 'missing-client-secret',
+    };
+  }
+  return serverSchema.parse({
+    NEXTAUTH_URL: process.env.NEXTAUTH_URL,
+    NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
+    SPOTIFY_CLIENT_ID: process.env.SPOTIFY_CLIENT_ID,
+    SPOTIFY_CLIENT_SECRET: process.env.SPOTIFY_CLIENT_SECRET,
+  });
+})();
 
 export const clientEnv: ClientEnv = clientSchema.parse({});
 

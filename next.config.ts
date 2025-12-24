@@ -1,11 +1,10 @@
-import type { NextConfig } from 'next';
-
-const nextConfig: NextConfig = {
+// Next.js 16.1+ uses default export without importing NextConfig type
+const nextConfig = {
   // Allow dev requests from both localhost and 127.0.0.1 to prevent CORS issues
   allowedDevOrigins: [
-    'http://localhost:3000',
-    'http://127.0.0.1:3000',
+    'localhost',
+    '127.0.0.1',
   ],
-};
+} as const;
 
 export default nextConfig;

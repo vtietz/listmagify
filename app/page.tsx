@@ -71,7 +71,7 @@ export default async function Home() {
                 Open Playlists
               </Link>
             ) : (
-              <SignInButton callbackUrl="/split-editor" />
+              <SignInButton callbackUrl="/playlists" />
             )}
           </div>
           <p className="text-sm text-muted-foreground">

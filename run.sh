@@ -23,11 +23,11 @@ EOF
 case "${1:-}" in
   compose)
     shift
-    docker compose -f docker/docker-compose.yml "$@"
+    docker compose --env-file .env -f docker/docker-compose.yml "$@"
     ;;
   exec)
     shift
-    docker compose -f docker/docker-compose.yml run --rm web "$@"
+    docker compose --env-file .env -f docker/docker-compose.yml run --rm web "$@"
     ;;
   run)
     shift
@@ -40,15 +40,16 @@ case "${1:-}" in
   install)
     shift
     # Rebuild better-sqlite3 for Linux after install (host may have different platform binaries)
-    docker compose -f docker/docker-compose.yml run --rm web sh -c "pnpm install $* && npm rebuild better-sqlite3"
+    docker compose --env-file .env -f docker/docker-compose.yml run --rm web sh -c "pnpm install $* && npm rebuild better-sqlite3"
     ;;
   start)
     shift
-    docker compose -f docker/docker-compose.yml up "$@"
+    # Start only the dev service (web) by default
+    docker compose --env-file .env -f docker/docker-compose.yml up web "$@"
     ;;
   test)
     shift
-    docker compose -f docker/docker-compose.yml run --rm web pnpm test "$@"
+    docker compose --env-file .env -f docker/docker-compose.yml run --rm web pnpm test "$@"
     ;;
   prod-up)
     shift

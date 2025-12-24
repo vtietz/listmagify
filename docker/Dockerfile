@@ -1,17 +1,21 @@
 # syntax=docker/dockerfile:1.7
 
-FROM node:22-alpine AS base
+FROM node:22-bookworm-slim AS base
 ENV NEXT_TELEMETRY_DISABLED=1 \
     CHOKIDAR_USEPOLLING=1 \
     WATCHPACK_POLLING=true \
     COREPACK_ENABLE_STRICT=0
 WORKDIR /usr/src/app
+# Ensure npm 11 is available globally
+RUN npm install -g npm@11.7.0 && npm -v
 RUN corepack enable && corepack install -g pnpm@10.18.3
 
 # Dev image: install deps once, keep cache
 FROM base AS dev
-# Install OS deps (git, openssl for Auth.js PKCE)
-RUN apk add --no-cache bash openssl
+# Install OS deps (openssl for Auth.js PKCE)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends bash openssl && \
+    rm -rf /var/lib/apt/lists/*
 # Dev image: no dependency install; dependencies are installed during development via docker/run.bat install
 COPY . .
 
