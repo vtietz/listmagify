@@ -5,7 +5,7 @@
 
 'use client';
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, useDeferredValue } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
@@ -151,18 +151,24 @@ export function BrowsePanel() {
 
   // Dynamic row height based on compact mode
   const rowHeight = isCompact ? TRACK_ROW_HEIGHT_COMPACT : TRACK_ROW_HEIGHT;
+
+  // Defer the count to avoid flushSync during render in React 19
+  const deferredCount = useDeferredValue(sortedTracks.length);
   
   // Virtualizer for efficient rendering
   const virtualizer = useVirtualizer({
-    count: sortedTracks.length,
+    count: deferredCount,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => rowHeight,
     overscan: VIRTUALIZATION_OVERSCAN,
   });
 
   // Re-measure when compact mode changes
+  // Use queueMicrotask to defer measure() and avoid flushSync warning in React 19
   useEffect(() => {
-    virtualizer.measure();
+    queueMicrotask(() => {
+      virtualizer.measure();
+    });
   }, [isCompact, virtualizer]);
   
   // Auto-load more when scrolling near the bottom

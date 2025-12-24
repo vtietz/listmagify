@@ -5,7 +5,7 @@
 
 'use client';
 
-import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
+import { useEffect, useRef, useState, useMemo, useCallback, useDeferredValue } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
@@ -409,17 +409,23 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
   const isCompact = useCompactModeStore((state) => state.isCompact);
   const rowHeight = isCompact ? TRACK_ROW_HEIGHT_COMPACT : TRACK_ROW_HEIGHT;
 
+  // Defer the count to avoid flushSync during render in React 19
+  const deferredCount = useDeferredValue(filteredTracks.length);
+
   // Virtualization with dynamic row height based on compact mode
   const virtualizer = useVirtualizer({
-    count: filteredTracks.length,
+    count: deferredCount,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => rowHeight,
     overscan: VIRTUALIZATION_OVERSCAN,
   });
 
   // Re-measure all items when compact mode changes
+  // Use queueMicrotask to defer measure() and avoid flushSync warning in React 19
   useEffect(() => {
-    virtualizer.measure();
+    queueMicrotask(() => {
+      virtualizer.measure();
+    });
   }, [isCompact, virtualizer]);
 
   const items = virtualizer.getVirtualItems();
