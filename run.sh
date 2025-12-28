@@ -13,8 +13,10 @@ Commands:
   test            Run tests
   exec            Run command in container (e.g., exec pnpm add package)
   compose         Run docker compose command (e.g., compose logs -f)
+  prod-build      Build production image (use --no-cache to force rebuild)
   prod-up         Start production deployment
   prod-down       Stop production deployment
+  prod-logs       View production logs (use -f to follow)
 
 Examples:
   ./run.sh up
@@ -24,6 +26,8 @@ Examples:
   ./run.sh test -- --watch
   ./run.sh exec pnpm add lodash
   ./run.sh compose logs -f
+  ./run.sh prod-build --no-cache
+  ./run.sh prod-logs -f
 EOF
 }
 
@@ -66,6 +70,16 @@ case "${1:-}" in
     shift
     docker compose --env-file .env -f docker/docker-compose.yml run --rm web pnpm test "$@"
     ;;
+  prod-build)
+    shift
+    # Build production image with current .env values
+    if [ -f docker/docker-compose.prod.override.yml ]; then
+      echo "Building production image with override..."
+      docker compose --env-file .env -f docker/docker-compose.prod.yml -f docker/docker-compose.prod.override.yml build "$@"
+    else
+      docker compose --env-file .env -f docker/docker-compose.prod.yml build "$@"
+    fi
+    ;;
   prod-up)
     shift
     # Check for override file
@@ -83,6 +97,15 @@ case "${1:-}" in
       docker compose --env-file .env -f docker/docker-compose.prod.yml -f docker/docker-compose.prod.override.yml down "$@"
     else
       docker compose --env-file .env -f docker/docker-compose.prod.yml down "$@"
+    fi
+    ;;
+  prod-logs)
+    shift
+    # View production logs
+    if [ -f docker/docker-compose.prod.override.yml ]; then
+      docker compose --env-file .env -f docker/docker-compose.prod.yml -f docker/docker-compose.prod.override.yml logs "$@"
+    else
+      docker compose --env-file .env -f docker/docker-compose.prod.yml logs "$@"
     fi
     ;;
   *)
