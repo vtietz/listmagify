@@ -214,7 +214,7 @@ export function PlaylistSelector({ selectedPlaylistId, selectedPlaylistName, onS
       >
         <span className="truncate flex items-center gap-1.5">
           {isLikedSongsPlaylist(selectedPlaylistId) && (
-            <Heart className="h-3.5 w-3.5 fill-green-500 text-green-500 shrink-0" />
+            <Heart className="h-3.5 w-3.5 fill-[#9759f5] text-[#9759f5] shrink-0" />
           )}
           {selectedPlaylistName || 
            (isLikedSongsPlaylist(selectedPlaylistId) ? LIKED_SONGS_METADATA.name : null) || 
@@ -272,7 +272,7 @@ export function PlaylistSelector({ selectedPlaylistId, selectedPlaylistName, onS
                         )}
                       />
                       <div className="min-w-0 flex items-center gap-1.5">
-                        <Heart className="h-3.5 w-3.5 fill-green-500 text-green-500 shrink-0" />
+                        <Heart className="h-3.5 w-3.5 fill-[#9759f5] text-[#9759f5] shrink-0" />
                         <div className="truncate">{LIKED_SONGS_METADATA.name}</div>
                       </div>
                     </div>

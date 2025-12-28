@@ -3,6 +3,7 @@ import { authOptions } from "@/lib/auth/auth";
 import Link from "next/link";
 import { SignInButton } from "@/components/auth/SignInButton";
 import { AppLogo } from "@/components/ui/app-logo";
+import { SpotifyAttribution } from "@/components/ui/spotify-attribution";
 import { 
   Columns, 
   GripVertical, 
@@ -34,12 +35,7 @@ export default async function Home() {
       "price": "0",
       "priceCurrency": "USD"
     },
-    "description": "Professional playlist management tool for Spotify. Edit multiple playlists side-by-side with drag-and-drop.",
-    "aggregateRating": {
-      "@type": "AggregateRating",
-      "ratingValue": "4.8",
-      "ratingCount": "120"
-    }
+    "description": "Professional playlist management tool for Spotify. Edit multiple playlists side-by-side with drag-and-drop."
   };
 
   return (
@@ -162,7 +158,7 @@ export default async function Home() {
           />
           <UseCaseCard
             title="🏃 Fitness Enthusiasts"
-            description="Build the perfect workout playlists. Sort by BPM, copy high-energy tracks, and keep your motivation music organized."
+            description="Build the perfect workout playlists. Organize high-energy tracks, copy favorites between sessions, and keep your motivation music ready to go."
           />
           <UseCaseCard
             title="📚 Mood & Activity Playlists"
@@ -199,29 +195,13 @@ export default async function Home() {
       {/* Footer */}
       <footer className="container mx-auto px-4 py-8 border-t border-border">
         <div className="flex flex-col md:flex-row justify-between items-center gap-6 text-sm text-muted-foreground">
-          {/* Spotify Attribution - Required per Spotify Design Guidelines */}
-          <div className="flex items-center gap-3">
-            <img 
-              src="/spotify/Primary_Logo_White_RGB.svg" 
-              alt="Spotify" 
-              className="h-6 hidden dark:block"
-            />
-            <img 
-              src="/spotify/Primary_Logo_Black_RGB.svg" 
-              alt="Spotify" 
-              className="h-6 dark:hidden"
-            />
-            <span className="text-xs">Content provided by Spotify</span>
-          </div>
+          <SpotifyAttribution />
           <div className="flex gap-4">
             <Link href="/privacy" className="hover:text-foreground transition-colors">
               Privacy
             </Link>
             <Link href="/imprint" className="hover:text-foreground transition-colors">
               Imprint
-            </Link>
-            <Link href="https://github.com/vtietz/spotify-playlist-studio" className="hover:text-foreground transition-colors">
-              GitHub
             </Link>
           </div>
         </div>

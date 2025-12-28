@@ -294,7 +294,7 @@ export function TrackRow({
             'flex items-center justify-center transition-colors',
             isLocalFile && 'opacity-30 cursor-not-allowed',
             !isLocalFile && 'hover:scale-110',
-            isLiked ? 'text-green-500' : 'text-muted-foreground hover:text-foreground',
+            isLiked ? 'text-[#9759f5]' : 'text-muted-foreground hover:text-foreground',
           )}
           title={
             isLocalFile
@@ -389,13 +389,11 @@ export function TrackRow({
         {track.popularity != null ? (
           <div className={cn('w-full rounded-full bg-muted/50', isCompact ? 'h-1' : 'h-1.5')}>
             <div 
-              className={cn(
-                'h-full rounded-full transition-all',
-                track.popularity >= 70 ? 'bg-green-500' : 
-                track.popularity >= 40 ? 'bg-yellow-500' : 
-                'bg-muted-foreground/50'
-              )}
-              style={{ width: `${track.popularity}%` }}
+              className="h-full rounded-full transition-all"
+              style={{ 
+                width: `${track.popularity}%`,
+                backgroundColor: `color-mix(in srgb, #11B7AE ${track.popularity}%, #6b7280)`
+              }}
             />
           </div>
         ) : (

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Search, Music2, ListMusic, Columns2, LogIn, LogOut, Minimize2, MapPinOff, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AppLogo } from "@/components/ui/app-logo";
+import { SpotifyAttribution } from "@/components/ui/spotify-attribution";
 import { useBrowsePanelStore } from "@/hooks/useBrowsePanelStore";
 import { usePlayerStore } from "@/hooks/usePlayerStore";
 import { useCompactModeStore } from "@/hooks/useCompactModeStore";
@@ -43,6 +44,9 @@ export function AppShell({ headerTitle = "Listmagify", children }: AppShellProps
     <div className="h-dvh flex flex-col bg-background text-foreground overflow-hidden">
       <Header title={headerTitle} />
       <main className="flex-1 min-h-0 overflow-hidden">{children}</main>
+      <div className="flex-shrink-0 px-4 py-1 border-t border-border">
+        <SpotifyAttribution />
+      </div>
       <SpotifyPlayer />
     </div>
   );
