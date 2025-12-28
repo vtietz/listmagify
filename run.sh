@@ -71,18 +71,18 @@ case "${1:-}" in
     # Check for override file
     if [ -f docker/docker-compose.prod.override.yml ]; then
       echo "Using production override file..."
-      docker compose -f docker/docker-compose.prod.yml -f docker/docker-compose.prod.override.yml up -d "$@"
+      docker compose --env-file .env -f docker/docker-compose.prod.yml -f docker/docker-compose.prod.override.yml up -d "$@"
     else
-      docker compose -f docker/docker-compose.prod.yml up -d "$@"
+      docker compose --env-file .env -f docker/docker-compose.prod.yml up -d "$@"
     fi
     ;;
   prod-down)
     shift
     # Check for override file
     if [ -f docker/docker-compose.prod.override.yml ]; then
-      docker compose -f docker/docker-compose.prod.yml -f docker/docker-compose.prod.override.yml down "$@"
+      docker compose --env-file .env -f docker/docker-compose.prod.yml -f docker/docker-compose.prod.override.yml down "$@"
     else
-      docker compose -f docker/docker-compose.prod.yml down "$@"
+      docker compose --env-file .env -f docker/docker-compose.prod.yml down "$@"
     fi
     ;;
   *)
