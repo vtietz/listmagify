@@ -16,6 +16,9 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+// Base URL for metadata - read at runtime from env (server-side only)
+const appUrl = process.env.APP_URL || process.env.NEXTAUTH_URL || 'http://localhost:3000';
+
 export const metadata: Metadata = {
   title: {
     default: "Listmagify - Playlist Magic for Spotify",
@@ -25,7 +28,7 @@ export const metadata: Metadata = {
   keywords: ["Spotify", "Playlist", "Editor", "Manager", "Sort", "Organize", "Drag and Drop"],
   authors: [{ name: "Listmagify" }],
   creator: "Listmagify",
-  metadataBase: new URL("https://listmagify.com"),
+  metadataBase: new URL(appUrl),
   icons: {
     icon: [
       { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
@@ -37,7 +40,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "en_US",
-    url: "https://listmagify.com",
+    url: appUrl,
     title: "Listmagify - Playlist Magic for Spotify",
     description: "Manage your Spotify playlists like a pro. Split-view editing, bulk actions, and smart search.",
     siteName: "Listmagify",

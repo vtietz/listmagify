@@ -14,7 +14,8 @@
 #   VIRTUAL_PORT        - Port to expose (default: 3000)
 #   LETSENCRYPT_HOST    - Domain for Let's Encrypt certificate
 #   LETSENCRYPT_EMAIL   - Email for Let's Encrypt notifications
-#   NEXTAUTH_URL        - Full production URL (e.g., https://your-domain.com)
+#
+# App secrets (NEXTAUTH_URL, NEXTAUTH_SECRET, SPOTIFY_*) are loaded from .env via env_file
 
 services:
   web:
@@ -32,9 +33,6 @@ services:
       # Let's Encrypt configuration
       - LETSENCRYPT_HOST=${LETSENCRYPT_HOST}
       - LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL}
-      
-      # Production URL
-      - NEXTAUTH_URL=${NEXTAUTH_URL}
 
     # Custom labels (if using Traefik instead of nginx-proxy)
     # labels:

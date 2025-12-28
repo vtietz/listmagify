@@ -1,17 +1,18 @@
 import type { MetadataRoute } from 'next';
 
-export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = 'https://listmagify.com';
+// Read at runtime (server-side only)
+const appUrl = process.env.APP_URL || process.env.NEXTAUTH_URL || 'http://localhost:3000';
 
+export default function sitemap(): MetadataRoute.Sitemap {
   return [
     {
-      url: baseUrl,
+      url: appUrl,
       lastModified: new Date(),
       changeFrequency: 'weekly',
       priority: 1,
     },
     {
-      url: `${baseUrl}/login`,
+      url: `${appUrl}/login`,
       lastModified: new Date(),
       changeFrequency: 'monthly',
       priority: 0.8,

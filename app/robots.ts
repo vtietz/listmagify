@@ -1,5 +1,8 @@
 import type { MetadataRoute } from 'next';
 
+// Read at runtime (server-side only)
+const appUrl = process.env.APP_URL || process.env.NEXTAUTH_URL || 'http://localhost:3000';
+
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: {
@@ -7,6 +10,6 @@ export default function robots(): MetadataRoute.Robots {
       allow: '/',
       disallow: ['/api/', '/playlists/'], // Don't crawl API or private user routes
     },
-    sitemap: 'https://listmagify.com/sitemap.xml',
+    sitemap: `${appUrl}/sitemap.xml`,
   };
 }

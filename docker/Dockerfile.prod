@@ -12,11 +12,7 @@ RUN corepack enable && corepack install -g pnpm@10.26.2
 FROM base AS builder
 WORKDIR /usr/src/app
 
-# Define ARGs for build-time environment variables
-ARG NEXTAUTH_URL
-ARG NEXTAUTH_SECRET
-ARG SPOTIFY_CLIENT_ID
-ARG SPOTIFY_CLIENT_SECRET
+# No build-time env vars needed - all config is read at runtime via env_file
 
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --prod=false
