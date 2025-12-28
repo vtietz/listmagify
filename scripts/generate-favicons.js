@@ -1,23 +1,49 @@
+#!/usr/bin/env node
 /**
- * Generate PNG favicons from SVG
- * Run: node scripts/generate-favicons.js
+ * Favicons build: rasterize SVG icons into PNGs for Apple & favicon sizes.
+ * Usage: node scripts/generate-favicons.js
  */
-
 const fs = require('fs');
 const path = require('path');
+const sharp = require('sharp');
 
-// Simple emerald circle SVG (180x180 for Apple touch icon)
-const appleSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180">
-  <circle cx="90" cy="90" r="80" fill="#10b981"/>
-</svg>`;
-
-// Create apple-icon.svg (browsers can use SVG for apple-touch-icon)
 const publicDir = path.join(__dirname, '..', 'public');
-fs.writeFileSync(path.join(publicDir, 'apple-icon.svg'), appleSvg);
+const iconSvg = path.join(publicDir, 'icon.svg');
+const appleSvg = path.join(publicDir, 'apple-icon.svg');
 
-console.log('✅ Generated apple-icon.svg');
-console.log('');
-console.log('For production, convert to PNG using:');
-console.log('  - Online: https://cloudconvert.com/svg-to-png');
-console.log('  - CLI: npm install -g sharp-cli && sharp -i public/apple-icon.svg -o public/apple-icon.png');
-console.log('');
+async function ensureFile(file) {
+  if (!fs.existsSync(file)) {
+    throw new Error(`Missing required source: ${file}`);
+  }
+}
+
+async function renderPng(inputSvg, outPath, size) {
+  await sharp(inputSvg, { density: 384 })
+    .resize(size, size, { fit: 'cover' })
+    .png({ quality: 100 })
+    .toFile(outPath);
+  console.log(`✓ ${path.basename(outPath)} (${size}x${size})`);
+}
+
+(async function main() {
+  try {
+    await ensureFile(iconSvg);
+    await ensureFile(appleSvg);
+
+    // Apple Touch Icon (primary)
+    await renderPng(appleSvg, path.join(publicDir, 'apple-icon.png'), 180);
+
+    // Favicons
+    await renderPng(iconSvg, path.join(publicDir, 'favicon-32x32.png'), 32);
+    await renderPng(iconSvg, path.join(publicDir, 'favicon-16x16.png'), 16);
+
+    // Android Chrome (optional)
+    await renderPng(iconSvg, path.join(publicDir, 'android-chrome-192x192.png'), 192);
+    await renderPng(iconSvg, path.join(publicDir, 'android-chrome-512x512.png'), 512);
+
+    console.log('\nAll favicons generated to public/.');
+  } catch (err) {
+    console.error('Failed to build favicons:', err.message);
+    process.exit(1);
+  }
+})();

@@ -1,3 +1,238 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <circle cx="16" cy="16" r="14" fill="#10b981"/>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   viewBox="0 0 512 512"
+   version="1.1"
+   id="svg22"
+   sodipodi:docname="icon.svg"
+   inkscape:version="1.4 (86a8ad7, 2024-10-11)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview22"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:zoom="1.1445312"
+     inkscape:cx="256"
+     inkscape:cy="256"
+     inkscape:window-width="1440"
+     inkscape:window-height="830"
+     inkscape:window-x="-6"
+     inkscape:window-y="-6"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg22" />
+  <defs
+     id="defs8">
+    <!-- Gradient for left card (teal to green) -->
+    <linearGradient
+       id="gradLeft"
+       x1="70.356236"
+       y1="68.224229"
+       x2="257.97287"
+       y2="255.84086"
+       gradientTransform="matrix(1.0304833,0,0,2.1156349,-49.197163,-46.890472)"
+       gradientUnits="userSpaceOnUse">
+      <stop
+         offset="0%"
+         stop-color="#06b6d4"
+         id="stop1" />
+      <stop
+         offset="100%"
+         stop-color="#10b981"
+         id="stop2" />
+    </linearGradient>
+    <!-- Gradient for middle card (green to blue) -->
+    <linearGradient
+       id="gradMiddle"
+       x1="208.20663"
+       y1="48.989795"
+       x2="404.16581"
+       y2="244.94897"
+       gradientTransform="matrix(0.98661256,0,0,2.2097087,-49.197163,-90.191742)"
+       gradientUnits="userSpaceOnUse">
+      <stop
+         offset="0%"
+         stop-color="#10b981"
+         id="stop3" />
+      <stop
+         offset="100%"
+         stop-color="#3b82f6"
+         id="stop4" />
+    </linearGradient>
+    <!-- Gradient for right card (blue to purple) -->
+    <linearGradient
+       id="gradRight"
+       x1="340.05514"
+       y1="68.224229"
+       x2="527.67177"
+       y2="255.84086"
+       gradientTransform="matrix(1.0304833,0,0,2.1156349,-49.197163,-46.890472)"
+       gradientUnits="userSpaceOnUse">
+      <stop
+         offset="0%"
+         stop-color="#6366f1"
+         id="stop5" />
+      <stop
+         offset="100%"
+         stop-color="#a855f7"
+         id="stop6" />
+    </linearGradient>
+    <!-- Arrow gradient -->
+    <linearGradient
+       id="gradArrow"
+       x1="53.807727"
+       y1="571.48219"
+       x2="179.6975"
+       y2="571.48219"
+       gradientTransform="matrix(2.39934,0,0,-0.79810713,-29.235262,873.42865)"
+       gradientUnits="userSpaceOnUse">
+      <stop
+         offset="0%"
+         stop-color="#06b6d4"
+         id="stop7" />
+      <stop
+         offset="100%"
+         stop-color="#10b981"
+         id="stop8" />
+    </linearGradient>
+  </defs>
+  <!-- Left card (back) -->
+  <rect
+     x="23.303751"
+     y="97.44709"
+     width="193.33577"
+     height="396.92834"
+     rx="19.333576"
+     fill="url(#gradLeft)"
+     id="rect8"
+     style="fill:url(#gradLeft);stroke-width:1.47653" />
+  <!-- Left card lines -->
+  <rect
+     x="53.51247"
+     y="169.61591"
+     width="96.667885"
+     height="21.650637"
+     rx="7.2500916"
+     fill="#ffffff"
+     id="rect9"
+     style="stroke-width:1.47653" />
+  <rect
+     x="53.51247"
+     y="223.74248"
+     width="120.83487"
+     height="21.650637"
+     rx="7.2500916"
+     fill="#ffffff"
+     id="rect10"
+     style="stroke-width:1.47653" />
+  <rect
+     x="53.51247"
+     y="277.86908"
+     width="84.584412"
+     height="21.650637"
+     rx="7.2500916"
+     fill="#ffffff"
+     id="rect11"
+     style="stroke-width:1.47653" />
+  <!-- Middle card -->
+  <rect
+     x="156.22211"
+     y="18.061424"
+     width="193.33577"
+     height="433.01273"
+     rx="19.333576"
+     fill="url(#gradMiddle)"
+     id="rect12"
+     style="fill:url(#gradMiddle);stroke-width:1.47653" />
+  <!-- Middle card lines -->
+  <rect
+     x="186.43082"
+     y="99.25132"
+     width="108.75138"
+     height="25.259075"
+     rx="8.4584408"
+     fill="#ffffff"
+     id="rect13"
+     style="stroke-width:1.47653" />
+  <rect
+     x="186.43082"
+     y="162.39902"
+     width="132.91835"
+     height="25.259075"
+     rx="8.4584408"
+     fill="#ffffff"
+     id="rect14"
+     style="stroke-width:1.47653" />
+  <rect
+     x="186.43082"
+     y="225.54669"
+     width="96.667885"
+     height="25.259075"
+     rx="8.4584408"
+     fill="#ffffff"
+     id="rect15"
+     style="stroke-width:1.47653" />
+  <!-- Right card (front) -->
+  <rect
+     x="301.22397"
+     y="97.44709"
+     width="193.33577"
+     height="396.92834"
+     rx="19.333576"
+     fill="url(#gradRight)"
+     id="rect16"
+     style="fill:url(#gradRight);stroke-width:1.47653" />
+  <!-- Right card lines -->
+  <rect
+     x="331.43268"
+     y="169.61591"
+     width="102.70963"
+     height="21.650637"
+     rx="7.2500916"
+     fill="#ffffff"
+     opacity="0.9"
+     id="rect17"
+     style="stroke-width:1.47653" />
+  <rect
+     x="331.43268"
+     y="223.74248"
+     width="126.8766"
+     height="21.650637"
+     rx="7.2500916"
+     fill="#ffffff"
+     opacity="0.9"
+     id="rect18"
+     style="stroke-width:1.47653" />
+  <rect
+     x="331.43268"
+     y="277.86908"
+     width="90.626144"
+     height="21.650637"
+     rx="7.2500916"
+     fill="#ffffff"
+     opacity="0.9"
+     id="rect19"
+     style="stroke-width:1.47653" />
+  <!-- Arrow (curved, going from left to right) -->
+  <path
+     d="m 116.9191,338.86269 q 97.43625,94.33517 267.9497,31.44507"
+     stroke="url(#gradArrow)"
+     stroke-width="38.7467"
+     fill="none"
+     stroke-linecap="round"
+     id="path19"
+     style="stroke:url(#gradArrow)" />
+  <!-- Arrow head -->
+  <polygon
+     points="370,320 340,345 340,295 "
+     fill="#10b981"
+     id="polygon19"
+     transform="matrix(1.0226056,-0.70196636,0.7509236,1.616462,-198.48949,89.786678)" />
+  <!-- Bottom bars -->
 </svg>

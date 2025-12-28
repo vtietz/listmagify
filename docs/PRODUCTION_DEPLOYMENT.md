@@ -1,6 +1,6 @@
 # Production Deployment Guide
 
-This guide explains how to deploy Spotlisted in production with server-specific configurations.
+This guide explains how to deploy Listmagify in production with server-specific configurations.
 
 ## Overview
 
@@ -38,10 +38,10 @@ services:
     networks:
       - nginx-proxy  # Your custom network
     environment:
-      - VIRTUAL_HOST=spotlisted.yourdomain.com
-      - LETSENCRYPT_HOST=spotlisted.yourdomain.com
+      - VIRTUAL_HOST=listmagify.yourdomain.com
+      - LETSENCRYPT_HOST=listmagify.yourdomain.com
       - LETSENCRYPT_EMAIL=admin@yourdomain.com
-      - NEXTAUTH_URL=https://spotlisted.yourdomain.com
+      - NEXTAUTH_URL=https://listmagify.yourdomain.com
 
 networks:
   nginx-proxy:
@@ -90,11 +90,11 @@ services:
     networks:
       - nginx-proxy
     environment:
-      - VIRTUAL_HOST=spotlisted.example.com
+      - VIRTUAL_HOST=listmagify.example.com
       - VIRTUAL_PORT=3000
-      - LETSENCRYPT_HOST=spotlisted.example.com
+      - LETSENCRYPT_HOST=listmagify.example.com
       - LETSENCRYPT_EMAIL=admin@example.com
-      - NEXTAUTH_URL=https://spotlisted.example.com
+      - NEXTAUTH_URL=https://listmagify.example.com
 
 networks:
   nginx-proxy:
@@ -114,11 +114,11 @@ services:
       - traefik-public
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.spotlisted.rule=Host(`spotlisted.example.com`)"
-      - "traefik.http.routers.spotlisted.entrypoints=websecure"
-      - "traefik.http.routers.spotlisted.tls=true"
-      - "traefik.http.routers.spotlisted.tls.certresolver=letsencrypt"
-      - "traefik.http.services.spotlisted.loadbalancer.server.port=3000"
+      - "traefik.http.routers.listmagify.rule=Host(`listmagify.example.com`)"
+      - "traefik.http.routers.listmagify.entrypoints=websecure"
+      - "traefik.http.routers.listmagify.tls=true"
+      - "traefik.http.routers.listmagify.tls.certresolver=letsencrypt"
+      - "traefik.http.services.listmagify.loadbalancer.server.port=3000"
 
 networks:
   traefik-public:

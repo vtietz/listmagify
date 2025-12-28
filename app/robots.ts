@@ -7,6 +7,6 @@ export default function robots(): MetadataRoute.Robots {
       allow: '/',
       disallow: ['/api/', '/playlists/'], // Don't crawl API or private user routes
     },
-    sitemap: 'https://spotlisted.com/sitemap.xml',
+    sitemap: 'https://listmagify.com/sitemap.xml',
   };
 }

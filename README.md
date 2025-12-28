@@ -1,6 +1,6 @@
-# Spotlisted
+# Listmagify
 
-A professional playlist management tool for Spotify. Edit multiple playlists side-by-side with drag-and-drop, bulk operations, and real-time sync.
+Playlist magic for Spotify. Edit multiple playlists side-by-side with drag-and-drop, bulk operations, and real-time sync.
 
 ![Split Editor](public/screenshot-split-editor.png)
 
@@ -14,28 +14,28 @@ A professional playlist management tool for Spotify. Edit multiple playlists sid
 - **Integrated Player** – Preview tracks without leaving the app
 - **Compact Mode** – Dense view to see more tracks on screen
 
-## Production Setup (spotlisted.com)
+## Production Setup (listmagify.com)
 
 To deploy to production:
 
 1. **Configure Environment Variables**:
    ```env
-   NEXTAUTH_URL=https://spotlisted.com
+   NEXTAUTH_URL=https://listmagify.com
    NEXTAUTH_SECRET=your_generated_secret_here
    SPOTIFY_CLIENT_ID=your_client_id
    SPOTIFY_CLIENT_SECRET=your_client_secret
    ```
 
 2. **Update Spotify Dashboard**:
-   - Add Redirect URI: `https://spotlisted.com/api/auth/callback/spotify`
+   - Add Redirect URI: `https://listmagify.com/api/auth/callback/spotify`
 
 3. **Build & Run**:
    ```bash
    # Build the production image
-   docker build -f docker/Dockerfile.prod -t spotlisted .
+   docker build -f docker/Dockerfile.prod -t listmagify .
 
    # Run the container
-   docker run -p 3000:3000 --env-file .env.production spotlisted
+   docker run -p 3000:3000 --env-file .env.production listmagify
    ```
 
 ## Quick Start (Local)
@@ -134,7 +134,7 @@ For production deployments requiring custom networks, SSL certificates, or rever
 
 ## Usage Analytics (Optional)
 
-Spotlisted includes privacy-first usage analytics, disabled by default. When enabled:
+Listmagify includes privacy-first usage analytics, disabled by default. When enabled:
 
 - **Privacy**: User IDs are SHA-256 hashed with a salt before storage
 - **Local Storage**: All data stored in local SQLite database

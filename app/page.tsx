@@ -2,8 +2,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/auth";
 import Link from "next/link";
 import { SignInButton } from "@/components/auth/SignInButton";
+import { AppLogo } from "@/components/ui/app-logo";
 import { 
-  Music, 
   Columns, 
   GripVertical, 
   Search, 
@@ -26,7 +26,7 @@ export default async function Home() {
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
-    "name": "Spotlisted",
+    "name": "Listmagify",
     "applicationCategory": "MultimediaApplication",
     "operatingSystem": "Web",
     "offers": {
@@ -52,13 +52,8 @@ export default async function Home() {
       <div className="container mx-auto px-4 pt-16 pb-12">
         <div className="text-center space-y-6 max-w-3xl mx-auto">
           <div className="flex justify-center">
-            <div className="p-4 rounded-full bg-primary/10">
-              <Music className="h-12 w-12 text-primary" />
-            </div>
+            <AppLogo size="lg" asLink={false} />
           </div>
-          <h1 className="text-4xl md:text-5xl font-bold tracking-tight">
-            Spotlisted
-          </h1>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
             Professional playlist management for Spotify. Edit multiple playlists side-by-side with drag-and-drop.
           </p>
@@ -203,8 +198,21 @@ export default async function Home() {
 
       {/* Footer */}
       <footer className="container mx-auto px-4 py-8 border-t border-border">
-        <div className="flex flex-col md:flex-row justify-between items-center gap-4 text-sm text-muted-foreground">
-          <p>Built with Next.js, React, and the Spotify Web API</p>
+        <div className="flex flex-col md:flex-row justify-between items-center gap-6 text-sm text-muted-foreground">
+          {/* Spotify Attribution - Required per Spotify Design Guidelines */}
+          <div className="flex items-center gap-3">
+            <img 
+              src="/spotify/Primary_Logo_White_RGB.svg" 
+              alt="Spotify" 
+              className="h-6 hidden dark:block"
+            />
+            <img 
+              src="/spotify/Primary_Logo_Black_RGB.svg" 
+              alt="Spotify" 
+              className="h-6 dark:hidden"
+            />
+            <span className="text-xs">Content provided by Spotify</span>
+          </div>
           <div className="flex gap-4">
             <Link href="/privacy" className="hover:text-foreground transition-colors">
               Privacy

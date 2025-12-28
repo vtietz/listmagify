@@ -3,8 +3,8 @@ import { ArrowLeft } from "lucide-react";
 import { getContactInfo } from "@/lib/contact";
 
 export const metadata = {
-  title: "Privacy Policy | Spotlisted",
-  description: "Privacy policy and data protection information for Spotlisted",
+  title: "Privacy Policy | Listmagify",
+  description: "Privacy policy and data protection information for Listmagify",
 };
 
 /**
@@ -30,7 +30,7 @@ export default function PrivacyPage() {
           <div>
             <h2 className="text-lg font-semibold mb-2">1. Overview</h2>
             <p className="text-muted-foreground">
-              This privacy policy explains how Spotlisted handles your data. We are committed to protecting 
+              This privacy policy explains how Listmagify handles your data. We are committed to protecting 
               your privacy and being transparent about our data practices.
             </p>
           </div>

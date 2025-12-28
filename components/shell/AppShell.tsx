@@ -1,10 +1,10 @@
 "use client";
 
 import React from "react";
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Search, Music2, ListMusic, Columns2, LogIn, LogOut, Minimize2, MapPinOff, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { AppLogo } from "@/components/ui/app-logo";
 import { useBrowsePanelStore } from "@/hooks/useBrowsePanelStore";
 import { usePlayerStore } from "@/hooks/usePlayerStore";
 import { useCompactModeStore } from "@/hooks/useCompactModeStore";
@@ -12,13 +12,14 @@ import { useInsertionPointsStore } from "@/hooks/useInsertionPointsStore";
 import { useSessionUser } from "@/hooks/useSessionUser";
 import { useStatsAccess } from "@/hooks/useStatsAccess";
 import { SpotifyPlayer } from "@/components/player";
+import Link from "next/link";
 
 type AppShellProps = {
   headerTitle?: string;
   children?: React.ReactNode;
 };
 
-export function AppShell({ headerTitle = "Spotlisted", children }: AppShellProps) {
+export function AppShell({ headerTitle = "Listmagify", children }: AppShellProps) {
   const pathname = usePathname();
   
   // Pages that need fixed viewport height (no global scrolling)
@@ -75,10 +76,7 @@ function Header({ title }: { title: string }) {
   
   return (
     <header className="h-12 flex items-center justify-between px-4 border-b">
-      <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-        <Logo />
-        <span className="font-semibold">{title}</span>
-      </Link>
+      <AppLogo size="sm" />
 
       <nav className="flex items-center gap-1 text-sm">
         {/* Only show nav items when authenticated */}
@@ -201,11 +199,5 @@ function Header({ title }: { title: string }) {
         )}
       </nav>
     </header>
-  );
-}
-
-function Logo() {
-  return (
-    <span aria-label="App logo" className="inline-block w-5 h-5 rounded-full bg-emerald-500" />
   );
 }

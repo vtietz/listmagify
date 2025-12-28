@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import {
   AlertDialog,
@@ -13,6 +14,9 @@ import {
 } from "@/components/ui/alert-dialog";
 import { LogIn, AlertCircle } from "lucide-react";
 
+/** Public routes where session errors should be silently ignored */
+const PUBLIC_ROUTES = ["/", "/login", "/logout", "/privacy", "/imprint"];
+
 /**
  * Client component that monitors session for token refresh errors.
  * If a RefreshAccessTokenError occurs (e.g., revoked refresh token),
@@ -20,19 +24,30 @@ import { LogIn, AlertCircle } from "lucide-react";
  * 
  * Provides a clean UX instead of silently failing or redirecting.
  * Mount this once in the root layout to apply globally.
+ * 
+ * On public routes the dialog is suppressed so unauthenticated visitors
+ * can browse the landing/legal pages without interruption.
  */
 export function SessionErrorHandler() {
   const { data: session, status } = useSession();
+  const pathname = usePathname();
   const [showDialog, setShowDialog] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(false);
 
   useEffect(() => {
-    // Only handle RefreshAccessTokenError
+    // On public routes, silently clear the bad session instead of showing dialog
+    const isPublic = PUBLIC_ROUTES.includes(pathname);
+
     if (status === "authenticated" && session && (session as any).error === "RefreshAccessTokenError") {
-      // Show dialog instead of silent sign-out
-      setShowDialog(true);
+      if (isPublic) {
+        // Quietly sign out without dialog on public pages
+        signOut({ redirect: false });
+      } else {
+        // Show dialog on protected pages
+        setShowDialog(true);
+      }
     }
-  }, [session, status]);
+  }, [session, status, pathname]);
 
   const handleLogin = useCallback(async () => {
     setIsRedirecting(true);
@@ -62,7 +77,7 @@ export function SessionErrorHandler() {
               <li>You changed your Spotify password</li>
               <li>You revoked access in Spotify settings</li>
             </ul>
-            <p className="mt-3">Please log in again to continue using Spotlisted.</p>
+            <p className="mt-3">Please log in again to continue using Listmagify.</p>
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

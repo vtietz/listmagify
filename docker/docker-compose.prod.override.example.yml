@@ -39,10 +39,10 @@ services:
     # Custom labels (if using Traefik instead of nginx-proxy)
     # labels:
     #   - "traefik.enable=true"
-    #   - "traefik.http.routers.spotlisted.rule=Host(`${VIRTUAL_HOST}`)"
-    #   - "traefik.http.routers.spotlisted.entrypoints=websecure"
-    #   - "traefik.http.routers.spotlisted.tls.certresolver=letsencrypt"
-    #   - "traefik.http.services.spotlisted.loadbalancer.server.port=${VIRTUAL_PORT:-3000}"
+    #   - "traefik.http.routers.listmagify.rule=Host(`${VIRTUAL_HOST}`)"
+    #   - "traefik.http.routers.listmagify.entrypoints=websecure"
+    #   - "traefik.http.routers.listmagify.tls.certresolver=letsencrypt"
+    #   - "traefik.http.services.listmagify.loadbalancer.server.port=${VIRTUAL_PORT:-3000}"
 
 # External network for nginx-proxy
 networks:

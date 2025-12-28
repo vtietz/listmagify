@@ -3,8 +3,8 @@ import { ArrowLeft } from "lucide-react";
 import { getContactInfo } from "@/lib/contact";
 
 export const metadata = {
-  title: "Imprint | Spotlisted",
-  description: "Legal information and contact details for Spotlisted",
+  title: "Imprint | Listmagify",
+  description: "Legal information and contact details for Listmagify",
 };
 
 /**

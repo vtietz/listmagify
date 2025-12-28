@@ -28,7 +28,7 @@ export default async function StatsPage() {
         <div>
           <h1 className="text-3xl font-bold">Usage Statistics</h1>
           <p className="text-muted-foreground">
-            Privacy-preserving analytics for Spotlisted
+            Privacy-preserving analytics for Listmagify
           </p>
         </div>
       </div>

@@ -18,37 +18,41 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Spotlisted - Spotify Playlist Editor",
-    template: "%s | Spotlisted",
+    default: "Listmagify - Playlist Magic for Spotify",
+    template: "%s | Listmagify",
   },
   description: "Professional playlist management tool for Spotify. Edit multiple playlists side-by-side with drag-and-drop.",
   keywords: ["Spotify", "Playlist", "Editor", "Manager", "Sort", "Organize", "Drag and Drop"],
-  authors: [{ name: "Spotlisted Team" }],
-  creator: "Spotlisted",
-  metadataBase: new URL("https://spotlisted.com"),
+  authors: [{ name: "Listmagify" }],
+  creator: "Listmagify",
+  metadataBase: new URL("https://listmagify.com"),
   icons: {
-    icon: { url: "/icon.svg", type: "image/svg+xml" },
-    apple: "/apple-icon.svg",
+    icon: [
+      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+      { url: "/icon.svg", type: "image/svg+xml" },
+    ],
+    apple: "/apple-icon.png",
   },
   openGraph: {
     type: "website",
     locale: "en_US",
-    url: "https://spotlisted.com",
-    title: "Spotlisted - The Ultimate Spotify Playlist Editor",
+    url: "https://listmagify.com",
+    title: "Listmagify - Playlist Magic for Spotify",
     description: "Manage your Spotify playlists like a pro. Split-view editing, bulk actions, and smart search.",
-    siteName: "Spotlisted",
+    siteName: "Listmagify",
     images: [
       {
         url: "/screenshot-split-editor.png",
         width: 1200,
         height: 630,
-        alt: "Spotlisted Interface",
+        alt: "Listmagify Interface",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Spotlisted - Spotify Playlist Editor",
+    title: "Listmagify - Playlist Magic for Spotify",
     description: "Manage your Spotify playlists like a pro. Split-view editing, bulk actions, and smart search.",
     images: ["/screenshot-split-editor.png"],
   },
