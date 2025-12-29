@@ -15,9 +15,12 @@ WORKDIR /usr/src/app
 # No build-time env vars needed - all config is read at runtime via env_file
 
 COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --prod=false
+RUN pnpm install --frozen-lockfile
 COPY . .
 RUN pnpm build
+
+# Prune devDependencies for smaller production image
+RUN pnpm prune --prod
 
 # --- Production Image ---
 FROM base AS prod
@@ -25,5 +28,6 @@ WORKDIR /usr/src/app
 COPY --from=builder /usr/src/app/.next ./.next
 COPY --from=builder /usr/src/app/node_modules ./node_modules
 COPY --from=builder /usr/src/app/package.json .
+COPY --from=builder /usr/src/app/public ./public
 EXPOSE 3000
 CMD ["pnpm", "start"]
