@@ -19,9 +19,6 @@ RUN pnpm install --frozen-lockfile
 COPY . .
 RUN pnpm build
 
-# Prune devDependencies for smaller production image
-RUN CI=true pnpm prune --prod
-
 # --- Production Image ---
 FROM base AS prod
 WORKDIR /usr/src/app
