@@ -20,7 +20,7 @@ COPY . .
 RUN pnpm build
 
 # Prune devDependencies for smaller production image
-RUN pnpm prune --prod
+RUN CI=true pnpm prune --prod
 
 # --- Production Image ---
 FROM base AS prod
