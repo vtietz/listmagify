@@ -4,6 +4,14 @@ services:
       context: ..
       dockerfile: docker/Dockerfile.prod
       target: prod
+      args:
+        # Contact info for Imprint/Privacy pages (rendered at build time)
+        - CONTACT_NAME=${CONTACT_NAME}
+        - CONTACT_STREET=${CONTACT_STREET}
+        - CONTACT_POSTAL_CODE=${CONTACT_POSTAL_CODE}
+        - CONTACT_CITY=${CONTACT_CITY}
+        - CONTACT_COUNTRY=${CONTACT_COUNTRY}
+        - CONTACT_EMAIL=${CONTACT_EMAIL}
     image: sbs-web:prod
     ports:
       - "${PORT:-3000}:3000"
