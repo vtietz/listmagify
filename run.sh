@@ -17,6 +17,7 @@ Commands:
   prod-up         Start production deployment
   prod-down       Stop production deployment
   prod-logs       View production logs (use -f to follow)
+  prod-update     Pull latest code, rebuild, and restart (git pull + prod-build + prod-up)
 
 Examples:
   ./run.sh up
@@ -28,6 +29,7 @@ Examples:
   ./run.sh compose logs -f
   ./run.sh prod-build --no-cache
   ./run.sh prod-logs -f
+  ./run.sh prod-update
 EOF
 }
 
@@ -106,6 +108,32 @@ case "${1:-}" in
       docker compose --env-file .env -f docker/docker-compose.prod.yml -f docker/docker-compose.prod.override.yml logs "$@"
     else
       docker compose --env-file .env -f docker/docker-compose.prod.yml logs "$@"
+    fi
+    ;;
+  prod-update)
+    # Pull latest code, rebuild, and restart production
+    echo "Pulling latest code..."
+    git pull
+    echo ""
+    echo "Rebuilding production image..."
+    if [ -f docker/docker-compose.prod.override.yml ]; then
+      docker compose --env-file .env -f docker/docker-compose.prod.yml -f docker/docker-compose.prod.override.yml build --no-cache
+    else
+      docker compose --env-file .env -f docker/docker-compose.prod.yml build --no-cache
+    fi
+    echo ""
+    echo "Restarting production deployment..."
+    if [ -f docker/docker-compose.prod.override.yml ]; then
+      docker compose --env-file .env -f docker/docker-compose.prod.yml -f docker/docker-compose.prod.override.yml up -d
+    else
+      docker compose --env-file .env -f docker/docker-compose.prod.yml up -d
+    fi
+    echo ""
+    echo "✓ Production update complete. Viewing logs (Ctrl+C to exit)..."
+    if [ -f docker/docker-compose.prod.override.yml ]; then
+      docker compose --env-file .env -f docker/docker-compose.prod.yml -f docker/docker-compose.prod.override.yml logs -f
+    else
+      docker compose --env-file .env -f docker/docker-compose.prod.yml logs -f
     fi
     ;;
   *)
