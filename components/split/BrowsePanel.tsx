@@ -11,7 +11,7 @@
 import { useState, useRef, useCallback, useMemo } from 'react';
 import { useBrowsePanelStore } from '@/hooks/useBrowsePanelStore';
 import { useSplitGridStore } from '@/hooks/useSplitGridStore';
-import { parseCompositeId } from '@/lib/dnd/id';
+import { parseSelectionKey } from '@/lib/dnd/selection';
 import { cn } from '@/lib/utils';
 import { SearchPanel } from './SearchPanel';
 import { RecommendationsPanel } from './RecommendationsPanel';
@@ -39,9 +39,17 @@ export function BrowsePanel() {
     let contextPlaylistId: string | undefined;
     
     for (const panel of panels) {
-      // Collect selected track IDs from composite IDs
-      for (const compositeId of panel.selection) {
-        const parsed = parseCompositeId(compositeId);
+      // Collect selected track IDs from selection keys
+      // Handle both Set and Array (in case of serialization issues)
+      const selectionItems = panel.selection instanceof Set 
+        ? Array.from(panel.selection) 
+        : Array.isArray(panel.selection) 
+          ? panel.selection 
+          : [];
+      
+      for (const selectionKey of selectionItems) {
+        // Selection keys are in format "trackId::position"
+        const parsed = parseSelectionKey(selectionKey);
         if (parsed) {
           selectedIds.push(parsed.trackId);
         }

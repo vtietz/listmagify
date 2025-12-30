@@ -22,6 +22,7 @@ import { useTrackListSelection } from '@/hooks/useTrackListSelection';
 import { usePlaylistTracksInfinite } from '@/hooks/usePlaylistTracksInfinite';
 import { useSavedTracksIndex, usePrefetchSavedTracks } from '@/hooks/useSavedTracksIndex';
 import { useLikedVirtualPlaylist, isLikedSongsPlaylist, LIKED_SONGS_METADATA } from '@/hooks/useLikedVirtualPlaylist';
+import { useCapturePlaylist } from '@/hooks/useRecommendations';
 import { useRemoveTracks } from '@/lib/spotify/playlistMutations';
 import { useTrackPlayback } from '@/hooks/useTrackPlayback';
 import { getTrackSelectionKey } from '@/lib/dnd/selection';
@@ -210,6 +211,35 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
 
   // Global saved tracks index for heart icons
   const { isLiked, toggleLiked, ensureCoverage } = useSavedTracksIndex();
+
+  // Capture playlist for recommendations (when fully loaded)
+  const capturePlaylist = useCapturePlaylist();
+  const capturedRef = useRef<string | null>(null);
+  
+  useEffect(() => {
+    // Capture playlist tracks for recommendation system when fully loaded
+    // Skip liked songs (virtual playlist) and only capture once per playlist+snapshot combo
+    if (
+      playlistId && 
+      !isLikedPlaylist && 
+      hasLoadedAll && 
+      tracks.length > 0 &&
+      snapshotId &&
+      capturedRef.current !== `${playlistId}:${snapshotId}`
+    ) {
+      capturedRef.current = `${playlistId}:${snapshotId}`;
+      // Fire and forget - don't block UI
+      capturePlaylist.mutate(
+        { playlistId, tracks },
+        {
+          onError: (err) => {
+            // Silent fail - recommendations are optional
+            console.debug('[recs] Capture failed:', err);
+          },
+        }
+      );
+    }
+  }, [playlistId, isLikedPlaylist, hasLoadedAll, tracks, snapshotId, capturePlaylist]);
 
   // Ensure coverage for visible tracks (debounced, for unknown IDs only)
   useEffect(() => {

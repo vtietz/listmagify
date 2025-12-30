@@ -3,11 +3,34 @@ import type { Track } from '@/lib/spotify/types';
 /**
  * Builds a stable selection key for a track instance, distinguishing duplicates.
  * Uses playlist position when available, otherwise falls back to the current index.
+ * Format: `trackId::position` (double colon separator)
  */
 export function getTrackSelectionKey(track: Track, index: number): string {
   const baseId = track.id || track.uri || 'unknown';
   const position = track.position ?? index;
   return `${baseId}::${position}`;
+}
+
+/**
+ * Parses a selection key back into its components.
+ * Format: `trackId::position` (double colon separator)
+ * 
+ * @param key - Selection key string
+ * @returns Parsed components or null if invalid
+ * 
+ * @example
+ * ```ts
+ * parseSelectionKey('abc123::5')
+ * // => { trackId: 'abc123', position: 5 }
+ * ```
+ */
+export function parseSelectionKey(key: string): { trackId: string; position: number } | null {
+  const parts = key.split('::');
+  if (parts.length !== 2) return null;
+  const [trackId, posStr] = parts;
+  const position = parseInt(posStr ?? '', 10);
+  if (!trackId || isNaN(position)) return null;
+  return { trackId, position };
 }
 
 /**

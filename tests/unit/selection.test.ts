@@ -17,6 +17,7 @@ import {
   getSelectionCount,
   getNextTrackIndex,
   getTrackSelectionKey,
+  parseSelectionKey,
   type SelectionState,
 } from '@/lib/dnd/selection';
 import type { Track } from '@/lib/spotify/types';
@@ -184,6 +185,19 @@ describe('Selection Utilities', () => {
       expect(getTrackSelectionKey(track, 0)).toBe('t::5');
       expect(getTrackSelectionKey({ ...track, position: undefined }, 3)).toBe('t::3');
       expect(getTrackSelectionKey({ id: undefined, uri: 'uri' } as any, 2)).toBe('uri::2');
+    });
+
+    it('parseSelectionKey parses valid keys', () => {
+      expect(parseSelectionKey('abc123::5')).toEqual({ trackId: 'abc123', position: 5 });
+      expect(parseSelectionKey('spotify:track:xyz::0')).toEqual({ trackId: 'spotify:track:xyz', position: 0 });
+    });
+
+    it('parseSelectionKey returns null for invalid keys', () => {
+      expect(parseSelectionKey('invalid')).toBeNull();
+      expect(parseSelectionKey('no-position::')).toBeNull();
+      expect(parseSelectionKey('::5')).toBeNull();
+      expect(parseSelectionKey('')).toBeNull();
+      expect(parseSelectionKey('abc::def')).toBeNull(); // position must be a number
     });
 
     it('should select range from last selected to clicked track (backward)', () => {

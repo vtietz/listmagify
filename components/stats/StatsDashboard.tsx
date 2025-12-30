@@ -21,6 +21,10 @@ import {
   Calendar,
   HelpCircle,
   MousePointerClick,
+  Sparkles,
+  Database,
+  GitBranch,
+  Music,
 } from 'lucide-react';
 
 // Time range presets
@@ -81,6 +85,28 @@ interface OverviewKPIs {
   errorRate: number;
   totalSessions: number;
   avgSessionDurationMs: number;
+}
+
+interface RecsStats {
+  enabled: boolean;
+  stats: {
+    tracks: number;
+    playlistSnapshots: number;
+    playlistsIndexed: number;
+    seqEdges: number;
+    cooccurEdges: number;
+    catalogEdges: number;
+    artistTopTracks: number;
+    albumTracks: number;
+    relatedArtists: number;
+    trackPopularities: number;
+    dismissedRecommendations: number;
+    dbSizeBytes: number;
+    dbSizeMB: string;
+    recentSnapshotsLast7Days: number;
+    totalEdges: number;
+  } | null;
+  message?: string;
 }
 
 interface DailySummary {
@@ -397,6 +423,178 @@ function TopPlaylistsList({ playlists }: { playlists: TopPlaylist[] }) {
   );
 }
 
+function RecsStatsCard({ data, isLoading }: { data?: RecsStats; isLoading: boolean }) {
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4" />
+            Recommendations System
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="py-8 text-center text-muted-foreground">Loading...</div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!data?.enabled) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4" />
+            Recommendations System
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="py-8 text-center text-muted-foreground">
+            <Sparkles className="h-8 w-8 mx-auto mb-2 opacity-50" />
+            <p className="font-medium">Not Enabled</p>
+            <p className="text-sm mt-1">Set RECS_ENABLED=true to enable the recommendation system</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const stats = data.stats;
+  if (!stats) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4" />
+            Recommendations System
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="py-8 text-center text-muted-foreground">No stats available</div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Sparkles className="h-4 w-4 text-primary" />
+          Recommendations System
+        </CardTitle>
+        <CardDescription>
+          Graph-based recommendation engine statistics
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {/* Core stats */}
+          <div className="space-y-1">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Music className="h-3 w-3" />
+              Tracks Indexed
+            </div>
+            <div className="text-2xl font-bold">{stats.tracks.toLocaleString()}</div>
+          </div>
+          
+          <div className="space-y-1">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <GitBranch className="h-3 w-3" />
+              Total Edges
+            </div>
+            <div className="text-2xl font-bold">{stats.totalEdges.toLocaleString()}</div>
+          </div>
+          
+          <div className="space-y-1">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <BarChart3 className="h-3 w-3" />
+              Playlists Indexed
+            </div>
+            <div className="text-2xl font-bold">{stats.playlistsIndexed.toLocaleString()}</div>
+          </div>
+          
+          <div className="space-y-1">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Database className="h-3 w-3" />
+              DB Size
+            </div>
+            <div className="text-2xl font-bold">{stats.dbSizeMB} MB</div>
+          </div>
+        </div>
+        
+        {/* Detailed breakdown */}
+        <div className="mt-6 pt-4 border-t">
+          <div className="text-sm font-medium mb-3">Edge Breakdown</div>
+          <div className="grid grid-cols-3 gap-4 text-sm">
+            <div>
+              <div className="text-muted-foreground">Sequential</div>
+              <div className="font-medium">{stats.seqEdges.toLocaleString()}</div>
+            </div>
+            <div>
+              <div className="text-muted-foreground">Co-occurrence</div>
+              <div className="font-medium">{stats.cooccurEdges.toLocaleString()}</div>
+            </div>
+            <div>
+              <div className="text-muted-foreground">Catalog</div>
+              <div className="font-medium">{stats.catalogEdges.toLocaleString()}</div>
+            </div>
+          </div>
+        </div>
+        
+        {/* Catalog data */}
+        <div className="mt-4 pt-4 border-t">
+          <div className="text-sm font-medium mb-3">Catalog Data</div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div>
+              <div className="text-muted-foreground">Artist Top Tracks</div>
+              <div className="font-medium">{stats.artistTopTracks.toLocaleString()}</div>
+            </div>
+            <div>
+              <div className="text-muted-foreground">Album Tracks</div>
+              <div className="font-medium">{stats.albumTracks.toLocaleString()}</div>
+            </div>
+            <div>
+              <div className="text-muted-foreground">Related Artists</div>
+              <div className="font-medium">{stats.relatedArtists.toLocaleString()}</div>
+            </div>
+            <div>
+              <div className="text-muted-foreground">Track Popularities</div>
+              <div className="font-medium">{stats.trackPopularities.toLocaleString()}</div>
+            </div>
+          </div>
+        </div>
+        
+        {/* Activity */}
+        <div className="mt-4 pt-4 border-t">
+          <div className="text-sm font-medium mb-3">Activity</div>
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <div className="text-muted-foreground">Recent Snapshots (7 days)</div>
+              <div className="font-medium">{stats.recentSnapshotsLast7Days.toLocaleString()}</div>
+            </div>
+            <div>
+              <div className="text-muted-foreground">Dismissed Recommendations</div>
+              <div className="font-medium">{stats.dismissedRecommendations.toLocaleString()}</div>
+            </div>
+          </div>
+        </div>
+        
+        {stats.tracks === 0 && (
+          <div className="mt-4 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded text-sm">
+            <p className="font-medium text-yellow-600 dark:text-yellow-400">No data yet</p>
+            <p className="text-muted-foreground mt-1">
+              Open playlists in the Split Editor to start building the recommendation graph. 
+              Recommendations will appear based on your playlist organization patterns.
+            </p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export function StatsDashboard() {
   const [timeRange, setTimeRange] = useState<TimeRange>('7d');
   const dateRange = useMemo(() => getDateRange(timeRange), [timeRange]);
@@ -419,6 +617,17 @@ export function StatsDashboard() {
       if (!res.ok) throw new Error('Failed to fetch events');
       return res.json();
     },
+  });
+
+  // Fetch recs stats (not time-dependent)
+  const { data: recsData, isLoading: recsLoading } = useQuery<RecsStats>({
+    queryKey: ['stats', 'recs'],
+    queryFn: async () => {
+      const res = await fetch('/api/stats/recs');
+      if (!res.ok) throw new Error('Failed to fetch recs stats');
+      return res.json();
+    },
+    staleTime: 30 * 1000, // Refresh every 30 seconds
   });
 
   const kpis = overviewData?.data;
@@ -597,6 +806,9 @@ export function StatsDashboard() {
           )}
         </CardContent>
       </Card>
+
+      {/* Recommendations System Stats */}
+      <RecsStatsCard data={recsData} isLoading={recsLoading} />
       </div>
     </TooltipProvider>
   );
