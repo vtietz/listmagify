@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { playlistId, tracks } = body;
+    const { playlistId, tracks, cooccurrenceOnly } = body;
 
     if (!playlistId || typeof playlistId !== 'string') {
       return NextResponse.json(
@@ -69,6 +69,7 @@ export async function POST(request: NextRequest) {
     const input: PlaylistSnapshotInput = {
       playlistId,
       tracks: tracks as Track[],
+      cooccurrenceOnly: cooccurrenceOnly === true,
     };
 
     const stats = captureAndUpdateEdges(input);

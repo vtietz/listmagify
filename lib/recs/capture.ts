@@ -17,6 +17,11 @@ import { updateAdjacencyEdgesFromPlaylist, updateCooccurrenceEdgesFromPlaylist }
 export interface PlaylistSnapshotInput {
   playlistId: string;
   tracks: Track[];
+  /**
+   * If true, only update co-occurrence edges (skip adjacency).
+   * Use for collections where order isn't meaningful (e.g., Liked Songs).
+   */
+  cooccurrenceOnly?: boolean;
 }
 
 /**
@@ -117,7 +122,10 @@ export function captureAndUpdateEdges(input: PlaylistSnapshotInput): {
     .filter((id): id is string => id !== null);
   
   // Update edges
-  const adjacencyEdges = updateAdjacencyEdgesFromPlaylist(trackIds);
+  // Skip adjacency edges for collections where order isn't meaningful (e.g., Liked Songs)
+  const adjacencyEdges = input.cooccurrenceOnly 
+    ? 0 
+    : updateAdjacencyEdgesFromPlaylist(trackIds);
   const cooccurrenceEdges = updateCooccurrenceEdgesFromPlaylist(trackIds);
   
   return {

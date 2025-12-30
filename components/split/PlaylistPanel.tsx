@@ -221,19 +221,24 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
     const captureKey = snapshotId ? `${playlistId}:${snapshotId}` : playlistId;
     
     // Capture playlist tracks for recommendation system when fully loaded
-    // Skip liked songs (virtual playlist) and only capture once per playlist+snapshot combo
+    // For Liked Songs: only capture co-occurrence edges (order isn't meaningful)
+    // For regular playlists: capture both adjacency and co-occurrence edges
     if (
       playlistId && 
-      !isLikedPlaylist && 
       hasLoadedAll && 
       tracks.length > 0 &&
       capturedRef.current !== captureKey
     ) {
-      console.debug('[recs] Capturing playlist:', playlistId, 'tracks:', tracks.length);
+      console.debug('[recs] Capturing playlist:', playlistId, 'tracks:', tracks.length, isLikedPlaylist ? '(co-occurrence only)' : '');
       capturedRef.current = captureKey;
       // Fire and forget - don't block UI
       capturePlaylist.mutate(
-        { playlistId, tracks },
+        { 
+          playlistId, 
+          tracks,
+          // Liked Songs: skip adjacency edges since order is just reverse-chronological
+          cooccurrenceOnly: isLikedPlaylist,
+        },
         {
           onSuccess: () => {
             console.debug('[recs] Capture succeeded:', playlistId);

@@ -122,11 +122,20 @@ export function useCapturePlaylist() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ playlistId, tracks }: { playlistId: string; tracks: Track[] }) => {
+    mutationFn: async ({ 
+      playlistId, 
+      tracks,
+      cooccurrenceOnly = false,
+    }: { 
+      playlistId: string; 
+      tracks: Track[];
+      /** If true, only update co-occurrence edges (skip adjacency). Use for Liked Songs. */
+      cooccurrenceOnly?: boolean;
+    }) => {
       return apiFetch<CaptureResponse>('/api/recs/capture', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ playlistId, tracks }),
+        body: JSON.stringify({ playlistId, tracks, cooccurrenceOnly }),
       });
     },
     onSuccess: (_data: void, variables: { playlistId: string; tracks: string[] }) => {
