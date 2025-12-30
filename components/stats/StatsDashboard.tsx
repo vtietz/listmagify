@@ -527,7 +527,7 @@ function RecsStatsCard({ data, isLoading }: { data?: RecsStats; isLoading: boole
         {/* Detailed breakdown */}
         <div className="mt-6 pt-4 border-t">
           <div className="text-sm font-medium mb-3">Edge Breakdown</div>
-          <div className="grid grid-cols-3 gap-4 text-sm">
+          <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
               <div className="text-muted-foreground">Sequential</div>
               <div className="font-medium">{stats.seqEdges.toLocaleString()}</div>
@@ -535,33 +535,6 @@ function RecsStatsCard({ data, isLoading }: { data?: RecsStats; isLoading: boole
             <div>
               <div className="text-muted-foreground">Co-occurrence</div>
               <div className="font-medium">{stats.cooccurEdges.toLocaleString()}</div>
-            </div>
-            <div>
-              <div className="text-muted-foreground">Catalog</div>
-              <div className="font-medium">{stats.catalogEdges.toLocaleString()}</div>
-            </div>
-          </div>
-        </div>
-        
-        {/* Catalog data */}
-        <div className="mt-4 pt-4 border-t">
-          <div className="text-sm font-medium mb-3">Catalog Data</div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-            <div>
-              <div className="text-muted-foreground">Artist Top Tracks</div>
-              <div className="font-medium">{stats.artistTopTracks.toLocaleString()}</div>
-            </div>
-            <div>
-              <div className="text-muted-foreground">Album Tracks</div>
-              <div className="font-medium">{stats.albumTracks.toLocaleString()}</div>
-            </div>
-            <div>
-              <div className="text-muted-foreground">Related Artists</div>
-              <div className="font-medium">{stats.relatedArtists.toLocaleString()}</div>
-            </div>
-            <div>
-              <div className="text-muted-foreground">Track Popularities</div>
-              <div className="font-medium">{stats.trackPopularities.toLocaleString()}</div>
             </div>
           </div>
         </div>

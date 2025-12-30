@@ -35,13 +35,6 @@ export async function GET(request: NextRequest) {
       playlistsIndexed: (db.prepare('SELECT COUNT(DISTINCT playlist_id) as cnt FROM playlist_tracks').get() as { cnt: number }).cnt,
       seqEdges: (db.prepare('SELECT COUNT(*) as cnt FROM track_edges_seq').get() as { cnt: number }).cnt,
       cooccurEdges: (db.prepare('SELECT COUNT(*) as cnt FROM track_cooccurrence').get() as { cnt: number }).cnt,
-      catalogEdges: (db.prepare('SELECT COUNT(*) as cnt FROM track_catalog_edges').get() as { cnt: number }).cnt,
-      
-      // Catalog data
-      artistTopTracks: (db.prepare('SELECT COUNT(*) as cnt FROM artist_top_tracks').get() as { cnt: number }).cnt,
-      albumTracks: (db.prepare('SELECT COUNT(*) as cnt FROM album_tracks').get() as { cnt: number }).cnt,
-      relatedArtists: (db.prepare('SELECT COUNT(*) as cnt FROM related_artists').get() as { cnt: number }).cnt,
-      trackPopularities: (db.prepare('SELECT COUNT(*) as cnt FROM track_popularity').get() as { cnt: number }).cnt,
       
       // Dismissals
       dismissedRecommendations: (db.prepare('SELECT COUNT(*) as cnt FROM dismissed_recommendations').get() as { cnt: number }).cnt,
@@ -66,7 +59,7 @@ export async function GET(request: NextRequest) {
         dbSizeBytes,
         dbSizeMB: (dbSizeBytes / (1024 * 1024)).toFixed(2),
         recentSnapshotsLast7Days: recentSnapshots.cnt,
-        totalEdges: stats.seqEdges + stats.cooccurEdges + stats.catalogEdges,
+        totalEdges: stats.seqEdges + stats.cooccurEdges,
       },
     });
   } catch (error) {

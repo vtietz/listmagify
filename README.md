@@ -192,7 +192,7 @@ Listmagify includes a graph-based recommendation system that learns from your pl
 
 - **Local Learning**: Builds a track relationship graph from your playlist patterns
 - **No External Data**: All processing happens locally, no data sent externally
-- **Multiple Signals**: Combines adjacency, co-occurrence, and catalog data
+- **Two Signals**: Combines sequential adjacency and co-occurrence patterns
 - **Context-Aware**: Remembers dismissed recommendations per playlist
 
 ### Enable Recommendations

@@ -10,7 +10,7 @@ The system uses a **graph-based approach** where tracks are nodes and relationsh
 
 - **Track Graph**: A network where each track is connected to other tracks based on co-occurrence and sequential patterns
 - **Edge Weights**: Connections have weights that indicate relationship strength, decaying over time to prioritize recent patterns
-- **Multi-Signal Scoring**: Recommendations blend multiple signals (adjacency, co-occurrence, catalog data) for better quality
+- **Multi-Signal Scoring**: Recommendations blend adjacency and co-occurrence signals for quality suggestions
 
 ## How It Works
 
@@ -26,16 +26,7 @@ When you open playlists in the split editor, the system captures:
 
 This data is stored locally in a SQLite database - nothing is sent externally.
 
-### 2. Catalog Enrichment
-
-Optionally, the system fetches additional context from Spotify:
-
-- **Artist Top Tracks**: Links tracks by the same artist
-- **Album Adjacency**: Connects consecutive tracks within albums
-- **Related Artists**: Links tracks from similar artists (disabled by default)
-- **Track Popularity**: Used as a secondary ranking signal
-
-### 3. Recommendation Modes
+### 2. Recommendation Modes
 
 **Mode A: Seed-Based Recommendations**
 - Select 1-5 tracks in the split editor
@@ -47,7 +38,7 @@ Optionally, the system fetches additional context from Spotify:
 - Emphasizes tracks that would flow well at the end
 - Best for "what should I add to this playlist?"
 
-### 4. Scoring
+### 2. Scoring
 
 Each candidate track receives a blended score from multiple signals:
 
@@ -55,10 +46,7 @@ Each candidate track receives a blended score from multiple signals:
 |--------|--------|-------------|
 | Sequential Adjacency | 60% | Tracks that follow your seeds in other playlists |
 | Co-occurrence | 30% | Tracks appearing in same playlists as your seeds |
-| Artist Overlap | 15% | Other top tracks by the same artists |
-| Album Continuity | 15% | Next/previous tracks on the same album |
-| Popularity | 10% | Spotify popularity score (normalized) |
-| Related Artists | 5% | Top tracks from related artists (if enabled) |
+| Recency | 5% | Bonus for recently added relationships |
 
 Scores are normalized and combined. Tracks appearing in multiple signals receive a diversity bonus.
 
@@ -87,22 +75,8 @@ All data is stored locally:
 
 The system includes automatic maintenance tasks:
 
-- **Edge Decay**: Older relationships gradually lose weight
-- **Edge Capping**: Limits edges per track to prevent unbounded growth
-- **Snapshot Pruning**: Removes old playlist snapshots beyond retention period
-- **Weak Edge Removal**: Cleans up near-zero weight edges
-
-Run maintenance manually:
-```
-./run.sh exec pnpm exec tsx cron/recs-maintenance.ts
-```
-
-### Catalog Refresh
-
-To update artist and album data:
-```
-./run.sh exec pnpm exec tsx cron/recs-refresh-catalog.ts
-```
+- **Edge Decay**: Older relationships gradually lose weight (handled via scoring)
+- **Snapshot Pruning**: Old playlist snapshots are naturally superseded by new captures
 
 ## Configuration
 
@@ -127,7 +101,6 @@ The system uses several interconnected tables:
 - **playlist_tracks**: Point-in-time playlist snapshots
 - **track_edges_seq**: Sequential adjacency relationships
 - **track_cooccurrence**: Co-occurrence relationships
-- **track_catalog_edges**: Catalog-derived relationships
 - **dismissed_recommendations**: User dismissals per context
 
 ### API Endpoints
