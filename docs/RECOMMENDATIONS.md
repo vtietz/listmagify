@@ -22,6 +22,8 @@ When you open playlists in the split editor, the system captures:
 - **Co-occurrence**: Which tracks appear in the same playlists within a sliding window
 - **Playlist Snapshots**: Point-in-time captures of playlist composition
 
+**Liked Songs** are also captured, but only for co-occurrence (not adjacency) since their order is reverse-chronological rather than user-curated. This means your liked tracks contribute to taste-based signals without polluting sequential patterns.
+
 This data is stored locally in a SQLite database - nothing is sent externally.
 
 ### 2. Catalog Enrichment
@@ -106,23 +108,14 @@ To update artist and album data:
 
 Enable the system by setting `RECS_ENABLED=true` in your `.env` file. See `.env.example` for all available options.
 
-### Key Settings
+### Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `RECS_ENABLED` | `false` | Master toggle for the system |
 | `RECS_DB_PATH` | `./data/recs.db` | Database file location |
-| `RECS_MARKET` | `US` | Spotify market for catalog data |
-| `RECS_FETCH_CATALOG` | `true` | Whether to fetch artist/album data |
-| `RECS_ENABLE_RELATED_ARTISTS` | `false` | Include related artist signals |
-| `RECS_DECAY_FACTOR` | `0.98` | Weekly weight decay (0.9-1.0) |
 
-### Tuning Tips
-
-- **More variety**: Lower `RECS_DECAY_FACTOR` to favor recent patterns
-- **More stability**: Increase `RECS_MAX_EDGES_PER_TRACK` for richer connections
-- **Less API usage**: Set `RECS_FETCH_CATALOG=false` to skip catalog enrichment
-- **Broader discovery**: Enable `RECS_ENABLE_RELATED_ARTISTS` (increases data volume)
+Other parameters (decay factor, edge limits, scoring weights) are internal constants optimized for typical usage and not exposed as environment variables.
 
 ## Architecture
 

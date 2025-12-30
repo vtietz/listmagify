@@ -200,7 +200,6 @@ Listmagify includes a graph-based recommendation system that learns from your pl
 ```env
 # .env
 RECS_ENABLED=true
-RECS_MARKET=US
 ```
 
 ### How It Works
@@ -216,9 +215,6 @@ For detailed documentation, see [docs/RECOMMENDATIONS.md](docs/RECOMMENDATIONS.m
 |----------|-------------|---------|
 | `RECS_ENABLED` | Enable/disable recommendations | `false` |
 | `RECS_DB_PATH` | SQLite database path | `./data/recs.db` |
-| `RECS_MARKET` | Spotify market code | `US` |
-| `RECS_FETCH_CATALOG` | Fetch artist/album data | `true` |
-| `RECS_ENABLE_RELATED_ARTISTS` | Include related artist signals | `false` |
 
 ## License
 

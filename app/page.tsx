@@ -13,7 +13,8 @@ import {
   Trash2,
   Heart,
   Play,
-  Minimize2
+  Minimize2,
+  Sparkles
 } from "lucide-react";
 
 /**
@@ -120,11 +121,6 @@ export default async function Home() {
             description="Select multiple tracks and move, copy, or delete them at once. Perfect for large playlist reorganization."
           />
           <FeatureCard
-            icon={<Heart className="h-6 w-6" />}
-            title="Liked Songs Access"
-            description="Browse and search your entire Liked Songs library. Copy favorites directly into any playlist."
-          />
-          <FeatureCard
             icon={<Play className="h-6 w-6" />}
             title="Integrated Player"
             description="Preview any track instantly with the built-in Spotify player. No need to switch apps to check a song."
@@ -138,6 +134,11 @@ export default async function Home() {
             icon={<Trash2 className="h-6 w-6" />}
             title="Safe Editing"
             description="Lock panels to prevent accidental changes. All edits sync directly with Spotify in real-time."
+          />
+          <FeatureCard
+            icon={<Sparkles className="h-6 w-6" />}
+            title="Smart Recommendations"
+            description="Get AI-powered track suggestions based on your playlist patterns. The more you use it, the smarter it gets."
           />
         </div>
       </div>
