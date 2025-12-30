@@ -156,13 +156,11 @@ export function SearchPanel({ isActive = true, inputRef: externalInputRef }: Sea
   const deferredCount = useDeferredValue(sortedTracks.length);
   
   // Virtualizer for efficient rendering
-  // Using isScrollingResetDelay: null to avoid flushSync during scroll (React 19 compatibility)
   const virtualizer = useVirtualizer({
     count: deferredCount,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => rowHeight,
     overscan: VIRTUALIZATION_OVERSCAN,
-    isScrollingResetDelay: null,
   });
 
   // Store virtualizer in ref to avoid effect dependency issues
