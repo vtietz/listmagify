@@ -455,11 +455,13 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
   const deferredCount = useDeferredValue(filteredTracks.length);
 
   // Virtualization with dynamic row height based on compact mode
+  // Using isScrollingResetDelay: null to avoid flushSync during scroll (React 19 compatibility)
   const virtualizer = useVirtualizer({
     count: deferredCount,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => rowHeight,
     overscan: VIRTUALIZATION_OVERSCAN,
+    isScrollingResetDelay: null,
   });
 
   // Store virtualizer in ref to avoid effect dependency issues
