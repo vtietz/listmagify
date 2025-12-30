@@ -202,14 +202,14 @@ export function SearchPanel({ isActive = true, inputRef: externalInputRef }: Sea
       {/* Search input */}
       <div className="p-3 border-b border-border">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             ref={inputRef}
             type="text"
             placeholder="Search tracks, artists, albums..."
             value={localQuery}
             onChange={(e) => setLocalQuery(e.target.value)}
-            className="pl-9 pr-8"
+            className="h-9 pl-9 pr-8 text-sm"
           />
           {localQuery && (
             <Button

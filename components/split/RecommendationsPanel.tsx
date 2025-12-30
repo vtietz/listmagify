@@ -7,9 +7,8 @@
 
 'use client';
 
-import { useMemo, useCallback } from 'react';
-import { useVirtualizer } from '@tanstack/react-virtual';
-import { Sparkles, X, Loader2, ChevronUp, ChevronDown } from 'lucide-react';
+import { useMemo, useCallback, useState, useRef, useEffect } from 'react';
+import { Sparkles, X, Loader2, ChevronUp, ChevronDown, Search } from 'lucide-react';
 import { useSeedRecommendations, useDismissRecommendation } from '@/hooks/useRecommendations';
 import { useSavedTracksIndex } from '@/hooks/useSavedTracksIndex';
 import { useTrackPlayback } from '@/hooks/useTrackPlayback';
@@ -19,6 +18,7 @@ import { TRACK_ROW_HEIGHT, TRACK_ROW_HEIGHT_COMPACT } from './constants';
 import { makeCompositeId } from '@/lib/dnd/id';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import type { Track } from '@/lib/spotify/types';
 
 /** Virtual panel ID for recommendations (used in DnD composite IDs) */
@@ -52,8 +52,14 @@ export function RecommendationsPanel({
   const isCompact = useCompactModeStore((state) => state.isCompact);
   const { isLiked, toggleLiked } = useSavedTracksIndex();
   const dismissMutation = useDismissRecommendation();
+  
+  // Search/filter state
+  const [searchQuery, setSearchQuery] = useState('');
+  
+  // Load more state - start with 20, increment by 20
+  const [displayLimit, setDisplayLimit] = useState(20);
 
-  // Fetch recommendations based on selected tracks
+  // Fetch recommendations based on selected tracks (fetch more than we display for filtering)
   const {
     data,
     isLoading,
@@ -63,11 +69,40 @@ export function RecommendationsPanel({
     selectedTrackIds,
     excludeTrackIds,
     playlistId,
-    isExpanded && selectedTrackIds.length > 0
+    isExpanded && selectedTrackIds.length > 0,
+    50 // Fetch up to 50 for filtering headroom
   );
 
-  const recommendations = data?.recommendations ?? [];
+  const allRecommendations = data?.recommendations ?? [];
   const isEnabled = data?.enabled ?? true;
+  
+  // Filter recommendations by search query
+  const filteredRecommendations = useMemo(() => {
+    if (!searchQuery.trim()) return allRecommendations;
+    const query = searchQuery.toLowerCase();
+    return allRecommendations.filter((r: { track?: Track }) => {
+      const track = r.track;
+      if (!track) return false;
+      return (
+        track.name?.toLowerCase().includes(query) ||
+        track.artists?.some(a => a.toLowerCase().includes(query)) ||
+        track.album?.name?.toLowerCase().includes(query)
+      );
+    });
+  }, [allRecommendations, searchQuery]);
+  
+  // Apply display limit for "load more" functionality
+  const recommendations = useMemo(() => 
+    filteredRecommendations.slice(0, displayLimit),
+    [filteredRecommendations, displayLimit]
+  );
+  
+  const hasMore = filteredRecommendations.length > displayLimit;
+  
+  // Reset display limit when search changes
+  useEffect(() => {
+    setDisplayLimit(20);
+  }, [searchQuery]);
 
   // Extract tracks for playback
   const trackUris = useMemo((): string[] => 
@@ -139,9 +174,9 @@ export function RecommendationsPanel({
           <span className="text-sm font-medium">
             Recommendations
           </span>
-          {recommendations.length > 0 && (
+          {filteredRecommendations.length > 0 && (
             <span className="text-xs text-muted-foreground">
-              ({recommendations.length} tracks)
+              ({recommendations.length}{hasMore ? `/${filteredRecommendations.length}` : ''} tracks)
             </span>
           )}
         </div>
@@ -165,9 +200,23 @@ export function RecommendationsPanel({
           <ChevronDown className="h-4 w-4 text-muted-foreground" />
         </div>
       </div>
+      
+      {/* Search bar */}
+      <div className="px-3 py-2 border-b border-border bg-muted/10">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Filter recommendations..."
+            className="h-9 pl-9 text-sm"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      </div>
 
       {/* Content */}
-      <div className="flex-1 min-h-0 overflow-hidden">
+      <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
         {!isEnabled ? (
           <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
             <div className="text-center p-4">
@@ -186,26 +235,42 @@ export function RecommendationsPanel({
         ) : recommendations.length === 0 ? (
           <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
             <div className="text-center p-4">
-              <p>No recommendations found.</p>
+              <p>{searchQuery ? 'No matches found.' : 'No recommendations found.'}</p>
               <p className="text-xs mt-1">
-                Add more playlists to build recommendation data.
+                {searchQuery ? 'Try a different search term.' : 'Add more playlists to build recommendation data.'}
               </p>
             </div>
           </div>
         ) : (
-          <RecommendationsList
-            recommendations={recommendations}
-            rowHeight={rowHeight}
-            isLiked={isLiked}
-            onToggleLiked={handleToggleLiked}
-            onDismiss={handleDismiss}
-            isTrackPlaying={isTrackPlaying}
-            isTrackLoading={isTrackLoading}
-            onPlay={playTrack}
-            onPause={pausePlayback}
-            onSelect={handleSelect}
-            onClick={handleClick}
-          />
+          <>
+            <div className="flex-1 min-h-0 overflow-auto">
+              <RecommendationsList
+                recommendations={recommendations}
+                rowHeight={rowHeight}
+                isLiked={isLiked}
+                onToggleLiked={handleToggleLiked}
+                onDismiss={handleDismiss}
+                isTrackPlaying={isTrackPlaying}
+                isTrackLoading={isTrackLoading}
+                onPlay={playTrack}
+                onPause={pausePlayback}
+                onSelect={handleSelect}
+                onClick={handleClick}
+              />
+            </div>
+            {hasMore && (
+              <div className="px-3 py-2 border-t border-border bg-muted/10 flex justify-center">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setDisplayLimit(prev => prev + 20)}
+                  className="h-7 text-xs"
+                >
+                  Load more ({filteredRecommendations.length - displayLimit} remaining)
+                </Button>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

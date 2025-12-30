@@ -217,6 +217,9 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
   const capturedRef = useRef<string | null>(null);
   
   useEffect(() => {
+    // Build a unique key for deduplication (snapshotId may be null initially)
+    const captureKey = snapshotId ? `${playlistId}:${snapshotId}` : playlistId;
+    
     // Capture playlist tracks for recommendation system when fully loaded
     // Skip liked songs (virtual playlist) and only capture once per playlist+snapshot combo
     if (
@@ -224,15 +227,18 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
       !isLikedPlaylist && 
       hasLoadedAll && 
       tracks.length > 0 &&
-      snapshotId &&
-      capturedRef.current !== `${playlistId}:${snapshotId}`
+      capturedRef.current !== captureKey
     ) {
-      capturedRef.current = `${playlistId}:${snapshotId}`;
+      console.debug('[recs] Capturing playlist:', playlistId, 'tracks:', tracks.length);
+      capturedRef.current = captureKey;
       // Fire and forget - don't block UI
       capturePlaylist.mutate(
         { playlistId, tracks },
         {
-          onError: (err) => {
+          onSuccess: () => {
+            console.debug('[recs] Capture succeeded:', playlistId);
+          },
+          onError: (err: Error) => {
             // Silent fail - recommendations are optional
             console.debug('[recs] Capture failed:', err);
           },

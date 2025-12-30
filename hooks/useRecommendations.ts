@@ -45,15 +45,17 @@ interface CaptureResponse {
  * @param excludeTrackIds - Optional array of track IDs to exclude
  * @param playlistId - Optional playlist ID for context
  * @param enabled - Whether to enable the query
+ * @param topN - Maximum number of recommendations to fetch (default: 20, max: 50)
  */
 export function useSeedRecommendations(
   seedTrackIds: string[],
   excludeTrackIds: string[] = [],
   playlistId?: string,
-  enabled: boolean = true
+  enabled: boolean = true,
+  topN: number = 20
 ) {
   return useQuery({
-    queryKey: ['recs', 'seed', seedTrackIds, excludeTrackIds, playlistId],
+    queryKey: ['recs', 'seed', seedTrackIds, excludeTrackIds, playlistId, topN],
     queryFn: async (): Promise<RecommendationsResponse> => {
       if (seedTrackIds.length === 0) {
         return { recommendations: [], enabled: true };
@@ -66,7 +68,7 @@ export function useSeedRecommendations(
           seedTrackIds,
           excludeTrackIds,
           playlistId,
-          topN: 20,
+          topN,
           includeMetadata: true,
         }),
       });
