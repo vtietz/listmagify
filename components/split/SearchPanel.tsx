@@ -200,7 +200,7 @@ export function SearchPanel({ isActive = true, inputRef: externalInputRef }: Sea
   return (
     <div className="flex-1 min-h-0 flex flex-col">
       {/* Search input */}
-      <div className="p-3 border-b border-border">
+      <div className="px-3 py-2 border-b border-border">
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -224,7 +224,7 @@ export function SearchPanel({ isActive = true, inputRef: externalInputRef }: Sea
           )}
         </div>
         {debouncedQuery && totalResults > 0 && (
-          <p className="text-xs text-muted-foreground mt-2">
+          <p className="text-xs text-muted-foreground mt-1.5">
             {totalResults.toLocaleString()} results
           </p>
         )}

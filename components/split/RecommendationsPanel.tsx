@@ -161,12 +161,11 @@ export function RecommendationsPanel({
 
   return (
     <div 
-      className="border-t border-border bg-background flex flex-col"
-      style={{ height }}
+      className="border-t border-border bg-background flex flex-col h-full"
     >
       {/* Header */}
       <div 
-        className="flex items-center justify-between px-3 py-2 border-b border-border bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
+        className="flex items-center justify-between px-3 py-2 border-b border-border bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors flex-shrink-0"
         onClick={onToggleExpand}
       >
         <div className="flex items-center gap-2">
@@ -202,7 +201,7 @@ export function RecommendationsPanel({
       </div>
       
       {/* Search bar */}
-      <div className="px-3 py-2 border-b border-border bg-muted/10">
+      <div className="px-3 py-2 border-b border-border flex-shrink-0">
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
