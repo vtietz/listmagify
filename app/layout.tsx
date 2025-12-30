@@ -42,22 +42,22 @@ export const metadata: Metadata = {
     locale: "en_US",
     url: appUrl,
     title: "Listmagify - Playlist Magic for Spotify",
-    description: "Manage your Spotify playlists like a pro. Split-view editing, bulk actions, and smart search.",
+    description: "Professional playlist management for Spotify. Edit multiple playlists side-by-side with drag-and-drop.",
     siteName: "Listmagify",
     images: [
       {
-        url: "/screenshot-split-editor.png",
+        url: "/Listmagify-Logo.png",
         width: 1200,
         height: 630,
-        alt: "Listmagify Interface",
+        alt: "Listmagify Logo",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
     title: "Listmagify - Playlist Magic for Spotify",
-    description: "Manage your Spotify playlists like a pro. Split-view editing, bulk actions, and smart search.",
-    images: ["/screenshot-split-editor.png"],
+    description: "Professional playlist management for Spotify. Edit multiple playlists side-by-side with drag-and-drop.",
+    images: ["/Listmagify-Logo.png"],
   },
   robots: {
     index: true,
