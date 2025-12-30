@@ -36,6 +36,8 @@ COPY --from=builder /usr/src/app/public ./public
 COPY --from=builder /usr/src/app/scripts ./scripts
 COPY --from=builder /usr/src/app/lib ./lib
 COPY --from=builder /usr/src/app/tsconfig.json ./tsconfig.json
+# Install tsx for running TypeScript scripts with path alias support
+RUN pnpm add -D tsx
 EXPOSE 3000
-# Run migrations before starting the server
-CMD ["sh", "-c", "node --experimental-strip-types scripts/migrate.ts && pnpm start"]
+# Run migrations before starting the server (tsx handles @/ path aliases)
+CMD ["sh", "-c", "pnpm exec tsx scripts/migrate.ts && pnpm start"]

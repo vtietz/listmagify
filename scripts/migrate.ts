@@ -7,7 +7,6 @@
  * 
  * Usage:
  *   npx tsx scripts/migrate.ts [--status]
- *   node --experimental-strip-types scripts/migrate.ts [--status]
  */
 
 import { getDb, getMetricsMigrationStatus, closeDb } from '@/lib/metrics/db';
