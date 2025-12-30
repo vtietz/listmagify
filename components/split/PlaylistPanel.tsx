@@ -115,6 +115,7 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
   const selectPlaylist = useSplitGridStore((state: any) => state.selectPlaylist);
 
   const [playlistName, setPlaylistName] = useState<string>('');
+  const [playlistDescription, setPlaylistDescription] = useState<string>('');
   const [sortKey, setSortKey] = useState<SortKey>('position');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
 
@@ -281,6 +282,7 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
       const result = await apiFetch<{
         id: string;
         name: string;
+        description: string;
         owner: { id: string; displayName: string };
         collaborative: boolean;
         tracksTotal: number;
@@ -294,8 +296,10 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
   useEffect(() => {
     if (isLikedPlaylist) {
       setPlaylistName(LIKED_SONGS_METADATA.name);
+      setPlaylistDescription(LIKED_SONGS_METADATA.description ?? '');
     } else if (playlistMetaData?.name) {
       setPlaylistName(playlistMetaData.name);
+      setPlaylistDescription(playlistMetaData.description ?? '');
     }
   }, [playlistMetaData, isLikedPlaylist]);
 
@@ -673,6 +677,7 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
         panelId={panelId}
         playlistId={playlistId}
         playlistName={playlistName}
+        playlistDescription={playlistDescription}
         isEditable={isEditable}
         dndMode={dndMode}
         locked={locked}

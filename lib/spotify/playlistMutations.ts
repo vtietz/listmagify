@@ -355,3 +355,87 @@ export async function checkPlaylistEditable(playlistId: string): Promise<boolean
     return false;
   }
 }
+
+// --- Playlist CRUD Operations ---
+
+interface CreatePlaylistParams {
+  name: string;
+  description?: string;
+  isPublic?: boolean;
+}
+
+interface CreatePlaylistResponse {
+  id: string;
+  name: string;
+  description: string;
+  isPublic: boolean;
+}
+
+interface UpdatePlaylistParams {
+  playlistId: string;
+  name?: string;
+  description?: string;
+  isPublic?: boolean;
+}
+
+/**
+ * Hook for creating a new playlist.
+ */
+export function useCreatePlaylist() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (params: CreatePlaylistParams): Promise<CreatePlaylistResponse> => {
+      return apiFetch('/api/playlists', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: params.name,
+          description: params.description,
+          isPublic: params.isPublic ?? false,
+        }),
+      });
+    },
+    onSuccess: () => {
+      // Invalidate user playlists to refetch the updated list
+      queryClient.invalidateQueries({ queryKey: ['user-playlists'] });
+      toast.success('Playlist created successfully');
+    },
+    onError: (error: Error) => {
+      toast.error(error instanceof Error ? error.message : 'Failed to create playlist');
+    },
+  });
+}
+
+/**
+ * Hook for updating playlist details (name, description, public status).
+ */
+export function useUpdatePlaylist() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (params: UpdatePlaylistParams): Promise<{ success: boolean }> => {
+      const { playlistId, ...updateData } = params;
+      return apiFetch(`/api/playlists/${playlistId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updateData),
+      });
+    },
+    onSuccess: (_data, params) => {
+      // Invalidate the specific playlist's metadata
+      queryClient.invalidateQueries({ queryKey: playlistMeta(params.playlistId) });
+      // Also invalidate user playlists to update the grid
+      queryClient.invalidateQueries({ queryKey: ['user-playlists'] });
+      
+      // Notify other panels
+      eventBus.emit('playlist:update', { playlistId: params.playlistId, cause: 'metadata' });
+      
+      toast.success('Playlist updated successfully');
+    },
+    onError: (error: Error) => {
+      toast.error(error instanceof Error ? error.message : 'Failed to update playlist');
+    },
+  });
+}
+

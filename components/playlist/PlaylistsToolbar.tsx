@@ -2,8 +2,10 @@
 
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, Search } from "lucide-react";
+import { RefreshCw, Search, Plus } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
+import { PlaylistDialog } from "@/components/playlist/PlaylistDialog";
+import { useCreatePlaylist } from "@/lib/spotify/playlistMutations";
 
 export interface PlaylistsToolbarProps {
   searchTerm: string;
@@ -13,11 +15,12 @@ export interface PlaylistsToolbarProps {
 }
 
 /**
- * Toolbar for playlists index with debounced search and refresh button.
+ * Toolbar for playlists index with debounced search, refresh, and create playlist button.
  * 
  * Features:
  * - Debounced search input (300ms delay)
  * - Refresh button with loading state
+ * - Create new playlist button with dialog
  * - Keyboard accessible controls
  */
 export function PlaylistsToolbar({
@@ -27,6 +30,9 @@ export function PlaylistsToolbar({
   onRefresh,
 }: PlaylistsToolbarProps) {
   const [inputValue, setInputValue] = useState(searchTerm);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  
+  const createPlaylist = useCreatePlaylist();
 
   // Sync with external searchTerm changes
   useEffect(() => {
@@ -52,6 +58,15 @@ export function PlaylistsToolbar({
     }
   }, [onRefresh, isRefreshing]);
 
+  const handleCreatePlaylist = useCallback(async (values: { name: string; description: string }) => {
+    await createPlaylist.mutateAsync({
+      name: values.name,
+      description: values.description,
+    });
+    // Trigger a refresh to show the new playlist
+    onRefresh();
+  }, [createPlaylist, onRefresh]);
+
   return (
     <div className="flex items-center gap-3">
       <div className="relative flex-1 max-w-sm">
@@ -68,6 +83,19 @@ export function PlaylistsToolbar({
       </div>
 
       <Button
+        variant="default"
+        size="sm"
+        onClick={() => setCreateDialogOpen(true)}
+        disabled={isRefreshing}
+        title="Create new playlist"
+        aria-label="Create new playlist"
+        className="shrink-0"
+      >
+        <Plus className="h-4 w-4 mr-1" />
+        New Playlist
+      </Button>
+
+      <Button
         variant="outline"
         size="icon"
         onClick={handleRefresh}
@@ -81,6 +109,14 @@ export function PlaylistsToolbar({
           aria-hidden="true"
         />
       </Button>
+
+      <PlaylistDialog
+        open={createDialogOpen}
+        onOpenChange={setCreateDialogOpen}
+        mode="create"
+        onSubmit={handleCreatePlaylist}
+        isSubmitting={createPlaylist.isPending}
+      />
     </div>
   );
 }

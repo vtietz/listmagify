@@ -6,8 +6,8 @@
 
 'use client';
 
-import { useState, useRef, useEffect, ChangeEvent } from 'react';
-import { Search, RefreshCw, Lock, LockOpen, X, SplitSquareHorizontal, SplitSquareVertical, Move, Copy, Trash2, MoreHorizontal, MapPinOff } from 'lucide-react';
+import { useState, useRef, useEffect, ChangeEvent, useCallback } from 'react';
+import { Search, RefreshCw, Lock, LockOpen, X, SplitSquareHorizontal, SplitSquareVertical, Move, Copy, Trash2, MoreHorizontal, MapPinOff, Pencil } from 'lucide-react';
 import { PlaylistSelector } from './PlaylistSelector';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -29,6 +29,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { PlaylistDialog } from '@/components/playlist/PlaylistDialog';
+import { useUpdatePlaylist } from '@/lib/spotify/playlistMutations';
+import { isLikedSongsPlaylist } from '@/hooks/useLikedVirtualPlaylist';
 import { cn } from '@/lib/utils';
 import type { SortKey, SortDirection } from '@/hooks/usePlaylistSort';
 
@@ -39,6 +42,7 @@ interface PanelToolbarProps {
   panelId: string;
   playlistId: string | null;
   playlistName?: string;
+  playlistDescription?: string;
   isEditable: boolean;
   locked: boolean;
   dndMode: 'move' | 'copy';
@@ -66,6 +70,7 @@ export function PanelToolbar({
   panelId,
   playlistId,
   playlistName,
+  playlistDescription,
   isEditable,
   locked,
   dndMode,
@@ -91,7 +96,12 @@ export function PanelToolbar({
   const [localSearch, setLocalSearch] = useState(searchQuery);
   const [isCompact, setIsCompact] = useState(true);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const toolbarRef = useRef<HTMLDivElement>(null);
+  
+  const updatePlaylist = useUpdatePlaylist();
+  const isLiked = playlistId ? isLikedSongsPlaylist(playlistId) : false;
+  const canEditPlaylistInfo = playlistId && isEditable && !isLiked;
 
   // Track toolbar width to toggle between compact (dropdown) and expanded (inline buttons) mode
   useEffect(() => {
@@ -117,6 +127,15 @@ export function PanelToolbar({
     setDeleteDialogOpen(false);
     onDeleteSelected?.();
   };
+
+  const handleUpdatePlaylist = useCallback(async (values: { name: string; description: string }) => {
+    if (!playlistId) return;
+    await updatePlaylist.mutateAsync({
+      playlistId,
+      name: values.name,
+      description: values.description,
+    });
+  }, [playlistId, updatePlaylist]);
 
   return (
     <div ref={toolbarRef} className="flex items-center gap-1.5 p-1.5 border-b border-border bg-card relative z-20">
@@ -308,6 +327,14 @@ export function PanelToolbar({
               </DropdownMenuItem>
             )}
 
+            {/* Edit Playlist Info */}
+            {canEditPlaylistInfo && (
+              <DropdownMenuItem onClick={() => setEditDialogOpen(true)}>
+                <Pencil className="h-4 w-4 mr-2" />
+                Edit playlist info
+              </DropdownMenuItem>
+            )}
+
             {/* Delete Selected */}
             {playlistId && isEditable && !locked && selectedCount > 0 && (
               <>
@@ -374,6 +401,21 @@ export function PanelToolbar({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Edit playlist dialog */}
+      {canEditPlaylistInfo && (
+        <PlaylistDialog
+          open={editDialogOpen}
+          onOpenChange={setEditDialogOpen}
+          mode="edit"
+          initialValues={{
+            name: playlistName ?? '',
+            description: playlistDescription ?? '',
+          }}
+          onSubmit={handleUpdatePlaylist}
+          isSubmitting={updatePlaylist.isPending}
+        />
+      )}
     </div>
   );
 }
