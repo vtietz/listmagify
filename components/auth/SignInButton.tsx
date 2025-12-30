@@ -18,7 +18,7 @@ export function SignInButton({
       onClick={() => signIn("spotify", { callbackUrl })}
       className={
         className ??
-        "inline-flex items-center justify-center rounded-md bg-black text-white px-4 py-2 text-sm font-medium hover:bg-neutral-800 dark:bg-white dark:text-black dark:hover:bg-neutral-200 transition-colors"
+        "inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 transition-colors"
       }
       aria-label={label}
       type="button"

@@ -16,7 +16,7 @@
 
 import { useState, useRef, useCallback, useMemo } from 'react';
 import { usePointerTracker } from './usePointerTracker';
-import { autoScrollEdge } from './useAutoScrollEdge';
+import { useContinuousAutoScroll } from './useAutoScrollEdge';
 import { calculateDropPosition } from './useDropPosition';
 import { useHydratedCompactMode } from './useCompactModeStore';
 import { TABLE_HEADER_HEIGHT, TABLE_HEADER_HEIGHT_COMPACT } from '@/components/split/constants';
@@ -157,6 +157,9 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
   
   // Track pointer position and modifier keys during drag
   const pointerTracker = usePointerTracker();
+  
+  // Continuous auto-scroll during drag operations
+  const autoScroller = useContinuousAutoScroll({ threshold: 80, maxSpeed: 15, minSpeed: 2 });
   
   // Registry of panel virtualizers for drop position calculation
   const panelVirtualizersRef = useRef<Map<string, PanelVirtualizerData>>(new Map());
@@ -406,13 +409,20 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
     // Start tracking pointer position and modifier keys
     pointerTracker.startTracking();
     
+    // Start continuous auto-scroll loop
+    autoScroller.start(
+      () => pointerTracker.getPosition(),
+      () => panelVirtualizersRef.current
+    );
+    
     // Clean up on drag end
     const cleanup = () => {
       pointerTracker.stopTracking();
+      autoScroller.stop();
       document.removeEventListener('pointerup', cleanup);
     };
     document.addEventListener('pointerup', cleanup, { once: true });
-  }, [pointerTracker, panels]);
+  }, [pointerTracker, autoScroller, panels]);
 
   const handleDragOver = useCallback((event: DragOverEvent) => {
     const { over } = event;
@@ -483,21 +493,8 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
     const { virtualizer, scrollRef, filteredTracks } = panelData;
     const scrollContainer = scrollRef.current;
     
-    // Auto-scroll when pointer is near the edges of the current target panel
-    // Only scroll if pointer is actually within the panel's bounds
-    if (scrollContainer) {
-      const rect = scrollContainer.getBoundingClientRect();
-      const { x: pointerX } = pointerTracker.getPosition();
-      const isPointerInPanel = 
-        pointerX >= rect.left && 
-        pointerX <= rect.right && 
-        pointerY >= rect.top && 
-        pointerY <= rect.bottom;
-      
-      if (isPointerInPanel) {
-        autoScrollEdge(scrollContainer, pointerY);
-      }
-    }
+    // Note: Auto-scroll is handled by the continuous autoScroller loop started in handleDragStart.
+    // This ensures smooth scrolling even when the pointer is stationary near panel edges.
 
     // Compute insertion index in filtered view for "make room" animation
     if (scrollContainer) {
@@ -913,7 +910,8 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
     setActivePanelId(null);
     setEphemeralInsertion(null);
     pointerTracker.stopTracking();
-  }, [pointerTracker]);
+    autoScroller.stop();
+  }, [pointerTracker, autoScroller]);
 
   /**
    * Check if the current target panel is editable

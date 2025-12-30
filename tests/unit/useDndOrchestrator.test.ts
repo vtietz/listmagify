@@ -26,6 +26,10 @@ vi.mock('@/hooks/usePointerTracker', () => ({
 
 vi.mock('@/hooks/useAutoScrollEdge', () => ({
   autoScrollEdge: vi.fn(),
+  useContinuousAutoScroll: () => ({
+    start: vi.fn(),
+    stop: vi.fn(),
+  }),
 }));
 
 vi.mock('@/hooks/useDropPosition', () => ({
