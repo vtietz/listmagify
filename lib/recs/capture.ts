@@ -37,7 +37,7 @@ export interface PlaylistSnapshotInput {
  * @returns Number of tracks captured
  */
 export function captureSnapshot(input: PlaylistSnapshotInput): number {
-  const { playlistId, tracks } = input;
+  const { tracks } = input;
   const now = unixNow();
   
   if (tracks.length === 0) {
@@ -45,7 +45,7 @@ export function captureSnapshot(input: PlaylistSnapshotInput): number {
   }
   
   return withTransaction((db) => {
-    // 1. Upsert track metadata
+    // Upsert track metadata only (no snapshot storage to save space)
     const upsertTrack = db.prepare(`
       INSERT INTO tracks (track_id, uri, name, artist_ids, album_id, popularity, duration_ms, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -59,6 +59,7 @@ export function captureSnapshot(input: PlaylistSnapshotInput): number {
         updated_at = excluded.updated_at
     `);
     
+    let capturedCount = 0;
     for (const track of tracks) {
       if (!track.id) continue; // Skip local files
       
@@ -74,22 +75,6 @@ export function captureSnapshot(input: PlaylistSnapshotInput): number {
         track.durationMs,
         now
       );
-    }
-    
-    // 2. Insert playlist track snapshot
-    const insertPlaylistTrack = db.prepare(`
-      INSERT INTO playlist_tracks (playlist_id, track_id, position, snapshot_ts)
-      VALUES (?, ?, ?, ?)
-      ON CONFLICT(playlist_id, track_id, snapshot_ts) DO UPDATE SET
-        position = excluded.position
-    `);
-    
-    let capturedCount = 0;
-    for (let i = 0; i < tracks.length; i++) {
-      const track = tracks[i];
-      if (!track?.id) continue;
-      
-      insertPlaylistTrack.run(playlistId, track.id, i, now);
       capturedCount++;
     }
     
@@ -135,88 +120,4 @@ export function captureAndUpdateEdges(input: PlaylistSnapshotInput): {
   };
 }
 
-/**
- * Get the latest snapshot timestamp for a playlist.
- */
-export function getLatestSnapshotTimestamp(playlistId: string): number | null {
-  const db = getRecsDb();
-  const row = db.prepare(`
-    SELECT MAX(snapshot_ts) as ts FROM playlist_tracks WHERE playlist_id = ?
-  `).get(playlistId) as { ts: number | null } | undefined;
-  
-  return row?.ts ?? null;
-}
 
-/**
- * Check if a playlist needs a fresh snapshot based on age.
- * 
- * @param playlistId - The playlist ID
- * @param maxAgeSeconds - Maximum age before considered stale (default: 1 hour)
- */
-export function isSnapshotStale(playlistId: string, maxAgeSeconds: number = 3600): boolean {
-  const latestTs = getLatestSnapshotTimestamp(playlistId);
-  
-  if (latestTs === null) {
-    return true; // No snapshot exists
-  }
-  
-  const age = unixNow() - latestTs;
-  return age > maxAgeSeconds;
-}
-
-/**
- * Get track IDs from the latest snapshot of a playlist.
- */
-export function getLatestPlaylistTrackIds(playlistId: string): string[] {
-  const db = getRecsDb();
-  
-  // Get the latest snapshot timestamp
-  const latestTs = getLatestSnapshotTimestamp(playlistId);
-  if (latestTs === null) {
-    return [];
-  }
-  
-  // Get track IDs at that snapshot
-  const rows = db.prepare(`
-    SELECT track_id FROM playlist_tracks 
-    WHERE playlist_id = ? AND snapshot_ts = ?
-    ORDER BY position ASC
-  `).all(playlistId, latestTs) as Array<{ track_id: string }>;
-  
-  return rows.map(r => r.track_id);
-}
-
-/**
- * Remove old snapshots for a playlist, keeping only the most recent N.
- * This helps manage database size for frequently updated playlists.
- * 
- * @param playlistId - The playlist ID
- * @param keepCount - Number of recent snapshots to keep (default: 3)
- */
-export function prunePlaylistSnapshots(playlistId: string, keepCount: number = 3): number {
-  const db = getRecsDb();
-  
-  // Get distinct snapshot timestamps
-  const timestamps = db.prepare(`
-    SELECT DISTINCT snapshot_ts FROM playlist_tracks 
-    WHERE playlist_id = ?
-    ORDER BY snapshot_ts DESC
-  `).all(playlistId) as Array<{ snapshot_ts: number }>;
-  
-  if (timestamps.length <= keepCount) {
-    return 0;
-  }
-  
-  // Delete all but the most recent N
-  const cutoffTs = timestamps[keepCount - 1]?.snapshot_ts;
-  if (cutoffTs === undefined) {
-    return 0;
-  }
-  
-  const result = db.prepare(`
-    DELETE FROM playlist_tracks 
-    WHERE playlist_id = ? AND snapshot_ts < ?
-  `).run(playlistId, cutoffTs);
-  
-  return result.changes;
-}

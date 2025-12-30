@@ -153,13 +153,6 @@ export interface TrackRow {
   updated_at: number;
 }
 
-export interface PlaylistTrackRow {
-  playlist_id: string;
-  track_id: string;
-  position: number;
-  snapshot_ts: number;
-}
-
 export interface TrackEdgeSeqRow {
   from_track_id: string;
   to_track_id: string;

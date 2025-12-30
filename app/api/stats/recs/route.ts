@@ -31,8 +31,6 @@ export async function GET(request: NextRequest) {
     const stats = {
       // Track and edge counts
       tracks: (db.prepare('SELECT COUNT(*) as cnt FROM tracks').get() as { cnt: number }).cnt,
-      playlistSnapshots: (db.prepare('SELECT COUNT(DISTINCT playlist_id || snapshot_ts) as cnt FROM playlist_tracks').get() as { cnt: number }).cnt,
-      playlistsIndexed: (db.prepare('SELECT COUNT(DISTINCT playlist_id) as cnt FROM playlist_tracks').get() as { cnt: number }).cnt,
       seqEdges: (db.prepare('SELECT COUNT(*) as cnt FROM track_edges_seq').get() as { cnt: number }).cnt,
       cooccurEdges: (db.prepare('SELECT COUNT(*) as cnt FROM track_cooccurrence').get() as { cnt: number }).cnt,
       
@@ -45,20 +43,12 @@ export async function GET(request: NextRequest) {
     const pageSize = (db.prepare('PRAGMA page_size').get() as { page_size: number }).page_size;
     const dbSizeBytes = pageCount * pageSize;
 
-    // Get some recent activity info
-    const recentSnapshots = db.prepare(`
-      SELECT COUNT(*) as cnt 
-      FROM playlist_tracks 
-      WHERE snapshot_ts > unixepoch() - 86400 * 7
-    `).get() as { cnt: number };
-
     return NextResponse.json({
       enabled: true,
       stats: {
         ...stats,
         dbSizeBytes,
         dbSizeMB: (dbSizeBytes / (1024 * 1024)).toFixed(2),
-        recentSnapshotsLast7Days: recentSnapshots.cnt,
         totalEdges: stats.seqEdges + stats.cooccurEdges,
       },
     });

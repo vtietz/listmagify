@@ -70,14 +70,16 @@ export function SessionErrorHandler() {
             </div>
             <AlertDialogTitle>Session Expired</AlertDialogTitle>
           </div>
-          <AlertDialogDescription className="pt-2">
-            Your Spotify session has expired or been revoked. This can happen if:
-            <ul className="list-disc list-inside mt-2 space-y-1 text-sm">
-              <li>You haven&apos;t used the app in a while</li>
-              <li>You changed your Spotify password</li>
-              <li>You revoked access in Spotify settings</li>
-            </ul>
-            <p className="mt-3">Please log in again to continue using Listmagify.</p>
+          <AlertDialogDescription className="pt-2" asChild>
+            <div className="text-sm text-muted-foreground">
+              Your Spotify session has expired or been revoked. This can happen if:
+              <ul className="list-disc list-inside mt-2 space-y-1 text-sm">
+                <li>You haven&apos;t used the app in a while</li>
+                <li>You changed your Spotify password</li>
+                <li>You revoked access in Spotify settings</li>
+              </ul>
+              <p className="mt-3">Please log in again to continue using Listmagify.</p>
+            </div>
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

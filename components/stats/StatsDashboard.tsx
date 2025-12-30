@@ -509,18 +509,18 @@ function RecsStatsCard({ data, isLoading }: { data?: RecsStats; isLoading: boole
           
           <div className="space-y-1">
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <BarChart3 className="h-3 w-3" />
-              Playlists Indexed
-            </div>
-            <div className="text-2xl font-bold">{stats.playlistsIndexed.toLocaleString()}</div>
-          </div>
-          
-          <div className="space-y-1">
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Database className="h-3 w-3" />
               DB Size
             </div>
             <div className="text-2xl font-bold">{stats.dbSizeMB} MB</div>
+          </div>
+          
+          <div className="space-y-1">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <BarChart3 className="h-3 w-3" />
+              Dismissed
+            </div>
+            <div className="text-2xl font-bold">{stats.dismissedRecommendations.toLocaleString()}</div>
           </div>
         </div>
         
@@ -535,21 +535,6 @@ function RecsStatsCard({ data, isLoading }: { data?: RecsStats; isLoading: boole
             <div>
               <div className="text-muted-foreground">Co-occurrence</div>
               <div className="font-medium">{stats.cooccurEdges.toLocaleString()}</div>
-            </div>
-          </div>
-        </div>
-        
-        {/* Activity */}
-        <div className="mt-4 pt-4 border-t">
-          <div className="text-sm font-medium mb-3">Activity</div>
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <div className="text-muted-foreground">Recent Snapshots (7 days)</div>
-              <div className="font-medium">{stats.recentSnapshotsLast7Days.toLocaleString()}</div>
-            </div>
-            <div>
-              <div className="text-muted-foreground">Dismissed Recommendations</div>
-              <div className="font-medium">{stats.dismissedRecommendations.toLocaleString()}</div>
             </div>
           </div>
         </div>

@@ -5,13 +5,12 @@
  * - Mode A: Seed-based recommendations (for selected tracks)
  * - Mode B: Playlist appendix recommendations (for entire playlist)
  * 
- * Scoring blends multiple signals: adjacency, co-occurrence, catalog, and optionally vectors.
+ * Scoring blends adjacency and co-occurrence signals from user behavior.
  */
 
 import { getRecsDb, unixNow } from "./db";
 import { scoringWeights, recsParams } from "./env";
 import { getAdjacencyEdgesFrom, getCooccurrenceNeighbors } from "./edges";
-import { getCatalogEdges, getTrackPopularities, getAlbumAdjacency } from "./catalog";
 import type { Track } from "@/lib/spotify/types";
 
 /**
@@ -22,14 +21,9 @@ export interface RecommendationCandidate {
   scores: {
     adjacency: number;
     cooccurrence: number;
-    artistTop: number;
-    albumAdj: number;
-    relatedArtist: number;
-    popularity: number;
-    vector?: number;
   };
   totalScore: number;
-  sources: Set<string>; // Which sources contributed this candidate
+  sources: Set<string>; // Which signal sources contributed this candidate
 }
 
 /**
@@ -87,44 +81,18 @@ export function getSeedRecommendations(
   const candidateMap = new Map<string, RecommendationCandidate>();
   
   for (const seedId of seedTrackIds) {
-    // 1. Graph adjacency edges
+    // 1. Graph adjacency edges (tracks that follow this track)
     const adjacencyEdges = getAdjacencyEdgesFrom(seedId, recsParams.candidatesPerSeed);
     for (const edge of adjacencyEdges) {
       mergeCandidateScore(candidateMap, edge.toTrackId, 'adjacency', edge.weight, 'adjacency');
     }
     
-    // 2. Co-occurrence neighbors
+    // 2. Co-occurrence neighbors (tracks in same playlists)
     const cooccurNeighbors = getCooccurrenceNeighbors(seedId, recsParams.maxCooccurrenceNeighbors);
     for (const neighbor of cooccurNeighbors) {
       mergeCandidateScore(candidateMap, neighbor.neighborId, 'cooccurrence', neighbor.weight, 'cooccurrence');
     }
-    
-    // 3. Catalog edges (artist top tracks)
-    const artistTopEdges = getCatalogEdges(seedId, 'artist_top', 20);
-    for (const edge of artistTopEdges) {
-      mergeCandidateScore(candidateMap, edge.toTrackId, 'artistTop', edge.weight, 'artist_top');
-    }
-    
-    // 4. Album adjacency
-    const albumAdj = getAlbumAdjacency(seedId);
-    if (albumAdj) {
-      if (albumAdj.nextTrackId) {
-        mergeCandidateScore(candidateMap, albumAdj.nextTrackId, 'albumAdj', 1.0, 'album_adj');
-      }
-      if (albumAdj.prevTrackId) {
-        mergeCandidateScore(candidateMap, albumAdj.prevTrackId, 'albumAdj', 0.8, 'album_adj');
-      }
-    }
-    
-    // 5. Related artist edges (if data exists)
-    const relatedEdges = getCatalogEdges(seedId, 'related_artist_top', 10);
-    for (const edge of relatedEdges) {
-      mergeCandidateScore(candidateMap, edge.toTrackId, 'relatedArtist', edge.weight, 'related_artist');
-    }
   }
-  
-  // Add popularity scores
-  addPopularityScores(candidateMap);
   
   // Filter excluded tracks
   const filteredCandidates = filterExcluded(candidateMap, context);
@@ -182,7 +150,7 @@ export function getPlaylistAppendixRecommendations(
     // Weight based on position (last track = 1.0, first = 0.3)
     const positionWeight = 0.3 + 0.7 * (idx / (numTracks - 1 || 1));
     
-    // 1. Adjacency edges (especially important for tail)
+    // 1. Adjacency edges (especially important for tail continuity)
     const adjacencyEdges = getAdjacencyEdgesFrom(trackId, 30);
     for (const edge of adjacencyEdges) {
       mergeCandidateScore(
@@ -205,32 +173,7 @@ export function getPlaylistAppendixRecommendations(
         'cooccurrence'
       );
     }
-    
-    // 3. Artist top tracks (for variety)
-    const artistTopEdges = getCatalogEdges(trackId, 'artist_top', 10);
-    for (const edge of artistTopEdges) {
-      mergeCandidateScore(
-        candidateMap, 
-        edge.toTrackId, 
-        'artistTop', 
-        edge.weight * positionWeight,
-        'artist_top'
-      );
-    }
   }
-  
-  // 4. Album adjacency for tail continuity
-  const tailTracks = playlistTrackIds.slice(-3);
-  for (const trackId of tailTracks) {
-    const albumAdj = getAlbumAdjacency(trackId);
-    if (albumAdj?.nextTrackId) {
-      // High weight for continuing an album at the end
-      mergeCandidateScore(candidateMap, albumAdj.nextTrackId, 'albumAdj', 1.5, 'album_adj');
-    }
-  }
-  
-  // Add popularity scores
-  addPopularityScores(candidateMap);
   
   // Filter excluded tracks
   const filteredCandidates = filterExcluded(candidateMap, context);
@@ -273,10 +216,6 @@ function mergeCandidateScore(
       scores: {
         adjacency: 0,
         cooccurrence: 0,
-        artistTop: 0,
-        albumAdj: 0,
-        relatedArtist: 0,
-        popularity: 0,
       },
       totalScore: 0,
       sources: new Set(),
@@ -287,23 +226,6 @@ function mergeCandidateScore(
   // Accumulate the score (some sources may contribute multiple times)
   candidate.scores[scoreKey] += value;
   candidate.sources.add(source);
-}
-
-/**
- * Add popularity scores to all candidates.
- */
-function addPopularityScores(candidateMap: Map<string, RecommendationCandidate>): void {
-  const trackIds = Array.from(candidateMap.keys());
-  const popularities = getTrackPopularities(trackIds);
-  
-  for (const [trackId, candidate] of candidateMap) {
-    const popularity = popularities.get(trackId);
-    if (popularity !== undefined) {
-      // Normalize to 0-1
-      candidate.scores.popularity = popularity / 100;
-      candidate.sources.add('popularity');
-    }
-  }
 }
 
 /**
@@ -351,55 +273,37 @@ export function filterExcluded(
 
 /**
  * Compute final blended scores for all candidates.
+ * Normalizes scores and applies configured weights.
  */
 function computeFinalScores(
   candidates: RecommendationCandidate[]
 ): RecommendationCandidate[] {
-  // Normalize scores across all candidates
-  const maxScores = {
-    adjacency: 0,
-    cooccurrence: 0,
-    artistTop: 0,
-    albumAdj: 0,
-    relatedArtist: 0,
-    popularity: 1, // Already 0-1
-  };
+  // Find maximum scores for normalization
+  let maxAdjacency = 0;
+  let maxCooccurrence = 0;
   
   for (const c of candidates) {
-    maxScores.adjacency = Math.max(maxScores.adjacency, c.scores.adjacency);
-    maxScores.cooccurrence = Math.max(maxScores.cooccurrence, c.scores.cooccurrence);
-    maxScores.artistTop = Math.max(maxScores.artistTop, c.scores.artistTop);
-    maxScores.albumAdj = Math.max(maxScores.albumAdj, c.scores.albumAdj);
-    maxScores.relatedArtist = Math.max(maxScores.relatedArtist, c.scores.relatedArtist);
+    maxAdjacency = Math.max(maxAdjacency, c.scores.adjacency);
+    maxCooccurrence = Math.max(maxCooccurrence, c.scores.cooccurrence);
   }
   
   // Avoid division by zero
-  for (const key of Object.keys(maxScores) as (keyof typeof maxScores)[]) {
-    if (maxScores[key] === 0) maxScores[key] = 1;
-  }
+  if (maxAdjacency === 0) maxAdjacency = 1;
+  if (maxCooccurrence === 0) maxCooccurrence = 1;
   
-  // Compute weighted sum
+  // Compute weighted sum for each candidate
   for (const c of candidates) {
-    const normalizedScores = {
-      adjacency: c.scores.adjacency / maxScores.adjacency,
-      cooccurrence: c.scores.cooccurrence / maxScores.cooccurrence,
-      artistTop: c.scores.artistTop / maxScores.artistTop,
-      albumAdj: c.scores.albumAdj / maxScores.albumAdj,
-      relatedArtist: c.scores.relatedArtist / maxScores.relatedArtist,
-      popularity: c.scores.popularity,
-    };
+    const normalizedAdjacency = c.scores.adjacency / maxAdjacency;
+    const normalizedCooccurrence = c.scores.cooccurrence / maxCooccurrence;
     
     c.totalScore = 
-      scoringWeights.adjacency * normalizedScores.adjacency +
-      scoringWeights.coMembership * normalizedScores.cooccurrence +
-      scoringWeights.catalog.artistOverlap * normalizedScores.artistTop +
-      scoringWeights.catalog.albumContinuity * normalizedScores.albumAdj +
-      scoringWeights.catalog.relatedArtist * normalizedScores.relatedArtist +
-      scoringWeights.catalog.popularity * normalizedScores.popularity;
+      scoringWeights.adjacency * normalizedAdjacency +
+      scoringWeights.coMembership * normalizedCooccurrence;
       
-    // Diversity bonus: tracks from multiple sources score higher
-    const sourceBonus = (c.sources.size - 1) * 0.05;
-    c.totalScore += sourceBonus;
+    // Diversity bonus: tracks from both sources score higher
+    if (c.sources.size > 1) {
+      c.totalScore += 0.05;
+    }
   }
   
   return candidates;

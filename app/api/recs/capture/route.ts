@@ -4,8 +4,6 @@ import { authOptions } from '@/lib/auth/auth';
 import { 
   isRecsAvailable, 
   captureAndUpdateEdges,
-  isSnapshotStale,
-  prunePlaylistSnapshots,
   type PlaylistSnapshotInput 
 } from '@/lib/recs';
 import type { Track } from '@/lib/spotify/types';
@@ -74,9 +72,6 @@ export async function POST(request: NextRequest) {
 
     const stats = captureAndUpdateEdges(input);
 
-    // Prune old snapshots to manage storage
-    prunePlaylistSnapshots(playlistId, 3);
-
     return NextResponse.json({
       success: true,
       enabled: true,
@@ -85,55 +80,6 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('[api/recs/capture] Error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
-  }
-}
-
-/**
- * GET /api/recs/capture?playlistId=xxx
- * 
- * Check if a playlist snapshot is stale.
- */
-export async function GET(request: NextRequest) {
-  try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: 'token_expired' }, { status: 401 });
-    }
-
-    if ((session as any).error === 'RefreshAccessTokenError') {
-      return NextResponse.json({ error: 'token_expired' }, { status: 401 });
-    }
-
-    if (!isRecsAvailable()) {
-      return NextResponse.json({
-        enabled: false,
-        isStale: true,
-        message: 'Recommendation system is not enabled',
-      });
-    }
-
-    const playlistId = request.nextUrl.searchParams.get('playlistId');
-
-    if (!playlistId) {
-      return NextResponse.json(
-        { error: 'playlistId is required' },
-        { status: 400 }
-      );
-    }
-
-    const stale = isSnapshotStale(playlistId);
-
-    return NextResponse.json({
-      enabled: true,
-      isStale: stale,
-    });
-
-  } catch (error) {
-    console.error('[api/recs/capture] GET Error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

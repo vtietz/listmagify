@@ -157,20 +157,34 @@ export const recsMigrations: Migration[] = [
       FROM track_catalog_edges;
     `,
   },
-  // Future migrations go here:
-  // {
-  //   version: 2,
-  //   name: 'add_user_tags',
-  //   sql: `
-  //     CREATE TABLE IF NOT EXISTS user_tags (
-  //       user_id TEXT NOT NULL,
-  //       track_id TEXT NOT NULL,
-  //       tag TEXT NOT NULL,
-  //       created_at INTEGER NOT NULL DEFAULT (unixepoch()),
-  //       PRIMARY KEY (user_id, track_id, tag)
-  //     );
-  //     CREATE INDEX IF NOT EXISTS idx_user_tags_track ON user_tags(track_id);
-  //     CREATE INDEX IF NOT EXISTS idx_user_tags_tag ON user_tags(tag);
-  //   `,
-  // },
+  {
+    version: 2,
+    name: 'remove_unused_tables',
+    sql: `
+      -- Remove unused catalog tables (feature was never implemented)
+      DROP TABLE IF EXISTS playlist_tracks;
+      DROP TABLE IF EXISTS track_features;
+      DROP TABLE IF EXISTS artist_top_tracks;
+      DROP TABLE IF EXISTS album_tracks;
+      DROP TABLE IF EXISTS track_popularity;
+      DROP TABLE IF EXISTS related_artists;
+      DROP TABLE IF EXISTS track_catalog_edges;
+      DROP TABLE IF EXISTS recs_metadata;
+      
+      -- Recreate view without catalog edges reference
+      DROP VIEW IF EXISTS v_all_track_edges;
+      CREATE VIEW IF NOT EXISTS v_all_track_edges AS
+      SELECT 
+        from_track_id, to_track_id, weight_seq as weight, 'seq' as edge_type, last_seen_ts
+      FROM track_edges_seq
+      UNION ALL
+      SELECT 
+        track_id_a as from_track_id, track_id_b as to_track_id, weight_co as weight, 'cooccur' as edge_type, last_seen_ts
+      FROM track_cooccurrence
+      UNION ALL
+      SELECT 
+        track_id_b as from_track_id, track_id_a as to_track_id, weight_co as weight, 'cooccur' as edge_type, last_seen_ts
+      FROM track_cooccurrence;
+    `,
+  },
 ];

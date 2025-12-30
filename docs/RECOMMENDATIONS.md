@@ -98,7 +98,6 @@ Other parameters (decay factor, edge limits, scoring weights) are internal const
 The system uses several interconnected tables:
 
 - **tracks**: Cached track metadata
-- **playlist_tracks**: Point-in-time playlist snapshots
 - **track_edges_seq**: Sequential adjacency relationships
 - **track_cooccurrence**: Co-occurrence relationships
 - **dismissed_recommendations**: User dismissals per context

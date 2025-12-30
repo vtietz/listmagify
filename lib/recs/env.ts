@@ -38,17 +38,8 @@ export const recsEnv: RecsEnv = (() => {
  * These are not exposed as env vars - they're tuned for optimal behavior.
  */
 export const recsConfig = {
-  /** Time-to-live in days for cached catalog data */
-  catalogTtlDays: 7,
-  
-  /** Default market for catalog fetches (can be overridden per-request) */
-  defaultMarket: "US",
-  
   /** Maximum number of edge entries per track (for capping during maintenance) */
   maxEdgesPerTrack: 200,
-  
-  /** Snapshot retention horizon in days */
-  snapshotRetentionDays: 90,
   
   /** Weekly decay factor for edge weights (0.9-1.0) */
   decayFactor: 0.98,
@@ -56,35 +47,14 @@ export const recsConfig = {
 
 /**
  * Scoring weight configuration for recommendation blending.
- * These can be tuned based on user feedback and A/B testing.
+ * Weights should sum to approximately 1.0 for normalized scores.
  */
 export const scoringWeights = {
   /** Weight for sequential adjacency signal (playlist order) */
   adjacency: 0.6,
   
   /** Weight for co-membership signal (tracks in same playlists) */
-  coMembership: 0.3,
-  
-  /** Weight for audio feature similarity (if available) */
-  audioContent: 0.1,
-  
-  /** Recency boost weight */
-  recency: 0.05,
-  
-  /** Catalog signal weights */
-  catalog: {
-    /** Shared artist top tracks */
-    artistOverlap: 0.15,
-    
-    /** Album continuity (next/prev track) */
-    albumContinuity: 0.15,
-    
-    /** Track popularity (normalized 0-1) */
-    popularity: 0.10,
-    
-    /** Related artist signal */
-    relatedArtist: 0.05,
-  },
+  coMembership: 0.4,
 };
 
 /**

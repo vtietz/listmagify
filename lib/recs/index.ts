@@ -16,17 +16,12 @@ export {
   withTransaction,
   unixNow,
   type TrackRow,
-  type PlaylistTrackRow,
 } from "./db";
 
 // Playlist capture
 export {
   captureSnapshot,
   captureAndUpdateEdges,
-  getLatestSnapshotTimestamp,
-  isSnapshotStale,
-  getLatestPlaylistTrackIds,
-  prunePlaylistSnapshots,
   type PlaylistSnapshotInput,
 } from "./capture";
 
@@ -41,23 +36,6 @@ export {
   getAdjacencyEdgesFrom,
   getCooccurrenceNeighbors,
 } from "./edges";
-
-// Catalog
-export {
-  upsertArtistTopTracks,
-  upsertAlbumTracks,
-  upsertTrackPopularity,
-  upsertRelatedArtists,
-  deriveCatalogEdges,
-  ensureArtistTopTracks,
-  ensureAlbumTracks,
-  ensureTrackPopularities,
-  ensureRelatedArtists,
-  getCatalogEdges,
-  getTrackPopularity,
-  getTrackPopularities,
-  getAlbumAdjacency,
-} from "./catalog";
 
 // Scoring and recommendations
 export {
