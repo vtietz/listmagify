@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { Search, Music2, ListMusic, Columns2, LogIn, LogOut, Minimize2, MapPinOff, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AppLogo } from "@/components/ui/app-logo";
-import { SpotifyAttribution } from "@/components/ui/spotify-attribution";
+import { AppFooter } from "@/components/ui/app-footer";
 import { useBrowsePanelStore } from "@/hooks/useBrowsePanelStore";
 import { usePlayerStore } from "@/hooks/usePlayerStore";
 import { useCompactModeStore } from "@/hooks/useCompactModeStore";
@@ -20,32 +20,56 @@ type AppShellProps = {
   children?: React.ReactNode;
 };
 
+/**
+ * AppShell - Unified layout component for the entire app.
+ * 
+ * Layout types:
+ * - Fixed height (split-editor, playlist detail): Header + Content (fills viewport, internal scrolling) + Footer + Player
+ * - Scrollable (everything else): Header + Content (scrolls with page) + Footer + Player
+ * 
+ * The landing page (/) is handled specially - it provides its own content structure
+ * but still uses AppShell's header for consistency.
+ */
 export function AppShell({ headerTitle = "Listmagify", children }: AppShellProps) {
   const pathname = usePathname();
   
-  // Pages that need fixed viewport height (no global scrolling)
+  // Landing page doesn't use AppShell wrapper (has its own layout)
+  const isLandingPage = pathname === '/';
+  
+  // Pages that need fixed viewport height (no global scrolling, internal scroll containers)
+  // - Split editor: multiple panels with their own scroll
+  // - Playlist detail: uses SplitGrid which needs internal scrolling
   const isFixedHeightPage = pathname === '/split-editor' || 
-                            pathname === '/playlists' || 
                             pathname.startsWith('/playlists/');
   
-  // Landing page and other pages can scroll normally
-  if (!isFixedHeightPage) {
+  // Landing page - render children directly (page handles its own layout)
+  if (isLandingPage) {
+    return <>{children}</>;
+  }
+
+  // Fixed height layout for split editor and playlist detail (internal scrolling)
+  if (isFixedHeightPage) {
     return (
-      <div className="min-h-dvh flex flex-col bg-background text-foreground">
+      <div className="h-dvh flex flex-col bg-background text-foreground overflow-hidden">
         <Header title={headerTitle} />
-        <main className="flex-1">{children}</main>
+        <main className="flex-1 min-h-0 overflow-hidden">{children}</main>
+        <div className="flex-shrink-0 px-4 py-1 border-t border-border">
+          <AppFooter />
+        </div>
         <SpotifyPlayer />
       </div>
     );
   }
 
-  // Split editor and playlist pages use fixed height layout
+  // Standard scrollable layout (browser native scrolling with sticky header/footer)
   return (
-    <div className="h-dvh flex flex-col bg-background text-foreground overflow-hidden">
-      <Header title={headerTitle} />
-      <main className="flex-1 min-h-0 overflow-hidden">{children}</main>
-      <div className="flex-shrink-0 px-4 py-1 border-t border-border">
-        <SpotifyAttribution />
+    <div className="min-h-dvh flex flex-col bg-background text-foreground">
+      <div className="sticky top-0 z-40 bg-background">
+        <Header title={headerTitle} />
+      </div>
+      <main className="flex-1">{children}</main>
+      <div className="sticky bottom-0 z-40 bg-background px-4 py-2 border-t border-border">
+        <AppFooter />
       </div>
       <SpotifyPlayer />
     </div>

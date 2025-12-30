@@ -3,7 +3,8 @@ import { authOptions } from "@/lib/auth/auth";
 import Link from "next/link";
 import { SignInButton } from "@/components/auth/SignInButton";
 import { AppLogo } from "@/components/ui/app-logo";
-import { SpotifyAttribution } from "@/components/ui/spotify-attribution";
+import { AppFooter } from "@/components/ui/app-footer";
+import { LogIn, LogOut } from "lucide-react";
 import { 
   Columns, 
   GripVertical, 
@@ -20,6 +21,8 @@ import {
 /**
  * Root page - Landing page shown to all users (authenticated or not).
  * Authenticated users see "Open App" button, unauthenticated see "Sign in".
+ * 
+ * This page handles its own layout since AppShell passes through for '/'.
  */
 export default async function Home() {
   const session = await getServerSession(authOptions);
@@ -40,37 +43,64 @@ export default async function Home() {
   };
 
   return (
-    <div className="min-h-dvh bg-gradient-to-b from-background to-background/95">
+    <div className="min-h-dvh flex flex-col bg-gradient-to-b from-background to-background/95">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      {/* Hero Section */}
-      <div className="container mx-auto px-4 pt-16 pb-12">
-        <div className="text-center space-y-6 max-w-3xl mx-auto">
-          <div className="flex justify-center">
-            <AppLogo size="lg" asLink={false} />
+      
+      {/* Header */}
+      <header className="sticky top-0 z-40 h-12 flex items-center justify-between px-4 border-b border-border bg-background">
+        <AppLogo size="sm" />
+        <nav className="flex items-center gap-1 text-sm">
+          {isAuthenticated ? (
+            <Link
+              href="/logout"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+              Logout
+            </Link>
+          ) : (
+            <Link
+              href="/login"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <LogIn className="h-3.5 w-3.5" />
+              Login
+            </Link>
+          )}
+        </nav>
+      </header>
+
+      {/* Main Content - scrolls naturally with browser */}
+      <main className="flex-1">
+        {/* Hero Section */}
+        <div className="container mx-auto px-4 pt-16 pb-12">
+          <div className="text-center space-y-6 max-w-3xl mx-auto">
+            <div className="flex justify-center">
+              <AppLogo size="lg" asLink={false} />
+            </div>
+            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+              Professional playlist management for Spotify. Edit multiple playlists side-by-side with drag-and-drop.
+            </p>
+            <div className="flex justify-center gap-4 pt-4">
+              {isAuthenticated ? (
+                <Link
+                  href="/playlists"
+                  className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-6 py-3 text-sm font-medium hover:bg-primary/90 transition-colors"
+                >
+                  Open Playlists
+                </Link>
+              ) : (
+                <SignInButton callbackUrl="/playlists" />
+              )}
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Free to use • Requires Spotify account • Your data stays with Spotify
+            </p>
           </div>
-          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            Professional playlist management for Spotify. Edit multiple playlists side-by-side with drag-and-drop.
-          </p>
-          <div className="flex justify-center gap-4 pt-4">
-            {isAuthenticated ? (
-              <Link
-                href="/playlists"
-                className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-6 py-3 text-sm font-medium hover:bg-primary/90 transition-colors"
-              >
-                Open Playlists
-              </Link>
-            ) : (
-              <SignInButton callbackUrl="/playlists" />
-            )}
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Free to use • Requires Spotify account • Your data stays with Spotify
-          </p>
         </div>
-      </div>
 
       {/* Screenshot Showcase */}
       <div className="container mx-auto px-4 py-12">
@@ -192,19 +222,12 @@ export default async function Home() {
           )}
         </div>
       </div>
+      </main>
 
       {/* Footer */}
-      <footer className="container mx-auto px-4 py-8 border-t border-border">
-        <div className="flex flex-col md:flex-row justify-between items-center gap-6 text-sm text-muted-foreground">
-          <SpotifyAttribution />
-          <div className="flex gap-4">
-            <Link href="/privacy" className="hover:text-foreground transition-colors">
-              Privacy
-            </Link>
-            <Link href="/imprint" className="hover:text-foreground transition-colors">
-              Imprint
-            </Link>
-          </div>
+      <footer className="sticky bottom-0 z-40 px-4 py-2 border-t border-border bg-background">
+        <div className="container mx-auto">
+          <AppFooter />
         </div>
       </footer>
     </div>

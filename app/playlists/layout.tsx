@@ -5,12 +5,6 @@ export default function PlaylistsLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return (
-    <div className="h-full w-full flex">
-      {/* Main content area */}
-      <div className="flex-1 min-w-0 overflow-auto">
-        {children}
-      </div>
-    </div>
-  );
+  // Simple pass-through layout - AppShell handles the main structure
+  return <>{children}</>;
 }

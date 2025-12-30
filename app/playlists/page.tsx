@@ -17,8 +17,8 @@ export default async function PlaylistsPage() {
   const page = await getCurrentUserPlaylists(50);
 
   return (
-    <div className="h-full flex flex-col p-6">
-      <header className="flex items-center justify-between flex-shrink-0">
+    <div className="container mx-auto p-6">
+      <header className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-semibold">Your Playlists</h1>
         <span className="text-sm text-muted-foreground">
           {page.total ?? page.items.length} {page.total === 1 ? "playlist" : "playlists"}
