@@ -1,6 +1,7 @@
 import React from "react";
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { PlaylistCard } from "@/components/playlist/PlaylistCard";
 import { mapPlaylist, pageFromSpotify, type Playlist } from "@/lib/spotify/types";
 
@@ -11,6 +12,26 @@ vi.mock("next/link", () => ({
     <a href={typeof href === "string" ? href : "/"} {...props}>{children}</a>
   ),
 }));
+
+// Create a fresh QueryClient for each test
+function createTestQueryClient() {
+  return new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
+  });
+}
+
+// Wrapper component for tests that need QueryClientProvider
+function TestWrapper({ children }: { children: React.ReactNode }) {
+  const queryClient = createTestQueryClient();
+  return (
+    <QueryClientProvider client={queryClient}>
+      {children}
+    </QueryClientProvider>
+  );
+}
 
 describe("PlaylistCard", () => {
   const basePlaylist: Playlist = {
@@ -24,7 +45,7 @@ describe("PlaylistCard", () => {
   };
 
   it("renders playlist with cover, owner and track count", () => {
-    render(<PlaylistCard playlist={basePlaylist} />);
+    render(<PlaylistCard playlist={basePlaylist} />, { wrapper: TestWrapper });
 
     // Title
     expect(screen.getByText("Road Trip Mix")).toBeInTheDocument();
@@ -41,7 +62,7 @@ describe("PlaylistCard", () => {
 
   it("renders fallback when no cover image", () => {
     const withoutCover: Playlist = { ...basePlaylist, image: null };
-    render(<PlaylistCard playlist={withoutCover} />);
+    render(<PlaylistCard playlist={withoutCover} />, { wrapper: TestWrapper });
 
     expect(screen.getByText(/No cover/i)).toBeInTheDocument();
   });

@@ -79,8 +79,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       id: playlist.id,
       name: playlist.name,
-      description: playlist.description,
+      description: playlist.description ?? '',
       isPublic: playlist.public,
+      ownerName: playlist.owner?.display_name ?? meData.display_name ?? null,
+      image: playlist.images?.[0] ?? null,
+      tracksTotal: playlist.tracks?.total ?? 0,
     });
   } catch (error) {
     console.error('[api/playlists] Error:', error);

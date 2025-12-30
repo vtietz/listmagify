@@ -5,7 +5,7 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api/client';
-import { playlistTracks, playlistTracksInfinite } from '@/lib/api/queryKeys';
+import { playlistTracks, playlistTracksInfinite, playlistMeta } from '@/lib/api/queryKeys';
 import { eventBus } from '@/lib/sync/eventBus';
 import { 
   applyReorderToInfinitePages, 
@@ -369,6 +369,9 @@ interface CreatePlaylistResponse {
   name: string;
   description: string;
   isPublic: boolean;
+  ownerName: string | null;
+  image: { url: string; width?: number | null; height?: number | null } | null;
+  tracksTotal: number;
 }
 
 interface UpdatePlaylistParams {
@@ -396,10 +399,12 @@ export function useCreatePlaylist() {
         }),
       });
     },
-    onSuccess: () => {
+    onSuccess: (data: CreatePlaylistResponse) => {
       // Invalidate user playlists to refetch the updated list
       queryClient.invalidateQueries({ queryKey: ['user-playlists'] });
       toast.success('Playlist created successfully');
+      // Return data for caller to use (e.g., optimistic UI update)
+      return data;
     },
     onError: (error: Error) => {
       toast.error(error instanceof Error ? error.message : 'Failed to create playlist');
@@ -422,7 +427,7 @@ export function useUpdatePlaylist() {
         body: JSON.stringify(updateData),
       });
     },
-    onSuccess: (_data, params) => {
+    onSuccess: (_data: { success: boolean }, params: UpdatePlaylistParams) => {
       // Invalidate the specific playlist's metadata
       queryClient.invalidateQueries({ queryKey: playlistMeta(params.playlistId) });
       // Also invalidate user playlists to update the grid

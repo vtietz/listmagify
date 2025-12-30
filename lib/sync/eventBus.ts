@@ -4,7 +4,7 @@
  */
 
 type EventMap = {
-  'playlist:update': { playlistId: string; cause: 'reorder' | 'add' | 'remove' };
+  'playlist:update': { playlistId: string; cause: 'reorder' | 'add' | 'remove' | 'metadata' };
   'playlist:reload': { playlistId: string };
 };
 

@@ -16,6 +16,8 @@ export interface PlaylistsGridProps {
   searchTerm: string;
   isRefreshing: boolean;
   onRefreshComplete: (items: Playlist[], nextCursor: string | null) => void;
+  newlyCreatedPlaylist?: Playlist | null;
+  onNewPlaylistAdded?: () => void;
 }
 
 /**
@@ -33,6 +35,8 @@ export function PlaylistsGrid({
   searchTerm,
   isRefreshing,
   onRefreshComplete,
+  newlyCreatedPlaylist,
+  onNewPlaylistAdded,
 }: PlaylistsGridProps) {
   const { isCompact } = useCompactModeStore();
   
@@ -46,6 +50,20 @@ export function PlaylistsGrid({
 
   // Get cached liked songs total (fetches on mount if not cached)
   const likedSongsTotal = useLikedSongsTotal();
+
+  // Add newly created playlist to items immediately for instant feedback
+  useEffect(() => {
+    if (newlyCreatedPlaylist) {
+      // Check if playlist already exists to prevent duplicates
+      const exists = items.some(item => item.id === newlyCreatedPlaylist.id);
+      if (!exists) {
+        // Add to the beginning of the list (after Liked Songs which is added in filteredItems)
+        setItems([newlyCreatedPlaylist, ...items]);
+      }
+      // Notify parent that we've incorporated the playlist
+      onNewPlaylistAdded?.();
+    }
+  }, [newlyCreatedPlaylist]); // Intentionally limited deps to run only when newlyCreatedPlaylist changes
 
   // Handle refresh from parent
   useEffect(() => {

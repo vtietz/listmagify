@@ -6,12 +6,14 @@ import { RefreshCw, Search, Plus } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { PlaylistDialog } from "@/components/playlist/PlaylistDialog";
 import { useCreatePlaylist } from "@/lib/spotify/playlistMutations";
+import type { Playlist } from "@/lib/spotify/types";
 
 export interface PlaylistsToolbarProps {
   searchTerm: string;
   onSearchChange: (query: string) => void;
   isRefreshing: boolean;
   onRefresh: () => void;
+  onPlaylistCreated?: (playlist: Playlist) => void;
 }
 
 /**
@@ -28,6 +30,7 @@ export function PlaylistsToolbar({
   onSearchChange,
   isRefreshing,
   onRefresh,
+  onPlaylistCreated,
 }: PlaylistsToolbarProps) {
   const [inputValue, setInputValue] = useState(searchTerm);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -59,13 +62,23 @@ export function PlaylistsToolbar({
   }, [onRefresh, isRefreshing]);
 
   const handleCreatePlaylist = useCallback(async (values: { name: string; description: string }) => {
-    await createPlaylist.mutateAsync({
+    const result = await createPlaylist.mutateAsync({
       name: values.name,
       description: values.description,
     });
-    // Trigger a refresh to show the new playlist
-    onRefresh();
-  }, [createPlaylist, onRefresh]);
+    // Immediately add the new playlist to the list for instant feedback
+    if (onPlaylistCreated) {
+      onPlaylistCreated({
+        id: result.id,
+        name: result.name,
+        description: result.description,
+        isPublic: result.isPublic,
+        ownerName: result.ownerName,
+        image: result.image,
+        tracksTotal: result.tracksTotal,
+      });
+    }
+  }, [createPlaylist, onPlaylistCreated]);
 
   return (
     <div className="flex items-center gap-3">

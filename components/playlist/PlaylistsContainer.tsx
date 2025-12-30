@@ -20,6 +20,7 @@ export function PlaylistsContainer({
 }: PlaylistsContainerProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [newlyCreatedPlaylist, setNewlyCreatedPlaylist] = useState<Playlist | null>(null);
 
   const handleRefresh = useCallback(() => {
     setIsRefreshing(true);
@@ -27,6 +28,16 @@ export function PlaylistsContainer({
 
   const handleRefreshComplete = useCallback(() => {
     setIsRefreshing(false);
+  }, []);
+
+  // Called when a new playlist is created - store it for immediate display
+  const handlePlaylistCreated = useCallback((playlist: Playlist) => {
+    setNewlyCreatedPlaylist(playlist);
+  }, []);
+
+  // Called when grid has incorporated the new playlist
+  const handleNewPlaylistAdded = useCallback(() => {
+    setNewlyCreatedPlaylist(null);
   }, []);
 
   return (
@@ -37,6 +48,7 @@ export function PlaylistsContainer({
           onSearchChange={setSearchTerm}
           isRefreshing={isRefreshing}
           onRefresh={handleRefresh}
+          onPlaylistCreated={handlePlaylistCreated}
         />
       </div>
 
@@ -47,6 +59,8 @@ export function PlaylistsContainer({
           searchTerm={searchTerm}
           isRefreshing={isRefreshing}
           onRefreshComplete={handleRefreshComplete}
+          newlyCreatedPlaylist={newlyCreatedPlaylist}
+          onNewPlaylistAdded={handleNewPlaylistAdded}
         />
       </div>
     </div>
