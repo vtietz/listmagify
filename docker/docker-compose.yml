@@ -29,6 +29,8 @@ services:
       - >
         corepack prepare pnpm@latest --activate &&
         node scripts/show-config.js &&
+        echo "[startup] Running database migrations..." &&
+        pnpm exec tsx scripts/migrate.ts &&
         pnpm exec next dev --hostname 0.0.0.0 -p ${PORT:-3000}
     tty: true
 

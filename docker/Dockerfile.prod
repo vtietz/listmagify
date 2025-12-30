@@ -32,5 +32,10 @@ COPY --from=builder /usr/src/app/.next ./.next
 COPY --from=builder /usr/src/app/node_modules ./node_modules
 COPY --from=builder /usr/src/app/package.json .
 COPY --from=builder /usr/src/app/public ./public
+# Copy migration scripts and lib for runtime migrations
+COPY --from=builder /usr/src/app/scripts ./scripts
+COPY --from=builder /usr/src/app/lib ./lib
+COPY --from=builder /usr/src/app/tsconfig.json ./tsconfig.json
 EXPOSE 3000
-CMD ["pnpm", "start"]
+# Run migrations before starting the server
+CMD ["sh", "-c", "node --experimental-strip-types scripts/migrate.ts && pnpm start"]

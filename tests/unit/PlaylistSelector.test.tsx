@@ -47,9 +47,9 @@ describe('PlaylistSelector', () => {
   });
 
   const renderComponent = (props: Partial<ComponentProps<typeof PlaylistSelector>> = {}) => {
-    const defaultProps = {
+    const defaultProps: { selectedPlaylistId: string | null; onSelectPlaylist: (playlistId: string) => void } = {
       selectedPlaylistId: null,
-      onSelectPlaylist: mockOnSelectPlaylist,
+      onSelectPlaylist: mockOnSelectPlaylist as (playlistId: string) => void,
     };
 
     return render(

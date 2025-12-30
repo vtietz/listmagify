@@ -28,6 +28,41 @@ export function makeCompositeId(panelId: string, trackId: string, position: numb
 }
 
 /**
+ * Parses a composite ID back into its components.
+ * 
+ * @param compositeId - Composite ID string (format: `panelId:trackId:position`)
+ * @returns Parsed components or null if invalid
+ * 
+ * @example
+ * ```ts
+ * parseCompositeId('panel-1:track-abc123:5')
+ * // => { panelId: 'panel-1', trackId: 'track-abc123', position: 5 }
+ * 
+ * parseCompositeId('invalid')
+ * // => null
+ * ```
+ */
+export function parseCompositeId(compositeId: string): {
+  panelId: string;
+  trackId: string;
+  position: number;
+} | null {
+  const parts = compositeId.split(':');
+  if (parts.length < 3) return null;
+  
+  // Handle case where trackId might contain colons (e.g., spotify:track:xxx)
+  const panelId = parts[0];
+  const position = parseInt(parts[parts.length - 1] ?? '', 10);
+  const trackId = parts.slice(1, -1).join(':');
+  
+  if (!panelId || !trackId || isNaN(position)) {
+    return null;
+  }
+  
+  return { panelId, trackId, position };
+}
+
+/**
  * Extracts the track's global playlist position.
  * Falls back to filtered index if position is unavailable.
  * 

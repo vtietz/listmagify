@@ -11,6 +11,7 @@ Playlist magic for Spotify. Edit multiple playlists side-by-side with drag-and-d
 - **Smart Search** – Filter tracks instantly by title, artist, or album
 - **Bulk Operations** – Select and move/copy/delete multiple tracks at once
 - **Liked Songs Browser** – Access your entire library and copy favorites into playlists
+- **Track Recommendations** – Get AI-powered suggestions based on your playlist patterns
 - **Integrated Player** – Preview tracks without leaving the app
 - **Compact Mode** – Dense view to see more tracks on screen
 
@@ -184,6 +185,40 @@ CONTACT_EMAIL=contact@example.com
 | `CONTACT_CITY` | City | `[City]` |
 | `CONTACT_COUNTRY` | Country | `[Country]` |
 | `CONTACT_EMAIL` | Contact email | `[your@email.com]` |
+
+## Track Recommendations (Optional)
+
+Listmagify includes a graph-based recommendation system that learns from your playlist organization. When enabled:
+
+- **Local Learning**: Builds a track relationship graph from your playlist patterns
+- **No External Data**: All processing happens locally, no data sent externally
+- **Multiple Signals**: Combines adjacency, co-occurrence, and catalog data
+- **Context-Aware**: Remembers dismissed recommendations per playlist
+
+### Enable Recommendations
+
+```env
+# .env
+RECS_ENABLED=true
+RECS_MARKET=US
+```
+
+### How It Works
+
+1. Select tracks in the split editor
+2. The recommendations panel appears in the Browse panel
+3. Drag suggested tracks into your playlists
+4. Dismiss unwanted suggestions with the X button
+
+For detailed documentation, see [docs/RECOMMENDATIONS.md](docs/RECOMMENDATIONS.md).
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `RECS_ENABLED` | Enable/disable recommendations | `false` |
+| `RECS_DB_PATH` | SQLite database path | `./data/recs.db` |
+| `RECS_MARKET` | Spotify market code | `US` |
+| `RECS_FETCH_CATALOG` | Fetch artist/album data | `true` |
+| `RECS_ENABLE_RELATED_ARTISTS` | Include related artist signals | `false` |
 
 ## License
 

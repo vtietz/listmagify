@@ -13,6 +13,8 @@ import type { Database as BetterSqlite3Database } from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
 import { getMetricsConfig } from './env';
+import { runMigrations, getMigrationStatus } from '@/lib/db';
+import { metricsMigrations } from '@/lib/db/metrics-migrations';
 
 let db: BetterSqlite3Database | null = null;
 
@@ -46,8 +48,8 @@ export function getDb(): BetterSqlite3Database | null {
     // Enable WAL mode for better concurrent performance
     db.pragma('journal_mode = WAL');
     
-    // Bootstrap tables
-    bootstrapTables(db);
+    // Run migrations
+    runMigrations(db, metricsMigrations, 'metrics');
     
     console.log('[metrics] Database initialized successfully');
     return db;
@@ -65,59 +67,12 @@ export async function getDbAsync(): Promise<BetterSqlite3Database | null> {
 }
 
 /**
- * Create tables if they don't exist.
+ * Get migration status for the metrics database.
  */
-function bootstrapTables(database: BetterSqlite3Database): void {
-  // Events table - raw event log
-  database.exec(`
-    CREATE TABLE IF NOT EXISTS events (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      ts DATETIME DEFAULT CURRENT_TIMESTAMP,
-      user_hash TEXT,
-      event TEXT NOT NULL,
-      source TEXT NOT NULL DEFAULT 'api',
-      entity_type TEXT,
-      entity_id TEXT,
-      count INTEGER,
-      duration_ms INTEGER,
-      success INTEGER,
-      error_code TEXT,
-      meta_json TEXT
-    )
-  `);
-  
-  database.exec(`CREATE INDEX IF NOT EXISTS idx_events_ts ON events(ts)`);
-  database.exec(`CREATE INDEX IF NOT EXISTS idx_events_event ON events(event)`);
-  database.exec(`CREATE INDEX IF NOT EXISTS idx_events_user_hash ON events(user_hash)`);
-
-  // Sessions table - for session duration tracking
-  database.exec(`
-    CREATE TABLE IF NOT EXISTS sessions (
-      id TEXT PRIMARY KEY,
-      user_hash TEXT NOT NULL,
-      started_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      ended_at DATETIME,
-      user_agent TEXT
-    )
-  `);
-  
-  database.exec(`CREATE INDEX IF NOT EXISTS idx_sessions_user_hash ON sessions(user_hash)`);
-  database.exec(`CREATE INDEX IF NOT EXISTS idx_sessions_started_at ON sessions(started_at)`);
-
-  // Daily aggregates - pre-computed for dashboard performance
-  database.exec(`
-    CREATE TABLE IF NOT EXISTS aggregates_daily (
-      day DATE NOT NULL,
-      event TEXT NOT NULL,
-      total_count INTEGER NOT NULL DEFAULT 0,
-      unique_users INTEGER NOT NULL DEFAULT 0,
-      avg_duration_ms INTEGER,
-      errors INTEGER NOT NULL DEFAULT 0,
-      PRIMARY KEY (day, event)
-    )
-  `);
-  
-  database.exec(`CREATE INDEX IF NOT EXISTS idx_aggregates_day ON aggregates_daily(day)`);
+export function getMetricsMigrationStatus() {
+  const database = getDb();
+  if (!database) return null;
+  return getMigrationStatus(database, metricsMigrations);
 }
 
 /**
