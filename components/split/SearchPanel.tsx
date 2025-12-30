@@ -11,7 +11,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { Search, X, Loader2 } from 'lucide-react';
 import { useBrowsePanelStore } from '@/hooks/useBrowsePanelStore';
-import { useCompactModeStore } from '@/hooks/useCompactModeStore';
+import { useHydratedCompactMode } from '@/hooks/useCompactModeStore';
 import { useSavedTracksIndex } from '@/hooks/useSavedTracksIndex';
 import { useTrackPlayback } from '@/hooks/useTrackPlayback';
 import { usePlaylistSort, type SortKey, type SortDirection } from '@/hooks/usePlaylistSort';
@@ -44,7 +44,7 @@ interface SearchPanelProps {
 export function SearchPanel({ isActive = true, inputRef: externalInputRef }: SearchPanelProps) {
   const { searchQuery, setSearchQuery } = useBrowsePanelStore();
   const { isLiked, toggleLiked } = useSavedTracksIndex();
-  const isCompact = useCompactModeStore((state) => state.isCompact);
+  const isCompact = useHydratedCompactMode();
   
   const scrollRef = useRef<HTMLDivElement>(null);
   const internalInputRef = useRef<HTMLInputElement>(null);
@@ -163,12 +163,24 @@ export function SearchPanel({ isActive = true, inputRef: externalInputRef }: Sea
     overscan: VIRTUALIZATION_OVERSCAN,
   });
 
+  // Store virtualizer in ref to avoid effect dependency issues
+  const virtualizerRef = useRef(virtualizer);
+  virtualizerRef.current = virtualizer;
+
+  // Track previous compact mode to detect changes
+  const prevCompactRef = useRef(isCompact);
+
   // Re-measure when compact mode changes
+  // Use setTimeout to defer measure() out of React's render cycle entirely
   useEffect(() => {
-    queueMicrotask(() => {
-      virtualizer.measure();
-    });
-  }, [isCompact, virtualizer]);
+    if (prevCompactRef.current !== isCompact) {
+      prevCompactRef.current = isCompact;
+      const timeoutId = setTimeout(() => {
+        virtualizerRef.current.measure();
+      }, 0);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [isCompact]);
   
   // Auto-load more when scrolling near the bottom
   useEffect(() => {

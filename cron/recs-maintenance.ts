@@ -12,8 +12,8 @@
  *   node --experimental-strip-types cron/recs-maintenance.ts
  */
 
-import { getRecsDb, closeRecsDb, isRecsAvailable, unixNow, withTransaction } from '@/lib/recs';
-import { recsConfig } from '@/lib/recs/env';
+import { getRecsDb, closeRecsDb, isRecsAvailable, unixNow, withTransaction } from '../lib/recs';
+import { recsConfig } from '../lib/recs/env';
 
 /**
  * Apply time-based decay to edge weights.

@@ -12,7 +12,7 @@ import { Sparkles, X, Loader2, ChevronUp, ChevronDown, Search } from 'lucide-rea
 import { useSeedRecommendations, useDismissRecommendation } from '@/hooks/useRecommendations';
 import { useSavedTracksIndex } from '@/hooks/useSavedTracksIndex';
 import { useTrackPlayback } from '@/hooks/useTrackPlayback';
-import { useCompactModeStore } from '@/hooks/useCompactModeStore';
+import { useHydratedCompactMode } from '@/hooks/useCompactModeStore';
 import { TrackRow } from './TrackRow';
 import { TRACK_ROW_HEIGHT, TRACK_ROW_HEIGHT_COMPACT } from './constants';
 import { makeCompositeId } from '@/lib/dnd/id';
@@ -35,8 +35,8 @@ interface RecommendationsPanelProps {
   isExpanded: boolean;
   /** Toggle panel expansion */
   onToggleExpand: () => void;
-  /** Panel height when expanded */
-  height?: number;
+  /** Panel height when expanded (optional, defaults to 300) */
+  height?: number | undefined;
   /** Callback when a track is dragged from recommendations */
   onTrackDragStart?: (track: Track) => void;
 }
@@ -49,7 +49,7 @@ export function RecommendationsPanel({
   onToggleExpand,
   height = 300,
 }: RecommendationsPanelProps) {
-  const isCompact = useCompactModeStore((state) => state.isCompact);
+  const isCompact = useHydratedCompactMode();
   const { isLiked, toggleLiked } = useSavedTracksIndex();
   const dismissMutation = useDismissRecommendation();
   

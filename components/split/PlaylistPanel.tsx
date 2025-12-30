@@ -26,7 +26,7 @@ import { useCapturePlaylist } from '@/hooks/useRecommendations';
 import { useRemoveTracks } from '@/lib/spotify/playlistMutations';
 import { useTrackPlayback } from '@/hooks/useTrackPlayback';
 import { getTrackSelectionKey } from '@/lib/dnd/selection';
-import { useCompactModeStore } from '@/hooks/useCompactModeStore';
+import { useCompactModeStore, useHydratedCompactMode } from '@/hooks/useCompactModeStore';
 import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
 import { SignInButton } from '@/components/auth/SignInButton';
 import { PanelToolbar } from './PanelToolbar';
@@ -447,7 +447,8 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
   });
 
   // Get compact mode state for dynamic row height
-  const isCompact = useCompactModeStore((state) => state.isCompact);
+  // Use hydrated version to prevent flash on initial load
+  const isCompact = useHydratedCompactMode();
   const rowHeight = isCompact ? TRACK_ROW_HEIGHT_COMPACT : TRACK_ROW_HEIGHT;
 
   // Defer the count to avoid flushSync during render in React 19
@@ -461,13 +462,24 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
     overscan: VIRTUALIZATION_OVERSCAN,
   });
 
+  // Store virtualizer in ref to avoid effect dependency issues
+  const virtualizerRef = useRef(virtualizer);
+  virtualizerRef.current = virtualizer;
+
+  // Track previous compact mode to detect changes
+  const prevCompactRef = useRef(isCompact);
+
   // Re-measure all items when compact mode changes
-  // Use queueMicrotask to defer measure() and avoid flushSync warning in React 19
+  // Use setTimeout to defer measure() out of React's render cycle entirely
   useEffect(() => {
-    queueMicrotask(() => {
-      virtualizer.measure();
-    });
-  }, [isCompact, virtualizer]);
+    if (prevCompactRef.current !== isCompact) {
+      prevCompactRef.current = isCompact;
+      const timeoutId = setTimeout(() => {
+        virtualizerRef.current.measure();
+      }, 0);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [isCompact]);
 
   const items = virtualizer.getVirtualItems();
 

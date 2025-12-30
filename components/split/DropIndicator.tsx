@@ -7,7 +7,7 @@
 
 import { logDebug } from '@/lib/utils/debug';
 import type { VirtualItem } from '@tanstack/react-virtual';
-import { useCompactModeStore } from '@/hooks/useCompactModeStore';
+import { useHydratedCompactMode } from '@/hooks/useCompactModeStore';
 import { TRACK_ROW_HEIGHT, TRACK_ROW_HEIGHT_COMPACT } from './constants';
 
 interface DropIndicatorProps {
@@ -44,7 +44,7 @@ export function DropIndicator({
   virtualItems,
   filteredTracksCount,
 }: DropIndicatorProps) {
-  const isCompact = useCompactModeStore((state) => state.isCompact);
+  const isCompact = useHydratedCompactMode();
   const rowHeight = isCompact ? TRACK_ROW_HEIGHT_COMPACT : TRACK_ROW_HEIGHT;
 
   // Don't render if no valid drop index

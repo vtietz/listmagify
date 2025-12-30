@@ -11,7 +11,7 @@ import { DndContext, DragOverlay } from '@dnd-kit/core';
 import { LogIn, Loader2 } from 'lucide-react';
 import { useSplitGridStore } from '@/hooks/useSplitGridStore';
 import { useBrowsePanelStore } from '@/hooks/useBrowsePanelStore';
-import { useCompactModeStore } from '@/hooks/useCompactModeStore';
+import { useHydratedCompactMode } from '@/hooks/useCompactModeStore';
 import { useDndOrchestrator } from '@/hooks/useDndOrchestrator';
 import { useSplitUrlSync } from '@/hooks/useSplitUrlSync';
 import { useSessionUser } from '@/hooks/useSessionUser';
@@ -27,7 +27,7 @@ export function SplitGrid() {
   const root = useSplitGridStore((state) => state.root);
   const panels = useSplitGridStore((state) => state.panels);
   const isBrowsePanelOpen = useBrowsePanelStore((state) => state.isOpen);
-  const isCompact = useCompactModeStore((state) => state.isCompact);
+  const isCompact = useHydratedCompactMode();
   const { authenticated, loading } = useSessionUser();
 
   // IMPORTANT: All hooks must be called before any conditional returns (Rules of Hooks)

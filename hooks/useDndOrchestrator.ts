@@ -18,7 +18,7 @@ import { useState, useRef, useCallback, useMemo } from 'react';
 import { usePointerTracker } from './usePointerTracker';
 import { autoScrollEdge } from './useAutoScrollEdge';
 import { calculateDropPosition } from './useDropPosition';
-import { useCompactModeStore } from './useCompactModeStore';
+import { useHydratedCompactMode } from './useCompactModeStore';
 import { TABLE_HEADER_HEIGHT, TABLE_HEADER_HEIGHT_COMPACT } from '@/components/split/constants';
 import {
   KeyboardSensor,
@@ -182,7 +182,7 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
   }, []);
 
   // Get compact mode state for header offset calculation
-  const isCompact = useCompactModeStore((state) => state.isCompact);
+  const isCompact = useHydratedCompactMode();
   const headerOffset = isCompact ? TABLE_HEADER_HEIGHT_COMPACT : TABLE_HEADER_HEIGHT;
 
   // Compute global playlist position and filtered index from pointer Y in target panel
