@@ -23,6 +23,9 @@ jobs:
       - name: Build development image
         run: docker compose -f docker/docker-compose.yml build
       
+      - name: Install dependencies
+        run: docker compose -f docker/docker-compose.yml run --rm web pnpm install
+      
       - name: Run tests
         run: docker compose -f docker/docker-compose.yml run --rm web pnpm test
       
