@@ -495,16 +495,16 @@ export function TrackRow({
       {/* Insertion marker line - shown at top edge when marked (before this row) */}
       {hasInsertionMarker && (
         <div
-          className="absolute left-0 right-0 top-0 h-[3px] bg-orange-500 pointer-events-none z-10"
-          style={{ boxShadow: '0 0 6px rgba(249, 115, 22, 0.7)' }}
+          className="absolute left-0 right-0 h-[3px] bg-orange-500 pointer-events-none z-10"
+          style={{ top: '-1.5px', boxShadow: '0 0 6px rgba(249, 115, 22, 0.7)' }}
         />
       )}
 
       {/* Insertion marker line - shown at bottom edge when marked (after this row) */}
       {hasInsertionMarkerAfter && (
         <div
-          className="absolute left-0 right-0 bottom-0 h-[3px] bg-orange-500 pointer-events-none z-10"
-          style={{ boxShadow: '0 0 6px rgba(249, 115, 22, 0.7)' }}
+          className="absolute left-0 right-0 h-[3px] bg-orange-500 pointer-events-none z-10"
+          style={{ bottom: '-1.5px', boxShadow: '0 0 6px rgba(249, 115, 22, 0.7)' }}
         />
       )}
 
