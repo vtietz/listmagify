@@ -216,6 +216,23 @@ For detailed documentation, see [docs/RECOMMENDATIONS.md](docs/RECOMMENDATIONS.m
 | `RECS_ENABLED` | Enable/disable recommendations | `false` |
 | `RECS_DB_PATH` | SQLite database path | `./data/recs.db` |
 
+## Playlist Auto-Reload (Optional)
+
+Automatically refresh open playlists at a set interval. Useful for collaborative playlists or when multiple users are editing the same playlist.
+
+### Enable Auto-Reload
+
+```env
+# .env
+PLAYLIST_POLL_INTERVAL_SECONDS=30
+```
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `PLAYLIST_POLL_INTERVAL_SECONDS` | Reload interval in seconds | disabled |
+
+**Note:** Liked Songs is excluded from auto-reload. Set to `0` or leave unset to disable.
+
 ## License
 
 MIT

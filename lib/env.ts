@@ -17,6 +17,15 @@ const serverSchema = z.object({
   SPOTIFY_CLIENT_SECRET: z
     .string()
     .min(1, "SPOTIFY_CLIENT_SECRET is required"),
+  // Optional: polling interval in seconds for auto-reloading playlists (0 or undefined = disabled)
+  PLAYLIST_POLL_INTERVAL_SECONDS: z
+    .string()
+    .optional()
+    .transform((val) => {
+      if (!val) return undefined;
+      const num = parseInt(val, 10);
+      return isNaN(num) || num <= 0 ? undefined : num;
+    }),
 });
 
 type ServerEnv = z.infer<typeof serverSchema>;
@@ -42,6 +51,7 @@ export const serverEnv: ServerEnv = (() => {
       NEXTAUTH_SECRET: 'dev-placeholder-secret',
       SPOTIFY_CLIENT_ID: 'missing-client-id',
       SPOTIFY_CLIENT_SECRET: 'missing-client-secret',
+      PLAYLIST_POLL_INTERVAL_SECONDS: undefined,
     };
   }
   return serverSchema.parse({
@@ -49,6 +59,7 @@ export const serverEnv: ServerEnv = (() => {
     NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
     SPOTIFY_CLIENT_ID: process.env.SPOTIFY_CLIENT_ID,
     SPOTIFY_CLIENT_SECRET: process.env.SPOTIFY_CLIENT_SECRET,
+    PLAYLIST_POLL_INTERVAL_SECONDS: process.env.PLAYLIST_POLL_INTERVAL_SECONDS,
   });
 })();
 

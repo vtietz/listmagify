@@ -581,6 +581,34 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
     }
   }, [playlistId]);
 
+  // Fetch config for auto-reload interval
+  const { data: configData } = useQuery({
+    queryKey: ['app-config'],
+    queryFn: async () => {
+      const res = await fetch('/api/config');
+      if (!res.ok) return { playlistPollIntervalSeconds: null };
+      return res.json() as Promise<{ playlistPollIntervalSeconds: number | null }>;
+    },
+    staleTime: Infinity, // Config doesn't change during session
+  });
+
+  // Auto-reload playlist at configured interval (if enabled)
+  useEffect(() => {
+    const intervalSeconds = configData?.playlistPollIntervalSeconds;
+    if (!intervalSeconds || !playlistId || isLikedPlaylist) return;
+    
+    console.log(`⏱️ Auto-reload enabled for playlist ${playlistId}: every ${intervalSeconds}s`);
+    
+    const intervalId = setInterval(() => {
+      console.log(`⏱️ Auto-reloading playlist: ${playlistId}`);
+      eventBus.emit('playlist:reload', { playlistId });
+    }, intervalSeconds * 1000);
+    
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [configData?.playlistPollIntervalSeconds, playlistId, isLikedPlaylist]);
+
   const handleClose = useCallback(() => {
     closePanel(panelId);
   }, [panelId, closePanel]);
