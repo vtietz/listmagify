@@ -13,6 +13,11 @@ vi.mock("next/link", () => ({
   ),
 }));
 
+// Mock next-auth session
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({ data: null, status: "unauthenticated" }),
+}));
+
 // Create a fresh QueryClient for each test
 function createTestQueryClient() {
   return new QueryClient({

@@ -8,6 +8,7 @@
 import { ArrowUp, ArrowDown, Heart, Play, Plus, TrendingUp, Calendar } from 'lucide-react';
 import { useCompactModeStore } from '@/hooks/useCompactModeStore';
 import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
+import { usePlayerStore } from '@/hooks/usePlayerStore';
 import type { SortKey, SortDirection } from '@/hooks/usePlaylistSort';
 
 interface TableHeaderProps {
@@ -23,20 +24,47 @@ interface TableHeaderProps {
 export const TRACK_GRID_CLASSES = 'grid items-center';
 export const TRACK_GRID_CLASSES_NORMAL = 'gap-2 px-2';
 export const TRACK_GRID_CLASSES_COMPACT = 'gap-1 px-1';
+
+/**
+ * Generates dynamic grid template columns based on which columns are visible
+ */
+export function getTrackGridStyle(showPlayColumn: boolean, showAddToMarkedColumn: boolean) {
+  // Build columns array dynamically
+  const columns: string[] = [];
+  
+  if (showPlayColumn) columns.push('20px');      // Play button
+  if (showAddToMarkedColumn) columns.push('20px'); // Add to marked button
+  columns.push('20px');                            // Heart (liked)
+  columns.push('28px');                            // Position #
+  columns.push('minmax(80px, 2fr)');               // Title
+  columns.push('minmax(60px, 1fr)');               // Artist
+  columns.push('minmax(60px, 1fr)');               // Album
+  columns.push('36px');                            // Year
+  columns.push('36px');                            // Popularity
+  columns.push('44px');                            // Time
+  
+  return { gridTemplateColumns: columns.join(' ') };
+}
+
+// Legacy exports for compatibility
 export const TRACK_GRID_STYLE = {
-  // Play | Add | Heart | # | Title (flex) | Artist (flex) | Year | Popularity | Time
-  // Minimum widths ensure readability while allowing shrink for 2 panels
   gridTemplateColumns: '20px 20px 20px 28px minmax(80px, 2fr) minmax(60px, 1fr) 36px 36px 44px',
 };
 export const TRACK_GRID_STYLE_WITH_ALBUM = {
-  // Play | Add | Heart | # | Title (flex) | Artist (flex) | Album (flex) | Year | Popularity | Time
-  // Minimum widths ensure readability while allowing shrink for 2 panels
   gridTemplateColumns: '20px 20px 20px 28px minmax(80px, 2fr) minmax(60px, 1fr) minmax(60px, 1fr) 36px 36px 44px',
 };
 
 export function TableHeader({ isEditable, sortKey, sortDirection, onSort, showLikedColumn = true }: TableHeaderProps) {
   const SortIcon = sortDirection === 'asc' ? ArrowUp : ArrowDown;
   const { isCompact } = useCompactModeStore();
+  
+  // Get visibility states from stores
+  const isPlayerVisible = usePlayerStore((s) => s.isPlayerVisible);
+  const playlists = useInsertionPointsStore((s) => s.playlists);
+  const hasAnyMarkers = Object.values(playlists).some((p) => p.markers.length > 0);
+  
+  // Dynamic grid style based on visible columns
+  const gridStyle = getTrackGridStyle(isPlayerVisible, hasAnyMarkers);
 
   const renderColumnHeader = (label: string, key: SortKey, align: 'left' | 'right' = 'left') => {
     const isActive = sortKey === key;
@@ -63,17 +91,21 @@ export function TableHeader({ isEditable, sortKey, sortDirection, onSort, showLi
     <div 
       data-table-header="true" 
       className={`sticky top-0 z-20 border-b border-border bg-card backdrop-blur-sm text-muted-foreground ${TRACK_GRID_CLASSES} ${isCompact ? 'h-8 ' + TRACK_GRID_CLASSES_COMPACT : 'h-10 ' + TRACK_GRID_CLASSES_NORMAL}`}
-      style={TRACK_GRID_STYLE_WITH_ALBUM}
+      style={gridStyle}
     >
-      {/* Play button column */}
-      <div className="flex items-center justify-center" title="Play">
-        <Play className={isCompact ? 'h-2.5 w-2.5' : 'h-3 w-3'} />
-      </div>
+      {/* Play button column - only when player is visible */}
+      {isPlayerVisible && (
+        <div className="flex items-center justify-center" title="Play">
+          <Play className={isCompact ? 'h-2.5 w-2.5' : 'h-3 w-3'} />
+        </div>
+      )}
 
-      {/* Add to marked column */}
-      <div className="flex items-center justify-center" title="Add to marked insertion points">
-        <Plus className={isCompact ? 'h-2.5 w-2.5' : 'h-3 w-3'} />
-      </div>
+      {/* Add to marked column - only when markers exist */}
+      {hasAnyMarkers && (
+        <div className="flex items-center justify-center" title="Add to marked insertion points">
+          <Plus className={isCompact ? 'h-2.5 w-2.5' : 'h-3 w-3'} />
+        </div>
+      )}
 
       {/* Liked status column */}
       {showLikedColumn ? (

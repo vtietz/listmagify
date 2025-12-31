@@ -13,6 +13,7 @@ import { useInsertionPointsStore } from "@/hooks/useInsertionPointsStore";
 import { useSessionUser } from "@/hooks/useSessionUser";
 import { useStatsAccess } from "@/hooks/useStatsAccess";
 import { SpotifyPlayer } from "@/components/player";
+import { BrowsePanel } from "@/components/split/BrowsePanel";
 import Link from "next/link";
 
 type AppShellProps = {
@@ -32,6 +33,7 @@ type AppShellProps = {
  */
 export function AppShell({ headerTitle = "Listmagify", children }: AppShellProps) {
   const pathname = usePathname();
+  const isBrowsePanelOpen = useBrowsePanelStore((state) => state.isOpen);
   
   // Landing page doesn't use AppShell wrapper (has its own layout)
   const isLandingPage = pathname === '/';
@@ -53,25 +55,31 @@ export function AppShell({ headerTitle = "Listmagify", children }: AppShellProps
       <div className="h-dvh flex flex-col bg-background text-foreground overflow-hidden">
         <Header title={headerTitle} />
         <main className="flex-1 min-h-0 overflow-hidden">{children}</main>
+        <SpotifyPlayer />
         <div className="flex-shrink-0 px-4 py-1 border-t border-border">
           <AppFooter />
         </div>
-        <SpotifyPlayer />
       </div>
     );
   }
 
   // Standard scrollable layout (browser native scrolling with sticky header/footer)
+  // Used by playlists index page (/playlists) and other non-fixed pages
   return (
-    <div className="min-h-dvh flex flex-col bg-background text-foreground">
-      <div className="sticky top-0 z-40 bg-background">
+    <div className="h-dvh flex flex-col bg-background text-foreground overflow-hidden">
+      <div className="flex-shrink-0 bg-background">
         <Header title={headerTitle} />
       </div>
-      <main className="flex-1">{children}</main>
-      <div className="sticky bottom-0 z-40 bg-background px-4 py-2 border-t border-border">
-        <AppFooter />
+      <div className="flex-1 min-h-0 flex overflow-hidden">
+        <main className="flex-1 min-w-0 overflow-auto">{children}</main>
+        {isBrowsePanelOpen && <BrowsePanel />}
       </div>
-      <SpotifyPlayer />
+      <div className="flex-shrink-0 bg-background">
+        <SpotifyPlayer />
+        <div className="px-4 py-2 border-t border-border">
+          <AppFooter />
+        </div>
+      </div>
     </div>
   );
 }
@@ -141,15 +149,18 @@ function Header({ title }: { title: string }) {
               <Search className="h-3.5 w-3.5" />
               Browse
             </Button>
-            <Button
-              variant={isPlayerVisible ? "secondary" : "ghost"}
-              size="sm"
-              onClick={togglePlayerVisible}
-              className="h-7 gap-1.5 cursor-pointer"
-            >
-              <Music2 className="h-3.5 w-3.5" />
-              Player
-            </Button>
+            {/* Player toggle - only show on pages that support the player */}
+            {(isSplitEditorActive || isPlaylistsActive) && (
+              <Button
+                variant={isPlayerVisible ? "secondary" : "ghost"}
+                size="sm"
+                onClick={togglePlayerVisible}
+                className="h-7 gap-1.5 cursor-pointer"
+              >
+                <Music2 className="h-3.5 w-3.5" />
+                Player
+              </Button>
+            )}
             <Button
               variant={isCompact ? "secondary" : "ghost"}
               size="sm"
@@ -160,25 +171,22 @@ function Header({ title }: { title: string }) {
               <Minimize2 className="h-3.5 w-3.5" />
               Compact
             </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={clearAllMarkers}
-              disabled={markerStats.totalMarkers === 0}
-              className="h-7 gap-1.5 cursor-pointer"
-              title={markerStats.totalMarkers > 0 
-                ? `Clear all ${markerStats.totalMarkers} marker${markerStats.totalMarkers > 1 ? 's' : ''} in ${markerStats.playlistCount} playlist${markerStats.playlistCount > 1 ? 's' : ''}`
-                : "No markers to clear"
-              }
-            >
-              <MapPinOff className="h-3.5 w-3.5" />
-              Clear Markers
-              {markerStats.totalMarkers > 0 && (
+            {/* Clear Markers - only show when markers exist */}
+            {markerStats.totalMarkers > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearAllMarkers}
+                className="h-7 gap-1.5 cursor-pointer"
+                title={`Clear all ${markerStats.totalMarkers} marker${markerStats.totalMarkers > 1 ? 's' : ''} in ${markerStats.playlistCount} playlist${markerStats.playlistCount > 1 ? 's' : ''}`}
+              >
+                <MapPinOff className="h-3.5 w-3.5" />
+                Clear Markers
                 <span className="text-xs bg-orange-500 text-white px-1.5 py-0.5 rounded-full">
                   {markerStats.totalMarkers}
                 </span>
-              )}
-            </Button>
+              </Button>
+            )}
             {/* Stats link - only visible to allowed users */}
             {hasStatsAccess && (
               <Button

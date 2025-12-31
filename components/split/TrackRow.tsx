@@ -15,8 +15,9 @@ import { Heart, Play, Pause, Loader2, MapPin } from 'lucide-react';
 import { useCompactModeStore } from '@/hooks/useCompactModeStore';
 import { useBrowsePanelStore } from '@/hooks/useBrowsePanelStore';
 import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
+import { usePlayerStore } from '@/hooks/usePlayerStore';
 import { AddToMarkedButton } from './AddToMarkedButton';
-import { TRACK_GRID_CLASSES, TRACK_GRID_CLASSES_NORMAL, TRACK_GRID_CLASSES_COMPACT, TRACK_GRID_STYLE_WITH_ALBUM } from './TableHeader';
+import { TRACK_GRID_CLASSES, TRACK_GRID_CLASSES_NORMAL, TRACK_GRID_CLASSES_COMPACT, getTrackGridStyle } from './TableHeader';
 
 interface TrackRowProps {
   track: Track;
@@ -78,6 +79,14 @@ export function TrackRow({
   const { isCompact } = useCompactModeStore();
   const { open: openBrowsePanel, setSearchQuery } = useBrowsePanelStore();
   const togglePoint = useInsertionPointsStore((s) => s.togglePoint);
+  const allPlaylists = useInsertionPointsStore((s) => s.playlists);
+  const isPlayerVisible = usePlayerStore((s) => s.isPlayerVisible);
+  
+  // Check if any markers exist across all playlists
+  const hasAnyMarkers = Object.values(allPlaylists).some((p) => p.markers.length > 0);
+  
+  // Dynamic grid style based on visible columns
+  const gridStyle = getTrackGridStyle(isPlayerVisible, hasAnyMarkers);
   
   // Track whether mouse is near top/bottom edge for insertion marker toggle
   // null = not near edge, 'top' = near top edge, 'bottom' = near bottom edge
@@ -221,7 +230,7 @@ export function TrackRow({
   return (
     <div
       ref={setNodeRef}
-      style={{ ...style, ...TRACK_GRID_STYLE_WITH_ALBUM }}
+      style={{ ...style, ...gridStyle }}
       className={cn(
         'relative group/row bg-card cursor-default', // relative and group for the insertion marker toggle, default cursor for row
         TRACK_GRID_CLASSES,
@@ -249,41 +258,45 @@ export function TrackRow({
       }
       {...(!locked ? { ...restAttributes, ...listeners } : {})}
     >
-      {/* Play button */}
-      <button
-        onClick={handlePlayClick}
-        disabled={isLocalFile || isPlaybackLoading}
-        className={cn(
-          'flex items-center justify-center rounded-full transition-all',
-          isCompact ? 'h-5 w-5' : 'h-6 w-6',
-          isLocalFile && 'opacity-30 cursor-not-allowed',
-          !isLocalFile && 'hover:scale-110 hover:bg-green-500 hover:text-white',
-          isPlaying ? 'bg-green-500 text-white' : 'text-muted-foreground',
-        )}
-        title={
-          isLocalFile
-            ? 'Local files cannot be played'
-            : isPlaying
-              ? 'Pause'
-              : 'Play'
-        }
-        aria-label={isPlaying ? 'Pause track' : 'Play track'}
-      >
-        {isPlaybackLoading ? (
-          <Loader2 className={isCompact ? 'h-3 w-3 animate-spin' : 'h-4 w-4 animate-spin'} />
-        ) : isPlaying ? (
-          <Pause className={isCompact ? 'h-3 w-3' : 'h-4 w-4'} />
-        ) : (
-          <Play className={isCompact ? 'h-3 w-3 ml-0.5' : 'h-4 w-4 ml-0.5'} />
-        )}
-      </button>
+      {/* Play button - only show when player is visible */}
+      {isPlayerVisible && (
+        <button
+          onClick={handlePlayClick}
+          disabled={isLocalFile || isPlaybackLoading}
+          className={cn(
+            'flex items-center justify-center rounded-full transition-all',
+            isCompact ? 'h-5 w-5' : 'h-6 w-6',
+            isLocalFile && 'opacity-30 cursor-not-allowed',
+            !isLocalFile && 'hover:scale-110 hover:bg-green-500 hover:text-white',
+            isPlaying ? 'bg-green-500 text-white' : 'text-muted-foreground',
+          )}
+          title={
+            isLocalFile
+              ? 'Local files cannot be played'
+              : isPlaying
+                ? 'Pause'
+                : 'Play'
+          }
+          aria-label={isPlaying ? 'Pause track' : 'Play track'}
+        >
+          {isPlaybackLoading ? (
+            <Loader2 className={isCompact ? 'h-3 w-3 animate-spin' : 'h-4 w-4 animate-spin'} />
+          ) : isPlaying ? (
+            <Pause className={isCompact ? 'h-3 w-3' : 'h-4 w-4'} />
+          ) : (
+            <Play className={isCompact ? 'h-3 w-3 ml-0.5' : 'h-4 w-4 ml-0.5'} />
+          )}
+        </button>
+      )}
 
-      {/* Add to marked insertion points button */}
-      <AddToMarkedButton
-        trackUri={track.uri}
-        trackName={track.name}
-        {...(playlistId ? { excludePlaylistId: playlistId } : {})}
-      />
+      {/* Add to marked insertion points button - only show when markers exist */}
+      {hasAnyMarkers && (
+        <AddToMarkedButton
+          trackUri={track.uri}
+          trackName={track.name}
+          {...(playlistId ? { excludePlaylistId: playlistId } : {})}
+        />
+      )}
 
       {/* Liked status button */}
       {showLikedColumn ? (

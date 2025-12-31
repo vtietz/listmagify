@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import React, { useState, useCallback } from "react";
-import { Heart, Pencil } from "lucide-react";
+import { Heart, Pencil, Play } from "lucide-react";
 import { type Playlist } from "@/lib/spotify/types";
 import { cn } from "@/lib/utils";
 import { isLikedSongsPlaylist } from "@/hooks/useLikedVirtualPlaylist";
 import { useCompactModeStore } from "@/hooks/useCompactModeStore";
+import { useSpotifyPlayer } from "@/hooks/useSpotifyPlayer";
+import { usePlayerStore } from "@/hooks/usePlayerStore";
 import { Button } from "@/components/ui/button";
 import { PlaylistDialog } from "@/components/playlist/PlaylistDialog";
 import { useUpdatePlaylist } from "@/lib/spotify/playlistMutations";
@@ -20,6 +22,8 @@ export function PlaylistCard({ playlist, className }: PlaylistCardProps) {
   const { isCompact } = useCompactModeStore();
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const updatePlaylist = useUpdatePlaylist();
+  const { play } = useSpotifyPlayer();
+  const isPlayerVisible = usePlayerStore((s) => s.isPlayerVisible);
   
   const cover = playlist.image?.url;
   const isLiked = isLikedSongsPlaylist(playlist.id);
@@ -29,6 +33,20 @@ export function PlaylistCard({ playlist, className }: PlaylistCardProps) {
     e.stopPropagation();
     setEditDialogOpen(true);
   }, []);
+
+  const handlePlayClick = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // For Liked Songs, we can't use a context URI - would need to load all tracks
+    // For now, just navigate to the playlist (playing is handled there)
+    if (isLiked) return;
+    
+    // Play the playlist using context URI
+    play({
+      contextUri: `spotify:playlist:${playlist.id}`,
+    });
+  }, [isLiked, playlist.id, play]);
 
   const handleUpdatePlaylist = useCallback(async (values: { name: string; description: string }) => {
     await updatePlaylist.mutateAsync({
@@ -82,6 +100,24 @@ export function PlaylistCard({ playlist, className }: PlaylistCardProps) {
               aria-label={`Edit ${playlist.name}`}
             >
               <Pencil className={cn(isCompact ? "h-3 w-3" : "h-4 w-4")} />
+            </Button>
+          )}
+          
+          {/* Play button - show when player is visible, works for all playlists except Liked Songs */}
+          {isPlayerVisible && !isLiked && (
+            <Button
+              variant="secondary"
+              size="icon"
+              onClick={handlePlayClick}
+              className={cn(
+                "absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-all",
+                "bg-green-500 hover:bg-green-400 hover:scale-110 text-white shadow-lg",
+                isCompact ? "h-8 w-8" : "h-10 w-10"
+              )}
+              title={`Play ${playlist.name}`}
+              aria-label={`Play ${playlist.name}`}
+            >
+              <Play className={cn(isCompact ? "h-4 w-4 ml-0.5" : "h-5 w-5 ml-0.5")} fill="currentColor" />
             </Button>
           )}
         </div>
