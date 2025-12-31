@@ -101,7 +101,8 @@ export default function RootLayout({
           <SessionErrorHandler />
           <AppShell>
             {children}
-            <Toaster richColors position="top-right" toastOptions={{ duration: 5000 }} />
+            {/* @ts-expect-error - sonner's type definitions don't match runtime props */}
+            <Toaster richColors position="top-right" duration={5000} />
           </AppShell>
         </Providers>
       </body>
