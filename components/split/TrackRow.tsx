@@ -56,6 +56,12 @@ interface TrackRowProps {
   isCollaborative?: boolean;
   /** Function to get cached user profile data (displayName and imageUrl) */
   getProfile?: ((userId: string) => { displayName?: string | null; imageUrl?: string | null } | undefined) | undefined;
+  /** Cumulative duration in milliseconds from start of playlist to this track */
+  cumulativeDurationMs?: number;
+  /** Whether this track crosses an hour boundary (show hour marker after) */
+  crossesHourBoundary?: boolean;
+  /** Which hour number was just crossed (1, 2, 3, etc.) */
+  hourNumber?: number;
 }
 
 export function TrackRow({
@@ -82,6 +88,9 @@ export function TrackRow({
   hasInsertionMarkerAfter = false,
   isCollaborative = false,
   getProfile,
+  cumulativeDurationMs = 0,
+  crossesHourBoundary = false,
+  hourNumber = 0,
 }: TrackRowProps) {
   const { isCompact } = useCompactModeStore();
   const { open: openBrowsePanel, setSearchQuery } = useBrowsePanelStore();
@@ -456,6 +465,30 @@ export function TrackRow({
       <div className={cn('text-muted-foreground tabular-nums text-right select-none', isCompact ? 'text-xs' : 'text-sm')}>
         {formatDuration(track.durationMs)}
       </div>
+
+      {/* Cumulative duration - right aligned */}
+      <div 
+        className={cn('text-muted-foreground/60 tabular-nums text-right select-none', isCompact ? 'text-xs' : 'text-sm')}
+        title={`Total time elapsed: ${formatDuration(cumulativeDurationMs)}`}
+      >
+        {formatDuration(cumulativeDurationMs)}
+      </div>
+
+      {/* Hour boundary marker - horizontal line when an hour is elapsed */}
+      {crossesHourBoundary && (
+        <div
+          className="absolute left-0 right-0 bottom-0 flex items-center pointer-events-none z-10"
+        >
+          <div className="flex-1 h-[1px] bg-gradient-to-r from-transparent via-cyan-500/70 to-cyan-500/70" />
+          <span className={cn(
+            'px-1.5 text-cyan-500 font-medium whitespace-nowrap',
+            isCompact ? 'text-[9px]' : 'text-[10px]'
+          )}>
+            {hourNumber}h
+          </span>
+          <div className="w-2 h-[1px] bg-cyan-500/70" />
+        </div>
+      )}
 
       {/* Insertion marker line - shown at top edge when marked (before this row) */}
       {hasInsertionMarker && (

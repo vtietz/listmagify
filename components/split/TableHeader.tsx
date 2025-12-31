@@ -5,7 +5,7 @@
 
 'use client';
 
-import { ArrowUp, ArrowDown, Heart, Play, Plus, TrendingUp, Calendar, Users } from 'lucide-react';
+import { ArrowUp, ArrowDown, Heart, Play, Plus, TrendingUp, Calendar, Users, Timer } from 'lucide-react';
 import { useCompactModeStore } from '@/hooks/useCompactModeStore';
 import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
 import { usePlayerStore } from '@/hooks/usePlayerStore';
@@ -45,6 +45,7 @@ export function getTrackGridStyle(showPlayColumn: boolean, showAddToMarkedColumn
   columns.push('36px');                            // Year
   columns.push('36px');                            // Popularity
   columns.push('44px');                            // Time
+  columns.push('52px');                            // Cumulative time
   
   return { gridTemplateColumns: columns.join(' ') };
 }
@@ -162,6 +163,11 @@ export function TableHeader({ isEditable, sortKey, sortDirection, onSort, showLi
 
       {/* Duration - right aligned */}
       <div className="text-right">{renderColumnHeader('Time', 'duration', 'right')}</div>
+
+      {/* Cumulative duration */}
+      <div className="flex items-center justify-end" title="Cumulative time from start">
+        <Timer className={isCompact ? 'h-2.5 w-2.5' : 'h-3 w-3'} />
+      </div>
     </div>
   );
 }

@@ -460,6 +460,32 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
   // Get the profile cache for passing to TrackRow
   const { getProfile } = useUserProfilesCache();
 
+  // Calculate cumulative durations for all filtered tracks
+  // Returns array with cumulative ms at each index, and indices where hour boundaries are crossed
+  const { cumulativeDurations, hourBoundaries } = useMemo(() => {
+    const cumulative: number[] = [];
+    const boundaries: Map<number, number> = new Map(); // index -> hour number crossed
+    let runningTotal = 0;
+    const ONE_HOUR_MS = 60 * 60 * 1000;
+    
+    for (let i = 0; i < filteredTracks.length; i++) {
+      const track = filteredTracks[i];
+      if (!track) continue;
+      
+      const prevHours = Math.floor(runningTotal / ONE_HOUR_MS);
+      runningTotal += track.durationMs;
+      cumulative.push(runningTotal);
+      const newHours = Math.floor(runningTotal / ONE_HOUR_MS);
+      
+      // Check if we crossed an hour boundary
+      if (newHours > prevHours) {
+        boundaries.set(i, newHours);
+      }
+    }
+    
+    return { cumulativeDurations: cumulative, hourBoundaries: boundaries };
+  }, [filteredTracks]);
+
   // Track URIs for playback context (auto-play next)
   const trackUris = useMemo(() => 
     filteredTracks.map((t: Track) => t.uri),
@@ -867,6 +893,9 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
                       hasInsertionMarkerAfter={false}
                       isCollaborative={hasMultipleContributors}
                       getProfile={hasMultipleContributors ? getProfile : undefined}
+                      cumulativeDurationMs={cumulativeDurations[virtualRow.index] || 0}
+                      crossesHourBoundary={hourBoundaries.has(virtualRow.index)}
+                      hourNumber={hourBoundaries.get(virtualRow.index) || 0}
                     />
                   </div>
                 );
