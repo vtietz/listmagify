@@ -65,13 +65,14 @@ export function useAddTracks() {
 
   return useMutation({
     mutationFn: async (params: AddTracksParams): Promise<MutationResponse> => {
+      // Intentionally omit snapshotId to avoid stale snapshot errors
+      // The Spotify API will operate on the current playlist state
       return apiFetch(`/api/playlists/${params.playlistId}/tracks/add`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           trackUris: params.trackUris,
           position: params.position,
-          snapshotId: params.snapshotId,
         }),
       });
     },
@@ -133,12 +134,13 @@ export function useRemoveTracks() {
 
   return useMutation({
     mutationFn: async (params: RemoveTracksParams): Promise<MutationResponse> => {
+      // Intentionally omit snapshotId to avoid stale snapshot errors
+      // The Spotify API will operate on the current playlist state
       return apiFetch(`/api/playlists/${params.playlistId}/tracks/remove`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           tracks: params.tracks,
-          snapshotId: params.snapshotId,
         }),
       });
     },
