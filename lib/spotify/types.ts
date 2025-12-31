@@ -52,6 +52,11 @@ export type Track = {
   } | null;
   /** Track popularity (0-100, 100 = most popular) */
   popularity?: number | null;
+  /** Who added this track to the playlist (for collaborative playlists) */
+  addedBy?: {
+    id: string;
+    displayName?: string | null;
+  } | null;
   // NOTE: Audio features (tempo, key, energy, etc.) are DEPRECATED for new Spotify apps
   // as of Nov 27, 2024. Only apps with extended quota mode can access them.
   // See: https://developer.spotify.com/blog/2024-11-27-changes-to-the-web-api
@@ -133,6 +138,12 @@ export function mapPlaylistItemToTrack(raw: any): Track {
         }
       : null,
     popularity: typeof t?.popularity === 'number' ? t.popularity : null,
+    addedBy: raw?.added_by?.id
+      ? {
+          id: String(raw.added_by.id),
+          displayName: raw.added_by.display_name ?? null,
+        }
+      : null,
   };
 }
 

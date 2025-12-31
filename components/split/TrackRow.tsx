@@ -18,6 +18,7 @@ import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
 import { usePlayerStore } from '@/hooks/usePlayerStore';
 import { AddToMarkedButton } from './AddToMarkedButton';
 import { TRACK_GRID_CLASSES, TRACK_GRID_CLASSES_NORMAL, TRACK_GRID_CLASSES_COMPACT, getTrackGridStyle } from './TableHeader';
+import { Avatar } from '@/components/ui/avatar';
 
 interface TrackRowProps {
   track: Track;
@@ -51,6 +52,10 @@ interface TrackRowProps {
   hasInsertionMarker?: boolean;
   /** Whether there's an insertion marker after this row (for last item) */
   hasInsertionMarkerAfter?: boolean;
+  /** Whether this is a collaborative playlist (shows added-by avatar) */
+  isCollaborative?: boolean;
+  /** Function to get cached user profile data (displayName and imageUrl) */
+  getProfile?: ((userId: string) => { displayName?: string | null; imageUrl?: string | null } | undefined) | undefined;
 }
 
 export function TrackRow({
@@ -75,6 +80,8 @@ export function TrackRow({
   onPause,
   hasInsertionMarker = false,
   hasInsertionMarkerAfter = false,
+  isCollaborative = false,
+  getProfile,
 }: TrackRowProps) {
   const { isCompact } = useCompactModeStore();
   const { open: openBrowsePanel, setSearchQuery } = useBrowsePanelStore();
@@ -86,7 +93,7 @@ export function TrackRow({
   const hasAnyMarkers = Object.values(allPlaylists).some((p) => p.markers.length > 0);
   
   // Dynamic grid style based on visible columns
-  const gridStyle = getTrackGridStyle(isPlayerVisible, hasAnyMarkers);
+  const gridStyle = getTrackGridStyle(isPlayerVisible, hasAnyMarkers, isCollaborative);
   
   // Track whether mouse is near top/bottom edge for insertion marker toggle
   // null = not near edge, 'top' = near top edge, 'bottom' = near bottom edge
@@ -258,6 +265,37 @@ export function TrackRow({
       }
       {...(!locked ? { ...restAttributes, ...listeners } : {})}
     >
+      {/* Contributor avatar - only for collaborative playlists (first column) */}
+      {isCollaborative && (
+        <div className="flex items-center justify-center">
+          {track.addedBy ? (
+            (() => {
+              // Get cached profile data if available
+              const profile = getProfile?.(track.addedBy.id);
+              const displayName = profile?.displayName || track.addedBy.displayName;
+              const imageUrl = profile?.imageUrl;
+              return (
+                <Avatar
+                  displayName={displayName}
+                  userId={track.addedBy.id}
+                  imageUrl={imageUrl}
+                  size={isCompact ? 'sm' : 'md'}
+                  title={`Added by ${displayName || track.addedBy.id}`}
+                />
+              );
+            })()
+          ) : (
+            <div
+              className={cn(
+                'rounded-full bg-muted/30',
+                isCompact ? 'h-4 w-4' : 'h-5 w-5'
+              )}
+              title="Unknown contributor"
+            />
+          )}
+        </div>
+      )}
+
       {/* Play button - only show when player is visible */}
       {isPlayerVisible && (
         <button

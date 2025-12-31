@@ -36,25 +36,32 @@ export async function GET(
 
     console.log("[api/playlists/tracks] nextCursorParam:", nextCursorParam);
 
+    // Fields parameter for consistent data fetching (includes added_by for collaborative playlists)
+    const fields = "items(track(id,uri,name,artists(name),duration_ms,album(id,name,images,release_date,release_date_precision),popularity),added_at,added_by(id,display_name)),next,total,snapshot_id";
+
     let path: string;
     
     if (nextCursorParam) {
       // nextCursor is a full Spotify URL like:
       // https://api.spotify.com/v1/playlists/xxx/tracks?offset=100&limit=100
-      // Extract just the path part (everything after /v1/)
+      // Extract just the path part and ensure our fields parameter is used
       try {
         const url = new URL(nextCursorParam);
-        path = url.pathname.replace('/v1', '') + url.search;
-        console.log("[api/playlists/tracks] Parsed cursor to path:", path);
+        const offset = url.searchParams.get('offset') || '0';
+        const limit = url.searchParams.get('limit') || '100';
+        // Rebuild with our fields to ensure added_by is included
+        path = `/playlists/${encodeURIComponent(playlistId)}/tracks?offset=${offset}&limit=${limit}&fields=${encodeURIComponent(fields)}`;
+        console.log("[api/playlists/tracks] Parsed cursor to path with fields:", path);
       } catch (err) {
-        // If not a full URL, assume it's already a path
-        console.log("[api/playlists/tracks] Not a URL, using as-is");
-        path = nextCursorParam;
+        // If not a full URL, assume it's already a path but add fields
+        console.log("[api/playlists/tracks] Not a URL, using as-is with fields");
+        path = nextCursorParam.includes('fields=') 
+          ? nextCursorParam 
+          : `${nextCursorParam}&fields=${encodeURIComponent(fields)}`;
       }
     } else {
       // Fetch tracks from Spotify (limit 100 per request)
       const limit = 100;
-      const fields = "items(track(id,uri,name,artists(name),duration_ms,album(id,name,images,release_date,release_date_precision),popularity),added_at),next,total,snapshot_id";
       path = `/playlists/${encodeURIComponent(playlistId)}/tracks?limit=${limit}&fields=${encodeURIComponent(fields)}`;
     }
 

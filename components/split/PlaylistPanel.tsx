@@ -28,6 +28,7 @@ import { useTrackPlayback } from '@/hooks/useTrackPlayback';
 import { getTrackSelectionKey } from '@/lib/dnd/selection';
 import { useCompactModeStore, useHydratedCompactMode } from '@/hooks/useCompactModeStore';
 import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
+import { usePrefetchContributorProfiles, useUserProfilesCache } from '@/hooks/useUserProfiles';
 import { SignInButton } from '@/components/auth/SignInButton';
 import { PanelToolbar } from './PanelToolbar';
 import { TableHeader } from './TableHeader';
@@ -392,11 +393,16 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
         const scrollTop = scrollRef.current?.scrollTop || 0;
         setScroll(panelId, scrollTop);
         
-        // Invalidate the infinite query to trigger a fresh fetch
-        // Note: With placeholderData, the old data stays visible during refetch
-        queryClient.invalidateQueries({ 
-          queryKey: ['playlist-tracks-infinite', playlistId],
-        }).then(() => {
+        // Invalidate both tracks and metadata queries to get fresh data
+        // This ensures collaborative status and added_by fields are refreshed
+        Promise.all([
+          queryClient.invalidateQueries({ 
+            queryKey: ['playlist-tracks-infinite', playlistId],
+          }),
+          queryClient.invalidateQueries({ 
+            queryKey: playlistMeta(playlistId),
+          }),
+        ]).then(() => {
           console.log('✅ Playlist reload complete:', playlistId);
           // Restore scroll position after refetch
           if (scrollRef.current) {
@@ -432,6 +438,27 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
         track.album?.name?.toLowerCase().includes(query)
     );
   }, [sortedTracks, searchQuery]);
+
+  // Detect if this playlist has multiple contributors (for showing contributor column)
+  // This handles both legacy "collaborative" playlists AND newer "invite collaborators" feature
+  const hasMultipleContributors = useMemo(() => {
+    if (!tracks || tracks.length === 0) return false;
+    const contributors = new Set<string>();
+    for (const track of tracks) {
+      if (track.addedBy?.id) {
+        contributors.add(track.addedBy.id);
+        if (contributors.size > 1) return true; // Early exit once we find 2+ contributors
+      }
+    }
+    return false;
+  }, [tracks]);
+
+  // Prefetch user profiles for contributors (only when showing contributor column)
+  // This populates the cache so TrackRow can display profile images/names
+  usePrefetchContributorProfiles(hasMultipleContributors ? tracks : []);
+  
+  // Get the profile cache for passing to TrackRow
+  const { getProfile } = useUserProfilesCache();
 
   // Track URIs for playback context (auto-play next)
   const trackUris = useMemo(() => 
@@ -766,6 +793,7 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
               sortDirection={sortDirection}
               onSort={handleSort}
               showLikedColumn={true}
+              isCollaborative={hasMultipleContributors}
             />
             <SortableContext
               items={contextItems}
@@ -837,6 +865,8 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
                       onPause={pausePlayback}
                       hasInsertionMarker={activeMarkerIndices.has(virtualRow.index)}
                       hasInsertionMarkerAfter={false}
+                      isCollaborative={hasMultipleContributors}
+                      getProfile={hasMultipleContributors ? getProfile : undefined}
                     />
                   </div>
                 );

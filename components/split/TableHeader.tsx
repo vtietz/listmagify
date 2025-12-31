@@ -5,7 +5,7 @@
 
 'use client';
 
-import { ArrowUp, ArrowDown, Heart, Play, Plus, TrendingUp, Calendar } from 'lucide-react';
+import { ArrowUp, ArrowDown, Heart, Play, Plus, TrendingUp, Calendar, Users } from 'lucide-react';
 import { useCompactModeStore } from '@/hooks/useCompactModeStore';
 import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
 import { usePlayerStore } from '@/hooks/usePlayerStore';
@@ -18,6 +18,8 @@ interface TableHeaderProps {
   onSort: (key: SortKey) => void;
   /** Whether to show the liked status column */
   showLikedColumn?: boolean;
+  /** Whether this is a collaborative playlist (shows added-by column) */
+  isCollaborative?: boolean;
 }
 
 /** Grid template for consistent column alignment between header and rows */
@@ -28,11 +30,12 @@ export const TRACK_GRID_CLASSES_COMPACT = 'gap-1 px-1';
 /**
  * Generates dynamic grid template columns based on which columns are visible
  */
-export function getTrackGridStyle(showPlayColumn: boolean, showAddToMarkedColumn: boolean) {
+export function getTrackGridStyle(showPlayColumn: boolean, showAddToMarkedColumn: boolean, showContributorColumn: boolean = false) {
   // Build columns array dynamically
   const columns: string[] = [];
   
-  if (showPlayColumn) columns.push('20px');      // Play button
+  if (showContributorColumn) columns.push('20px'); // Contributor avatar (first column)
+  if (showPlayColumn) columns.push('20px');        // Play button
   if (showAddToMarkedColumn) columns.push('20px'); // Add to marked button
   columns.push('20px');                            // Heart (liked)
   columns.push('28px');                            // Position #
@@ -54,7 +57,7 @@ export const TRACK_GRID_STYLE_WITH_ALBUM = {
   gridTemplateColumns: '20px 20px 20px 28px minmax(80px, 2fr) minmax(60px, 1fr) minmax(60px, 1fr) 36px 36px 44px',
 };
 
-export function TableHeader({ isEditable, sortKey, sortDirection, onSort, showLikedColumn = true }: TableHeaderProps) {
+export function TableHeader({ isEditable, sortKey, sortDirection, onSort, showLikedColumn = true, isCollaborative = false }: TableHeaderProps) {
   const SortIcon = sortDirection === 'asc' ? ArrowUp : ArrowDown;
   const { isCompact } = useCompactModeStore();
   
@@ -64,7 +67,7 @@ export function TableHeader({ isEditable, sortKey, sortDirection, onSort, showLi
   const hasAnyMarkers = Object.values(playlists).some((p) => p.markers.length > 0);
   
   // Dynamic grid style based on visible columns
-  const gridStyle = getTrackGridStyle(isPlayerVisible, hasAnyMarkers);
+  const gridStyle = getTrackGridStyle(isPlayerVisible, hasAnyMarkers, isCollaborative);
 
   const renderColumnHeader = (label: string, key: SortKey, align: 'left' | 'right' = 'left') => {
     const isActive = sortKey === key;
@@ -93,6 +96,13 @@ export function TableHeader({ isEditable, sortKey, sortDirection, onSort, showLi
       className={`sticky top-0 z-20 border-b border-border bg-card backdrop-blur-sm text-muted-foreground ${TRACK_GRID_CLASSES} ${isCompact ? 'h-8 ' + TRACK_GRID_CLASSES_COMPACT : 'h-10 ' + TRACK_GRID_CLASSES_NORMAL}`}
       style={gridStyle}
     >
+      {/* Contributor column - only for collaborative playlists (first column) */}
+      {isCollaborative && (
+        <div className="flex items-center justify-center" title="Added by">
+          <Users className={isCompact ? 'h-2.5 w-2.5' : 'h-3 w-3'} />
+        </div>
+      )}
+
       {/* Play button column - only when player is visible */}
       {isPlayerVisible && (
         <div className="flex items-center justify-center" title="Play">
