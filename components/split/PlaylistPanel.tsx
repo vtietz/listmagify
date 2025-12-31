@@ -917,7 +917,7 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
                       isPlaybackLoading={isTrackLoading(track.uri)}
                       onPlay={playTrack}
                       onPause={pausePlayback}
-                      hasInsertionMarker={activeMarkerIndices.has(virtualRow.index)}
+                      hasInsertionMarker={activeMarkerIndices.has(track.position ?? virtualRow.index)}
                       hasInsertionMarkerAfter={false}
                       isCollaborative={hasMultipleContributors}
                       getProfile={hasMultipleContributors ? getProfile : undefined}

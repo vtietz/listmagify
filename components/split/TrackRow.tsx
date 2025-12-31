@@ -203,9 +203,11 @@ export function TrackRow({
     e.preventDefault();
     
     if (playlistId && isEditable && !locked) {
-      // Toggle marker at index (before this row) or index+1 (after this row)
-      const targetIndex = nearEdge === 'bottom' ? index + 1 : index;
-      togglePoint(playlistId, targetIndex);
+      // Use the track's actual playlist position, not visual index
+      // This ensures markers work correctly even when the list is sorted/filtered
+      const actualPosition = track.position ?? index;
+      const targetPosition = nearEdge === 'bottom' ? actualPosition + 1 : actualPosition;
+      togglePoint(playlistId, targetPosition);
     }
   };
 
