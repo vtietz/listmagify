@@ -281,8 +281,8 @@ export function TrackRow({
             (() => {
               // Get cached profile data if available
               const profile = getProfile?.(track.addedBy.id);
-              const displayName = profile?.displayName || track.addedBy.displayName;
-              const imageUrl = profile?.imageUrl;
+              const displayName = profile?.displayName ?? track.addedBy.displayName ?? null;
+              const imageUrl = profile?.imageUrl ?? null;
               return (
                 <Avatar
                   displayName={displayName}
