@@ -7,10 +7,10 @@
 
 'use client';
 
-import { Plus, Loader2, AlertTriangle } from 'lucide-react';
+import { Plus, Loader2, AlertTriangle, ArrowRight } from 'lucide-react';
 import { useInsertionPointsStore, computeInsertionPositions } from '@/hooks/useInsertionPointsStore';
 import { useSplitGridStore, flattenPanels } from '@/hooks/useSplitGridStore';
-import { useAddTracks } from '@/lib/spotify/playlistMutations';
+import { useAddTracks, useReorderTracks } from '@/lib/spotify/playlistMutations';
 import { useCompactModeStore } from '@/hooks/useCompactModeStore';
 import { usePlaylistTrackCheck, type DuplicateCheckResult } from '@/hooks/usePlaylistTrackCheck';
 import { cn } from '@/lib/utils';
@@ -54,6 +54,7 @@ export function AddToMarkedButton({
   const shiftAfterMultiInsert = useInsertionPointsStore((s) => s.shiftAfterMultiInsert);
   const root = useSplitGridStore((s) => s.root);
   const addTracksMutation = useAddTracks();
+  const reorderTracksMutation = useReorderTracks();
   const { checkForAnyDuplicates } = usePlaylistTrackCheck();
   const [isInserting, setIsInserting] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
@@ -190,6 +191,70 @@ export function AddToMarkedButton({
     setDuplicateInfo(null);
   };
 
+  // Move existing tracks to marker positions (reorder instead of duplicate)
+  // For playlists without the track, add it normally
+  const handleMoveExisting = async () => {
+    setShowDuplicateDialog(false);
+    setIsInserting(true);
+
+    try {
+      let movedCount = 0;
+      let addedCount = 0;
+
+      for (const [playlistId, data] of playlistsWithMarkers) {
+        const duplicateResult = duplicateInfo?.results.find(r => r.playlistId === playlistId);
+        const positions = computeInsertionPositions(data.markers, 1);
+        if (positions.length === 0) continue;
+
+        // If track exists in this playlist, move it to marker position
+        if (duplicateResult?.existingPositions?.length) {
+          const targetPosition = positions[0].effectiveIndex;
+
+          for (const { position: fromIndex } of duplicateResult.existingPositions) {
+            // Calculate effective target considering shift from removal
+            const effectiveTarget = fromIndex < targetPosition ? targetPosition - 1 : targetPosition;
+            
+            if (fromIndex !== effectiveTarget) {
+              await reorderTracksMutation.mutateAsync({
+                playlistId,
+                fromIndex,
+                toIndex: effectiveTarget,
+                rangeLength: 1,
+              });
+              movedCount++;
+            }
+          }
+        } else {
+          // Track doesn't exist in this playlist, add it at marker positions
+          for (const pos of positions) {
+            await addTracksMutation.mutateAsync({
+              playlistId,
+              trackUris: [trackUri],
+              position: pos.effectiveIndex,
+            });
+            addedCount++;
+          }
+          shiftAfterMultiInsert(playlistId);
+        }
+      }
+
+      if (movedCount > 0 && addedCount > 0) {
+        toast.success(`Moved to ${movedCount} and added to ${addedCount} position${addedCount > 1 ? 's' : ''}`);
+      } else if (movedCount > 0) {
+        toast.success(`Moved "${trackName}" to ${movedCount} position${movedCount > 1 ? 's' : ''}`);
+      } else if (addedCount > 0) {
+        toast.success(`Added "${trackName}" to ${addedCount} position${addedCount > 1 ? 's' : ''}`);
+      } else {
+        toast.info('Tracks are already at the marker positions');
+      }
+    } catch (error) {
+      toast.error(`Failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setDuplicateInfo(null);
+      setIsInserting(false);
+    }
+  };
+
   return (
     <>
       <button
@@ -263,7 +328,7 @@ export function AddToMarkedButton({
                   .
                 </p>
                 <p className="text-muted-foreground">
-                  Would you like to add it anyway (creating a duplicate), skip those playlists, or cancel?
+                  Choose an action:
                 </p>
               </div>
             </AlertDialogDescription>
@@ -274,6 +339,10 @@ export function AddToMarkedButton({
             </Button>
             <Button variant="secondary" onClick={handleSkipDuplicates}>
               Skip duplicates
+            </Button>
+            <Button variant="secondary" onClick={handleMoveExisting} className="gap-1">
+              <ArrowRight className="h-4 w-4" />
+              Move existing
             </Button>
             <Button onClick={handleAddAnyway}>
               Add anyway

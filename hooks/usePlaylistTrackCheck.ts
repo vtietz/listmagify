@@ -17,6 +17,13 @@ interface PlaylistTracksPage {
 
 type InfinitePlaylistData = InfiniteData<PlaylistTracksPage>;
 
+export interface TrackPosition {
+  /** Track URI */
+  uri: string;
+  /** Position in playlist */
+  position: number;
+}
+
 export interface DuplicateCheckResult {
   /** Playlist ID */
   playlistId: string;
@@ -26,6 +33,8 @@ export interface DuplicateCheckResult {
   existingUris: string[];
   /** Track URIs that don't exist in this playlist */
   newUris: string[];
+  /** Positions of existing tracks (for move operations) */
+  existingPositions: TrackPosition[];
 }
 
 /**
@@ -59,6 +68,32 @@ export function usePlaylistTrackCheck() {
   }, [queryClient]);
 
   /**
+   * Get track positions for given URIs in a playlist.
+   */
+  const getTrackPositions = useCallback((playlistId: string, trackUris: string[]): TrackPosition[] => {
+    const data = queryClient.getQueryData<InfinitePlaylistData>(
+      playlistTracksInfinite(playlistId)
+    );
+
+    if (!data?.pages) {
+      return [];
+    }
+
+    const uriSet = new Set(trackUris);
+    const positions: TrackPosition[] = [];
+
+    for (const page of data.pages) {
+      for (const track of page.tracks) {
+        if (track.uri && uriSet.has(track.uri) && track.position !== undefined) {
+          positions.push({ uri: track.uri, position: track.position });
+        }
+      }
+    }
+
+    return positions;
+  }, [queryClient]);
+
+  /**
    * Check which track URIs already exist in a playlist.
    */
   const checkDuplicates = useCallback((
@@ -78,12 +113,16 @@ export function usePlaylistTrackCheck() {
       }
     }
 
+    // Get positions for existing tracks
+    const existingPositions = getTrackPositions(playlistId, duplicates);
+
     return {
       playlistId,
       existingUris: duplicates,
       newUris: newTracks,
+      existingPositions,
     };
-  }, [getPlaylistTrackUris]);
+  }, [getPlaylistTrackUris, getTrackPositions]);
 
   /**
    * Check duplicates across multiple playlists.
@@ -123,6 +162,7 @@ export function usePlaylistTrackCheck() {
 
   return {
     getPlaylistTrackUris,
+    getTrackPositions,
     checkDuplicates,
     checkDuplicatesMultiple,
     checkForAnyDuplicates,
