@@ -867,8 +867,8 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
                 filteredTracksCount={filteredTracks.length}
               />
 
-              {/* Insertion point markers (orange lines) */}
-              {playlistId && isEditable && activeMarkerIndices.size > 0 && (
+              {/* Insertion point markers (orange lines) - hidden when search is active */}
+              {playlistId && isEditable && activeMarkerIndices.size > 0 && !searchQuery && (
                 <InsertionMarkersOverlay
                   playlistId={playlistId}
                   totalTracks={filteredTracks.length}
@@ -917,8 +917,9 @@ export function PlaylistPanel({ panelId, onRegisterVirtualizer, onUnregisterVirt
                       isPlaybackLoading={isTrackLoading(track.uri)}
                       onPlay={playTrack}
                       onPause={pausePlayback}
-                      hasInsertionMarker={activeMarkerIndices.has(track.position ?? virtualRow.index)}
+                      hasInsertionMarker={!searchQuery && activeMarkerIndices.has(track.position ?? virtualRow.index)}
                       hasInsertionMarkerAfter={false}
+                      allowInsertionMarkerToggle={!searchQuery}
                       isCollaborative={hasMultipleContributors}
                       getProfile={hasMultipleContributors ? getProfile : undefined}
                       cumulativeDurationMs={cumulativeDurations[virtualRow.index] || 0}

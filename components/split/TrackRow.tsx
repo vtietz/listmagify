@@ -62,6 +62,8 @@ interface TrackRowProps {
   crossesHourBoundary?: boolean;
   /** Which hour number was just crossed (1, 2, 3, etc.) */
   hourNumber?: number;
+  /** Whether to allow toggling insertion markers (disabled when search/filter is active) */
+  allowInsertionMarkerToggle?: boolean;
 }
 
 export function TrackRow({
@@ -91,6 +93,7 @@ export function TrackRow({
   cumulativeDurationMs = 0,
   crossesHourBoundary = false,
   hourNumber = 0,
+  allowInsertionMarkerToggle = true,
 }: TrackRowProps) {
   const { isCompact } = useCompactModeStore();
   const { open: openBrowsePanel, setSearchQuery } = useBrowsePanelStore();
@@ -202,7 +205,7 @@ export function TrackRow({
     e.stopPropagation();
     e.preventDefault();
     
-    if (playlistId && isEditable && !locked) {
+    if (playlistId && isEditable && !locked && allowInsertionMarkerToggle) {
       // Use the track's actual playlist position, not visual index
       // This ensures markers work correctly even when the list is sorted/filtered
       const actualPosition = track.position ?? index;
@@ -509,7 +512,7 @@ export function TrackRow({
       )}
 
       {/* Insertion marker toggle button - only appears when mouse is near top/bottom edge */}
-      {isEditable && !locked && nearEdge !== null && (
+      {isEditable && !locked && allowInsertionMarkerToggle && nearEdge !== null && (
         <button
           onClick={handleInsertionMarkerToggle}
           className={cn(
