@@ -1,0 +1,116 @@
+import { NextRequest, NextResponse } from 'next/server';
+import nodemailer from 'nodemailer';
+
+/**
+ * POST /api/access-request
+ * 
+ * Receives access request from landing page and sends email to admin.
+ * Used while app is in Spotify development mode with limited user slots.
+ */
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { name, email } = body;
+
+    // Validate input
+    if (!name || typeof name !== 'string' || name.trim().length === 0) {
+      return NextResponse.json({ error: 'Name is required' }, { status: 400 });
+    }
+
+    if (!email || typeof email !== 'string' || !email.includes('@')) {
+      return NextResponse.json({ error: 'Valid email is required' }, { status: 400 });
+    }
+
+    // Check if SMTP is configured
+    const smtpHost = process.env.SMTP_HOST;
+    const smtpPort = process.env.SMTP_PORT;
+    const smtpUser = process.env.SMTP_USER;
+    const smtpPass = process.env.SMTP_PASS;
+    const contactEmail = process.env.CONTACT_EMAIL;
+
+    if (!smtpHost || !contactEmail) {
+      console.error('[access-request] SMTP not configured');
+      return NextResponse.json(
+        { error: 'Email service not configured. Please contact the administrator.' },
+        { status: 503 }
+      );
+    }
+
+    // Create transporter
+    const transporter = nodemailer.createTransport({
+      host: smtpHost,
+      port: parseInt(smtpPort || '587', 10),
+      secure: smtpPort === '465',
+      auth: smtpUser && smtpPass ? {
+        user: smtpUser,
+        pass: smtpPass,
+      } : undefined,
+    });
+
+    // Send email to admin
+    const mailOptions = {
+      from: smtpUser || `noreply@${smtpHost}`,
+      to: contactEmail,
+      subject: `[Listmagify] Access Request from ${name.trim()}`,
+      text: `New access request for Listmagify:
+
+Name: ${name.trim()}
+Spotify Email: ${email.trim()}
+
+To approve this user:
+1. Go to https://developer.spotify.com/dashboard
+2. Select your app
+3. Go to Settings > User Management
+4. Add the user with the email above
+
+---
+This is an automated message from Listmagify.
+`,
+      html: `
+<h2>New Access Request for Listmagify</h2>
+<table style="border-collapse: collapse;">
+  <tr>
+    <td style="padding: 8px; font-weight: bold;">Name:</td>
+    <td style="padding: 8px;">${escapeHtml(name.trim())}</td>
+  </tr>
+  <tr>
+    <td style="padding: 8px; font-weight: bold;">Spotify Email:</td>
+    <td style="padding: 8px;">${escapeHtml(email.trim())}</td>
+  </tr>
+</table>
+
+<h3>To approve this user:</h3>
+<ol>
+  <li>Go to <a href="https://developer.spotify.com/dashboard">Spotify Developer Dashboard</a></li>
+  <li>Select your app</li>
+  <li>Go to Settings → User Management</li>
+  <li>Add the user with the email above</li>
+</ol>
+
+<hr>
+<p style="color: #666; font-size: 12px;">This is an automated message from Listmagify.</p>
+`,
+    };
+
+    await transporter.sendMail(mailOptions);
+
+    console.log(`[access-request] Request sent for ${email}`);
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('[access-request] Error:', error);
+    return NextResponse.json(
+      { error: 'Failed to send request. Please try again later.' },
+      { status: 500 }
+    );
+  }
+}
+
+/** Escape HTML to prevent XSS in email */
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}

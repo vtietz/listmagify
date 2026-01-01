@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/auth";
 import Link from "next/link";
 import { SignInButton } from "@/components/auth/SignInButton";
+import { AccessRequestDialog } from "@/components/landing/AccessRequestDialog";
 import { AppLogo } from "@/components/ui/app-logo";
 import { AppFooter } from "@/components/ui/app-footer";
 import { LogIn, LogOut } from "lucide-react";
@@ -93,12 +94,31 @@ export default async function Home() {
                   Open Playlists
                 </Link>
               ) : (
-                <SignInButton callbackUrl="/playlists" />
+                <>
+                  <SignInButton callbackUrl="/playlists" />
+                  <AccessRequestDialog
+                    trigger={
+                      <button className="inline-flex items-center justify-center gap-2 rounded-md border border-border bg-background px-6 py-3 text-sm font-medium hover:bg-accent transition-colors">
+                        Request Access
+                      </button>
+                    }
+                  />
+                </>
               )}
             </div>
             <p className="text-sm text-muted-foreground">
               Free to use • Requires Spotify account • Your data stays with Spotify
             </p>
+            
+            {/* Development Mode Notice */}
+            <div className="mt-6 p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/30 max-w-xl mx-auto">
+              <div className="flex items-start gap-3">
+                  <p className="text-sm text-muted-foreground">
+                    * This app is currently in Spotify development mode and can only be used by approved users. 
+                    If you&apos;d like to try it out, click "Request Access" above.
+                  </p>
+              </div>
+            </div>
           </div>
         </div>
 
