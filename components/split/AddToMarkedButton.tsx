@@ -208,7 +208,7 @@ export function AddToMarkedButton({
 
         // If track exists in this playlist, move it to marker position
         if (duplicateResult?.existingPositions?.length) {
-          const targetPosition = positions[0].effectiveIndex;
+          const targetPosition = positions[0]!.effectiveIndex;
 
           for (const { position: fromIndex } of duplicateResult.existingPositions) {
             // Calculate effective target considering shift from removal
