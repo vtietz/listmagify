@@ -70,7 +70,21 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
 
   // Actions
   setPlaybackState: (playbackState) => set({ playbackState }),
-  setDevices: (devices) => set({ devices }),
+  setDevices: (devices) => set((state) => {
+    // Preserve the web player device when updating devices from API
+    // The API doesn't return the web player until it's actively playing
+    if (state.webPlayerDeviceId) {
+      const webPlayerInApi = devices.find(d => d.id === state.webPlayerDeviceId);
+      if (!webPlayerInApi) {
+        // Web player not in API response - add it from our local state
+        const currentWebPlayer = state.devices.find(d => d.id === state.webPlayerDeviceId);
+        if (currentWebPlayer) {
+          return { devices: [currentWebPlayer, ...devices.filter(d => d.id !== state.webPlayerDeviceId)] };
+        }
+      }
+    }
+    return { devices };
+  }),
   setSelectedDevice: (selectedDeviceId) => set({ selectedDeviceId }),
   setDeviceSelectorOpen: (isDeviceSelectorOpen) => set({ isDeviceSelectorOpen }),
   setWebPlayerDeviceId: (webPlayerDeviceId) => set({ webPlayerDeviceId }),
