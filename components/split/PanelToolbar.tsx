@@ -7,11 +7,17 @@
 'use client';
 
 import { useState, useRef, useEffect, ChangeEvent, useCallback } from 'react';
-import { Search, RefreshCw, Lock, LockOpen, X, SplitSquareHorizontal, SplitSquareVertical, Move, Copy, Trash2, MoreHorizontal, MapPinOff, Pencil } from 'lucide-react';
+import { Search, RefreshCw, Lock, LockOpen, X, SplitSquareHorizontal, SplitSquareVertical, Move, Copy, Trash2, MoreHorizontal, MapPinOff, Pencil, Radio } from 'lucide-react';
 import { PlaylistSelector } from './PlaylistSelector';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -53,6 +59,7 @@ interface PanelToolbarProps {
   selectedCount?: number;
   isDeleting?: boolean;
   insertionMarkerCount?: number;
+  lastfmEnabled?: boolean;
   onSearchChange: (query: string) => void;
   onSortChange?: (key: SortKey, direction: SortDirection) => void;
   onReload: () => void;
@@ -64,6 +71,7 @@ interface PanelToolbarProps {
   onLoadPlaylist: (playlistId: string) => void;
   onDeleteSelected?: () => void;
   onClearInsertionMarkers?: () => void;
+  onLastfmImport?: () => void;
 }
 
 export function PanelToolbar({
@@ -81,6 +89,7 @@ export function PanelToolbar({
   selectedCount = 0,
   isDeleting = false,
   insertionMarkerCount = 0,
+  lastfmEnabled = false,
   onSearchChange,
   onSortChange,
   onReload,
@@ -92,6 +101,7 @@ export function PanelToolbar({
   onLoadPlaylist,
   onDeleteSelected,
   onClearInsertionMarkers,
+  onLastfmImport,
 }: PanelToolbarProps) {
   const [localSearch, setLocalSearch] = useState(searchQuery);
   const [isCompact, setIsCompact] = useState(true);
@@ -165,6 +175,27 @@ export function PanelToolbar({
       {/* Inline buttons when panel is wide enough */}
       {!isCompact && (
         <>
+          {/* Last.fm Import */}
+          {playlistId && isEditable && !locked && lastfmEnabled && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={onLastfmImport}
+                    className="h-8 w-8 p-0 shrink-0"
+                  >
+                    <Radio className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Import from Last.fm</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+
           {/* Reload */}
           {playlistId && (
             <Button
@@ -285,6 +316,14 @@ export function PanelToolbar({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
+            {/* Last.fm Import */}
+            {playlistId && isEditable && !locked && lastfmEnabled && (
+              <DropdownMenuItem onClick={onLastfmImport}>
+                <Radio className="h-4 w-4 mr-2" />
+                Import from Last.fm
+              </DropdownMenuItem>
+            )}
+
             {/* Reload */}
             {playlistId && (
               <DropdownMenuItem onClick={onReload} disabled={isReloading}>

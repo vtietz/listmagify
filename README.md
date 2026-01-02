@@ -233,6 +233,46 @@ PLAYLIST_POLL_INTERVAL_SECONDS=30
 
 **Note:** Liked Songs is excluded from auto-reload. Set to `0` or leave unset to disable.
 
+## Last.fm Import (Optional)
+
+Import tracks from your Last.fm listening history directly into Spotify playlists. Supports recent tracks, loved tracks, top tracks, and weekly charts.
+
+### Get a Last.fm API Key
+
+1. Go to [Last.fm API Account](https://www.last.fm/api/account/create)
+2. Sign in with your Last.fm account (or create one)
+3. Fill in the application form:
+   - **Application name**: e.g., "Listmagify Import"
+   - **Application description**: e.g., "Personal playlist editor"
+   - **Callback URL**: Leave blank (not needed for API key)
+4. Submit and copy your **API Key** (not the shared secret)
+
+### Enable Last.fm Import
+
+```env
+# .env
+LASTFM_API_KEY=your_lastfm_api_key_here
+LASTFM_IMPORT_ENABLED=true
+```
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `LASTFM_API_KEY` | Your Last.fm API key | (required) |
+| `LASTFM_IMPORT_ENABLED` | Enable/disable import feature | `false` |
+| `LASTFM_USER_AGENT` | Custom User-Agent for API requests | `SpotifyPlaylistStudio/1.0` |
+
+### How It Works
+
+1. Open a playlist in the split editor
+2. Click the radio icon (📻) in the panel toolbar
+3. Enter any Last.fm username (public profiles only)
+4. Select source: Recent, Loved, Top, or Weekly tracks
+5. Enable "Auto-match to Spotify" for automatic track matching
+6. Review matches and select tracks to add
+7. Click "Add Selected" to import into your playlist
+
+**Note:** Last.fm import only works with public Last.fm profiles. The feature automatically matches Last.fm tracks to Spotify using artist and track name similarity.
+
 ## License
 
 MIT
