@@ -11,18 +11,21 @@ export function AppFooter() {
   return (
     <div className="flex items-center justify-between gap-4 text-muted-foreground">
       {/* Spotify Attribution - Left side */}
-      <div className="flex items-center gap-1.5">
+      {/* Per Spotify guidelines: full logo min 70px width, icon min 21px. Using logo. */}
+      <div className="flex items-center gap-2">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/spotify/Primary_Logo_White_RGB.svg"
           alt="Spotify"
-          className="h-4 hidden dark:block"
+          className="h-5 hidden dark:block"
+          style={{ minWidth: '70px' }}
         />
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/spotify/Primary_Logo_Black_RGB.svg"
           alt="Spotify"
-          className="h-4 dark:hidden"
+          className="h-5 dark:hidden"
+          style={{ minWidth: '70px' }}
         />
         <span className="text-[10px]">
           Content provided by{" "}

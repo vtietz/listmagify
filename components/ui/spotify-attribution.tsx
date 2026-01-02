@@ -9,18 +9,21 @@ import Link from "next/link";
  */
 export function SpotifyAttribution() {
   return (
-    <div className="flex items-center gap-1.5 text-muted-foreground">
+    <div className="flex items-center gap-2 text-muted-foreground">
+      {/* Per Spotify guidelines: full logo min 70px width. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src="/spotify/Primary_Logo_White_RGB.svg"
         alt="Spotify"
-        className="h-4 hidden dark:block"
+        className="h-5 hidden dark:block"
+        style={{ minWidth: '70px' }}
       />
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src="/spotify/Primary_Logo_Black_RGB.svg"
         alt="Spotify"
-        className="h-4 dark:hidden"
+        className="h-5 dark:hidden"
+        style={{ minWidth: '70px' }}
       />
       <span className="text-[10px]">Content provided by <Link href="https://www.spotify.com" target="_blank" rel="noopener noreferrer">Spotify</Link></span>
     </div>

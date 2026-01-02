@@ -106,13 +106,24 @@ function SortableRow({ track, index, isDragEnabled }: SortableRowProps) {
         )}
       </td>
       <td className="py-2 px-4">
-        <div className="font-medium">
+        <div className="font-medium flex items-center gap-1.5">
+          {/* Explicit content badge per Spotify guidelines */}
+          {track.explicit && (
+            <span 
+              className="shrink-0 inline-flex items-center justify-center rounded text-[9px] font-bold px-1.5 h-4 bg-muted-foreground/20 text-muted-foreground"
+              title="Explicit content"
+              aria-label="Explicit"
+            >
+              E
+            </span>
+          )}
           {track.id ? (
             <a
               href={`https://open.spotify.com/track/${track.id}`}
               target="_blank"
               rel="noopener noreferrer"
               className="hover:underline hover:text-green-500"
+              title={`Open in Spotify ↗`}
             >
               {track.name}
             </a>

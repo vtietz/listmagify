@@ -29,6 +29,30 @@ export interface PlaybackTrack {
   durationMs: number;
 }
 
+/**
+ * Playback action restrictions.
+ * Per Spotify guidelines: gate shuffle/next/prev/repeat/seek by these flags.
+ * When true, the action is DISALLOWED (restricted).
+ */
+export interface PlaybackRestrictions {
+  /** Cannot pause playback */
+  pausing: boolean;
+  /** Cannot resume playback */
+  resuming: boolean;
+  /** Cannot seek to position */
+  seeking: boolean;
+  /** Cannot skip to next track */
+  skippingNext: boolean;
+  /** Cannot skip to previous track */
+  skippingPrev: boolean;
+  /** Cannot toggle shuffle */
+  togglingShuffle: boolean;
+  /** Cannot toggle repeat mode */
+  togglingRepeat: boolean;
+  /** Cannot transfer playback to another device */
+  transferringPlayback: boolean;
+}
+
 export interface PlaybackState {
   device: SpotifyDevice | null;
   isPlaying: boolean;
@@ -38,6 +62,8 @@ export interface PlaybackState {
   track: PlaybackTrack | null;
   progressMs: number;
   timestamp: number;
+  /** Action restrictions (e.g., Free tier cannot skip) */
+  restrictions: PlaybackRestrictions;
 }
 
 export interface PlayRequest {
@@ -72,10 +98,26 @@ export function mapDevice(raw: any): SpotifyDevice {
 /**
  * Map raw Spotify playback state response to our DTO
  */
+/**
+ * Default restrictions (nothing restricted)
+ */
+const DEFAULT_RESTRICTIONS: PlaybackRestrictions = {
+  pausing: false,
+  resuming: false,
+  seeking: false,
+  skippingNext: false,
+  skippingPrev: false,
+  togglingShuffle: false,
+  togglingRepeat: false,
+  transferringPlayback: false,
+};
+
 export function mapPlaybackState(raw: any): PlaybackState | null {
   if (!raw) return null;
   
   const track = raw?.item;
+  // API returns actions.disallows where true = action is NOT allowed
+  const disallows = raw?.actions?.disallows ?? {};
   
   return {
     device: raw?.device ? mapDevice(raw.device) : null,
@@ -100,5 +142,16 @@ export function mapPlaybackState(raw: any): PlaybackState | null {
     } : null,
     progressMs: raw?.progress_ms ?? 0,
     timestamp: raw?.timestamp ?? Date.now(),
+    restrictions: {
+      ...DEFAULT_RESTRICTIONS,
+      pausing: Boolean(disallows.pausing),
+      resuming: Boolean(disallows.resuming),
+      seeking: Boolean(disallows.seeking),
+      skippingNext: Boolean(disallows.skipping_next),
+      skippingPrev: Boolean(disallows.skipping_prev),
+      togglingShuffle: Boolean(disallows.toggling_shuffle),
+      togglingRepeat: Boolean(disallows.toggling_repeat_context) || Boolean(disallows.toggling_repeat_track),
+      transferringPlayback: Boolean(disallows.transferring_playback),
+    },
   };
 }

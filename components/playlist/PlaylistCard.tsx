@@ -66,13 +66,15 @@ export function PlaylistCard({ playlist, className }: PlaylistCardProps) {
           className
         )}
       >
-        <div className="aspect-square w-full bg-muted overflow-hidden relative">
+        {/* Artwork container - per Spotify guidelines: no overlays, rounded corners (4px small, 8px large) */}
+        <div className="aspect-square w-full bg-muted overflow-hidden rounded-t-lg">
           {cover ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={cover}
               alt={playlist.name}
-              className="w-full h-full object-cover transition-transform group-hover:scale-[1.03]"
+              // Use object-contain to avoid cropping artwork per Spotify guidelines
+              className="w-full h-full object-contain bg-black/20 transition-transform group-hover:scale-[1.02]"
               loading="lazy"
             />
           ) : isLiked ? (
@@ -84,45 +86,46 @@ export function PlaylistCard({ playlist, className }: PlaylistCardProps) {
               No cover
             </div>
           )}
-          
-          {/* Edit button - only show for non-Liked Songs playlists */}
-          {!isLiked && (
-            <Button
-              variant="secondary"
-              size="icon"
-              onClick={handleEditClick}
-              className={cn(
-                "absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity",
-                "bg-black/60 hover:bg-black/80 text-white",
-                isCompact ? "h-6 w-6" : "h-8 w-8"
-              )}
-              title="Edit playlist"
-              aria-label={`Edit ${playlist.name}`}
-            >
-              <Pencil className={cn(isCompact ? "h-3 w-3" : "h-4 w-4")} />
-            </Button>
-          )}
-          
-          {/* Play button - show when player is visible, works for all playlists except Liked Songs */}
-          {isPlayerVisible && !isLiked && (
-            <Button
-              variant="secondary"
-              size="icon"
-              onClick={handlePlayClick}
-              className={cn(
-                "absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-all",
-                "bg-green-500 hover:bg-green-400 hover:scale-110 text-white shadow-lg",
-                isCompact ? "h-8 w-8" : "h-10 w-10"
-              )}
-              title={`Play ${playlist.name}`}
-              aria-label={`Play ${playlist.name}`}
-            >
-              <Play className={cn(isCompact ? "h-4 w-4 ml-0.5" : "h-5 w-5 ml-0.5")} fill="currentColor" />
-            </Button>
-          )}
         </div>
+        {/* Controls moved outside artwork per Spotify guidelines - no overlays on artwork */}
         <div className={cn("space-y-0.5", isCompact ? "p-1.5" : "p-3 space-y-1")}>
-          <div className={cn("font-medium line-clamp-1", isCompact && "text-xs")}>{playlist.name}</div>
+          <div className="flex items-start justify-between gap-1">
+            <div className={cn("font-medium line-clamp-1 flex-1 min-w-0", isCompact && "text-xs")}>{playlist.name}</div>
+            <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+              {/* Edit button - only show for non-Liked Songs playlists */}
+              {!isLiked && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleEditClick}
+                  className={cn(
+                    "text-muted-foreground hover:text-foreground",
+                    isCompact ? "h-5 w-5" : "h-6 w-6"
+                  )}
+                  title="Edit playlist"
+                  aria-label={`Edit ${playlist.name}`}
+                >
+                  <Pencil className={cn(isCompact ? "h-3 w-3" : "h-3.5 w-3.5")} />
+                </Button>
+              )}
+              {/* Play button - show when player is visible, works for all playlists except Liked Songs */}
+              {isPlayerVisible && !isLiked && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handlePlayClick}
+                  className={cn(
+                    "text-green-500 hover:text-green-400 hover:scale-110",
+                    isCompact ? "h-5 w-5" : "h-6 w-6"
+                  )}
+                  title={`Play ${playlist.name}`}
+                  aria-label={`Play ${playlist.name}`}
+                >
+                  <Play className={cn(isCompact ? "h-3.5 w-3.5" : "h-4 w-4")} fill="currentColor" />
+                </Button>
+              )}
+            </div>
+          </div>
           <div className={cn("text-muted-foreground line-clamp-1", isCompact ? "text-[10px]" : "text-xs")}>
             {isCompact ? playlist.tracksTotal ?? 0 : `by ${playlist.ownerName ?? "Unknown"} • ${playlist.tracksTotal ?? 0}`} tracks
           </div>

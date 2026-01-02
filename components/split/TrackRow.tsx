@@ -383,11 +383,37 @@ export function TrackRow({
         {track.position != null ? track.position + 1 : index + 1}
       </div>
 
-      {/* Track title - no link, just text */}
-      <div className="min-w-0">
-        <div className={cn('truncate select-none', isCompact ? 'text-xs' : 'text-sm')}>
-          {track.name}
-        </div>
+      {/* Track title with explicit badge and Open in Spotify link */}
+      <div className="min-w-0 flex items-center gap-1.5">
+        {/* Explicit content badge per Spotify guidelines */}
+        {track.explicit && (
+          <span 
+            className={cn(
+              'shrink-0 inline-flex items-center justify-center rounded font-bold bg-muted-foreground/20 text-muted-foreground',
+              isCompact ? 'text-[8px] px-1 h-3' : 'text-[9px] px-1.5 h-4'
+            )}
+            title="Explicit content"
+            aria-label="Explicit"
+          >
+            E
+          </span>
+        )}
+        {track.id ? (
+          <a
+            href={`https://open.spotify.com/track/${track.id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className={cn('truncate select-none hover:underline hover:text-green-500', isCompact ? 'text-xs' : 'text-sm')}
+            title={`${track.name} — Open in Spotify ↗`}
+          >
+            {track.name}
+          </a>
+        ) : (
+          <span className={cn('truncate select-none', isCompact ? 'text-xs' : 'text-sm')}>
+            {track.name}
+          </span>
+        )}
       </div>
 
       {/* Artist - click to search in browse panel */}

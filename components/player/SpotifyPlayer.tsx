@@ -187,42 +187,60 @@ export function SpotifyPlayer() {
           <img
             src={track.albumImage}
             alt={track.albumName ?? 'Album art'}
-            className="h-14 w-14 rounded shadow"
+            // Per Spotify guidelines: don't crop artwork, use rounded corners (4px small devices)
+            className="h-14 w-14 rounded object-contain bg-black/10 shadow"
           />
         )}
         <div className="min-w-0">
           <div className="text-sm font-medium truncate">{track.name}</div>
           <div className="text-xs text-muted-foreground truncate">
-            {track.artists.join(', ')}
+            {track.artists.join(', ')} {track.albumName && `• ${track.albumName}`}
           </div>
         </div>
       </div>
 
       {/* Playback controls */}
       <div className="flex-1 flex flex-col items-center gap-1">
+        {/* Restrictions info - show when any control is restricted */}
+        {playbackState?.restrictions && (
+          playbackState.restrictions.skippingNext || 
+          playbackState.restrictions.skippingPrev || 
+          playbackState.restrictions.seeking ||
+          playbackState.restrictions.togglingShuffle ||
+          playbackState.restrictions.togglingRepeat
+        ) && (
+          <div className="text-[10px] text-amber-500/80 mb-0.5">
+            Some controls restricted — <a href="https://www.spotify.com/premium" target="_blank" rel="noopener noreferrer" className="underline hover:text-amber-400">Upgrade to Premium</a>
+          </div>
+        )}
         <div className="flex items-center gap-2">
-          {/* Shuffle */}
+          {/* Shuffle - gated by restrictions */}
           <Button
             variant="ghost"
             size="icon"
             className={cn(
               'h-8 w-8',
-              playbackState?.shuffleState && 'text-green-500'
+              playbackState?.shuffleState && 'text-green-500',
+              playbackState?.restrictions?.togglingShuffle && 'opacity-40 cursor-not-allowed'
             )}
             onClick={toggleShuffle}
-            title="Toggle shuffle"
+            disabled={playbackState?.restrictions?.togglingShuffle}
+            title={playbackState?.restrictions?.togglingShuffle ? 'Shuffle requires Premium' : 'Toggle shuffle'}
           >
             <Shuffle className="h-4 w-4" />
           </Button>
 
-          {/* Previous */}
+          {/* Previous - gated by restrictions */}
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8"
+            className={cn(
+              'h-8 w-8',
+              playbackState?.restrictions?.skippingPrev && 'opacity-40 cursor-not-allowed'
+            )}
             onClick={previous}
-            disabled={isLoading}
-            title="Previous track"
+            disabled={isLoading || playbackState?.restrictions?.skippingPrev}
+            title={playbackState?.restrictions?.skippingPrev ? 'Skip back requires Premium' : 'Previous track'}
           >
             <SkipBack className="h-4 w-4" />
           </Button>
@@ -245,28 +263,33 @@ export function SpotifyPlayer() {
             )}
           </Button>
 
-          {/* Next */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            onClick={next}
-            disabled={isLoading}
-            title="Next track"
-          >
-            <SkipForward className="h-4 w-4" />
-          </Button>
-
-          {/* Repeat */}
+          {/* Next - gated by restrictions */}
           <Button
             variant="ghost"
             size="icon"
             className={cn(
               'h-8 w-8',
-              playbackState?.repeatState !== 'off' && 'text-green-500'
+              playbackState?.restrictions?.skippingNext && 'opacity-40 cursor-not-allowed'
+            )}
+            onClick={next}
+            disabled={isLoading || playbackState?.restrictions?.skippingNext}
+            title={playbackState?.restrictions?.skippingNext ? 'Skip forward requires Premium' : 'Next track'}
+          >
+            <SkipForward className="h-4 w-4" />
+          </Button>
+
+          {/* Repeat - gated by restrictions */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn(
+              'h-8 w-8',
+              playbackState?.repeatState !== 'off' && 'text-green-500',
+              playbackState?.restrictions?.togglingRepeat && 'opacity-40 cursor-not-allowed'
             )}
             onClick={cycleRepeat}
-            title={`Repeat: ${playbackState?.repeatState ?? 'off'}`}
+            disabled={playbackState?.restrictions?.togglingRepeat}
+            title={playbackState?.restrictions?.togglingRepeat ? 'Repeat requires Premium' : `Repeat: ${playbackState?.repeatState ?? 'off'}`}
           >
             {playbackState?.repeatState === 'track' ? (
               <Repeat1 className="h-4 w-4" />
@@ -276,21 +299,33 @@ export function SpotifyPlayer() {
           </Button>
         </div>
 
-        {/* Progress bar */}
+        {/* Progress bar - seeking gated by restrictions */}
         <div className="w-full flex items-center gap-2 px-2">
           <span className="text-xs text-muted-foreground w-10 text-right tabular-nums">
             {formatDuration(localProgress)}
           </span>
           <div
             ref={progressRef}
-            className="flex-1 h-1 bg-muted rounded-full cursor-pointer group"
-            onClick={handleSeek}
+            className={cn(
+              "flex-1 h-1 bg-muted rounded-full group",
+              playbackState?.restrictions?.seeking 
+                ? "cursor-default" 
+                : "cursor-pointer"
+            )}
+            onClick={playbackState?.restrictions?.seeking ? undefined : handleSeek}
+            title={playbackState?.restrictions?.seeking ? 'Seeking requires Premium' : undefined}
           >
             <div
-              className="h-full bg-foreground rounded-full relative group-hover:bg-green-500 transition-colors"
+              className={cn(
+                "h-full bg-foreground rounded-full relative transition-colors",
+                !playbackState?.restrictions?.seeking && "group-hover:bg-green-500"
+              )}
               style={{ width: `${progressPercent}%` }}
             >
-              <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-foreground rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
+              {/* Only show seek handle when seeking is allowed */}
+              {!playbackState?.restrictions?.seeking && (
+                <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-foreground rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
+              )}
             </div>
           </div>
           <span className="text-xs text-muted-foreground w-10 tabular-nums">

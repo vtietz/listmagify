@@ -52,6 +52,8 @@ export type Track = {
   } | null;
   /** Track popularity (0-100, 100 = most popular) */
   popularity?: number | null;
+  /** Whether the track contains explicit content */
+  explicit?: boolean;
   /** Who added this track to the playlist (for collaborative playlists) */
   addedBy?: {
     id: string;
@@ -138,6 +140,7 @@ export function mapPlaylistItemToTrack(raw: any): Track {
         }
       : null,
     popularity: typeof t?.popularity === 'number' ? t.popularity : null,
+    explicit: t?.explicit === true,
     addedBy: raw?.added_by?.id
       ? {
           id: String(raw.added_by.id),
