@@ -64,6 +64,14 @@ interface TrackRowProps {
   hourNumber?: number;
   /** Whether to allow toggling insertion markers (disabled when search/filter is active) */
   allowInsertionMarkerToggle?: boolean;
+  /** Whether to hide the built-in AddToMarkedButton (for custom implementations) */
+  hideAddToMarkedButton?: boolean;
+  /** Render function for prefix columns (e.g., match status indicator) - rendered as first grid cells */
+  renderPrefixColumns?: () => React.ReactNode;
+  /** Whether to show match status column (affects grid layout) */
+  showMatchStatusColumn?: boolean;
+  /** Whether to show custom add column (affects grid layout, replaces standard add to marked) */
+  showCustomAddColumn?: boolean;
 }
 
 export function TrackRow({
@@ -94,6 +102,10 @@ export function TrackRow({
   crossesHourBoundary = false,
   hourNumber = 0,
   allowInsertionMarkerToggle = true,
+  hideAddToMarkedButton = false,
+  renderPrefixColumns,
+  showMatchStatusColumn = false,
+  showCustomAddColumn = false,
 }: TrackRowProps) {
   const { isCompact } = useCompactModeStore();
   const { open: openBrowsePanel, setSearchQuery } = useBrowsePanelStore();
@@ -104,8 +116,14 @@ export function TrackRow({
   // Check if any markers exist across all playlists
   const hasAnyMarkers = Object.values(allPlaylists).some((p) => p.markers.length > 0);
   
+  // Don't show standard add column if using custom add column
+  const showStandardAddColumn = hasAnyMarkers && !showCustomAddColumn && !hideAddToMarkedButton;
+  
   // Dynamic grid style based on visible columns
-  const gridStyle = getTrackGridStyle(isPlayerVisible, hasAnyMarkers, isCollaborative);
+  const gridStyle = getTrackGridStyle(isPlayerVisible, showStandardAddColumn, isCollaborative, {
+    showMatchStatusColumn,
+    showCustomAddColumn,
+  });
   
   // Track whether mouse is near top/bottom edge for insertion marker toggle
   // null = not near edge, 'top' = near top edge, 'bottom' = near bottom edge
@@ -279,7 +297,10 @@ export function TrackRow({
       }
       {...(!locked ? { ...restAttributes, ...listeners } : {})}
     >
-      {/* Contributor avatar - only for collaborative playlists (first column) */}
+      {/* Prefix columns (e.g., match status + custom add button for Last.fm) */}
+      {renderPrefixColumns?.()}
+
+      {/* Contributor avatar - only for collaborative playlists */}
       {isCollaborative && (
         <div className="flex items-center justify-center">
           {track.addedBy ? (
@@ -341,12 +362,11 @@ export function TrackRow({
         </button>
       )}
 
-      {/* Add to marked insertion points button - only show when markers exist */}
-      {hasAnyMarkers && (
+      {/* Add to marked insertion points button - only when using standard add column */}
+      {showStandardAddColumn && (
         <AddToMarkedButton
           trackUri={track.uri}
           trackName={track.name}
-          {...(playlistId ? { excludePlaylistId: playlistId } : {})}
         />
       )}
 

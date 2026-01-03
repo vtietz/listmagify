@@ -10,7 +10,6 @@ import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { AlertCircle } from 'lucide-react';
 import { ApiError, AccessTokenExpiredError } from '@/lib/api/client';
 import { SignInButton } from '@/components/auth/SignInButton';
-import { LastfmImportDialog } from '@/components/lastfm/LastfmImportDialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { usePlaylistPanelState } from '@/hooks/usePlaylistPanelState';
 import { PanelToolbar } from './PanelToolbar';
@@ -122,7 +121,7 @@ export function PlaylistPanel({
         selectedCount={state.selection.size}
         isDeleting={state.removeTracks.isPending}
         insertionMarkerCount={state.activeMarkerIndices.size}
-        lastfmEnabled={state.lastfmEnabled}
+        getSelectedTrackUris={state.getSelectedTrackUris}
         onSearchChange={state.handleSearchChange}
         onSortChange={(key, direction) => {
           state.setSortKey(key);
@@ -137,7 +136,6 @@ export function PlaylistPanel({
         onLoadPlaylist={state.handleLoadPlaylist}
         onDeleteSelected={state.handleDeleteSelected}
         onClearInsertionMarkers={() => state.playlistId && state.clearInsertionMarkers(state.playlistId)}
-        onLastfmImport={() => state.setLastfmDialogOpen(true)}
       />
 
       <div
@@ -300,15 +298,6 @@ export function PlaylistPanel({
           </div>
         )}
       </div>
-
-      {/* Last.fm Import Dialog */}
-      <LastfmImportDialog
-        open={state.lastfmDialogOpen}
-        onOpenChange={state.setLastfmDialogOpen}
-        playlistId={state.playlistId}
-        playlistName={state.playlistName}
-        onAddTracks={state.handleLastfmAddTracks}
-      />
     </div>
   );
 }

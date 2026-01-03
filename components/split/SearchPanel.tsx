@@ -12,6 +12,7 @@ import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { Search, X, Loader2 } from 'lucide-react';
 import { useBrowsePanelStore } from '@/hooks/useBrowsePanelStore';
 import { useHydratedCompactMode } from '@/hooks/useCompactModeStore';
+import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
 import { useSavedTracksIndex } from '@/hooks/useSavedTracksIndex';
 import { useTrackPlayback } from '@/hooks/useTrackPlayback';
 import { usePlaylistSort, type SortKey, type SortDirection } from '@/hooks/usePlaylistSort';
@@ -21,6 +22,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { TrackRow } from './TrackRow';
 import { TableHeader } from './TableHeader';
+import { AddSelectedToMarkersButton } from './AddSelectedToMarkersButton';
 import { TRACK_ROW_HEIGHT, TRACK_ROW_HEIGHT_COMPACT, VIRTUALIZATION_OVERSCAN } from './constants';
 import { makeCompositeId } from '@/lib/dnd/id';
 import type { Track } from '@/lib/spotify/types';
@@ -42,9 +44,19 @@ interface SearchPanelProps {
 }
 
 export function SearchPanel({ isActive = true, inputRef: externalInputRef }: SearchPanelProps) {
-  const { searchQuery, setSearchQuery } = useBrowsePanelStore();
+  const { 
+    searchQuery, 
+    setSearchQuery,
+    spotifySelection,
+    toggleSpotifySelection,
+    clearSpotifySelection,
+  } = useBrowsePanelStore();
   const { isLiked, toggleLiked } = useSavedTracksIndex();
   const isCompact = useHydratedCompactMode();
+  
+  // Check if any markers exist (for showing add to markers button)
+  const allPlaylists = useInsertionPointsStore((s) => s.playlists);
+  const hasAnyMarkers = Object.values(allPlaylists).some((p) => p.markers.length > 0);
   
   const scrollRef = useRef<HTMLDivElement>(null);
   const internalInputRef = useRef<HTMLInputElement>(null);
@@ -68,7 +80,9 @@ export function SearchPanel({ isActive = true, inputRef: externalInputRef }: Sea
   // Update store when debounced value changes
   useEffect(() => {
     setSearchQuery(debouncedQuery);
-  }, [debouncedQuery, setSearchQuery]);
+    // Clear selection when search query changes
+    clearSpotifySelection();
+  }, [debouncedQuery, setSearchQuery, clearSpotifySelection]);
   
   // Focus input when panel becomes active
   useEffect(() => {
@@ -205,9 +219,31 @@ export function SearchPanel({ isActive = true, inputRef: externalInputRef }: Sea
     toggleLiked(trackId, currentlyLiked);
   }, [toggleLiked]);
   
-  // Dummy selection handler (search panel doesn't support multi-select)
-  const handleSelect = useCallback(() => {}, []);
-  const handleClick = useCallback(() => {}, []);
+  // Handle track selection with modifier keys
+  const handleSelect = useCallback((selectionKey: string, index: number, event: React.MouseEvent) => {
+    // Toggle selection based on modifier keys
+    if (event.shiftKey || event.ctrlKey || event.metaKey) {
+      toggleSpotifySelection(index);
+    } else {
+      clearSpotifySelection();
+      toggleSpotifySelection(index);
+    }
+  }, [toggleSpotifySelection, clearSpotifySelection]);
+  
+  // Handle click (single select)
+  const handleClick = useCallback((selectionKey: string, index: number) => {
+    clearSpotifySelection();
+    toggleSpotifySelection(index);
+  }, [clearSpotifySelection, toggleSpotifySelection]);
+  
+  // Get selected track URIs for adding to markers
+  const getSelectedTrackUris = useCallback((): string[] => {
+    return Array.from(spotifySelection)
+      .sort((a, b) => a - b)
+      .map((idx) => sortedTracks[idx])
+      .filter((t): t is Track => t !== undefined && !!t.uri)
+      .map((t) => t.uri);
+  }, [spotifySelection, sortedTracks]);
   
   return (
     <div className="flex-1 min-h-0 flex flex-col">
@@ -236,9 +272,23 @@ export function SearchPanel({ isActive = true, inputRef: externalInputRef }: Sea
           )}
         </div>
         {debouncedQuery && totalResults > 0 && (
-          <p className="text-xs text-muted-foreground mt-1.5">
-            {totalResults.toLocaleString()} results
-          </p>
+          <div className="flex items-center justify-between mt-1.5">
+            <p className="text-xs text-muted-foreground">
+              {totalResults.toLocaleString()} results
+              <span className={spotifySelection.size > 0 ? 'ml-2 text-primary' : 'ml-2 invisible'}>
+                ({spotifySelection.size} selected)
+              </span>
+            </p>
+            
+            {/* Add selected to markers button - always show when markers exist, disabled when nothing selected */}
+            {hasAnyMarkers && (
+              <AddSelectedToMarkersButton
+                selectedCount={spotifySelection.size}
+                getTrackUris={getSelectedTrackUris}
+                className="h-7 w-7"
+              />
+            )}
+          </div>
         )}
       </div>
       
@@ -303,7 +353,7 @@ export function SearchPanel({ isActive = true, inputRef: externalInputRef }: Sea
                           track={track}
                           index={virtualRow.index}
                           selectionKey={compositeId}
-                          isSelected={false}
+                          isSelected={spotifySelection.has(virtualRow.index)}
                           isEditable={false}
                           locked={false}
                           onSelect={handleSelect}

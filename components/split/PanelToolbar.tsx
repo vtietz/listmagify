@@ -7,8 +7,9 @@
 'use client';
 
 import { useState, useRef, useEffect, ChangeEvent, useCallback } from 'react';
-import { Search, RefreshCw, Lock, LockOpen, X, SplitSquareHorizontal, SplitSquareVertical, Move, Copy, Trash2, MoreHorizontal, MapPinOff, Pencil, Radio } from 'lucide-react';
+import { Search, RefreshCw, Lock, LockOpen, X, SplitSquareHorizontal, SplitSquareVertical, Move, Copy, Trash2, MoreHorizontal, MapPinOff, Pencil, Plus, Loader2 } from 'lucide-react';
 import { PlaylistSelector } from './PlaylistSelector';
+import { AddSelectedToMarkersButton } from './AddSelectedToMarkersButton';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -37,8 +38,12 @@ import {
 } from '@/components/ui/alert-dialog';
 import { PlaylistDialog } from '@/components/playlist/PlaylistDialog';
 import { useUpdatePlaylist } from '@/lib/spotify/playlistMutations';
+import { useAddTracks } from '@/lib/spotify/playlistMutations';
+import { useInsertionPointsStore, computeInsertionPositions } from '@/hooks/useInsertionPointsStore';
 import { isLikedSongsPlaylist } from '@/hooks/useLikedVirtualPlaylist';
 import { cn } from '@/lib/utils';
+// @ts-expect-error - sonner's type definitions are incompatible with verbatimModuleSyntax
+import { toast } from 'sonner';
 import type { SortKey, SortDirection } from '@/hooks/usePlaylistSort';
 
 /** Minimum width (in px) to show inline buttons instead of dropdown menu */
@@ -59,7 +64,8 @@ interface PanelToolbarProps {
   selectedCount?: number;
   isDeleting?: boolean;
   insertionMarkerCount?: number;
-  lastfmEnabled?: boolean;
+  /** Callback to get selected track URIs for adding to markers */
+  getSelectedTrackUris?: () => string[];
   onSearchChange: (query: string) => void;
   onSortChange?: (key: SortKey, direction: SortDirection) => void;
   onReload: () => void;
@@ -71,7 +77,6 @@ interface PanelToolbarProps {
   onLoadPlaylist: (playlistId: string) => void;
   onDeleteSelected?: () => void;
   onClearInsertionMarkers?: () => void;
-  onLastfmImport?: () => void;
 }
 
 export function PanelToolbar({
@@ -89,7 +94,7 @@ export function PanelToolbar({
   selectedCount = 0,
   isDeleting = false,
   insertionMarkerCount = 0,
-  lastfmEnabled = false,
+  getSelectedTrackUris,
   onSearchChange,
   onSortChange,
   onReload,
@@ -101,17 +106,26 @@ export function PanelToolbar({
   onLoadPlaylist,
   onDeleteSelected,
   onClearInsertionMarkers,
-  onLastfmImport,
 }: PanelToolbarProps) {
   const [localSearch, setLocalSearch] = useState(searchQuery);
   const [isCompact, setIsCompact] = useState(true);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [isInsertingAtMarkers, setIsInsertingAtMarkers] = useState(false);
   const toolbarRef = useRef<HTMLDivElement>(null);
   
   const updatePlaylist = useUpdatePlaylist();
+  const addTracksMutation = useAddTracks();
+  const allPlaylists = useInsertionPointsStore((s) => s.playlists);
+  const shiftAfterMultiInsert = useInsertionPointsStore((s) => s.shiftAfterMultiInsert);
   const isLiked = playlistId ? isLikedSongsPlaylist(playlistId) : false;
   const canEditPlaylistInfo = playlistId && isEditable && !isLiked;
+  
+  // Calculate all playlists with markers (including current - same-playlist insertion is valid)
+  const playlistsWithMarkers = Object.entries(allPlaylists)
+    .filter(([, data]) => data.markers.length > 0);
+  const hasAnyMarkers = playlistsWithMarkers.length > 0;
+  const totalMarkers = playlistsWithMarkers.reduce((sum, [, data]) => sum + data.markers.length, 0);
 
   // Track toolbar width to toggle between compact (dropdown) and expanded (inline buttons) mode
   useEffect(() => {
@@ -147,6 +161,63 @@ export function PanelToolbar({
     });
   }, [playlistId, updatePlaylist]);
 
+  /** Handle inserting selected tracks at all markers (for dropdown menu) */
+  const handleInsertAtMarkers = useCallback(async () => {
+    if (!getSelectedTrackUris || selectedCount === 0 || !hasAnyMarkers) return;
+    
+    setIsInsertingAtMarkers(true);
+    
+    try {
+      const uris = await getSelectedTrackUris();
+      
+      if (uris.length === 0) {
+        toast.error('No tracks to add');
+        return;
+      }
+      
+      let successCount = 0;
+      let errorCount = 0;
+      
+      for (const [targetPlaylistId, playlistData] of playlistsWithMarkers) {
+        if (playlistData.markers.length === 0) continue;
+        
+        try {
+          const positions = computeInsertionPositions(playlistData.markers, uris.length);
+          
+          for (const position of positions) {
+            await addTracksMutation.mutateAsync({
+              playlistId: targetPlaylistId,
+              trackUris: uris,
+              position: position.effectiveIndex,
+            });
+          }
+          
+          if (playlistData.markers.length > 1) {
+            shiftAfterMultiInsert(targetPlaylistId);
+          }
+          
+          successCount += playlistData.markers.length;
+        } catch (error) {
+          console.error(`Failed to add tracks to playlist ${targetPlaylistId}:`, error);
+          errorCount++;
+        }
+      }
+      
+      if (successCount > 0 && errorCount === 0) {
+        toast.success(`Added ${uris.length} track${uris.length > 1 ? 's' : ''} to ${successCount} marker${successCount > 1 ? 's' : ''}`);
+      } else if (successCount > 0 && errorCount > 0) {
+        toast.warning(`Added to ${successCount} markers, failed for ${errorCount} playlist${errorCount > 1 ? 's' : ''}`);
+      } else {
+        toast.error('Failed to add tracks to markers');
+      }
+    } catch (error) {
+      console.error('Failed to insert at markers:', error);
+      toast.error('Failed to add tracks');
+    } finally {
+      setIsInsertingAtMarkers(false);
+    }
+  }, [getSelectedTrackUris, selectedCount, hasAnyMarkers, playlistsWithMarkers, addTracksMutation, shiftAfterMultiInsert]);
+
   return (
     <div ref={toolbarRef} className="flex items-center gap-1.5 p-1.5 border-b border-border bg-card relative z-20">
       {/* Playlist selector - max 50% width */}
@@ -175,27 +246,6 @@ export function PanelToolbar({
       {/* Inline buttons when panel is wide enough */}
       {!isCompact && (
         <>
-          {/* Last.fm Import */}
-          {playlistId && isEditable && !locked && lastfmEnabled && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={onLastfmImport}
-                    className="h-8 w-8 p-0 shrink-0"
-                  >
-                    <Radio className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Import from Last.fm</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
-
           {/* Reload */}
           {playlistId && (
             <Button
@@ -235,6 +285,15 @@ export function PanelToolbar({
             >
               {locked ? <Lock className="h-4 w-4" /> : <LockOpen className="h-4 w-4" />}
             </Button>
+          )}
+
+          {/* Add Selected to Markers */}
+          {playlistId && getSelectedTrackUris && (
+            <AddSelectedToMarkersButton
+              selectedCount={selectedCount}
+              getTrackUris={async () => getSelectedTrackUris()}
+              className="h-8 w-8 p-0 shrink-0"
+            />
           )}
 
           {/* Delete Selected */}
@@ -316,14 +375,6 @@ export function PanelToolbar({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
-            {/* Last.fm Import */}
-            {playlistId && isEditable && !locked && lastfmEnabled && (
-              <DropdownMenuItem onClick={onLastfmImport}>
-                <Radio className="h-4 w-4 mr-2" />
-                Import from Last.fm
-              </DropdownMenuItem>
-            )}
-
             {/* Reload */}
             {playlistId && (
               <DropdownMenuItem onClick={onReload} disabled={isReloading}>
@@ -387,6 +438,22 @@ export function PanelToolbar({
                   Delete {selectedCount} track{selectedCount > 1 ? 's' : ''}
                 </DropdownMenuItem>
               </>
+            )}
+
+            {/* Insert at Markers */}
+            {playlistId && selectedCount > 0 && hasAnyMarkers && (
+              <DropdownMenuItem
+                onClick={handleInsertAtMarkers}
+                disabled={isInsertingAtMarkers}
+                className="text-green-500 focus:text-green-600"
+              >
+                {isInsertingAtMarkers ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Plus className="h-4 w-4 mr-2" />
+                )}
+                Insert {selectedCount} at markers
+              </DropdownMenuItem>
             )}
 
             {/* Clear Insertion Markers */}

@@ -5,7 +5,7 @@
 
 'use client';
 
-import { ArrowUp, ArrowDown, Heart, Play, Plus, TrendingUp, Calendar, Users, Timer } from 'lucide-react';
+import { ArrowUp, ArrowDown, Heart, Play, Plus, TrendingUp, Calendar, Users, Timer, Radio } from 'lucide-react';
 import { useCompactModeStore } from '@/hooks/useCompactModeStore';
 import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
 import { usePlayerStore } from '@/hooks/usePlayerStore';
@@ -20,6 +20,10 @@ interface TableHeaderProps {
   showLikedColumn?: boolean;
   /** Whether this is a collaborative playlist (shows added-by column) */
   isCollaborative?: boolean;
+  /** Whether to show the match status column (for Last.fm import) */
+  showMatchStatusColumn?: boolean;
+  /** Whether to show the custom add column (for Last.fm import) */
+  showCustomAddColumn?: boolean;
 }
 
 /** Grid template for consistent column alignment between header and rows */
@@ -27,14 +31,33 @@ export const TRACK_GRID_CLASSES = 'grid items-center';
 export const TRACK_GRID_CLASSES_NORMAL = 'gap-2 px-2';
 export const TRACK_GRID_CLASSES_COMPACT = 'gap-1 px-1';
 
+export interface TrackGridOptions {
+  showPlayColumn?: boolean;
+  showAddToMarkedColumn?: boolean;
+  showContributorColumn?: boolean;
+  /** Show match status indicator column (for Last.fm import) */
+  showMatchStatusColumn?: boolean;
+  /** Show custom add button column (for Last.fm import - replaces standard add to marked) */
+  showCustomAddColumn?: boolean;
+}
+
 /**
  * Generates dynamic grid template columns based on which columns are visible
  */
-export function getTrackGridStyle(showPlayColumn: boolean, showAddToMarkedColumn: boolean, showContributorColumn: boolean = false) {
+export function getTrackGridStyle(
+  showPlayColumn: boolean,
+  showAddToMarkedColumn: boolean,
+  showContributorColumn: boolean = false,
+  options?: Pick<TrackGridOptions, 'showMatchStatusColumn' | 'showCustomAddColumn'>
+) {
   // Build columns array dynamically
   const columns: string[] = [];
   
-  if (showContributorColumn) columns.push('20px'); // Contributor avatar (first column)
+  // Prefix columns (before standard track columns)
+  if (options?.showMatchStatusColumn) columns.push('20px'); // Match status indicator
+  if (options?.showCustomAddColumn) columns.push('20px');   // Custom add button (e.g., Last.fm)
+  
+  if (showContributorColumn) columns.push('20px'); // Contributor avatar
   if (showPlayColumn) columns.push('20px');        // Play button
   if (showAddToMarkedColumn) columns.push('20px'); // Add to marked button
   columns.push('20px');                            // Heart (liked)
@@ -58,7 +81,16 @@ export const TRACK_GRID_STYLE_WITH_ALBUM = {
   gridTemplateColumns: '20px 20px 20px 28px minmax(80px, 2fr) minmax(60px, 1fr) minmax(60px, 1fr) 36px 36px 44px',
 };
 
-export function TableHeader({ isEditable, sortKey, sortDirection, onSort, showLikedColumn = true, isCollaborative = false }: TableHeaderProps) {
+export function TableHeader({ 
+  isEditable, 
+  sortKey, 
+  sortDirection, 
+  onSort, 
+  showLikedColumn = true, 
+  isCollaborative = false,
+  showMatchStatusColumn = false,
+  showCustomAddColumn = false,
+}: TableHeaderProps) {
   const SortIcon = sortDirection === 'asc' ? ArrowUp : ArrowDown;
   const { isCompact } = useCompactModeStore();
   
@@ -67,8 +99,14 @@ export function TableHeader({ isEditable, sortKey, sortDirection, onSort, showLi
   const playlists = useInsertionPointsStore((s) => s.playlists);
   const hasAnyMarkers = Object.values(playlists).some((p) => p.markers.length > 0);
   
+  // Don't show standard add column if using custom add column
+  const showStandardAddColumn = hasAnyMarkers && !showCustomAddColumn;
+  
   // Dynamic grid style based on visible columns
-  const gridStyle = getTrackGridStyle(isPlayerVisible, hasAnyMarkers, isCollaborative);
+  const gridStyle = getTrackGridStyle(isPlayerVisible, showStandardAddColumn, isCollaborative, {
+    showMatchStatusColumn,
+    showCustomAddColumn,
+  });
 
   const renderColumnHeader = (label: string, key: SortKey, align: 'left' | 'right' = 'left') => {
     const isActive = sortKey === key;
@@ -97,7 +135,21 @@ export function TableHeader({ isEditable, sortKey, sortDirection, onSort, showLi
       className={`sticky top-0 z-20 border-b border-border bg-card backdrop-blur-sm text-muted-foreground ${TRACK_GRID_CLASSES} ${isCompact ? 'h-8 ' + TRACK_GRID_CLASSES_COMPACT : 'h-10 ' + TRACK_GRID_CLASSES_NORMAL}`}
       style={gridStyle}
     >
-      {/* Contributor column - only for collaborative playlists (first column) */}
+      {/* Match status column - for Last.fm import */}
+      {showMatchStatusColumn && (
+        <div className="flex items-center justify-center" title="Match status">
+          <Radio className={isCompact ? 'h-2.5 w-2.5' : 'h-3 w-3'} />
+        </div>
+      )}
+
+      {/* Custom add column - for Last.fm import */}
+      {showCustomAddColumn && (
+        <div className="flex items-center justify-center" title="Add to marked insertion points">
+          <Plus className={isCompact ? 'h-2.5 w-2.5' : 'h-3 w-3'} />
+        </div>
+      )}
+
+      {/* Contributor column - only for collaborative playlists */}
       {isCollaborative && (
         <div className="flex items-center justify-center" title="Added by">
           <Users className={isCompact ? 'h-2.5 w-2.5' : 'h-3 w-3'} />
@@ -111,8 +163,8 @@ export function TableHeader({ isEditable, sortKey, sortDirection, onSort, showLi
         </div>
       )}
 
-      {/* Add to marked column - only when markers exist */}
-      {hasAnyMarkers && (
+      {/* Add to marked column - only when markers exist and not using custom add */}
+      {showStandardAddColumn && (
         <div className="flex items-center justify-center" title="Add to marked insertion points">
           <Plus className={isCompact ? 'h-2.5 w-2.5' : 'h-3 w-3'} />
         </div>

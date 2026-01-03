@@ -1,6 +1,7 @@
 /**
- * Last.fm import components barrel export
+ * Last.fm components barrel export
+ * Note: Main Last.fm browse functionality is in components/split/LastfmBrowseTab.tsx
  */
 
-export { LastfmImportDialog } from './LastfmImportDialog';
-export { LastfmResultList } from './LastfmResultList';
+// Placeholder export - main Last.fm functionality is in the split components
+export {};

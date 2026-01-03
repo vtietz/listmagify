@@ -81,7 +81,6 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
   const [playlistDescription, setPlaylistDescription] = useState<string>('');
   const [sortKey, setSortKey] = useState<SortKey>('position');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
-  const [lastfmDialogOpen, setLastfmDialogOpen] = useState(false);
 
   const playlistId = panel?.playlistId;
   const searchQuery = panel?.searchQuery || '';
@@ -205,11 +204,6 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
     retry: false,
   });
   const lastfmEnabled = lastfmConfig?.enabled ?? false;
-
-  const handleLastfmAddTracks = useCallback(async (trackUris: string[]) => {
-    if (!playlistId || trackUris.length === 0) return;
-    await addTracks.mutateAsync({ playlistId, trackUris });
-  }, [playlistId, addTracks]);
 
   const isReloading = isAutoLoading || isRefetching;
 
@@ -440,6 +434,18 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
     });
   }, [playlistId, selection, filteredTracks, removeTracks, snapshotId, panelId, setSelection]);
 
+  // Get URIs of selected tracks (for adding to markers)
+  const getSelectedTrackUris = useCallback((): string[] => {
+    const uris: string[] = [];
+    filteredTracks.forEach((track: Track, index: number) => {
+      const key = getTrackSelectionKey(track, index);
+      if (selection.has(key)) {
+        uris.push(track.uri);
+      }
+    });
+    return uris;
+  }, [filteredTracks, selection]);
+
   const selectionKey = useCallback((track: Track, index: number) => getTrackSelectionKey(track, index), []);
 
   const { handleTrackClick, handleTrackSelect, handleKeyDownNavigation, focusedIndex } = useTrackListSelection({
@@ -502,8 +508,6 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
     locked,
     sortKey,
     sortDirection,
-    lastfmDialogOpen,
-    setLastfmDialogOpen,
     setSortKey,
     setSortDirection,
 
@@ -545,7 +549,6 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
     // Mutations
     removeTracks,
     lastfmEnabled,
-    handleLastfmAddTracks,
 
     // Handlers
     handleSearchChange,
@@ -564,6 +567,7 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
     selectionKey,
     clearInsertionMarkers,
     focusedIndex,
+    getSelectedTrackUris,
 
     // Mouse/keyboard state
     isMouseOver,

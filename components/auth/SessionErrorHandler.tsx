@@ -56,8 +56,13 @@ export function SessionErrorHandler() {
     await signOut({ redirect: false });
     
     // Redirect to login with current path for return
-    const currentPath = window.location.pathname + window.location.search;
-    window.location.href = `/login?reason=expired&next=${encodeURIComponent(currentPath)}`;
+    // Only use pathname (not query params) to avoid nested URL encoding loops
+    const nextPath = window.location.pathname;
+    // Don't add next param if already on login page
+    const loginUrl = nextPath === '/login' 
+      ? '/login?reason=expired'
+      : `/login?reason=expired&next=${encodeURIComponent(nextPath)}`;
+    window.location.href = loginUrl;
   }, []);
 
   return (

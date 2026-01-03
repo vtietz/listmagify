@@ -332,8 +332,61 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
     // Extract track data for the overlay
     const { active } = event;
     const track = active.data.current?.track;
+    const trackType = active.data.current?.type;
     const compositeId = active.id as string; // e.g., "panel-1:track-abc123"
     const sourcePanel = active.data.current?.panelId;
+    
+    // Handle Last.fm track drag start
+    if (trackType === 'lastfm-track') {
+      const matchedTrack = active.data.current?.matchedTrack;
+      
+      // Create a minimal Track object for the overlay
+      // Use matched Spotify track if available, otherwise use Last.fm track info
+      const overlayTrack: Track = matchedTrack 
+        ? {
+            id: matchedTrack.id,
+            uri: matchedTrack.uri,
+            name: matchedTrack.name,
+            artists: matchedTrack.artist ? [matchedTrack.artist] : [],
+            artistObjects: matchedTrack.artist ? [{ id: null, name: matchedTrack.artist }] : [],
+            durationMs: matchedTrack.durationMs ?? 0,
+          }
+        : {
+            id: `lastfm-${track.trackName}`,
+            uri: '',
+            name: track.trackName,
+            artists: [track.artistName],
+            artistObjects: [{ id: null, name: track.artistName }],
+            durationMs: 0,
+          };
+      
+      setActiveTrack(overlayTrack);
+      setActiveSelectionCount(1); // Last.fm only supports single track drag for now
+      setActiveId(compositeId);
+      setSourcePanelId(null); // No source panel for Last.fm tracks
+      
+      logDebug('🎵 DRAG START (Last.fm):', {
+        track: track.trackName,
+        artist: track.artistName,
+        hasMatch: !!matchedTrack,
+      });
+      
+      // Start tracking pointer
+      pointerTracker.startTracking();
+      autoScroller.start(
+        () => pointerTracker.getPosition(),
+        () => panelVirtualizersRef.current
+      );
+      
+      const cleanup = () => {
+        pointerTracker.stopTracking();
+        autoScroller.stop();
+        document.removeEventListener('pointerup', cleanup);
+      };
+      document.addEventListener('pointerup', cleanup, { once: true });
+      
+      return;
+    }
     
     if (track) {
       // Resolve ordered selection from the source panel; fall back to the active track
@@ -569,13 +622,53 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
     const sourceData = active.data.current;
     const targetData = over.data.current;
 
-    // Source must be a track
-    if (!sourceData || sourceData.type !== 'track') {
+    // Source must be a track or lastfm-track
+    if (!sourceData || (sourceData.type !== 'track' && sourceData.type !== 'lastfm-track')) {
       return;
     }
 
     // Target can be either a track or a panel
     if (!targetData || (targetData.type !== 'track' && targetData.type !== 'panel')) {
+      return;
+    }
+    
+    // Handle Last.fm track drops (copy only - no source playlist)
+    if (sourceData.type === 'lastfm-track') {
+      const matchedTrack = sourceData.matchedTrack;
+      
+      // Must have a matched Spotify track
+      if (!matchedTrack?.uri) {
+        toast.error('Track not matched to Spotify');
+        return;
+      }
+      
+      const targetPanelId = targetData.panelId;
+      const targetPlaylistId = targetData.playlistId;
+      
+      if (!targetPanelId || !targetPlaylistId) {
+        console.error('Missing target panel or playlist context');
+        return;
+      }
+      
+      // Find target panel and verify it's editable
+      const targetPanel = panels.find((p) => p.id === targetPanelId);
+      if (!targetPanel || !targetPanel.isEditable) {
+        toast.error('Target playlist is not editable');
+        return;
+      }
+      
+      // Use computed drop position or fall back to target data
+      const targetIndex = finalDropPosition ?? (targetData.position ?? 0);
+      
+      logDebug('✅ ADD from Last.fm:', matchedTrack.name, '→', targetPlaylistId, 'at', targetIndex);
+      
+      // Add track to target playlist
+      addTracks.mutate({
+        playlistId: targetPlaylistId,
+        trackUris: [matchedTrack.uri],
+        position: targetIndex,
+      });
+      
       return;
     }
 

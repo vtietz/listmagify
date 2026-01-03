@@ -2,7 +2,9 @@
  * BrowsePanel - container component for the right-side browse/search panel.
  * 
  * Contains:
+ * - Tab switcher: Spotify | Last.fm
  * - SearchPanel: Spotify search with drag-to-playlist support
+ * - LastfmBrowseTab: Last.fm profile browsing with lazy matching
  * - RecommendationsPanel: AI-powered track suggestions based on selection
  * 
  * Features a resizable split between search and recommendations.
@@ -10,13 +12,17 @@
 
 'use client';
 
-import { useState, useRef, useCallback, useMemo } from 'react';
-import { useBrowsePanelStore } from '@/hooks/useBrowsePanelStore';
+import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useBrowsePanelStore, type BrowseTab } from '@/hooks/useBrowsePanelStore';
 import { useSplitGridStore } from '@/hooks/useSplitGridStore';
 import { parseSelectionKey } from '@/lib/dnd/selection';
 import { cn } from '@/lib/utils';
 import { SearchPanel } from './SearchPanel';
+import { LastfmBrowseTab } from './LastfmBrowseTab';
 import { RecommendationsPanel } from './RecommendationsPanel';
+import { Button } from '@/components/ui/button';
+import { Search, Radio } from 'lucide-react';
 
 /** Re-export panel ID for backwards compatibility */
 export { SEARCH_PANEL_ID as BROWSE_PANEL_ID } from './SearchPanel';
@@ -26,6 +32,8 @@ export function BrowsePanel() {
     isOpen, 
     width, 
     setWidth,
+    activeTab,
+    setActiveTab,
     recsExpanded,
     toggleRecsExpanded,
     recsHeight,
@@ -35,6 +43,18 @@ export function BrowsePanel() {
   
   const resizeRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  
+  // Check if Last.fm is enabled
+  const { data: lastfmStatus } = useQuery({
+    queryKey: ['lastfm-status'],
+    queryFn: async () => {
+      const response = await fetch('/api/lastfm/status');
+      if (!response.ok) return { enabled: false };
+      return response.json() as Promise<{ enabled: boolean }>;
+    },
+    staleTime: Infinity,
+  });
+  const lastfmEnabled = lastfmStatus?.enabled ?? false;
   
   // Track resize dragging state for visual feedback
   const [isResizing, setIsResizing] = useState(false);
@@ -123,7 +143,7 @@ export function BrowsePanel() {
   
   if (!isOpen) return null;
   
-  const showRecs = selectedTrackIds.length > 0;
+  const showRecs = selectedTrackIds.length > 0 && activeTab === 'spotify';
   
   return (
     <div
@@ -142,12 +162,50 @@ export function BrowsePanel() {
         )} />
       </div>
       
-      {/* Search Panel - takes remaining space */}
+      {/* Tab switcher - only show if Last.fm is enabled */}
+      {lastfmEnabled && (
+        <div className="flex border-b border-border">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setActiveTab('spotify')}
+            className={cn(
+              'flex-1 rounded-none h-9 gap-1.5',
+              activeTab === 'spotify' 
+                ? 'bg-accent text-accent-foreground' 
+                : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            <Search className="h-3.5 w-3.5" />
+            Spotify
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setActiveTab('lastfm')}
+            className={cn(
+              'flex-1 rounded-none h-9 gap-1.5',
+              activeTab === 'lastfm' 
+                ? 'bg-accent text-accent-foreground' 
+                : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            <Radio className="h-3.5 w-3.5" />
+            Last.fm
+          </Button>
+        </div>
+      )}
+      
+      {/* Tab content - takes remaining space */}
       <div className={cn(
         "flex-1 min-h-0 flex flex-col",
         showRecs && recsExpanded && "overflow-hidden"
       )}>
-        <SearchPanel isActive={isOpen} inputRef={inputRef} />
+        {activeTab === 'spotify' ? (
+          <SearchPanel isActive={isOpen} inputRef={inputRef} />
+        ) : (
+          <LastfmBrowseTab isActive={isOpen} />
+        )}
       </div>
       
       {/* Recommendations Panel with resizable split */}

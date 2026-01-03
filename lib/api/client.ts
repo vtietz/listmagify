@@ -48,13 +48,19 @@ export async function apiFetch<T = any>(
 
     // Handle 401 Unauthorized - token expired
     if (response.status === 401 || data.error === "token_expired") {
-      toast.error("Your session has expired. Redirecting to login...");
+      // Don't redirect if already on login page (prevents infinite loop)
+      const isLoginPage = window.location.pathname === '/login';
       
-      // Redirect to login after a brief delay to show the toast
-      setTimeout(() => {
-        const currentPath = window.location.pathname + window.location.search;
-        window.location.href = `/login?reason=expired&next=${encodeURIComponent(currentPath)}`;
-      }, 1500);
+      if (!isLoginPage) {
+        toast.error("Your session has expired. Redirecting to login...");
+        
+        // Redirect to login after a brief delay to show the toast
+        // Only use pathname as next (not query params to avoid nested encoding)
+        setTimeout(() => {
+          const nextPath = window.location.pathname;
+          window.location.href = `/login?reason=expired&next=${encodeURIComponent(nextPath)}`;
+        }, 1500);
+      }
       
       throw new AccessTokenExpiredError(data.error || "Session expired");
     }
