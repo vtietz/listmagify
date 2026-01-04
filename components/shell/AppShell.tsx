@@ -34,6 +34,7 @@ type AppShellProps = {
 export function AppShell({ headerTitle = "Listmagify", children }: AppShellProps) {
   const pathname = usePathname();
   const isBrowsePanelOpen = useBrowsePanelStore((state) => state.isOpen);
+  const { authenticated } = useSessionUser();
   
   // Landing page doesn't use AppShell wrapper (has its own layout)
   const isLandingPage = pathname === '/';
@@ -72,7 +73,7 @@ export function AppShell({ headerTitle = "Listmagify", children }: AppShellProps
       </div>
       <div className="flex-1 min-h-0 flex overflow-hidden">
         <main className="flex-1 min-w-0 overflow-auto">{children}</main>
-        {isBrowsePanelOpen && <BrowsePanel />}
+        {authenticated && isBrowsePanelOpen && <BrowsePanel />}
       </div>
       <div className="flex-shrink-0 bg-background">
         <SpotifyPlayer />
