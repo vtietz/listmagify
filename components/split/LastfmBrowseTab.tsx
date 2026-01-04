@@ -304,6 +304,27 @@ export function LastfmBrowseTab({ isActive = true }: LastfmBrowseTabProps) {
     });
   }, [allTracks]);
   
+  // Compute matched URIs for all selected tracks (used for multi-select drag)
+  const selectedMatchedUris = useMemo(() => {
+    if (lastfmSelection.size === 0) return [];
+    
+    const uris: string[] = [];
+    const selectedIndices = Array.from(lastfmSelection).sort((a, b) => a - b);
+    
+    for (const idx of selectedIndices) {
+      const track = allLastfmTracks[idx];
+      if (!track) continue;
+      
+      const cached = getCachedMatch(track);
+      if (cached?.spotifyTrack?.uri && 
+          (cached.confidence === 'high' || cached.confidence === 'medium')) {
+        uris.push(cached.spotifyTrack.uri);
+      }
+    }
+    
+    return uris;
+  }, [lastfmSelection, allLastfmTracks, getCachedMatch]);
+  
   // Track URIs for playback (only matched tracks)
   const trackUris = useMemo(() => 
     allTracks
@@ -681,6 +702,7 @@ export function LastfmBrowseTab({ isActive = true }: LastfmBrowseTabProps) {
                             trackName: dto.trackName,
                             albumName: dto.albumName,
                           }}
+                          selectedMatchedUris={isSelected ? selectedMatchedUris : undefined}
                           {...optionalProps}
                         />
                       </div>

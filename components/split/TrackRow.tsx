@@ -84,6 +84,8 @@ interface TrackRowProps {
   matchedTrack?: { id: string; uri: string; name: string; artist?: string | undefined; durationMs?: number | undefined } | null;
   /** Original Last.fm track DTO for drag data */
   lastfmDto?: { artistName: string; trackName: string; albumName?: string | undefined };
+  /** All selected tracks' matched URIs for multi-select Last.fm drag */
+  selectedMatchedUris?: string[];
 }
 
 export function TrackRow({
@@ -124,6 +126,7 @@ export function TrackRow({
   dragType = 'track',
   matchedTrack,
   lastfmDto,
+  selectedMatchedUris,
 }: TrackRowProps) {
   const { isCompact } = useCompactModeStore();
   const { open: openBrowsePanel, setSearchQuery } = useBrowsePanelStore();
@@ -168,7 +171,8 @@ export function TrackRow({
       ? {
           type: 'lastfm-track',
           track: lastfmDto, // Original Last.fm DTO for overlay
-          matchedTrack, // Matched Spotify track for adding to playlist
+          matchedTrack, // Matched Spotify track for adding to playlist (single track)
+          selectedMatchedUris, // All selected tracks' matched URIs for multi-select
           panelId,
           position, // Global position
         }

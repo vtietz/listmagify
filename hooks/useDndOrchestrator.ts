@@ -35,6 +35,7 @@ import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { useAddTracks, useRemoveTracks, useReorderTracks } from '@/lib/spotify/playlistMutations';
 import { logDebug } from '@/lib/utils/debug';
 import { getTrackSelectionKey } from '@/lib/dnd/selection';
+import { useBrowsePanelStore } from './useBrowsePanelStore';
 // @ts-expect-error - sonner's type definitions are incompatible with verbatimModuleSyntax
 import { toast } from 'sonner';
 import type { Track } from '@/lib/spotify/types';
@@ -339,6 +340,12 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
     // Handle Last.fm track drag start
     if (trackType === 'lastfm-track') {
       const matchedTrack = active.data.current?.matchedTrack;
+      const selectedMatchedUris = active.data.current?.selectedMatchedUris as string[] | undefined;
+      
+      // Selection count is based on matched URIs (the actual tracks that will be dropped)
+      const selectionCount = selectedMatchedUris && selectedMatchedUris.length > 0 
+        ? selectedMatchedUris.length 
+        : 1;
       
       // Create a minimal Track object for the overlay
       // Use matched Spotify track if available, otherwise use Last.fm track info
@@ -361,7 +368,7 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
           };
       
       setActiveTrack(overlayTrack);
-      setActiveSelectionCount(1); // Last.fm only supports single track drag for now
+      setActiveSelectionCount(selectionCount);
       setActiveId(compositeId);
       setSourcePanelId(null); // No source panel for Last.fm tracks
       
@@ -369,6 +376,7 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
         track: track.trackName,
         artist: track.artistName,
         hasMatch: !!matchedTrack,
+        selectionCount,
       });
       
       // Start tracking pointer
@@ -635,12 +643,7 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
     // Handle Last.fm track drops (copy only - no source playlist)
     if (sourceData.type === 'lastfm-track') {
       const matchedTrack = sourceData.matchedTrack;
-      
-      // Must have a matched Spotify track
-      if (!matchedTrack?.uri) {
-        toast.error('Track not matched to Spotify');
-        return;
-      }
+      const selectedMatchedUris = sourceData.selectedMatchedUris as string[] | undefined;
       
       const targetPanelId = targetData.panelId;
       const targetPlaylistId = targetData.playlistId;
@@ -657,15 +660,32 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
         return;
       }
       
+      // Determine track URIs to add
+      let trackUris: string[];
+      
+      if (selectedMatchedUris && selectedMatchedUris.length > 0) {
+        // Multi-selection: use pre-computed matched URIs from drag data
+        trackUris = selectedMatchedUris;
+        
+        // Clear selection after successful drag
+        useBrowsePanelStore.getState().clearLastfmSelection();
+      } else if (matchedTrack?.uri) {
+        // Single track: use the matched track from drag data
+        trackUris = [matchedTrack.uri];
+      } else {
+        toast.error('Track not matched to Spotify');
+        return;
+      }
+      
       // Use computed drop position or fall back to target data
       const targetIndex = finalDropPosition ?? (targetData.position ?? 0);
       
-      logDebug('✅ ADD from Last.fm:', matchedTrack.name, '→', targetPlaylistId, 'at', targetIndex);
+      logDebug('✅ ADD from Last.fm:', trackUris.length, 'tracks →', targetPlaylistId, 'at', targetIndex);
       
-      // Add track to target playlist
+      // Add tracks to target playlist
       addTracks.mutate({
         playlistId: targetPlaylistId,
-        trackUris: [matchedTrack.uri],
+        trackUris,
         position: targetIndex,
       });
       
