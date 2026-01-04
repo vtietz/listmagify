@@ -24,6 +24,8 @@ interface TableHeaderProps {
   showMatchStatusColumn?: boolean;
   /** Whether to show the custom add column (for Last.fm import) */
   showCustomAddColumn?: boolean;
+  /** Whether to show wider date column for scrobble timestamps */
+  showScrobbleDateColumn?: boolean;
 }
 
 /** Grid template for consistent column alignment between header and rows */
@@ -39,6 +41,8 @@ export interface TrackGridOptions {
   showMatchStatusColumn?: boolean;
   /** Show custom add button column (for Last.fm import - replaces standard add to marked) */
   showCustomAddColumn?: boolean;
+  /** Show wider date column for scrobble timestamps instead of year */
+  showScrobbleDateColumn?: boolean;
 }
 
 /**
@@ -48,7 +52,7 @@ export function getTrackGridStyle(
   showPlayColumn: boolean,
   showAddToMarkedColumn: boolean,
   showContributorColumn: boolean = false,
-  options?: Pick<TrackGridOptions, 'showMatchStatusColumn' | 'showCustomAddColumn'>
+  options?: Pick<TrackGridOptions, 'showMatchStatusColumn' | 'showCustomAddColumn' | 'showScrobbleDateColumn'>
 ) {
   // Build columns array dynamically
   const columns: string[] = [];
@@ -65,7 +69,8 @@ export function getTrackGridStyle(
   columns.push('minmax(80px, 2fr)');               // Title
   columns.push('minmax(60px, 1fr)');               // Artist
   columns.push('minmax(60px, 1fr)');               // Album
-  columns.push('36px');                            // Year
+  // Date column: wider for scrobble dates (e.g., "3 Jan, 10:24"), narrow for just year
+  columns.push(options?.showScrobbleDateColumn ? '90px' : '36px');
   columns.push('36px');                            // Popularity
   columns.push('44px');                            // Time
   columns.push('52px');                            // Cumulative time
@@ -90,6 +95,7 @@ export function TableHeader({
   isCollaborative = false,
   showMatchStatusColumn = false,
   showCustomAddColumn = false,
+  showScrobbleDateColumn = false,
 }: TableHeaderProps) {
   const SortIcon = sortDirection === 'asc' ? ArrowUp : ArrowDown;
   const { isCompact } = useCompactModeStore();
@@ -106,6 +112,7 @@ export function TableHeader({
   const gridStyle = getTrackGridStyle(isPlayerVisible, showStandardAddColumn, isCollaborative, {
     showMatchStatusColumn,
     showCustomAddColumn,
+    showScrobbleDateColumn,
   });
 
   const renderColumnHeader = (label: string, key: SortKey, align: 'left' | 'right' = 'left') => {

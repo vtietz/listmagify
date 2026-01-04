@@ -106,3 +106,103 @@ export function formatReleaseDate(
   // Full date
   return `${monthName} ${parseInt(day, 10)}, ${year}`;
 }
+
+/**
+ * Format a scrobble/play timestamp in Last.fm style
+ * - "X min ago" for < 1 hour
+ * - "X hours ago" for < 24 hours (same day feel)
+ * - "3 Jan, 10:24" for recent dates (current year)
+ * - "31 Dec 2024, 23:52" for older dates (different year)
+ * 
+ * @param timestamp - Unix timestamp in seconds
+ * @returns Human-readable relative or absolute date string
+ */
+export function formatScrobbleDate(timestamp: number): string {
+  const now = Date.now();
+  const date = new Date(timestamp * 1000);
+  const diffMs = now - date.getTime();
+  const diffMinutes = Math.floor(diffMs / (1000 * 60));
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  
+  // < 1 minute ago
+  if (diffMinutes < 1) {
+    return 'just now';
+  }
+  
+  // < 1 hour ago
+  if (diffMinutes < 60) {
+    return `${diffMinutes} min ago`;
+  }
+  
+  // < 24 hours ago
+  if (diffHours < 24) {
+    return diffHours === 1 ? '1 hour ago' : `${diffHours} hours ago`;
+  }
+  
+  // Format date parts
+  const day = date.getDate();
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const month = monthNames[date.getMonth()];
+  const hours = date.getHours().toString().padStart(2, '0');
+  const minutes = date.getMinutes().toString().padStart(2, '0');
+  const year = date.getFullYear();
+  const currentYear = new Date().getFullYear();
+  
+  // Same year - shorter format
+  if (year === currentYear) {
+    return `${day} ${month}, ${hours}:${minutes}`;
+  }
+  
+  // Different year - include year
+  return `${day} ${month} ${year}, ${hours}:${minutes}`;
+}
+
+/**
+ * Get a short version of scrobble date for narrow columns
+ * - "Xm" for < 1 hour
+ * - "Xh" for < 24 hours
+ * - "3 Jan" for current year
+ * - "31.12.24" for different year
+ * 
+ * @param timestamp - Unix timestamp in seconds
+ * @returns Short date string
+ */
+export function formatScrobbleDateShort(timestamp: number): string {
+  const now = Date.now();
+  const date = new Date(timestamp * 1000);
+  const diffMs = now - date.getTime();
+  const diffMinutes = Math.floor(diffMs / (1000 * 60));
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  
+  // < 1 minute ago
+  if (diffMinutes < 1) {
+    return 'now';
+  }
+  
+  // < 1 hour ago
+  if (diffMinutes < 60) {
+    return `${diffMinutes}m`;
+  }
+  
+  // < 24 hours ago
+  if (diffHours < 24) {
+    return `${diffHours}h`;
+  }
+  
+  // Format date parts
+  const day = date.getDate();
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const month = monthNames[date.getMonth()];
+  const year = date.getFullYear();
+  const currentYear = new Date().getFullYear();
+  
+  // Same year - day + month
+  if (year === currentYear) {
+    return `${day} ${month}`;
+  }
+  
+  // Different year - compact date
+  const shortYear = String(year).slice(-2);
+  const monthNum = (date.getMonth() + 1).toString().padStart(2, '0');
+  return `${day}.${monthNum}.${shortYear}`;
+}

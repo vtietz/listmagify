@@ -575,7 +575,8 @@ export function LastfmBrowseTab({ isActive = true }: LastfmBrowseTabProps) {
                   onSort={handleSort}
                   showLikedColumn={true}
                   showMatchStatusColumn={true}
-                  showCustomAddColumn={true}
+                  showCustomAddColumn={hasAnyMarkers}
+                  showScrobbleDateColumn={true}
                 />
                 <div
                   style={{
@@ -607,20 +608,22 @@ export function LastfmBrowseTab({ isActive = true }: LastfmBrowseTabProps) {
                       onPause: pausePlayback,
                     } : {};
                     
-                    // Render prefix columns (match status + custom add button)
+                    // Render prefix columns (match status + custom add button when markers exist)
                     const renderPrefixColumns = () => (
                       <>
                         {/* Match status indicator */}
                         <div className="flex items-center justify-center">
                           <MatchStatusIndicator status={matchStatus} />
                         </div>
-                        {/* Last.fm add to marked button (matches first, then adds) */}
-                        <div className="flex items-center justify-center">
-                          <LastfmAddToMarkedButton
-                            lastfmTrack={dto}
-                            trackName={track.name}
-                          />
-                        </div>
+                        {/* Last.fm add to marked button (only when markers exist) */}
+                        {hasAnyMarkers && (
+                          <div className="flex items-center justify-center">
+                            <LastfmAddToMarkedButton
+                              lastfmTrack={dto}
+                              trackName={track.name}
+                            />
+                          </div>
+                        )}
                       </>
                     );
                     
@@ -651,8 +654,10 @@ export function LastfmBrowseTab({ isActive = true }: LastfmBrowseTabProps) {
                           isLiked={liked}
                           isPlaying={isMatched && track.id ? isTrackPlaying(track.id) : false}
                           showMatchStatusColumn={true}
-                          showCustomAddColumn={true}
+                          showCustomAddColumn={hasAnyMarkers}
                           renderPrefixColumns={renderPrefixColumns}
+                          scrobbleTimestamp={dto.playedAt}
+                          showScrobbleDateColumn={true}
                           {...optionalProps}
                         />
                       </div>

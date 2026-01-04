@@ -10,7 +10,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import type { Track } from '@/lib/spotify/types';
 import { makeCompositeId, getTrackPosition } from '@/lib/dnd/id';
 import { cn } from '@/lib/utils';
-import { formatDuration, formatReleaseDate } from '@/lib/utils/format';
+import { formatDuration, formatReleaseDate, formatScrobbleDate } from '@/lib/utils/format';
 import { Heart, Play, Pause, Loader2, MapPin } from 'lucide-react';
 import { useCompactModeStore } from '@/hooks/useCompactModeStore';
 import { useBrowsePanelStore } from '@/hooks/useBrowsePanelStore';
@@ -72,6 +72,10 @@ interface TrackRowProps {
   showMatchStatusColumn?: boolean;
   /** Whether to show custom add column (affects grid layout, replaces standard add to marked) */
   showCustomAddColumn?: boolean;
+  /** Unix timestamp (seconds) of when track was scrobbled/played - displayed instead of release year */
+  scrobbleTimestamp?: number;
+  /** Whether to use wider date column for scrobble dates (affects grid layout) */
+  showScrobbleDateColumn?: boolean;
 }
 
 export function TrackRow({
@@ -106,6 +110,8 @@ export function TrackRow({
   renderPrefixColumns,
   showMatchStatusColumn = false,
   showCustomAddColumn = false,
+  scrobbleTimestamp,
+  showScrobbleDateColumn = false,
 }: TrackRowProps) {
   const { isCompact } = useCompactModeStore();
   const { open: openBrowsePanel, setSearchQuery } = useBrowsePanelStore();
@@ -123,6 +129,7 @@ export function TrackRow({
   const gridStyle = getTrackGridStyle(isPlayerVisible, showStandardAddColumn, isCollaborative, {
     showMatchStatusColumn,
     showCustomAddColumn,
+    showScrobbleDateColumn,
   });
   
   // Track whether mouse is near top/bottom edge for insertion marker toggle
@@ -484,13 +491,22 @@ export function TrackRow({
         )}
       </div>
 
-      {/* Release Year - shows year, tooltip shows full date */}
-      <div 
-        className={cn('text-muted-foreground tabular-nums text-center select-none', isCompact ? 'text-xs' : 'text-sm')}
-        title={track.album?.releaseDate ? `Released: ${formatReleaseDate(track.album.releaseDate, track.album.releaseDatePrecision)}` : 'Release date unknown'}
-      >
-        {track.album?.releaseDate ? track.album.releaseDate.substring(0, 4) : '—'}
-      </div>
+      {/* Date column - shows scrobble date if available, otherwise release year */}
+      {scrobbleTimestamp ? (
+        <div 
+          className={cn('text-muted-foreground tabular-nums text-center select-none whitespace-nowrap', isCompact ? 'text-xs' : 'text-sm')}
+          title={`Scrobbled: ${new Date(scrobbleTimestamp * 1000).toLocaleString()}`}
+        >
+          {formatScrobbleDate(scrobbleTimestamp)}
+        </div>
+      ) : (
+        <div 
+          className={cn('text-muted-foreground tabular-nums text-center select-none', isCompact ? 'text-xs' : 'text-sm')}
+          title={track.album?.releaseDate ? `Released: ${formatReleaseDate(track.album.releaseDate, track.album.releaseDatePrecision)}` : 'Release date unknown'}
+        >
+          {track.album?.releaseDate ? track.album.releaseDate.substring(0, 4) : '—'}
+        </div>
+      )}
 
       {/* Popularity bar - visual representation of 0-100 popularity */}
       <div 
