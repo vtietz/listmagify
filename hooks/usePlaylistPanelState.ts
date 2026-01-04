@@ -36,6 +36,9 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
   const queryClient = useQueryClient();
   const scrollRef = useRef<HTMLDivElement>(null);
   
+  // Track scroll element for virtualizer (use state to avoid flushSync during render)
+  const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null);
+  
   // Track if mouse is over this panel for Ctrl+hover mode preview
   const [isMouseOver, setIsMouseOver] = useState(false);
   const [isCtrlPressed, setIsCtrlPressed] = useState(false);
@@ -102,8 +105,9 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
     (el: HTMLDivElement | null) => {
       (scrollRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
       setDroppableRef(el);
+      setScrollElement(el);
     },
-    [setDroppableRef]
+    [setDroppableRef, setScrollElement]
   );
 
   // Insertion markers
@@ -356,7 +360,7 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
 
   const virtualizer = useVirtualizer({
     count: deferredCount,
-    getScrollElement: () => scrollRef.current,
+    getScrollElement: () => scrollElement,
     estimateSize: () => rowHeight,
     overscan: VIRTUALIZATION_OVERSCAN,
   });

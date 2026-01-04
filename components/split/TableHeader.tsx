@@ -26,6 +26,8 @@ interface TableHeaderProps {
   showCustomAddColumn?: boolean;
   /** Whether to show wider date column for scrobble timestamps */
   showScrobbleDateColumn?: boolean;
+  /** Whether to show cumulative time column (default true) */
+  showCumulativeTime?: boolean;
 }
 
 /** Grid template for consistent column alignment between header and rows */
@@ -43,6 +45,8 @@ export interface TrackGridOptions {
   showCustomAddColumn?: boolean;
   /** Show wider date column for scrobble timestamps instead of year */
   showScrobbleDateColumn?: boolean;
+  /** Show cumulative time column (default true) */
+  showCumulativeTime?: boolean;
 }
 
 /**
@@ -52,7 +56,7 @@ export function getTrackGridStyle(
   showPlayColumn: boolean,
   showAddToMarkedColumn: boolean,
   showContributorColumn: boolean = false,
-  options?: Pick<TrackGridOptions, 'showMatchStatusColumn' | 'showCustomAddColumn' | 'showScrobbleDateColumn'>
+  options?: Pick<TrackGridOptions, 'showMatchStatusColumn' | 'showCustomAddColumn' | 'showScrobbleDateColumn' | 'showCumulativeTime'>
 ) {
   // Build columns array dynamically
   const columns: string[] = [];
@@ -73,7 +77,10 @@ export function getTrackGridStyle(
   columns.push(options?.showScrobbleDateColumn ? '90px' : '36px');
   columns.push('36px');                            // Popularity
   columns.push('44px');                            // Time
-  columns.push('52px');                            // Cumulative time
+  // Cumulative time column (default: show)
+  if (options?.showCumulativeTime !== false) {
+    columns.push('52px');                          // Cumulative time
+  }
   
   return { gridTemplateColumns: columns.join(' ') };
 }
@@ -96,6 +103,7 @@ export function TableHeader({
   showMatchStatusColumn = false,
   showCustomAddColumn = false,
   showScrobbleDateColumn = false,
+  showCumulativeTime = true,
 }: TableHeaderProps) {
   const SortIcon = sortDirection === 'asc' ? ArrowUp : ArrowDown;
   const { isCompact } = useCompactModeStore();
@@ -113,6 +121,7 @@ export function TableHeader({
     showMatchStatusColumn,
     showCustomAddColumn,
     showScrobbleDateColumn,
+    showCumulativeTime,
   });
 
   const renderColumnHeader = (label: string, key: SortKey, align: 'left' | 'right' = 'left') => {
@@ -224,9 +233,11 @@ export function TableHeader({
       <div className="text-right">{renderColumnHeader('Time', 'duration', 'right')}</div>
 
       {/* Cumulative duration */}
-      <div className="flex items-center justify-end" title="Cumulative time from start">
-        <Timer className={isCompact ? 'h-2.5 w-2.5' : 'h-3 w-3'} />
-      </div>
+      {showCumulativeTime && (
+        <div className="flex items-center justify-end" title="Cumulative time from start">
+          <Timer className={isCompact ? 'h-2.5 w-2.5' : 'h-3 w-3'} />
+        </div>
+      )}
     </div>
   );
 }

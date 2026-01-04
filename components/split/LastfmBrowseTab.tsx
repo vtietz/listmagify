@@ -201,6 +201,9 @@ export function LastfmBrowseTab({ isActive = true }: LastfmBrowseTabProps) {
   const hasAnyMarkers = Object.values(allPlaylists).some((p) => p.markers.length > 0);
   
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Use state for scroll element to avoid flushSync during React render
+  // (virtualizer calls flushSync internally when scroll element changes)
+  const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   
   // Local input state for immediate feedback
@@ -321,9 +324,10 @@ export function LastfmBrowseTab({ isActive = true }: LastfmBrowseTabProps) {
   const deferredCount = useDeferredValue(allTracks.length);
   
   // Virtualizer for efficient rendering
+  // Uses scrollElement state instead of ref to avoid flushSync during render
   const virtualizer = useVirtualizer({
     count: deferredCount,
-    getScrollElement: () => scrollRef.current,
+    getScrollElement: () => scrollElement,
     estimateSize: () => rowHeight,
     overscan: VIRTUALIZATION_OVERSCAN,
   });
@@ -541,7 +545,10 @@ export function LastfmBrowseTab({ isActive = true }: LastfmBrowseTabProps) {
       {/* Results - scroll container is always rendered to keep virtualizer stable */}
       <div className="flex-1 min-h-0 overflow-hidden">
         <div
-          ref={scrollRef}
+          ref={(el) => {
+            (scrollRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
+            setScrollElement(el);
+          }}
           className="h-full overflow-auto"
         >
           {isLoading && debouncedUsername ? (
@@ -577,6 +584,7 @@ export function LastfmBrowseTab({ isActive = true }: LastfmBrowseTabProps) {
                   showMatchStatusColumn={true}
                   showCustomAddColumn={hasAnyMarkers}
                   showScrobbleDateColumn={true}
+                  showCumulativeTime={false}
                 />
                 <div
                   style={{
@@ -599,6 +607,7 @@ export function LastfmBrowseTab({ isActive = true }: LastfmBrowseTabProps) {
                     // Get match status from cache
                     const cached = getCachedMatch(dto);
                     const matchStatus = cached?.status ?? 'idle';
+                    const matchedSpotifyTrack = cached?.spotifyTrack;
                     
                     // Build optional props conditionally to satisfy exactOptionalPropertyTypes
                     const optionalProps = isMatched ? {
@@ -658,6 +667,20 @@ export function LastfmBrowseTab({ isActive = true }: LastfmBrowseTabProps) {
                           renderPrefixColumns={renderPrefixColumns}
                           scrobbleTimestamp={dto.playedAt}
                           showScrobbleDateColumn={true}
+                          showCumulativeTime={false}
+                          dragType="lastfm-track"
+                          matchedTrack={matchedSpotifyTrack ? {
+                            id: matchedSpotifyTrack.id,
+                            uri: matchedSpotifyTrack.uri,
+                            name: matchedSpotifyTrack.name,
+                            artist: matchedSpotifyTrack.artists[0],
+                            durationMs: matchedSpotifyTrack.durationMs,
+                          } : null}
+                          lastfmDto={{
+                            artistName: dto.artistName,
+                            trackName: dto.trackName,
+                            albumName: dto.albumName,
+                          }}
                           {...optionalProps}
                         />
                       </div>

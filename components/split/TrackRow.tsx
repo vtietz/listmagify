@@ -76,6 +76,14 @@ interface TrackRowProps {
   scrobbleTimestamp?: number;
   /** Whether to use wider date column for scrobble dates (affects grid layout) */
   showScrobbleDateColumn?: boolean;
+  /** Whether to show cumulative time column (default true) */
+  showCumulativeTime?: boolean;
+  /** Custom drag data type (default 'track', use 'lastfm-track' for Last.fm) */
+  dragType?: 'track' | 'lastfm-track';
+  /** Matched Spotify track for Last.fm drag (required when dragType is 'lastfm-track') */
+  matchedTrack?: { id: string; uri: string; name: string; artist?: string | undefined; durationMs?: number | undefined } | null;
+  /** Original Last.fm track DTO for drag data */
+  lastfmDto?: { artistName: string; trackName: string; albumName?: string | undefined };
 }
 
 export function TrackRow({
@@ -112,6 +120,10 @@ export function TrackRow({
   showCustomAddColumn = false,
   scrobbleTimestamp,
   showScrobbleDateColumn = false,
+  showCumulativeTime = true,
+  dragType = 'track',
+  matchedTrack,
+  lastfmDto,
 }: TrackRowProps) {
   const { isCompact } = useCompactModeStore();
   const { open: openBrowsePanel, setSearchQuery } = useBrowsePanelStore();
@@ -130,6 +142,7 @@ export function TrackRow({
     showMatchStatusColumn,
     showCustomAddColumn,
     showScrobbleDateColumn,
+    showCumulativeTime,
   });
   
   // Track whether mouse is near top/bottom edge for insertion marker toggle
@@ -151,14 +164,22 @@ export function TrackRow({
     id: compositeId, // Globally unique ID
     disabled: locked, // Disable drag if panel is locked (read-only panels can still be drag sources in copy mode)
     animateLayoutChanges: () => false, // Disable "make room" animation for non-active items
-    data: {
-      type: 'track',
-      trackId, // Keep pure Spotify ID for mutations
-      track,
-      panelId,
-      playlistId,
-      position, // Global position for mutations
-    },
+    data: dragType === 'lastfm-track'
+      ? {
+          type: 'lastfm-track',
+          track: lastfmDto, // Original Last.fm DTO for overlay
+          matchedTrack, // Matched Spotify track for adding to playlist
+          panelId,
+          position, // Global position
+        }
+      : {
+          type: 'track',
+          trackId, // Keep pure Spotify ID for mutations
+          track,
+          panelId,
+          playlistId,
+          position, // Global position for mutations
+        },
   });
 
   // Don't apply transform/transition - we use drag overlay and drop indicator instead
@@ -534,12 +555,14 @@ export function TrackRow({
       </div>
 
       {/* Cumulative duration - right aligned */}
-      <div 
-        className={cn('text-muted-foreground/60 tabular-nums text-right select-none', isCompact ? 'text-xs' : 'text-sm')}
-        title={`Total time elapsed: ${formatDuration(cumulativeDurationMs)}`}
-      >
-        {formatDuration(cumulativeDurationMs)}
-      </div>
+      {showCumulativeTime && (
+        <div 
+          className={cn('text-muted-foreground/60 tabular-nums text-right select-none', isCompact ? 'text-xs' : 'text-sm')}
+          title={`Total time elapsed: ${formatDuration(cumulativeDurationMs)}`}
+        >
+          {formatDuration(cumulativeDurationMs)}
+        </div>
+      )}
 
       {/* Hour boundary marker - horizontal line when an hour is elapsed */}
       {crossesHourBoundary && (
