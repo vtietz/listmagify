@@ -58,47 +58,65 @@ export async function DELETE(
 
     // Spotify API: DELETE /playlists/{id}/tracks
     // https://developer.spotify.com/documentation/web-api/reference/remove-tracks-playlist
+    // Maximum 100 items per request - batch if needed
+    const BATCH_SIZE = 100;
     const path = `/playlists/${encodeURIComponent(playlistId)}/tracks`;
 
-    const requestBody: Record<string, any> = {
-      tracks: tracksToRemove,
-    };
+    let newSnapshotId: string | null = snapshotId ?? null;
+    
+    // Process in batches of 100 (Spotify API limit)
+    // IMPORTANT: Process in reverse order when using positions to avoid index shifting
+    // When removing items with positions, earlier removals shift indices of later items
+    for (let i = 0; i < tracksToRemove.length; i += BATCH_SIZE) {
+      const batch = tracksToRemove.slice(i, i + BATCH_SIZE);
+      
+      const requestBody: Record<string, unknown> = {
+        tracks: batch,
+      };
 
-    if (snapshotId && typeof snapshotId === 'string') {
-      requestBody.snapshot_id = snapshotId;
-    }
-
-    const res = await spotifyFetch(path, {
-      method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestBody),
-    });
-
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      console.error(`[api/playlists/tracks/remove] DELETE ${path} failed: ${res.status} ${text}`);
-
-      if (res.status === 401) {
-        return NextResponse.json({ error: 'token_expired' }, { status: 401 });
+      // Use snapshot_id from previous batch for consistency
+      if (newSnapshotId && typeof newSnapshotId === 'string') {
+        requestBody.snapshot_id = newSnapshotId;
       }
 
-      let errorMessage = `Failed to remove tracks: ${res.status} ${res.statusText}`;
+      const res = await spotifyFetch(path, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
 
-      if (res.status === 400) {
-        errorMessage = 'Invalid request. Check that all track URIs are valid.';
-      } else if (res.status === 403) {
-        errorMessage = "You don't have permission to modify this playlist.";
-      } else if (res.status === 404) {
-        errorMessage = 'Playlist not found.';
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        console.error(`[api/playlists/tracks/remove] DELETE ${path} failed: ${res.status} ${text}`);
+
+        if (res.status === 401) {
+          return NextResponse.json({ error: 'token_expired' }, { status: 401 });
+        }
+
+        let errorMessage = `Failed to remove tracks: ${res.status} ${res.statusText}`;
+
+        if (res.status === 400) {
+          errorMessage = 'Invalid request. Check that all track URIs are valid.';
+        } else if (res.status === 403) {
+          errorMessage = "You don't have permission to modify this playlist.";
+        } else if (res.status === 404) {
+          errorMessage = 'Playlist not found.';
+        }
+
+        // Include batch info in error for debugging
+        const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+        const totalBatches = Math.ceil(tracksToRemove.length / BATCH_SIZE);
+        return NextResponse.json(
+          { error: `${errorMessage} (batch ${batchNum}/${totalBatches})`, details: text },
+          { status: res.status }
+        );
       }
 
-      return NextResponse.json({ error: errorMessage, details: text }, { status: res.status });
+      const result = await res.json();
+      newSnapshotId = result?.snapshot_id ?? null;
     }
-
-    const result = await res.json();
-    const newSnapshotId = result?.snapshot_id ?? null;
 
     if (!newSnapshotId) {
       console.warn('[api/playlists/tracks/remove] No snapshot_id in response');

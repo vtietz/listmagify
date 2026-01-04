@@ -52,51 +52,72 @@ export async function POST(
 
     // Spotify API: POST /playlists/{id}/tracks
     // https://developer.spotify.com/documentation/web-api/reference/add-tracks-to-playlist
+    // Maximum 100 items per request - batch if needed
+    const BATCH_SIZE = 100;
     const path = `/playlists/${encodeURIComponent(playlistId)}/tracks`;
+    
+    let newSnapshotId: string | null = null;
+    let currentPosition = position;
+    
+    // Process in batches of 100 (Spotify API limit)
+    for (let i = 0; i < trackUris.length; i += BATCH_SIZE) {
+      const batch = trackUris.slice(i, i + BATCH_SIZE);
+      
+      const requestBody: Record<string, unknown> = {
+        uris: batch,
+      };
 
-    const requestBody: Record<string, any> = {
-      uris: trackUris,
-    };
-
-    if (typeof position === 'number') {
-      requestBody.position = position;
-    }
-
-    if (snapshotId && typeof snapshotId === 'string') {
-      requestBody.snapshot_id = snapshotId;
-    }
-
-    const res = await spotifyFetch(path, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestBody),
-    });
-
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      console.error(`[api/playlists/tracks/add] POST ${path} failed: ${res.status} ${text}`);
-
-      if (res.status === 401) {
-        return NextResponse.json({ error: 'token_expired' }, { status: 401 });
+      // For subsequent batches, adjust position to maintain order
+      if (typeof currentPosition === 'number') {
+        requestBody.position = currentPosition;
+        currentPosition += batch.length;
       }
 
-      let errorMessage = `Failed to add tracks: ${res.status} ${res.statusText}`;
-
-      if (res.status === 400) {
-        errorMessage = 'Invalid request. Check that all track URIs are valid.';
-      } else if (res.status === 403) {
-        errorMessage = "You don't have permission to modify this playlist.";
-      } else if (res.status === 404) {
-        errorMessage = 'Playlist not found.';
+      // Use snapshot_id from previous batch for consistency (if available)
+      if (newSnapshotId) {
+        requestBody.snapshot_id = newSnapshotId;
+      } else if (snapshotId && typeof snapshotId === 'string') {
+        requestBody.snapshot_id = snapshotId;
       }
 
-      return NextResponse.json({ error: errorMessage, details: text }, { status: res.status });
-    }
+      const res = await spotifyFetch(path, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
 
-    const result = await res.json();
-    const newSnapshotId = result?.snapshot_id ?? null;
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        console.error(`[api/playlists/tracks/add] POST ${path} failed: ${res.status} ${text}`);
+
+        if (res.status === 401) {
+          return NextResponse.json({ error: 'token_expired' }, { status: 401 });
+        }
+
+        let errorMessage = `Failed to add tracks: ${res.status} ${res.statusText}`;
+
+        if (res.status === 400) {
+          errorMessage = 'Invalid request. Check that all track URIs are valid.';
+        } else if (res.status === 403) {
+          errorMessage = "You don't have permission to modify this playlist.";
+        } else if (res.status === 404) {
+          errorMessage = 'Playlist not found.';
+        }
+
+        // Include batch info in error for debugging
+        const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+        const totalBatches = Math.ceil(trackUris.length / BATCH_SIZE);
+        return NextResponse.json(
+          { error: `${errorMessage} (batch ${batchNum}/${totalBatches})`, details: text },
+          { status: res.status }
+        );
+      }
+
+      const result = await res.json();
+      newSnapshotId = result?.snapshot_id ?? null;
+    }
 
     if (!newSnapshotId) {
       console.warn('[api/playlists/tracks/add] No snapshot_id in response');
