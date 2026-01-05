@@ -6,6 +6,7 @@
 'use client';
 
 import * as React from 'react';
+import { useMemo } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import type { Track } from '@/lib/spotify/types';
 import { makeCompositeId, getTrackPosition } from '@/lib/dnd/id';
@@ -73,7 +74,7 @@ interface TrackRowProps {
   /** Whether to show custom add column (affects grid layout, replaces standard add to marked) */
   showCustomAddColumn?: boolean;
   /** Unix timestamp (seconds) of when track was scrobbled/played - displayed instead of release year */
-  scrobbleTimestamp?: number;
+  scrobbleTimestamp?: number | undefined;
   /** Whether to use wider date column for scrobble dates (affects grid layout) */
   showScrobbleDateColumn?: boolean;
   /** Whether to show cumulative time column (default true) */
@@ -86,6 +87,8 @@ interface TrackRowProps {
   lastfmDto?: { artistName: string; trackName: string; albumName?: string | undefined };
   /** All selected tracks' matched URIs for multi-select Last.fm drag */
   selectedMatchedUris?: string[];
+  /** Callback when drag starts (used to trigger Last.fm matching) */
+  onDragStart?: () => void;
 }
 
 export function TrackRow({
@@ -127,6 +130,7 @@ export function TrackRow({
   matchedTrack,
   lastfmDto,
   selectedMatchedUris,
+  onDragStart,
 }: TrackRowProps) {
   const { isCompact } = useCompactModeStore();
   const { open: openBrowsePanel, setSearchQuery } = useBrowsePanelStore();
@@ -298,6 +302,20 @@ export function TrackRow({
   // Local files can't be saved to library
   const isLocalFile = track.id === null;
 
+  // Wrap listeners to trigger onDragStart callback (for Last.fm matching)
+  const wrappedListeners = useMemo(() => {
+    if (!onDragStart || !listeners) return listeners;
+    
+    const { onPointerDown, ...rest } = listeners;
+    return {
+      ...rest,
+      onPointerDown: (e: React.PointerEvent) => {
+        onDragStart();
+        onPointerDown?.(e);
+      },
+    };
+  }, [listeners, onDragStart]);
+
   return (
     <div
       ref={setNodeRef}
@@ -327,7 +345,7 @@ export function TrackRow({
             ? 'Click and drag to copy (Ctrl to move)'
             : 'Click and drag to move (Ctrl to copy)'
       }
-      {...(!locked ? { ...restAttributes, ...listeners } : {})}
+      {...(!locked ? { ...restAttributes, ...wrappedListeners } : {})}
     >
       {/* Prefix columns (e.g., match status + custom add button for Last.fm) */}
       {renderPrefixColumns?.()}

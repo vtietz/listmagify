@@ -30,10 +30,10 @@ interface BrowsePanelState {
   lastfmSource: ImportSource;
   /** Last.fm period for top tracks */
   lastfmPeriod: LastfmPeriod;
-  /** Selected Last.fm track indices for multi-select */
-  lastfmSelection: Set<number>;
-  /** Selected Spotify search track indices for multi-select */
-  spotifySelection: Set<number>;
+  /** Selected Last.fm track indices for multi-select (ordered array preserves selection order) */
+  lastfmSelection: number[];
+  /** Selected Spotify search track indices for multi-select (ordered array preserves selection order) */
+  spotifySelection: number[];
   
   // Actions
   toggle: () => void;
@@ -50,12 +50,12 @@ interface BrowsePanelState {
   setLastfmUsername: (username: string) => void;
   setLastfmSource: (source: ImportSource) => void;
   setLastfmPeriod: (period: LastfmPeriod) => void;
-  setLastfmSelection: (selection: Set<number>) => void;
+  setLastfmSelection: (selection: number[]) => void;
   toggleLastfmSelection: (index: number) => void;
   clearLastfmSelection: () => void;
   
   // Spotify selection actions
-  setSpotifySelection: (selection: Set<number>) => void;
+  setSpotifySelection: (selection: number[]) => void;
   toggleSpotifySelection: (index: number) => void;
   clearSpotifySelection: () => void;
 }
@@ -74,8 +74,8 @@ export const useBrowsePanelStore = create<BrowsePanelState>()(
       lastfmUsername: '',
       lastfmSource: 'lastfm-recent',
       lastfmPeriod: '3month',
-      lastfmSelection: new Set(),
-      spotifySelection: new Set(),
+      lastfmSelection: [],
+      spotifySelection: [],
       
       toggle: () => set((state) => ({ isOpen: !state.isOpen })),
       open: () => set({ isOpen: true }),
@@ -89,32 +89,34 @@ export const useBrowsePanelStore = create<BrowsePanelState>()(
       
       // Last.fm actions
       setLastfmUsername: (username) => set({ lastfmUsername: username }),
-      setLastfmSource: (source) => set({ lastfmSource: source, lastfmSelection: new Set() }),
+      setLastfmSource: (source) => set({ lastfmSource: source, lastfmSelection: [] }),
       setLastfmPeriod: (period) => set({ lastfmPeriod: period }),
       setLastfmSelection: (selection) => set({ lastfmSelection: selection }),
       toggleLastfmSelection: (index) => set((state) => {
-        const newSelection = new Set(state.lastfmSelection);
-        if (newSelection.has(index)) {
-          newSelection.delete(index);
+        const idx = state.lastfmSelection.indexOf(index);
+        if (idx >= 0) {
+          // Remove from selection
+          return { lastfmSelection: state.lastfmSelection.filter((_, i) => i !== idx) };
         } else {
-          newSelection.add(index);
+          // Add to end (preserves selection order)
+          return { lastfmSelection: [...state.lastfmSelection, index] };
         }
-        return { lastfmSelection: newSelection };
       }),
-      clearLastfmSelection: () => set({ lastfmSelection: new Set() }),
+      clearLastfmSelection: () => set({ lastfmSelection: [] }),
       
       // Spotify selection actions
       setSpotifySelection: (selection) => set({ spotifySelection: selection }),
       toggleSpotifySelection: (index) => set((state) => {
-        const newSelection = new Set(state.spotifySelection);
-        if (newSelection.has(index)) {
-          newSelection.delete(index);
+        const idx = state.spotifySelection.indexOf(index);
+        if (idx >= 0) {
+          // Remove from selection
+          return { spotifySelection: state.spotifySelection.filter((_, i) => i !== idx) };
         } else {
-          newSelection.add(index);
+          // Add to end (preserves selection order)
+          return { spotifySelection: [...state.spotifySelection, index] };
         }
-        return { spotifySelection: newSelection };
       }),
-      clearSpotifySelection: () => set({ spotifySelection: new Set() }),
+      clearSpotifySelection: () => set({ spotifySelection: [] }),
     }),
     {
       name: 'browse-panel-storage',

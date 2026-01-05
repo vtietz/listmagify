@@ -17,11 +17,12 @@ import { useState, useEffect, useRef, useCallback, useMemo, useDeferredValue } f
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { User, Loader2, Radio, Circle, CheckCircle2, XCircle } from 'lucide-react';
+import { User, Loader2, Radio } from 'lucide-react';
 import { useBrowsePanelStore } from '@/hooks/useBrowsePanelStore';
 import { useHydratedCompactMode } from '@/hooks/useCompactModeStore';
 import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
-import { useLastfmMatch, makeMatchKeyFromDTO, type CachedMatch } from '@/hooks/useLastfmMatchCache';
+import { useLastfmMatch, makeMatchKeyFromDTO } from '@/hooks/useLastfmMatchCache';
+import { lastfmToTrack, type IndexedTrackDTO, type LastfmTrack } from '@/hooks/useLastfmTracks';
 import { useSavedTracksIndex } from '@/hooks/useSavedTracksIndex';
 import { useTrackPlayback } from '@/hooks/useTrackPlayback';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
@@ -29,22 +30,16 @@ import { apiFetch } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
 import { TrackRow } from './TrackRow';
 import { TableHeader } from './TableHeader';
 import { AddSelectedToMarkersButton } from './AddSelectedToMarkersButton';
 import { LastfmAddToMarkedButton } from './LastfmAddToMarkedButton';
+import { MatchStatusIndicator } from './MatchStatusIndicator';
 import { TRACK_ROW_HEIGHT, TRACK_ROW_HEIGHT_COMPACT, VIRTUALIZATION_OVERSCAN } from './constants';
 import { makeCompositeId } from '@/lib/dnd/id';
 // @ts-expect-error - sonner's type definitions are incompatible with verbatimModuleSyntax
 import { toast } from 'sonner';
 import type { ImportedTrackDTO, ImportSource, LastfmPeriod } from '@/lib/importers/types';
-import type { Track } from '@/lib/spotify/types';
 
 /** Virtual panel ID for Last.fm browse (used in DnD composite IDs) */
 export const LASTFM_PANEL_ID = 'lastfm-panel';
@@ -61,101 +56,6 @@ interface LastfmResponse {
   source: ImportSource;
   period?: LastfmPeriod;
   error?: string;
-}
-
-/** Extended track DTO with global index for flattened infinite query pages */
-interface IndexedTrackDTO extends ImportedTrackDTO {
-  globalIndex: number;
-}
-
-/** Extended Track type with Last.fm metadata for rendering */
-interface LastfmTrack extends Track {
-  _lastfmDto: IndexedTrackDTO;
-  _isMatched: boolean;
-}
-
-/**
- * Convert a Last.fm track to a Spotify Track format for display
- * Uses matched Spotify data when available, otherwise shows Last.fm info as placeholder
- */
-function lastfmToTrack(
-  dto: IndexedTrackDTO,
-  cachedMatch: CachedMatch | undefined
-): LastfmTrack {
-  const matched = cachedMatch?.spotifyTrack;
-  
-  if (matched) {
-    // Use matched Spotify track data
-    return {
-      id: matched.id,
-      uri: matched.uri,
-      name: matched.name,
-      artists: matched.artists.length > 0 ? matched.artists : [dto.artistName],
-      artistObjects: matched.artists.length > 0 
-        ? matched.artists.map(name => ({ id: null, name }))
-        : [{ id: null, name: dto.artistName }],
-      durationMs: matched.durationMs ?? 0,
-      position: dto.globalIndex,
-      album: matched.album?.name 
-        ? { id: matched.album.id ?? null, name: matched.album.name }
-        : dto.albumName 
-          ? { name: dto.albumName }
-          : null,
-      popularity: matched.popularity ?? null,
-      _lastfmDto: dto,
-      _isMatched: true,
-    };
-  }
-  
-  // Unmatched - show Last.fm info as placeholder
-  return {
-    id: null, // Mark as unmatched
-    uri: `lastfm:${dto.artistName}:${dto.trackName}`, // Fake URI for identification
-    name: dto.trackName,
-    artists: [dto.artistName],
-    artistObjects: [{ id: null, name: dto.artistName }],
-    durationMs: 0, // Unknown
-    position: dto.globalIndex,
-    album: dto.albumName ? { name: dto.albumName } : null,
-    popularity: null,
-    _lastfmDto: dto,
-    _isMatched: false,
-  };
-}
-
-/** Match status indicator component */
-function MatchStatusIndicator({ status }: { status: 'idle' | 'pending' | 'matched' | 'failed' }) {
-  switch (status) {
-    case 'pending':
-      return (
-        <Loader2 
-          className="h-3.5 w-3.5 animate-spin text-muted-foreground" 
-          aria-label="Matching..."
-        />
-      );
-    case 'matched':
-      return (
-        <CheckCircle2 
-          className="h-3.5 w-3.5 text-green-500" 
-          aria-label="Matched"
-        />
-      );
-    case 'failed':
-      return (
-        <XCircle 
-          className="h-3.5 w-3.5 text-red-500" 
-          aria-label="No match found"
-        />
-      );
-    case 'idle':
-    default:
-      return (
-        <Circle 
-          className="h-3.5 w-3.5 text-muted-foreground/50" 
-          aria-label="Not matched yet"
-        />
-      );
-  }
 }
 
 const SOURCE_OPTIONS: { value: ImportSource; label: string }[] = [
@@ -306,12 +206,11 @@ export function LastfmBrowseTab({ isActive = true }: LastfmBrowseTabProps) {
   
   // Compute matched URIs for all selected tracks (used for multi-select drag)
   const selectedMatchedUris = useMemo(() => {
-    if (lastfmSelection.size === 0) return [];
+    if (lastfmSelection.length === 0) return [];
     
     const uris: string[] = [];
-    const selectedIndices = Array.from(lastfmSelection).sort((a, b) => a - b);
-    
-    for (const idx of selectedIndices) {
+    // Use lastfmSelection directly as it's already ordered by selection order
+    for (const idx of lastfmSelection) {
       const track = allLastfmTracks[idx];
       if (!track) continue;
       
@@ -436,11 +335,10 @@ export function LastfmBrowseTab({ isActive = true }: LastfmBrowseTabProps) {
   // Handle adding selected tracks to all marked insertion points
   // This is now a callback that returns URIs for the unified button
   const getSelectedTrackUris = useCallback(async (): Promise<string[]> => {
-    if (lastfmSelection.size === 0) return [];
+    if (lastfmSelection.length === 0) return [];
     
-    // Get selected tracks
-    const selectedTracks = Array.from(lastfmSelection)
-      .sort((a, b) => a - b)
+    // Get selected tracks in selection order (CTRL+click order preserved)
+    const selectedTracks = lastfmSelection
       .map((idx) => allLastfmTracks[idx])
       .filter((t): t is IndexedTrackDTO => t !== undefined);
     
@@ -546,15 +444,15 @@ export function LastfmBrowseTab({ isActive = true }: LastfmBrowseTabProps) {
           <div className="flex items-center justify-between">
             <p className="text-xs text-muted-foreground">
               {totalResults.toLocaleString()} tracks
-              <span className={lastfmSelection.size > 0 ? 'ml-2 text-primary' : 'ml-2 invisible'}>
-                ({lastfmSelection.size} selected)
+              <span className={lastfmSelection.length > 0 ? 'ml-2 text-primary' : 'ml-2 invisible'}>
+                ({lastfmSelection.length} selected)
               </span>
             </p>
             
             {/* Add selected to markers button - only when markers exist */}
             {hasAnyMarkers && (
               <AddSelectedToMarkersButton
-                selectedCount={lastfmSelection.size}
+                selectedCount={lastfmSelection.length}
                 getTrackUris={getSelectedTrackUris}
                 className="h-7 w-7"
               />
@@ -622,13 +520,20 @@ export function LastfmBrowseTab({ isActive = true }: LastfmBrowseTabProps) {
                     
                     const key = makeMatchKeyFromDTO(dto);
                     const compositeId = makeCompositeId(LASTFM_PANEL_ID, key, dto.globalIndex);
-                    const isSelected = lastfmSelection.has(virtualRow.index);
+                    const isSelected = lastfmSelection.includes(virtualRow.index);
                     const liked = track.id ? isLiked(track.id) : false;
                     
                     // Get match status from cache
                     const cached = getCachedMatch(dto);
                     const matchStatus = cached?.status ?? 'idle';
                     const matchedSpotifyTrack = cached?.spotifyTrack;
+                    
+                    // Handler to trigger matching when drag starts (allows drag without prior selection)
+                    const handleDragStart = () => {
+                      if (!cached || cached.status === 'idle') {
+                        matchTrack(dto);
+                      }
+                    };
                     
                     // Build optional props conditionally to satisfy exactOptionalPropertyTypes
                     const optionalProps = isMatched ? {
@@ -702,7 +607,10 @@ export function LastfmBrowseTab({ isActive = true }: LastfmBrowseTabProps) {
                             trackName: dto.trackName,
                             albumName: dto.albumName,
                           }}
-                          selectedMatchedUris={isSelected ? selectedMatchedUris : undefined}
+                          onDragStart={handleDragStart}
+                          {...(isSelected && selectedMatchedUris.length > 0 
+                            ? { selectedMatchedUris } 
+                            : {})}
                           {...optionalProps}
                         />
                       </div>
