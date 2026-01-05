@@ -283,7 +283,7 @@ export function SearchPanel({ isActive = true, inputRef: externalInputRef }: Sea
             {/* Add selected to markers button - always show when markers exist, disabled when nothing selected */}
             {hasAnyMarkers && (
               <AddSelectedToMarkersButton
-                selectedCount={spotifySelection.size}
+                selectedCount={spotifySelection.length}
                 getTrackUris={getSelectedTrackUris}
                 className="h-7 w-7"
               />
@@ -353,7 +353,7 @@ export function SearchPanel({ isActive = true, inputRef: externalInputRef }: Sea
                           track={track}
                           index={virtualRow.index}
                           selectionKey={compositeId}
-                          isSelected={spotifySelection.has(virtualRow.index)}
+                          isSelected={spotifySelection.includes(virtualRow.index)}
                           isEditable={false}
                           locked={false}
                           onSelect={handleSelect}

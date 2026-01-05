@@ -9,13 +9,14 @@
 import type { SplitNode } from '@/hooks/useSplitGridStore';
 import { PlaylistPanel } from './PlaylistPanel';
 import type { Track } from '@/lib/spotify/types';
+import type { Virtualizer } from '@tanstack/react-virtual';
 
 interface SplitNodeViewProps {
   node: SplitNode;
   onRegisterVirtualizer:
     | ((
         panelId: string,
-        virtualizer: unknown,
+        virtualizer: Virtualizer<HTMLDivElement, Element>,
         scrollRef: { current: HTMLDivElement | null },
         filteredTracks: Track[],
         canDrop: boolean

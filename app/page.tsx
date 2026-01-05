@@ -16,7 +16,8 @@ import {
   Heart,
   Play,
   Minimize2,
-  Sparkles
+  Sparkles,
+  Music2
 } from "lucide-react";
 
 /**
@@ -174,6 +175,11 @@ export default async function Home() {
             icon={<Play className="h-6 w-6" />}
             title="Integrated Player"
             description="Preview any track instantly with the built-in Spotify player. No need to switch apps to check a song."
+          />
+          <FeatureCard
+            icon={<Music2 className="h-6 w-6" />}
+            title="Last.fm Import"
+            description="Import tracks from your Last.fm listening history. Browse loved tracks, top tracks, and weekly charts with automatic Spotify matching."
           />
           <FeatureCard
             icon={<Minimize2 className="h-6 w-6" />}

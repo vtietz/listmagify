@@ -13,6 +13,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useDndOrchestrator } from '@/hooks/useDndOrchestrator';
 import type { Track } from '@/lib/spotify/types';
+import type { Virtualizer } from '@tanstack/react-virtual';
 
 // Mock dependencies
 vi.mock('@/hooks/usePointerTracker', () => ({
@@ -116,7 +117,7 @@ describe('useDndOrchestrator', () => {
     it('should register a virtualizer for a panel', () => {
       const { result } = renderHook(() => useDndOrchestrator(mockPanels));
       
-      const mockVirtualizer = { getVirtualItems: vi.fn() };
+      const mockVirtualizer = { getVirtualItems: vi.fn() } as unknown as Virtualizer<HTMLDivElement, Element>;
       const mockScrollRef = { current: document.createElement('div') };
       const mockTracks: Track[] = [];
 
@@ -131,7 +132,7 @@ describe('useDndOrchestrator', () => {
     it('should unregister a virtualizer for a panel', () => {
       const { result } = renderHook(() => useDndOrchestrator(mockPanels));
       
-      const mockVirtualizer = { getVirtualItems: vi.fn() };
+      const mockVirtualizer = { getVirtualItems: vi.fn() } as unknown as Virtualizer<HTMLDivElement, Element>;
       const mockScrollRef = { current: document.createElement('div') };
       const mockTracks: Track[] = [];
 
@@ -380,7 +381,7 @@ describe('useDndOrchestrator', () => {
 
       const { result } = renderHook(() => useDndOrchestrator(panels));
 
-      const mockVirtualizer = { getVirtualItems: vi.fn(() => []) };
+      const mockVirtualizer = { getVirtualItems: vi.fn(() => []) } as unknown as Virtualizer<HTMLDivElement, Element>;
       const mockScrollRef = { current: document.createElement('div') };
 
       act(() => {
