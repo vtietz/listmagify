@@ -275,8 +275,8 @@ export function SearchPanel({ isActive = true, inputRef: externalInputRef }: Sea
           <div className="flex items-center justify-between mt-1.5">
             <p className="text-xs text-muted-foreground">
               {totalResults.toLocaleString()} results
-              <span className={spotifySelection.size > 0 ? 'ml-2 text-primary' : 'ml-2 invisible'}>
-                ({spotifySelection.size} selected)
+              <span className={spotifySelection.length > 0 ? 'ml-2 text-primary' : 'ml-2 invisible'}>
+                ({spotifySelection.length} selected)
               </span>
             </p>
             
