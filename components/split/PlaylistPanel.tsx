@@ -11,6 +11,16 @@ import { AlertCircle } from 'lucide-react';
 import { ApiError, AccessTokenExpiredError } from '@/lib/api/client';
 import { SignInButton } from '@/components/auth/SignInButton';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { usePlaylistPanelState } from '@/hooks/usePlaylistPanelState';
 import { PanelToolbar } from './PanelToolbar';
 import { TableHeader } from './TableHeader';
@@ -298,6 +308,27 @@ export function PlaylistPanel({
           </div>
         )}
       </div>
+
+      {/* Delete confirmation dialog for keyboard-triggered multi-track delete */}
+      <AlertDialog open={state.showDeleteConfirmation} onOpenChange={state.setShowDeleteConfirmation}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {state.selection.size} tracks?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove {state.selection.size} tracks from the playlist. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={state.handleConfirmMultiDelete}
+              className="bg-destructive text-white hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

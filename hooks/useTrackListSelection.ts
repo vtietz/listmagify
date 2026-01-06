@@ -14,6 +14,10 @@ interface Params {
   toggleSelection: (panelId: string, trackId: string) => void;
   virtualizer: Virtualizer<any, any>;
   selectionKey: (track: Track, index: number) => string;
+  /** Callback for delete key press - receives selection count and next index to select */
+  onDeleteKeyPress?: (selectionCount: number, nextIndexToSelect: number | null) => void;
+  /** Whether delete is allowed (panel is editable and not locked) */
+  canDelete?: boolean;
 }
 
 export function useTrackListSelection({
@@ -24,6 +28,8 @@ export function useTrackListSelection({
   toggleSelection,
   virtualizer,
   selectionKey,
+  onDeleteKeyPress,
+  canDelete = false,
 }: Params) {
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
   const lastFocusedIndexRef = useRef<number | null>(null);
@@ -70,6 +76,42 @@ export function useTrackListSelection({
 
   const handleKeyDownNavigation = useCallback(
     (event: KeyboardEvent<HTMLDivElement>) => {
+      // Handle Delete key
+      if (event.key === 'Delete' || event.key === 'Backspace') {
+        if (!canDelete || selection.size === 0 || !onDeleteKeyPress) {
+          return;
+        }
+        event.preventDefault();
+        
+        // Find the first selected index to determine next selection
+        let firstSelectedIndex: number | null = null;
+        for (let i = 0; i < filteredTracks.length; i++) {
+          const track = filteredTracks[i];
+          if (track && selection.has(selectionKey(track, i))) {
+            firstSelectedIndex = i;
+            break;
+          }
+        }
+        
+        // Calculate next index to select after deletion
+        let nextIndexToSelect: number | null = null;
+        if (firstSelectedIndex !== null) {
+          // Try to select the track that will be at the same position after deletion
+          // If we're deleting from the end, select the previous track
+          const remainingCount = filteredTracks.length - selection.size;
+          if (remainingCount > 0) {
+            if (firstSelectedIndex >= remainingCount) {
+              nextIndexToSelect = remainingCount - 1;
+            } else {
+              nextIndexToSelect = firstSelectedIndex;
+            }
+          }
+        }
+        
+        onDeleteKeyPress(selection.size, nextIndexToSelect);
+        return;
+      }
+      
       if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') {
         return;
       }
@@ -126,7 +168,7 @@ export function useTrackListSelection({
       setFocusedIndex(nextIndex);
       lastFocusedIndexRef.current = nextIndex;
     },
-    [filteredTracks, focusedIndex, panelId, selection, setSelection, virtualizer, selectionKey]
+    [filteredTracks, focusedIndex, panelId, selection, setSelection, virtualizer, selectionKey, canDelete, onDeleteKeyPress]
   );
 
   return {

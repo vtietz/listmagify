@@ -439,6 +439,66 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
     });
   }, [playlistId, selection, filteredTracks, removeTracks, snapshotId, panelId, setSelection]);
 
+  // Delete handler that auto-selects next track after deletion
+  const handleDeleteWithAutoSelect = useCallback((nextIndexToSelect: number | null) => {
+    if (!playlistId || selection.size === 0) return;
+    const uriToPositions = new Map<string, number[]>();
+    filteredTracks.forEach((track: Track, index: number) => {
+      const key = getTrackSelectionKey(track, index);
+      if (selection.has(key)) {
+        const position = track.position ?? index;
+        const positions = uriToPositions.get(track.uri) || [];
+        positions.push(position);
+        uriToPositions.set(track.uri, positions);
+      }
+    });
+
+    const tracksToRemove: Array<{ uri: string; positions: number[] }> = [];
+    uriToPositions.forEach((positions, uri) => {
+      tracksToRemove.push({ uri, positions });
+    });
+
+    if (tracksToRemove.length === 0) return;
+    const mutationParams = snapshotId
+      ? { playlistId, tracks: tracksToRemove, snapshotId }
+      : { playlistId, tracks: tracksToRemove };
+
+    removeTracks.mutate(mutationParams, {
+      onSuccess: () => {
+        // Auto-select the next track after deletion
+        if (nextIndexToSelect !== null && nextIndexToSelect >= 0) {
+          // After tracks are removed, the new track at nextIndexToSelect will have a new index
+          // We'll select it using a small delay to let React Query update the cache
+          setTimeout(() => {
+            const newTracks = queryClient.getQueryData<{ pages: Array<{ items: Track[] }> }>(
+              ['playlist', playlistId, 'tracks']
+            );
+            const allTracks = newTracks?.pages?.flatMap(p => p.items) || [];
+            if (allTracks.length > 0 && nextIndexToSelect < allTracks.length) {
+              const trackToSelect = allTracks[nextIndexToSelect];
+              if (trackToSelect) {
+                const newKey = getTrackSelectionKey(trackToSelect, nextIndexToSelect);
+                setSelection(panelId, [newKey]);
+              }
+            } else if (allTracks.length > 0) {
+              // If the index is out of bounds, select the last track
+              const lastIndex = allTracks.length - 1;
+              const trackToSelect = allTracks[lastIndex];
+              if (trackToSelect) {
+                const newKey = getTrackSelectionKey(trackToSelect, lastIndex);
+                setSelection(panelId, [newKey]);
+              }
+            } else {
+              setSelection(panelId, []);
+            }
+          }, 100);
+        } else {
+          setSelection(panelId, []);
+        }
+      },
+    });
+  }, [playlistId, selection, filteredTracks, removeTracks, snapshotId, panelId, setSelection, queryClient]);
+
   // Get URIs of selected tracks (for adding to markers)
   const getSelectedTrackUris = useCallback((): string[] => {
     const uris: string[] = [];
@@ -453,6 +513,32 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
 
   const selectionKey = useCallback((track: Track, index: number) => getTrackSelectionKey(track, index), []);
 
+  // Handler for DEL key - single track deletes without confirmation, multiple with confirmation
+  const handleDeleteKeyPress = useCallback((selectionCount: number, nextIndexToSelect: number | null) => {
+    if (selectionCount === 1) {
+      // Single track: delete immediately without confirmation
+      handleDeleteWithAutoSelect(nextIndexToSelect);
+    } else {
+      // Multiple tracks: the PanelToolbar will show confirmation dialog
+      // We expose this via a ref so the toolbar can trigger it
+      pendingDeleteNextIndexRef.current = nextIndexToSelect;
+      setShowDeleteConfirmation(true);
+    }
+  }, [handleDeleteWithAutoSelect]);
+
+  // Ref for pending delete next index
+  const pendingDeleteNextIndexRef = useRef<number | null>(null);
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+
+  // Handler for confirming multi-track delete (called from toolbar)
+  const handleConfirmMultiDelete = useCallback(() => {
+    setShowDeleteConfirmation(false);
+    handleDeleteWithAutoSelect(pendingDeleteNextIndexRef.current);
+    pendingDeleteNextIndexRef.current = null;
+  }, [handleDeleteWithAutoSelect]);
+
+  const canDelete = isEditable && !locked && playlistId !== null;
+
   const { handleTrackClick, handleTrackSelect, handleKeyDownNavigation, focusedIndex } = useTrackListSelection({
     filteredTracks,
     selection,
@@ -461,6 +547,8 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
     toggleSelection,
     virtualizer,
     selectionKey,
+    onDeleteKeyPress: handleDeleteKeyPress,
+    canDelete,
   });
 
   // Auto-reload config
@@ -573,6 +661,11 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
     clearInsertionMarkers,
     focusedIndex,
     getSelectedTrackUris,
+
+    // Delete with confirmation for multi-track (keyboard DEL)
+    showDeleteConfirmation,
+    setShowDeleteConfirmation,
+    handleConfirmMultiDelete,
 
     // Mouse/keyboard state
     isMouseOver,
