@@ -201,18 +201,6 @@ export function SpotifyPlayer() {
 
       {/* Playback controls */}
       <div className="flex-1 flex flex-col items-center gap-1">
-        {/* Restrictions info - show when any control is restricted */}
-        {playbackState?.restrictions && (
-          playbackState.restrictions.skippingNext || 
-          playbackState.restrictions.skippingPrev || 
-          playbackState.restrictions.seeking ||
-          playbackState.restrictions.togglingShuffle ||
-          playbackState.restrictions.togglingRepeat
-        ) && (
-          <div className="text-[10px] text-amber-500/80 mb-0.5">
-            Some controls restricted — <a href="https://www.spotify.com/premium" target="_blank" rel="noopener noreferrer" className="underline hover:text-amber-400">Upgrade to Premium</a>
-          </div>
-        )}
         <div className="flex items-center gap-2">
           {/* Shuffle - gated by restrictions */}
           <Button
