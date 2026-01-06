@@ -187,4 +187,12 @@ export const recsMigrations: Migration[] = [
       FROM track_cooccurrence;
     `,
   },
+  {
+    version: 3,
+    name: 'add_artist_column',
+    sql: `
+      -- Add artist column for display purposes
+      ALTER TABLE tracks ADD COLUMN artist TEXT;
+    `,
+  },
 ];

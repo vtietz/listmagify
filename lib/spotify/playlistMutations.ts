@@ -128,20 +128,21 @@ export function useAddTracks() {
 
 /**
  * Hook for removing tracks from a playlist (move operation - source side).
+ * 
+ * Note: Spotify's API no longer supports position-based deletion.
+ * When positions are provided, the server uses a "rebuild playlist" approach:
+ * fetching all tracks, filtering out selected positions, and replacing the playlist.
  */
 export function useRemoveTracks() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (params: RemoveTracksParams): Promise<MutationResponse> => {
-      // Intentionally omit snapshotId to avoid stale snapshot errors
-      // The Spotify API will operate on the current playlist state
+      // Send tracks with positions - server handles the rebuild if needed
       return apiFetch(`/api/playlists/${params.playlistId}/tracks/remove`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tracks: params.tracks,
-        }),
+        body: JSON.stringify({ tracks: params.tracks }),
       });
     },
     onMutate: async (params: RemoveTracksParams) => {
