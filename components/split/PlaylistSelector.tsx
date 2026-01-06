@@ -7,7 +7,7 @@
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ChevronsUpDown, Check, Heart } from 'lucide-react';
@@ -38,6 +38,21 @@ export function PlaylistSelector({ selectedPlaylistId, selectedPlaylistName, onS
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const dropdownRef = useRef<HTMLDivElement | null>(null);
 
+  // Get config for auto-reload interval
+  const { data: configData } = useQuery({
+    queryKey: ['app-config'],
+    queryFn: async () => {
+      const res = await fetch('/api/config');
+      if (!res.ok) return { playlistPollIntervalSeconds: null };
+      return res.json() as Promise<{ playlistPollIntervalSeconds: number | null }>;
+    },
+    staleTime: Infinity,
+  });
+  
+  const pollIntervalMs = configData?.playlistPollIntervalSeconds 
+    ? configData.playlistPollIntervalSeconds * 1000 
+    : undefined;
+
   const {
     data,
     isLoading,
@@ -56,6 +71,7 @@ export function PlaylistSelector({ selectedPlaylistId, selectedPlaylistName, onS
     getNextPageParam: (lastPage: PlaylistsResponse) => lastPage.nextCursor,
     initialPageParam: null as string | null,
     staleTime: 60_000,
+    refetchInterval: pollIntervalMs,
   });
 
   // Auto-load all playlists on mount

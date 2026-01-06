@@ -210,7 +210,7 @@ export function PlaylistPanel({
         {/* Track list */}
         {!state.isLoading && !state.error && state.filteredTracks.length > 0 && (
           <>
-            <div className="relative w-full">
+            <div className="relative min-w-fit">
               <TableHeader
                 isEditable={state.isEditable}
                 sortKey={state.sortKey}

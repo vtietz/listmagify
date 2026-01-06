@@ -17,7 +17,8 @@ import {
   Play,
   Minimize2,
   Sparkles,
-  Music2
+  Music2,
+  GitCompare
 } from "lucide-react";
 
 /**
@@ -180,6 +181,11 @@ export default async function Home() {
             icon={<Music2 className="h-6 w-6" />}
             title="Last.fm Import"
             description="Import tracks from your Last.fm listening history. Browse loved tracks, top tracks, and weekly charts with automatic Spotify matching."
+          />
+          <FeatureCard
+            icon={<GitCompare className="h-6 w-6" />}
+            title="Compare Mode"
+            description="Visualize track distribution across playlists with intelligent color coding. Green shows tracks in all playlists, red shows unique tracks, and yellow indicates partial presence."
           />
           <FeatureCard
             icon={<Minimize2 className="h-6 w-6" />}

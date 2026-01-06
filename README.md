@@ -10,6 +10,7 @@ Playlist magic for Spotify. Edit multiple playlists side-by-side with drag-and-d
 - **Drag & Drop** – Move or copy tracks between playlists with visual feedback
 - **Smart Search** – Filter tracks instantly by title, artist, or album
 - **Bulk Operations** – Select and move/copy/delete multiple tracks at once
+- **Compare Mode** – Color-coded visualization showing track distribution across playlists (green = in all, red = unique, yellow = in some)
 - **Liked Songs Browser** – Access your entire library and copy favorites into playlists
 - **Last.fm Import** – Import tracks from your Last.fm listening history (loved tracks, top tracks, weekly charts)
 - **Track Recommendations** – Get AI-powered suggestions based on your playlist patterns

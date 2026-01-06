@@ -443,7 +443,7 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
     }
   }, [isCompact]);
 
-  const items = virtualizer.getVirtualItems();
+  const items = useMemo(() => virtualizer.getVirtualItems(), [virtualizer]);
 
   const contextItems = useMemo(() => {
     return filteredTracks.map((t: Track, index: number) => 
