@@ -603,13 +603,17 @@ export function TrackRow({
       {/* Hour boundary marker - horizontal line when an hour is elapsed */}
       {crossesHourBoundary && (
         <div
-          className="absolute left-0 right-0 bottom-0 flex items-center pointer-events-none z-10"
+          className="absolute left-0 right-0 flex items-center pointer-events-none z-10"
+          style={{ bottom: '-7px' }}
         >
           <div className="flex-1 h-[1px] bg-gradient-to-r from-transparent via-cyan-500/70 to-cyan-500/70" />
-          <span className={cn(
-            'px-1.5 text-cyan-500 font-medium whitespace-nowrap',
-            isCompact ? 'text-[9px]' : 'text-[10px]'
-          )}>
+          <span 
+            className={cn(
+              'px-1.5 text-cyan-500 font-medium whitespace-nowrap',
+              isCompact ? 'text-[9px]' : 'text-[10px]'
+            )}
+            style={{ transform: 'translateY(-25%)' }}
+          >
             {hourNumber}h
           </span>
           <div className="w-2 h-[1px] bg-cyan-500/70" />
