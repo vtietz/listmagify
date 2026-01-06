@@ -621,10 +621,34 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
 
     const sourcePanelIdFromData = sourceData.panelId;
     const targetPanelId = targetData.panelId;
-    const sourcePlaylistId = sourceData.playlistId;
+    const sourcePlaylistId = sourceData.playlistId; // May be undefined for search results
     const targetPlaylistId = targetData.playlistId;
     const sourceTrack: Track = sourceData.track;
     const sourceIndex: number = sourceData.position; // Use position from data payload (global index)
+
+    // Handle Spotify search results (copy only - no source playlist)
+    // Search results have panelId but no playlistId
+    if (!sourcePlaylistId && sourcePanelIdFromData && targetPlaylistId && targetPanelId) {
+      const targetPanel = panels.find((p) => p.id === targetPanelId);
+      if (!targetPanel?.isEditable) {
+        toast.error('Target playlist is not editable');
+        return;
+      }
+
+      const targetIndex = finalDropPosition ?? (targetData.position ?? 0);
+      const trackUris = [sourceTrack.uri];
+      
+      addTracks.mutate({
+        playlistId: targetPlaylistId,
+        trackUris,
+        position: targetIndex,
+      }, {
+        onSuccess: () => {
+          toast.success(`Added "${sourceTrack.name}" to playlist`);
+        },
+      });
+      return;
+    }
 
     // Use snapshot from drag start to avoid mid-drag list changes
     const orderedTracks = orderedTracksSnapshotRef.current.length > 0 
