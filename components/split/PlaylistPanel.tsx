@@ -237,8 +237,8 @@ export function PlaylistPanel({
                     filteredTracksCount={state.filteredTracks.length}
                   />
 
-                  {/* Insertion point markers */}
-                  {state.playlistId && state.isEditable && state.activeMarkerIndices.size > 0 && !state.searchQuery && (
+                  {/* Insertion point markers - hidden when sorted since positions don't match visual order */}
+                  {state.playlistId && state.isEditable && state.activeMarkerIndices.size > 0 && !state.searchQuery && !state.isSorted && (
                     <InsertionMarkersOverlay
                       playlistId={state.playlistId}
                       totalTracks={state.filteredTracks.length}
@@ -287,9 +287,9 @@ export function PlaylistPanel({
                           isPlaybackLoading={state.isTrackLoading(track.uri)}
                           onPlay={state.playTrack}
                           onPause={state.pausePlayback}
-                          hasInsertionMarker={!state.searchQuery && state.activeMarkerIndices.has(track.position ?? virtualRow.index)}
+                          hasInsertionMarker={!state.searchQuery && !state.isSorted && state.activeMarkerIndices.has(track.position ?? virtualRow.index)}
                           hasInsertionMarkerAfter={false}
-                          allowInsertionMarkerToggle={!state.searchQuery}
+                          allowInsertionMarkerToggle={!state.searchQuery && !state.isSorted}
                           isCollaborative={state.hasMultipleContributors}
                           getProfile={state.hasMultipleContributors ? state.getProfile : undefined}
                           cumulativeDurationMs={state.cumulativeDurations[virtualRow.index] || 0}
