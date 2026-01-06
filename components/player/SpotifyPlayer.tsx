@@ -8,6 +8,7 @@
 'use client';
 
 import { useCallback, useState, useEffect, useRef } from 'react';
+import { useDraggable } from '@dnd-kit/core';
 import { 
   Play, 
   Pause, 
@@ -20,6 +21,7 @@ import {
   Repeat1,
   MonitorSpeaker,
   Loader2,
+  GripVertical,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useSpotifyPlayer } from '@/hooks/useSpotifyPlayer';
@@ -27,6 +29,7 @@ import { useWebPlaybackSDK } from '@/hooks/useWebPlaybackSDK';
 import { DeviceSelector } from './DeviceSelector';
 import { cn } from '@/lib/utils';
 import { formatDuration } from '@/lib/utils/format';
+import type { Track } from '@/lib/spotify/types';
 
 export function SpotifyPlayer() {
   // Initialize the Web Playback SDK for in-browser playback
@@ -54,7 +57,7 @@ export function SpotifyPlayer() {
   } = useSpotifyPlayer();
 
   const [localProgress, setLocalProgress] = useState(0);
-  const [isDragging, setIsDragging] = useState(false);
+  const [isSeekDragging, setIsSeekDragging] = useState(false);
   const progressRef = useRef<HTMLDivElement>(null);
   const lastUpdateRef = useRef<number>(0);
   const rafRef = useRef<number>(0);
@@ -64,18 +67,47 @@ export function SpotifyPlayer() {
   const progressMs = playbackState?.progressMs ?? 0;
   const durationMs = track?.durationMs ?? 0;
 
+  // Convert PlaybackTrack to Track format for drag data
+  const trackForDrag: Track | null = track ? {
+    id: track.id,
+    uri: track.uri,
+    name: track.name,
+    artists: track.artists,
+    durationMs: track.durationMs,
+    album: track.albumName ? { name: track.albumName, image: track.albumImage ? { url: track.albumImage } : null } : null,
+  } : null;
+
+  // Set up draggable for the now playing track
+  const {
+    attributes: dragAttributes,
+    listeners: dragListeners,
+    setNodeRef: setDragNodeRef,
+    isDragging: isTrackDragging,
+  } = useDraggable({
+    id: track ? `player-track-${track.id || track.uri}` : 'player-track-empty',
+    disabled: !track || !track.id, // Can't drag if no track or if it's a local file
+    data: {
+      type: 'track',
+      trackId: track?.id,
+      track: trackForDrag,
+      panelId: 'player', // Special panel ID for the player
+      playlistId: undefined, // Not from a specific playlist
+      position: 0,
+    },
+  });
+
   // Update local progress from playback state
   useEffect(() => {
-    if (!isDragging) {
+    if (!isSeekDragging) {
       setLocalProgress(progressMs);
       lastUpdateRef.current = Date.now();
     }
-  }, [progressMs, isDragging]);
+  }, [progressMs, isSeekDragging]);
 
   // Animate progress bar while playing using requestAnimationFrame
   // This is more efficient than setInterval and syncs with browser paint cycles
   useEffect(() => {
-    if (!isPlaying || isDragging || !durationMs) return;
+    if (!isPlaying || isSeekDragging || !durationMs) return;
 
     let lastFrameTime = Date.now();
     
@@ -102,7 +134,7 @@ export function SpotifyPlayer() {
         cancelAnimationFrame(rafRef.current);
       }
     };
-  }, [isPlaying, isDragging, durationMs]);
+  }, [isPlaying, isSeekDragging, durationMs]);
 
   // Handle seek bar click/drag
   const handleSeek = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
@@ -181,14 +213,28 @@ export function SpotifyPlayer() {
 
   return (
     <div className="h-20 border-t border-border bg-background/95 backdrop-blur px-4 flex items-center gap-4">
-      {/* Track info */}
-      <div className="flex items-center gap-3 w-[280px] min-w-[180px]">
+      {/* Track info - draggable to add to playlists */}
+      <div 
+        ref={setDragNodeRef}
+        className={cn(
+          "flex items-center gap-3 w-[280px] min-w-[180px] group/track-info rounded-md p-1 -m-1 transition-colors",
+          track.id && "cursor-grab hover:bg-accent/50",
+          isTrackDragging && "opacity-50 cursor-grabbing",
+          !track.id && "cursor-default"
+        )}
+        {...(track.id ? { ...dragAttributes, ...dragListeners } : {})}
+        title={track.id ? "Drag to add to a playlist" : "Local files cannot be added to playlists"}
+      >
+        {/* Drag handle indicator */}
+        {track.id && (
+          <GripVertical className="h-4 w-4 text-muted-foreground/50 group-hover/track-info:text-muted-foreground transition-colors shrink-0" />
+        )}
         {track.albumImage && (
           <img
             src={track.albumImage}
             alt={track.albumName ?? 'Album art'}
             // Per Spotify guidelines: don't crop artwork, use rounded corners (4px small devices)
-            className="h-14 w-14 rounded object-contain bg-black/10 shadow"
+            className="h-14 w-14 rounded object-contain bg-black/10 shadow shrink-0"
           />
         )}
         <div className="min-w-0">
