@@ -99,6 +99,32 @@ export function RecommendationsPanel({
   
   const hasMore = filteredRecommendations.length > displayLimit;
   
+  // Scroll container ref for infinite scroll
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const loadMoreTriggerRef = useRef<HTMLDivElement>(null);
+  
+  // Infinite scroll: load more when trigger element is visible
+  useEffect(() => {
+    const trigger = loadMoreTriggerRef.current;
+    if (!trigger || !hasMore) return;
+    
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setDisplayLimit(prev => prev + 20);
+        }
+      },
+      {
+        root: scrollContainerRef.current,
+        rootMargin: '100px', // Load 100px before reaching the end
+        threshold: 0,
+      }
+    );
+    
+    observer.observe(trigger);
+    return () => observer.disconnect();
+  }, [hasMore]);
+  
   // Reset display limit when search changes
   useEffect(() => {
     setDisplayLimit(20);
@@ -242,7 +268,7 @@ export function RecommendationsPanel({
           </div>
         ) : (
           <>
-            <div className="flex-1 min-h-0 overflow-auto">
+            <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-auto">
               <RecommendationsList
                 recommendations={recommendations}
                 rowHeight={rowHeight}
@@ -256,19 +282,17 @@ export function RecommendationsPanel({
                 onSelect={handleSelect}
                 onClick={handleClick}
               />
-            </div>
-            {hasMore && (
-              <div className="px-3 py-2 border-t border-border bg-muted/10 flex justify-center">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setDisplayLimit(prev => prev + 20)}
-                  className="h-7 text-xs"
+              {/* Invisible trigger for infinite scroll - inside scroll container */}
+              {hasMore && (
+                <div 
+                  ref={loadMoreTriggerRef} 
+                  className="h-8 flex items-center justify-center text-xs text-muted-foreground"
                 >
-                  Load more ({filteredRecommendations.length - displayLimit} remaining)
-                </Button>
-              </div>
-            )}
+                  <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                  Loading...
+                </div>
+              )}
+            </div>
           </>
         )}
       </div>
