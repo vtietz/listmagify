@@ -13,6 +13,7 @@ import { useSeedRecommendations, useDismissRecommendation } from '@/hooks/useRec
 import { useSavedTracksIndex } from '@/hooks/useSavedTracksIndex';
 import { useTrackPlayback } from '@/hooks/useTrackPlayback';
 import { useHydratedCompactMode } from '@/hooks/useCompactModeStore';
+import { useCompareModeStore, getTrackCompareColor } from '@/hooks/useCompareModeStore';
 import { TrackRow } from './TrackRow';
 import { TRACK_ROW_HEIGHT, TRACK_ROW_HEIGHT_COMPACT } from './constants';
 import { makeCompositeId } from '@/lib/dnd/id';
@@ -52,6 +53,13 @@ export function RecommendationsPanel({
   const isCompact = useHydratedCompactMode();
   const { isLiked, toggleLiked } = useSavedTracksIndex();
   const dismissMutation = useDismissRecommendation();
+  
+  // Compare mode: get distribution for coloring (recs panel not included in calculation)
+  const isCompareEnabled = useCompareModeStore((s) => s.isEnabled);
+  const compareDistribution = useCompareModeStore((s) => s.distribution);
+  const getCompareColorForTrack = useCallback((trackUri: string) => {
+    return getTrackCompareColor(trackUri, compareDistribution, isCompareEnabled);
+  }, [compareDistribution, isCompareEnabled]);
   
   // Search/filter state
   const [searchQuery, setSearchQuery] = useState('');
@@ -281,6 +289,7 @@ export function RecommendationsPanel({
                 onPause={pausePlayback}
                 onSelect={handleSelect}
                 onClick={handleClick}
+                getCompareColorForTrack={getCompareColorForTrack}
               />
               {/* Invisible trigger for infinite scroll - inside scroll container */}
               {hasMore && (
@@ -312,6 +321,7 @@ interface RecommendationsListProps {
   onPause: () => void;
   onSelect: () => void;
   onClick: () => void;
+  getCompareColorForTrack: (trackUri: string) => string;
 }
 
 function RecommendationsList({
@@ -326,6 +336,7 @@ function RecommendationsList({
   onPause,
   onSelect,
   onClick,
+  getCompareColorForTrack,
 }: RecommendationsListProps) {
   // Convert to Track[] for the list
   const tracks = useMemo(() => 
@@ -372,6 +383,7 @@ function RecommendationsList({
                 isPlaybackLoading={isTrackLoading(track.uri)}
                 onPlay={onPlay}
                 onPause={onPause}
+                compareColor={getCompareColorForTrack(track.uri)}
               />
               {/* Dismiss button overlay */}
               <Button

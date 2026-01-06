@@ -2,13 +2,14 @@
 
 import React from "react";
 import { usePathname } from "next/navigation";
-import { Search, Music2, ListMusic, Columns2, LogIn, LogOut, Minimize2, MapPinOff, BarChart3 } from "lucide-react";
+import { Search, Music2, ListMusic, Columns2, LogIn, LogOut, Minimize2, MapPinOff, BarChart3, GitCompare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AppLogo } from "@/components/ui/app-logo";
 import { AppFooter } from "@/components/ui/app-footer";
 import { useBrowsePanelStore } from "@/hooks/useBrowsePanelStore";
 import { usePlayerStore } from "@/hooks/usePlayerStore";
 import { useCompactModeStore } from "@/hooks/useCompactModeStore";
+import { useCompareModeStore } from "@/hooks/useCompareModeStore";
 import { useInsertionPointsStore } from "@/hooks/useInsertionPointsStore";
 import { useSessionUser } from "@/hooks/useSessionUser";
 import { useStatsAccess } from "@/hooks/useStatsAccess";
@@ -90,6 +91,7 @@ function Header({ title }: { title: string }) {
   const { isOpen, toggle } = useBrowsePanelStore();
   const { isPlayerVisible, togglePlayerVisible } = usePlayerStore();
   const { isCompact, toggle: toggleCompact } = useCompactModeStore();
+  const { isEnabled: isCompareEnabled, toggle: toggleCompare } = useCompareModeStore();
   const clearAllMarkers = useInsertionPointsStore((s) => s.clearAll);
   const playlists = useInsertionPointsStore((s) => s.playlists);
   const { authenticated, loading } = useSessionUser();
@@ -172,6 +174,19 @@ function Header({ title }: { title: string }) {
               <Minimize2 className="h-3.5 w-3.5" />
               Compact
             </Button>
+            {/* Compare mode - color tracks by presence across panels */}
+            {(isSplitEditorActive || isPlaylistsActive) && (
+              <Button
+                variant={isCompareEnabled ? "secondary" : "ghost"}
+                size="sm"
+                onClick={toggleCompare}
+                className="h-7 gap-1.5 cursor-pointer"
+                title="Compare mode: color tracks by presence across panels"
+              >
+                <GitCompare className="h-3.5 w-3.5" />
+                Compare
+              </Button>
+            )}
             {/* Clear Markers - only show when markers exist */}
             {markerStats.totalMarkers > 0 && (
               <Button

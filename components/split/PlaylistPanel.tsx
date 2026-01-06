@@ -297,6 +297,7 @@ export function PlaylistPanel({
                           hourNumber={state.hourBoundaries.get(virtualRow.index) || 0}
                           isDuplicate={state.isDuplicate(track.uri)}
                           isOtherInstanceSelected={state.isOtherInstanceSelected(track.uri)}
+                          compareColor={state.getCompareColorForTrack(track.uri)}
                         />
                       </div>
                     );

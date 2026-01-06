@@ -12,6 +12,7 @@ import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { Search, X, Loader2 } from 'lucide-react';
 import { useBrowsePanelStore } from '@/hooks/useBrowsePanelStore';
 import { useHydratedCompactMode } from '@/hooks/useCompactModeStore';
+import { useCompareModeStore, getTrackCompareColor } from '@/hooks/useCompareModeStore';
 import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
 import { useSavedTracksIndex } from '@/hooks/useSavedTracksIndex';
 import { useTrackPlayback } from '@/hooks/useTrackPlayback';
@@ -53,6 +54,13 @@ export function SearchPanel({ isActive = true, inputRef: externalInputRef }: Sea
   } = useBrowsePanelStore();
   const { isLiked, toggleLiked } = useSavedTracksIndex();
   const isCompact = useHydratedCompactMode();
+  
+  // Compare mode: get distribution for coloring (browse panel not included in calculation)
+  const isCompareEnabled = useCompareModeStore((s) => s.isEnabled);
+  const compareDistribution = useCompareModeStore((s) => s.distribution);
+  const getCompareColorForTrack = useCallback((trackUri: string) => {
+    return getTrackCompareColor(trackUri, compareDistribution, isCompareEnabled);
+  }, [compareDistribution, isCompareEnabled]);
   
   // Check if any markers exist (for showing add to markers button)
   const allPlaylists = useInsertionPointsStore((s) => s.playlists);
@@ -368,6 +376,7 @@ export function SearchPanel({ isActive = true, inputRef: externalInputRef }: Sea
                           isPlaybackLoading={isTrackLoading(track.uri)}
                           onPlay={playTrack}
                           onPause={pausePlayback}
+                          compareColor={getCompareColorForTrack(track.uri)}
                         />
                       </div>
                     );

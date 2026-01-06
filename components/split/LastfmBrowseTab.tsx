@@ -25,6 +25,7 @@ import { useLastfmMatch, makeMatchKeyFromDTO } from '@/hooks/useLastfmMatchCache
 import { lastfmToTrack, type IndexedTrackDTO, type LastfmTrack } from '@/hooks/useLastfmTracks';
 import { useSavedTracksIndex } from '@/hooks/useSavedTracksIndex';
 import { useTrackPlayback } from '@/hooks/useTrackPlayback';
+import { useCompareModeStore, getTrackCompareColor } from '@/hooks/useCompareModeStore';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { apiFetch } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
@@ -97,6 +98,13 @@ export function LastfmBrowseTab({ isActive = true }: LastfmBrowseTabProps) {
   const { matchTrack, matchTracks, getCachedMatch, isPending } = useLastfmMatch();
   const { isLiked, toggleLiked } = useSavedTracksIndex();
   const isCompact = useHydratedCompactMode();
+  
+  // Compare mode: get distribution for coloring (Last.fm panel not included in calculation)
+  const isCompareEnabled = useCompareModeStore((s) => s.isEnabled);
+  const compareDistribution = useCompareModeStore((s) => s.distribution);
+  const getCompareColorForTrack = useCallback((trackUri: string) => {
+    return getTrackCompareColor(trackUri, compareDistribution, isCompareEnabled);
+  }, [compareDistribution, isCompareEnabled]);
   
   // Check if any markers exist (for showing add to markers button)
   const allPlaylists = useInsertionPointsStore((s) => s.playlists);
@@ -636,6 +644,7 @@ export function LastfmBrowseTab({ isActive = true }: LastfmBrowseTabProps) {
                             albumName: dto.albumName,
                           }}
                           onDragStart={handleDragStart}
+                          compareColor={matchedSpotifyTrack?.uri ? getCompareColorForTrack(matchedSpotifyTrack.uri) : undefined}
                           {...(isSelected && selectedMatchedUris.length > 0 
                             ? { selectedMatchedUris } 
                             : {})}

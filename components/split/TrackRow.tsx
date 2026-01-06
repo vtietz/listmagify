@@ -93,6 +93,8 @@ interface TrackRowProps {
   isDuplicate?: boolean;
   /** Whether another instance of this duplicate track is currently selected */
   isOtherInstanceSelected?: boolean;
+  /** Compare mode background color (transparent when not in compare mode) */
+  compareColor?: string | undefined;
 }
 
 export function TrackRow({
@@ -137,6 +139,7 @@ export function TrackRow({
   onDragStart,
   isDuplicate = false,
   isOtherInstanceSelected = false,
+  compareColor,
 }: TrackRowProps) {
   const { isCompact } = useCompactModeStore();
   const { open: openBrowsePanel, setSearchQuery } = useBrowsePanelStore();
@@ -322,12 +325,23 @@ export function TrackRow({
     };
   }, [listeners, onDragStart]);
 
+  // Compute the effective background style for compare mode
+  // Compare color is only applied when track is not selected and not a duplicate
+  const effectiveBackgroundStyle = useMemo(() => {
+    if (compareColor && compareColor !== 'transparent' && !isSelected && !isDuplicate) {
+      return { backgroundColor: compareColor };
+    }
+    return {};
+  }, [compareColor, isSelected, isDuplicate]);
+
   return (
     <div
       ref={setNodeRef}
-      style={{ ...style, ...gridStyle }}
+      style={{ ...style, ...gridStyle, ...effectiveBackgroundStyle }}
       className={cn(
-        'relative group/row bg-card cursor-default', // relative and group for the insertion marker toggle, default cursor for row
+        'relative group/row cursor-default', // relative and group for the insertion marker toggle, default cursor for row
+        // Only apply bg-card when not using compare color
+        !compareColor || compareColor === 'transparent' || isSelected || isDuplicate ? 'bg-card' : '',
         TRACK_GRID_CLASSES,
         isCompact ? 'h-7 ' + TRACK_GRID_CLASSES_COMPACT : 'h-10 ' + TRACK_GRID_CLASSES_NORMAL,
         'border-b border-border transition-colors',
@@ -339,8 +353,8 @@ export function TrackRow({
         !isSelected && isDuplicate && isOtherInstanceSelected && 'bg-orange-500/20 hover:bg-orange-500/30',
         // Unselected duplicate without other instance selected - subtle orange to show it's a duplicate
         !isSelected && isDuplicate && !isOtherInstanceSelected && 'bg-orange-500/5 hover:bg-orange-500/10',
-        // Unselected non-duplicate - standard hover
-        !isSelected && !isDuplicate && 'hover:bg-accent/40 hover:text-foreground',
+        // Unselected non-duplicate without compare color - standard hover
+        !isSelected && !isDuplicate && (!compareColor || compareColor === 'transparent') && 'hover:bg-accent/40 hover:text-foreground',
         // Visual feedback during drag - apply to dragged item OR all selected items in multi-select
         (isDragging || isDragSourceSelected) && dndMode === 'move' && 'opacity-0',
         (isDragging || isDragSourceSelected) && dndMode === 'copy' && 'opacity-50',

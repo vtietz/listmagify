@@ -23,6 +23,7 @@ import { useRemoveTracks, useAddTracks, useReorderAllTracks } from '@/lib/spotif
 import { useTrackPlayback } from '@/hooks/useTrackPlayback';
 import { getTrackSelectionKey } from '@/lib/dnd/selection';
 import { useHydratedCompactMode } from '@/hooks/useCompactModeStore';
+import { useCompareModeStore, getTrackCompareColor, type TrackDistribution } from '@/hooks/useCompareModeStore';
 import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
 import { usePrefetchContributorProfiles, useUserProfilesCache } from '@/hooks/useUserProfiles';
 import { TRACK_ROW_HEIGHT, TRACK_ROW_HEIGHT_COMPACT, VIRTUALIZATION_OVERSCAN } from '@/components/split/constants';
@@ -348,6 +349,31 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
     });
     return uris;
   }, [selection, duplicateUris, filteredTracks]);
+
+  // Compare mode: register panel tracks for cross-panel comparison
+  const isCompareEnabled = useCompareModeStore((s) => s.isEnabled);
+  const compareDistribution = useCompareModeStore((s) => s.distribution);
+  const registerPanelTracks = useCompareModeStore((s) => s.registerPanelTracks);
+  const unregisterPanel = useCompareModeStore((s) => s.unregisterPanel);
+  
+  // Register tracks when playlist loads or changes (only for playlist panels with a playlistId)
+  useEffect(() => {
+    if (!playlistId || !tracks || tracks.length === 0) {
+      unregisterPanel(panelId);
+      return;
+    }
+    // Register track URIs for comparison (use tracks, not filteredTracks, to get full picture)
+    const uris = tracks.map((t: Track) => t.uri);
+    registerPanelTracks(panelId, uris);
+    
+    // Cleanup on unmount or playlist change
+    return () => unregisterPanel(panelId);
+  }, [panelId, playlistId, tracks, registerPanelTracks, unregisterPanel]);
+  
+  // Helper to get compare color for a track
+  const getCompareColorForTrack = useCallback((trackUri: string) => {
+    return getTrackCompareColor(trackUri, compareDistribution, isCompareEnabled);
+  }, [compareDistribution, isCompareEnabled]);
 
   // Contributors detection
   const hasMultipleContributors = useMemo(() => {
@@ -689,6 +715,10 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
     selectedDuplicateUris,
     isDuplicate: (uri: string) => duplicateUris.has(uri),
     isOtherInstanceSelected: (uri: string) => selectedDuplicateUris.has(uri),
+
+    // Compare mode
+    isCompareEnabled,
+    getCompareColorForTrack,
 
     // Permissions
     isEditable,
