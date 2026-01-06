@@ -279,14 +279,13 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
     const unsubscribeUpdate = eventBus.on('playlist:update', () => {});
     const unsubscribeReload = eventBus.on('playlist:reload', ({ playlistId: id }) => {
       if (id === playlistId) {
+        // Save current scroll position before invalidating
         const scrollTop = scrollRef.current?.scrollTop || 0;
         setScroll(panelId, scrollTop);
-        Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['playlist-tracks-infinite', playlistId] }),
-          queryClient.invalidateQueries({ queryKey: playlistMeta(playlistId) }),
-        ]).then(() => {
-          if (scrollRef.current) scrollRef.current.scrollTop = scrollTop;
-        });
+        // Invalidate queries - scroll will be restored via the scroll restoration effect
+        // after dataUpdatedAt changes and triggers re-render
+        queryClient.invalidateQueries({ queryKey: ['playlist-tracks-infinite', playlistId] });
+        queryClient.invalidateQueries({ queryKey: playlistMeta(playlistId) });
       }
     });
 
@@ -633,7 +632,7 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
     return () => clearInterval(intervalId);
   }, [configData?.playlistPollIntervalSeconds, playlistId, isLikedPlaylist]);
 
-  // Scroll persistence
+  // Scroll persistence - save scroll position on scroll
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
@@ -642,9 +641,17 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
     return () => el.removeEventListener('scroll', handleScroll);
   }, [panelId, setScroll]);
 
+  // Scroll restoration - restore after data updates (use RAF to wait for DOM render)
   useEffect(() => {
-    if (scrollRef.current && panel?.scrollOffset) {
-      scrollRef.current.scrollTop = panel.scrollOffset;
+    const targetScroll = panel?.scrollOffset;
+    if (scrollRef.current && typeof targetScroll === 'number' && targetScroll > 0) {
+      // Use requestAnimationFrame to ensure DOM has updated after data change
+      const rafId = requestAnimationFrame(() => {
+        if (scrollRef.current) {
+          scrollRef.current.scrollTop = targetScroll;
+        }
+      });
+      return () => cancelAnimationFrame(rafId);
     }
   }, [dataUpdatedAt, panel?.scrollOffset]);
 
