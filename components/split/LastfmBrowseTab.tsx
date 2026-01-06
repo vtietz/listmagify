@@ -88,7 +88,9 @@ export function LastfmBrowseTab({ isActive = true }: LastfmBrowseTabProps) {
     lastfmPeriod,
     setLastfmPeriod,
     lastfmSelection,
+    lastfmAnchorIndex,
     toggleLastfmSelection,
+    selectLastfmRange,
     clearLastfmSelection,
   } = useBrowsePanelStore();
   
@@ -293,20 +295,46 @@ export function LastfmBrowseTab({ isActive = true }: LastfmBrowseTabProps) {
     const track = allTracks[index];
     if (!track) return;
     
-    // Toggle selection based on modifier keys
-    if (event.shiftKey || event.ctrlKey || event.metaKey) {
+    // Shift+click: range selection from anchor to current
+    if (event.shiftKey && lastfmAnchorIndex !== null) {
+      const start = Math.min(lastfmAnchorIndex, index);
+      const end = Math.max(lastfmAnchorIndex, index);
+      
+      // Select range
+      selectLastfmRange(lastfmAnchorIndex, index);
+      
+      // Trigger matching for all tracks in range
+      const tracksToMatch = allTracks.slice(start, end + 1)
+        .filter(t => {
+          const cached = getCachedMatch(t._lastfmDto);
+          return !cached || cached.status === 'idle';
+        })
+        .map(t => t._lastfmDto);
+      
+      if (tracksToMatch.length > 0) {
+        matchTracks(tracksToMatch);
+      }
+    } else if (event.ctrlKey || event.metaKey) {
+      // Ctrl/Cmd+click: toggle individual selection
       toggleLastfmSelection(index);
+      
+      // Trigger matching for the track
+      const cached = getCachedMatch(track._lastfmDto);
+      if (!cached || cached.status === 'idle') {
+        matchTrack(track._lastfmDto);
+      }
     } else {
+      // Plain click: single select (clears others)
       clearLastfmSelection();
       toggleLastfmSelection(index);
+      
+      // Trigger matching for the track
+      const cached = getCachedMatch(track._lastfmDto);
+      if (!cached || cached.status === 'idle') {
+        matchTrack(track._lastfmDto);
+      }
     }
-    
-    // Trigger matching for the track
-    const cached = getCachedMatch(track._lastfmDto);
-    if (!cached || cached.status === 'idle') {
-      matchTrack(track._lastfmDto);
-    }
-  }, [allTracks, toggleLastfmSelection, clearLastfmSelection, getCachedMatch, matchTrack]);
+  }, [allTracks, lastfmAnchorIndex, toggleLastfmSelection, selectLastfmRange, clearLastfmSelection, getCachedMatch, matchTrack, matchTracks]);
   
   // Handle click (single select)
   const handleClick = useCallback((selectionKey: string, index: number) => {

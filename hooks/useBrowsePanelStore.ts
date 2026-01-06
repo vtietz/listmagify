@@ -32,6 +32,8 @@ interface BrowsePanelState {
   lastfmPeriod: LastfmPeriod;
   /** Selected Last.fm track indices for multi-select (ordered array preserves selection order) */
   lastfmSelection: number[];
+  /** Anchor index for shift-click range selection */
+  lastfmAnchorIndex: number | null;
   /** Selected Spotify search track indices for multi-select (ordered array preserves selection order) */
   spotifySelection: number[];
   
@@ -52,6 +54,7 @@ interface BrowsePanelState {
   setLastfmPeriod: (period: LastfmPeriod) => void;
   setLastfmSelection: (selection: number[]) => void;
   toggleLastfmSelection: (index: number) => void;
+  selectLastfmRange: (fromIndex: number, toIndex: number) => void;
   clearLastfmSelection: () => void;
   
   // Spotify selection actions
@@ -75,6 +78,7 @@ export const useBrowsePanelStore = create<BrowsePanelState>()(
       lastfmSource: 'lastfm-recent',
       lastfmPeriod: '3month',
       lastfmSelection: [],
+      lastfmAnchorIndex: null,
       spotifySelection: [],
       
       toggle: () => set((state) => ({ isOpen: !state.isOpen })),
@@ -89,20 +93,37 @@ export const useBrowsePanelStore = create<BrowsePanelState>()(
       
       // Last.fm actions
       setLastfmUsername: (username) => set({ lastfmUsername: username }),
-      setLastfmSource: (source) => set({ lastfmSource: source, lastfmSelection: [] }),
+      setLastfmSource: (source) => set({ lastfmSource: source, lastfmSelection: [], lastfmAnchorIndex: null }),
       setLastfmPeriod: (period) => set({ lastfmPeriod: period }),
       setLastfmSelection: (selection) => set({ lastfmSelection: selection }),
       toggleLastfmSelection: (index) => set((state) => {
         const idx = state.lastfmSelection.indexOf(index);
         if (idx >= 0) {
           // Remove from selection
-          return { lastfmSelection: state.lastfmSelection.filter((_, i) => i !== idx) };
+          return { lastfmSelection: state.lastfmSelection.filter((_, i) => i !== idx), lastfmAnchorIndex: index };
         } else {
           // Add to end (preserves selection order)
-          return { lastfmSelection: [...state.lastfmSelection, index] };
+          return { lastfmSelection: [...state.lastfmSelection, index], lastfmAnchorIndex: index };
         }
       }),
-      clearLastfmSelection: () => set({ lastfmSelection: [] }),
+      selectLastfmRange: (fromIndex, toIndex) => set((state) => {
+        const start = Math.min(fromIndex, toIndex);
+        const end = Math.max(fromIndex, toIndex);
+        // Create range of indices
+        const rangeIndices: number[] = [];
+        for (let i = start; i <= end; i++) {
+          rangeIndices.push(i);
+        }
+        // Merge with existing selection (add new indices not already selected)
+        const newSelection = [...state.lastfmSelection];
+        for (const idx of rangeIndices) {
+          if (!newSelection.includes(idx)) {
+            newSelection.push(idx);
+          }
+        }
+        return { lastfmSelection: newSelection, lastfmAnchorIndex: toIndex };
+      }),
+      clearLastfmSelection: () => set({ lastfmSelection: [], lastfmAnchorIndex: null }),
       
       // Spotify selection actions
       setSpotifySelection: (selection) => set({ spotifySelection: selection }),
