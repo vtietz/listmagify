@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth/auth";
-import { spotifyFetch } from "@/lib/spotify/client";
+import { requireAuth, ServerAuthError } from "@/lib/auth/requireAuth";
+import { spotifyFetchWithToken } from "@/lib/spotify/client";
 
 /**
  * PUT /api/playlists/[id]/reorder-all
@@ -17,15 +16,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "token_expired" }, { status: 401 });
-    }
-
-    // Check if there's a session error (refresh failed)
-    if ((session as any).error === "RefreshAccessTokenError") {
-      return NextResponse.json({ error: "token_expired" }, { status: 401 });
-    }
+    const session = await requireAuth();
 
     const { id: playlistId } = await params;
 
@@ -60,7 +51,7 @@ export async function PUT(
       uris: trackUris,
     };
 
-    const res = await spotifyFetch(path, {
+    const res = await spotifyFetchWithToken(session.accessToken, path, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
@@ -109,6 +100,11 @@ export async function PUT(
 
     return NextResponse.json({ snapshotId: newSnapshotId });
   } catch (error) {
+    // Handle auth errors consistently
+    if (error instanceof ServerAuthError) {
+      return NextResponse.json({ error: "token_expired" }, { status: 401 });
+    }
+
     console.error("[api/playlists/reorder-all] Error:", error);
     
     // Check if error is 401 Unauthorized

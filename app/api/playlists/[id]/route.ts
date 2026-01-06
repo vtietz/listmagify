@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth/auth';
-import { spotifyFetch } from '@/lib/spotify/client';
+import { requireAuth, ServerAuthError } from '@/lib/auth/requireAuth';
+import { spotifyFetchWithToken } from '@/lib/spotify/client';
 
 /**
  * GET /api/playlists/[id]
@@ -16,14 +15,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: 'token_expired' }, { status: 401 });
-    }
-
-    if ((session as any).error === 'RefreshAccessTokenError') {
-      return NextResponse.json({ error: 'token_expired' }, { status: 401 });
-    }
+    const session = await requireAuth();
 
     const { id: playlistId } = await params;
 
@@ -35,7 +27,7 @@ export async function GET(
     const path = `/playlists/${encodeURIComponent(playlistId)}`;
     const fields = 'id,name,description,owner(id,display_name),collaborative,tracks(total)';
 
-    const res = await spotifyFetch(`${path}?fields=${encodeURIComponent(fields)}`, {
+    const res = await spotifyFetchWithToken(session.accessToken, `${path}?fields=${encodeURIComponent(fields)}`, {
       method: 'GET',
     });
 
@@ -74,6 +66,11 @@ export async function GET(
 
     return NextResponse.json(response);
   } catch (error) {
+    // Handle auth errors consistently
+    if (error instanceof ServerAuthError) {
+      return NextResponse.json({ error: 'token_expired' }, { status: 401 });
+    }
+
     console.error('[api/playlists] Error:', error);
 
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -110,14 +107,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: 'token_expired' }, { status: 401 });
-    }
-
-    if ((session as any).error === 'RefreshAccessTokenError') {
-      return NextResponse.json({ error: 'token_expired' }, { status: 401 });
-    }
+    const session = await requireAuth();
 
     const { id: playlistId } = await params;
 
@@ -149,7 +139,7 @@ export async function PUT(
 
     // Update the playlist
     const path = `/playlists/${encodeURIComponent(playlistId)}`;
-    const res = await spotifyFetch(path, {
+    const res = await spotifyFetchWithToken(session.accessToken, path, {
       method: 'PUT',
       body: JSON.stringify(updatePayload),
     });
@@ -178,6 +168,11 @@ export async function PUT(
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    // Handle auth errors consistently
+    if (error instanceof ServerAuthError) {
+      return NextResponse.json({ error: 'token_expired' }, { status: 401 });
+    }
+
     console.error('[api/playlists] PUT Error:', error);
 
     const errorMessage = error instanceof Error ? error.message : String(error);
