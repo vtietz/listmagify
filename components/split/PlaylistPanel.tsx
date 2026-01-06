@@ -131,7 +131,10 @@ export function PlaylistPanel({
         selectedCount={state.selection.size}
         isDeleting={state.removeTracks.isPending}
         insertionMarkerCount={state.activeMarkerIndices.size}
+        isSorted={state.isSorted}
+        isSavingOrder={state.isSavingOrder}
         getSelectedTrackUris={state.getSelectedTrackUris}
+        getSortedTrackUris={state.getSortedTrackUris}
         onSearchChange={state.handleSearchChange}
         onSortChange={(key, direction) => {
           state.setSortKey(key);
@@ -146,6 +149,7 @@ export function PlaylistPanel({
         onLoadPlaylist={state.handleLoadPlaylist}
         onDeleteSelected={state.handleDeleteSelected}
         onClearInsertionMarkers={() => state.playlistId && state.clearInsertionMarkers(state.playlistId)}
+        onSaveCurrentOrder={state.handleSaveCurrentOrder}
       />
 
       <div

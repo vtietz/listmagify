@@ -7,7 +7,7 @@
 'use client';
 
 import { useState, useRef, useEffect, ChangeEvent, useCallback } from 'react';
-import { Search, RefreshCw, Lock, LockOpen, X, SplitSquareHorizontal, SplitSquareVertical, Move, Copy, Trash2, MoreHorizontal, MapPinOff, Pencil, Plus, Loader2 } from 'lucide-react';
+import { Search, RefreshCw, Lock, LockOpen, X, SplitSquareHorizontal, SplitSquareVertical, Move, Copy, Trash2, MoreHorizontal, MapPinOff, Pencil, Plus, Loader2, Save } from 'lucide-react';
 import { PlaylistSelector } from './PlaylistSelector';
 import { AddSelectedToMarkersButton } from './AddSelectedToMarkersButton';
 import { Input } from '@/components/ui/input';
@@ -38,7 +38,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { PlaylistDialog } from '@/components/playlist/PlaylistDialog';
 import { useUpdatePlaylist } from '@/lib/spotify/playlistMutations';
-import { useAddTracks } from '@/lib/spotify/playlistMutations';
+import { useAddTracks, useReorderAllTracks } from '@/lib/spotify/playlistMutations';
 import { useInsertionPointsStore, computeInsertionPositions } from '@/hooks/useInsertionPointsStore';
 import { isLikedSongsPlaylist } from '@/hooks/useLikedVirtualPlaylist';
 import { cn } from '@/lib/utils';
@@ -64,8 +64,14 @@ interface PanelToolbarProps {
   selectedCount?: number;
   isDeleting?: boolean;
   insertionMarkerCount?: number;
+  /** Whether the playlist is sorted in non-default order (can save current order) */
+  isSorted?: boolean;
+  /** Whether saving current order is in progress */
+  isSavingOrder?: boolean;
   /** Callback to get selected track URIs for adding to markers */
   getSelectedTrackUris?: () => string[];
+  /** Callback to get all track URIs in current visual order */
+  getSortedTrackUris?: () => string[];
   onSearchChange: (query: string) => void;
   onSortChange?: (key: SortKey, direction: SortDirection) => void;
   onReload: () => void;
@@ -77,6 +83,7 @@ interface PanelToolbarProps {
   onLoadPlaylist: (playlistId: string) => void;
   onDeleteSelected?: () => void;
   onClearInsertionMarkers?: () => void;
+  onSaveCurrentOrder?: () => void;
 }
 
 export function PanelToolbar({
@@ -94,7 +101,10 @@ export function PanelToolbar({
   selectedCount = 0,
   isDeleting = false,
   insertionMarkerCount = 0,
+  isSorted = false,
+  isSavingOrder = false,
   getSelectedTrackUris,
+  getSortedTrackUris,
   onSearchChange,
   onSortChange,
   onReload,
@@ -106,6 +116,7 @@ export function PanelToolbar({
   onLoadPlaylist,
   onDeleteSelected,
   onClearInsertionMarkers,
+  onSaveCurrentOrder,
 }: PanelToolbarProps) {
   const [localSearch, setLocalSearch] = useState(searchQuery);
   const [isCompact, setIsCompact] = useState(true);
@@ -422,6 +433,21 @@ export function PanelToolbar({
               <DropdownMenuItem onClick={() => setEditDialogOpen(true)}>
                 <Pencil className="h-4 w-4 mr-2" />
                 Edit playlist info
+              </DropdownMenuItem>
+            )}
+
+            {/* Save Current Order - visible when sorted in non-default order */}
+            {playlistId && isEditable && !locked && isSorted && onSaveCurrentOrder && (
+              <DropdownMenuItem 
+                onClick={onSaveCurrentOrder}
+                disabled={isSavingOrder}
+              >
+                {isSavingOrder ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4 mr-2" />
+                )}
+                Save current order
               </DropdownMenuItem>
             )}
 

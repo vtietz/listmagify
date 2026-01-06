@@ -19,7 +19,7 @@ import { usePlaylistTracksInfinite } from '@/hooks/usePlaylistTracksInfinite';
 import { useSavedTracksIndex, usePrefetchSavedTracks } from '@/hooks/useSavedTracksIndex';
 import { useLikedVirtualPlaylist, isLikedSongsPlaylist, LIKED_SONGS_METADATA } from '@/hooks/useLikedVirtualPlaylist';
 import { useCapturePlaylist } from '@/hooks/useRecommendations';
-import { useRemoveTracks, useAddTracks } from '@/lib/spotify/playlistMutations';
+import { useRemoveTracks, useAddTracks, useReorderAllTracks } from '@/lib/spotify/playlistMutations';
 import { useTrackPlayback } from '@/hooks/useTrackPlayback';
 import { getTrackSelectionKey } from '@/lib/dnd/selection';
 import { useHydratedCompactMode } from '@/hooks/useCompactModeStore';
@@ -191,6 +191,7 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
   // Mutations
   const removeTracks = useRemoveTracks();
   const addTracks = useAddTracks();
+  const reorderAllTracks = useReorderAllTracks();
 
   // Last.fm config - use dedicated status endpoint (no API calls to Last.fm)
   const { data: lastfmConfig } = useQuery({
@@ -297,6 +298,9 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
 
   // Sorting and filtering
   const sortedTracks = usePlaylistSort({ tracks: tracks || [], sortKey, sortDirection });
+  
+  // Track if the playlist is sorted in a non-default order (can save current order)
+  const isSorted = sortKey !== 'position' || sortDirection !== 'asc';
 
   const filteredTracks = useMemo(() => {
     if (sortedTracks.length === 0) return [];
@@ -547,6 +551,28 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
     return uris;
   }, [filteredTracks, selection]);
 
+  // Get URIs of all tracks in current sorted order (for saving order)
+  const getSortedTrackUris = useCallback((): string[] => {
+    return sortedTracks.map((track: Track) => track.uri);
+  }, [sortedTracks]);
+
+  // Handler for saving the current sorted order as the new playlist order
+  const handleSaveCurrentOrder = useCallback(async () => {
+    if (!playlistId || !isEditable) return;
+    
+    const trackUris = getSortedTrackUris();
+    if (trackUris.length === 0) return;
+
+    try {
+      await reorderAllTracks.mutateAsync({ playlistId, trackUris });
+      // Reset sorting to default after saving
+      setSortKey('position');
+      setSortDirection('asc');
+    } catch (error) {
+      console.error('Failed to save playlist order:', error);
+    }
+  }, [playlistId, isEditable, getSortedTrackUris, reorderAllTracks, setSortKey, setSortDirection]);
+
   const selectionKey = useCallback((track: Track, index: number) => getTrackSelectionKey(track, index), []);
 
   // Handler for DEL key - single track deletes without confirmation, multiple with confirmation
@@ -701,6 +727,12 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
     clearInsertionMarkers,
     focusedIndex,
     getSelectedTrackUris,
+
+    // Save current order
+    isSorted,
+    isSavingOrder: reorderAllTracks.isPending,
+    getSortedTrackUris,
+    handleSaveCurrentOrder,
 
     // Delete with confirmation for multi-track (keyboard DEL)
     showDeleteConfirmation,
