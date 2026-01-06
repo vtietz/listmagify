@@ -310,6 +310,42 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
     );
   }, [sortedTracks, searchQuery]);
 
+  // Detect duplicate URIs in the track list (same song appearing multiple times)
+  const duplicateUris = useMemo(() => {
+    const uriCounts = new Map<string, number>();
+    for (const track of filteredTracks) {
+      const count = uriCounts.get(track.uri) || 0;
+      uriCounts.set(track.uri, count + 1);
+    }
+    // Return set of URIs that appear more than once
+    const duplicates = new Set<string>();
+    for (const [uri, count] of uriCounts) {
+      if (count > 1) {
+        duplicates.add(uri);
+      }
+    }
+    return duplicates;
+  }, [filteredTracks]);
+
+  // Compute which duplicate URIs are currently selected (for highlighting other instances)
+  const selectedDuplicateUris = useMemo(() => {
+    const uris = new Set<string>();
+    // Build a map from selection key to track for quick lookup
+    const keyToTrack = new Map<string, Track>();
+    filteredTracks.forEach((track, index) => {
+      const key = getTrackSelectionKey(track, index);
+      keyToTrack.set(key, track);
+    });
+    
+    selection.forEach((key: string) => {
+      const track = keyToTrack.get(key);
+      if (track && duplicateUris.has(track.uri)) {
+        uris.add(track.uri);
+      }
+    });
+    return uris;
+  }, [selection, duplicateUris, filteredTracks]);
+
   // Contributors detection
   const hasMultipleContributors = useMemo(() => {
     if (!tracks || tracks.length === 0) return false;
@@ -616,6 +652,10 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
     hasMultipleContributors,
     cumulativeDurations,
     hourBoundaries,
+    duplicateUris,
+    selectedDuplicateUris,
+    isDuplicate: (uri: string) => duplicateUris.has(uri),
+    isOtherInstanceSelected: (uri: string) => selectedDuplicateUris.has(uri),
 
     // Permissions
     isEditable,

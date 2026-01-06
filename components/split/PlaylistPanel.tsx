@@ -291,6 +291,8 @@ export function PlaylistPanel({
                           cumulativeDurationMs={state.cumulativeDurations[virtualRow.index] || 0}
                           crossesHourBoundary={state.hourBoundaries.has(virtualRow.index)}
                           hourNumber={state.hourBoundaries.get(virtualRow.index) || 0}
+                          isDuplicate={state.isDuplicate(track.uri)}
+                          isOtherInstanceSelected={state.isOtherInstanceSelected(track.uri)}
                         />
                       </div>
                     );

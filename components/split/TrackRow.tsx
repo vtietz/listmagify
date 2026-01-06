@@ -89,6 +89,10 @@ interface TrackRowProps {
   selectedMatchedUris?: string[];
   /** Callback when drag starts (used to trigger Last.fm matching) */
   onDragStart?: () => void;
+  /** Whether this track appears multiple times in the playlist (duplicate) */
+  isDuplicate?: boolean;
+  /** Whether another instance of this duplicate track is currently selected */
+  isOtherInstanceSelected?: boolean;
 }
 
 export function TrackRow({
@@ -131,6 +135,8 @@ export function TrackRow({
   lastfmDto,
   selectedMatchedUris,
   onDragStart,
+  isDuplicate = false,
+  isOtherInstanceSelected = false,
 }: TrackRowProps) {
   const { isCompact } = useCompactModeStore();
   const { open: openBrowsePanel, setSearchQuery } = useBrowsePanelStore();
@@ -325,8 +331,16 @@ export function TrackRow({
         TRACK_GRID_CLASSES,
         isCompact ? 'h-7 ' + TRACK_GRID_CLASSES_COMPACT : 'h-10 ' + TRACK_GRID_CLASSES_NORMAL,
         'border-b border-border transition-colors',
-        !isSelected && 'hover:bg-accent/40 hover:text-foreground',
-        isSelected && 'bg-accent/70 text-foreground hover:bg-accent/80',
+        // Selected duplicate - prominent orange background
+        isSelected && isDuplicate && 'bg-orange-500/30 text-foreground hover:bg-orange-500/40',
+        // Selected non-duplicate - standard gray selection
+        isSelected && !isDuplicate && 'bg-accent/70 text-foreground hover:bg-accent/80',
+        // Unselected duplicate with another instance selected - brighter orange to show it's related to selection
+        !isSelected && isDuplicate && isOtherInstanceSelected && 'bg-orange-500/20 hover:bg-orange-500/30',
+        // Unselected duplicate without other instance selected - subtle orange to show it's a duplicate
+        !isSelected && isDuplicate && !isOtherInstanceSelected && 'bg-orange-500/5 hover:bg-orange-500/10',
+        // Unselected non-duplicate - standard hover
+        !isSelected && !isDuplicate && 'hover:bg-accent/40 hover:text-foreground',
         // Visual feedback during drag - apply to dragged item OR all selected items in multi-select
         (isDragging || isDragSourceSelected) && dndMode === 'move' && 'opacity-0',
         (isDragging || isDragSourceSelected) && dndMode === 'copy' && 'opacity-50',
