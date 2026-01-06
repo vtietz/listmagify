@@ -124,11 +124,11 @@ export function AddToMarkedButton({
       }
 
       if (skippedCount > 0 && insertedCount > 0) {
-        toast.success(`Added "${trackName}" to ${insertedCount} position${insertedCount > 1 ? 's' : ''}, skipped ${skippedCount} duplicate${skippedCount > 1 ? 's' : ''}`);
+        // Success - no toast needed
       } else if (skippedCount > 0) {
         toast.info(`Skipped all ${skippedCount} position${skippedCount > 1 ? 's' : ''} (track already exists)`);
       } else {
-        toast.success(`Added "${trackName}" to ${insertedCount} position${insertedCount > 1 ? 's' : ''}`);
+        // Success - no toast needed
       }
     } catch (error) {
       toast.error(`Failed to add track: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -239,11 +239,11 @@ export function AddToMarkedButton({
       }
 
       if (movedCount > 0 && addedCount > 0) {
-        toast.success(`Moved to ${movedCount} and added to ${addedCount} position${addedCount > 1 ? 's' : ''}`);
+        // Success - no toast needed
       } else if (movedCount > 0) {
-        toast.success(`Moved "${trackName}" to ${movedCount} position${movedCount > 1 ? 's' : ''}`);
+        // Success - no toast needed
       } else if (addedCount > 0) {
-        toast.success(`Added "${trackName}" to ${addedCount} position${addedCount > 1 ? 's' : ''}`);
+        // Success - no toast needed
       } else {
         toast.info('Tracks are already at the marker positions');
       }

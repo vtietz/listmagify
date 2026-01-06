@@ -469,7 +469,7 @@ export function useSpotifyPlayer() {
       });
       setSelectedDevice(deviceId);
       setDeviceSelectorOpen(false);
-      toast.success('Playback transferred');
+      // Success - no toast needed
     } finally {
       setLoading(false);
     }

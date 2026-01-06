@@ -110,7 +110,7 @@ export function useAddTracks() {
       // Notify other panels to refetch
       eventBus.emit('playlist:update', { playlistId: params.playlistId, cause: 'add' });
 
-      toast.success('Tracks added successfully');
+      // Success - no toast needed
     },
     onError: (error: Error, params: AddTracksParams, context: { previousData?: PlaylistTracksData } | undefined) => {
       // Rollback on error
@@ -220,7 +220,7 @@ export function useRemoveTracks() {
       }
 
       eventBus.emit('playlist:update', { playlistId: params.playlistId, cause: 'remove' });
-      toast.success('Tracks removed successfully');
+      // Success - no toast needed
     },
     onError: (error: Error, params: RemoveTracksParams, context: { previousInfiniteData?: InfinitePlaylistData; previousData?: PlaylistTracksData } | undefined) => {
       // Rollback both caches
@@ -322,7 +322,7 @@ export function useReorderTracks() {
       }
 
       eventBus.emit('playlist:update', { playlistId: params.playlistId, cause: 'reorder' });
-      toast.success('Tracks reordered successfully');
+      // Success - no toast needed
     },
     onError: (error: Error, params: ReorderTracksParams, context: { previousInfiniteData?: InfinitePlaylistData; previousData?: PlaylistTracksData } | undefined) => {
       // Rollback both caches
@@ -404,7 +404,7 @@ export function useCreatePlaylist() {
     onSuccess: (data: CreatePlaylistResponse) => {
       // Invalidate user playlists to refetch the updated list
       queryClient.invalidateQueries({ queryKey: ['user-playlists'] });
-      toast.success('Playlist created successfully');
+      // Success - no toast needed
       // Return data for caller to use (e.g., optimistic UI update)
       return data;
     },
@@ -438,7 +438,7 @@ export function useUpdatePlaylist() {
       // Notify other panels
       eventBus.emit('playlist:update', { playlistId: params.playlistId, cause: 'metadata' });
       
-      toast.success('Playlist updated successfully');
+      // Success - no toast needed
     },
     onError: (error: Error) => {
       toast.error(error instanceof Error ? error.message : 'Failed to update playlist');

@@ -104,10 +104,7 @@ export function LastfmAddToMarkedButton({
         }
       }
 
-      // Success toast
-      toast.success(
-        `Added "${trackName}" to ${insertedCount} marker${insertedCount > 1 ? 's' : ''}`
-      );
+      // Success - no toast needed
 
     } catch (error) {
       console.error('[LastfmAddToMarkedButton] Error:', error);

@@ -106,9 +106,7 @@ export function AddSelectedToMarkersButton({
       
       // Show result toast
       if (successCount > 0 && errorCount === 0) {
-        toast.success(
-          `Added ${uris.length} track${uris.length > 1 ? 's' : ''} to ${successCount} marker${successCount > 1 ? 's' : ''}`
-        );
+        // Success - no toast needed
       } else if (successCount > 0 && errorCount > 0) {
         toast.warning(
           `Added to ${successCount} markers, failed for ${errorCount} playlist${errorCount > 1 ? 's' : ''}`

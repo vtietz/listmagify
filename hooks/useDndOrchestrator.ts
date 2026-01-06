@@ -642,10 +642,6 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
         playlistId: targetPlaylistId,
         trackUris,
         position: targetIndex,
-      }, {
-        onSuccess: () => {
-          toast.success(`Added "${sourceTrack.name}" to playlist`);
-        },
       });
       return;
     }
