@@ -10,6 +10,7 @@ import { useDroppable } from '@dnd-kit/core';
 import { apiFetch } from '@/lib/api/client';
 import { playlistMeta, playlistPermissions } from '@/lib/api/queryKeys';
 import { makeCompositeId, getTrackPosition } from '@/lib/dnd/id';
+import { matchesAllWords } from '@/lib/utils';
 import { eventBus } from '@/lib/sync/eventBus';
 import { useSplitGridStore } from '@/hooks/useSplitGridStore';
 import { usePlaylistSort, type SortKey, type SortDirection } from '@/hooks/usePlaylistSort';
@@ -299,13 +300,13 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
 
   const filteredTracks = useMemo(() => {
     if (sortedTracks.length === 0) return [];
-    if (!searchQuery.trim()) return sortedTracks;
-    const query = searchQuery.toLowerCase();
+    const query = searchQuery.trim();
+    if (!query) return sortedTracks;
     return sortedTracks.filter(
       (track: Track) =>
-        track.name.toLowerCase().includes(query) ||
-        track.artists.some((artist: string) => artist.toLowerCase().includes(query)) ||
-        track.album?.name?.toLowerCase().includes(query)
+        matchesAllWords(track.name, query) ||
+        track.artists.some((artist: string) => matchesAllWords(artist, query)) ||
+        (track.album?.name ? matchesAllWords(track.album.name, query) : false)
     );
   }, [sortedTracks, searchQuery]);
 

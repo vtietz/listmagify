@@ -8,7 +8,7 @@ import { useAutoLoadPaginated } from "@/hooks/useAutoLoadPaginated";
 import { LIKED_SONGS_METADATA } from "@/hooks/useLikedVirtualPlaylist";
 import { useLikedSongsTotal } from "@/hooks/useSavedTracksIndex";
 import { useCompactModeStore } from "@/hooks/useCompactModeStore";
-import { cn } from "@/lib/utils";
+import { cn, matchesAllWords } from "@/lib/utils";
 
 export interface PlaylistsGridProps {
   initialItems: Playlist[];
@@ -101,9 +101,9 @@ export function PlaylistsGrid({
     tracksTotal: likedSongsTotal,
   }), [likedSongsTotal]);
 
-  // Filter items by search term (case-insensitive, name and owner)
+  // Filter items by search term (case-insensitive, name and owner, words in any order)
   const filteredItems = useMemo(() => {
-    const query = searchTerm.trim().toLowerCase();
+    const query = searchTerm.trim();
     
     // Filter regular playlists
     let filtered: Playlist[];
@@ -111,16 +111,16 @@ export function PlaylistsGrid({
       filtered = items;
     } else {
       filtered = items.filter((playlist) => {
-        const nameMatch = playlist.name.toLowerCase().includes(query);
-        const ownerMatch = playlist.ownerName?.toLowerCase().includes(query) ?? false;
+        const nameMatch = matchesAllWords(playlist.name, query);
+        const ownerMatch = playlist.ownerName ? matchesAllWords(playlist.ownerName, query) : false;
         return nameMatch || ownerMatch;
       });
     }
     
     // Check if Liked Songs matches search (or show if no search)
     const likedMatches = !query || 
-      likedSongsPlaylist.name.toLowerCase().includes(query) ||
-      likedSongsPlaylist.ownerName?.toLowerCase().includes(query);
+      matchesAllWords(likedSongsPlaylist.name, query) ||
+      (likedSongsPlaylist.ownerName ? matchesAllWords(likedSongsPlaylist.ownerName, query) : false);
     
     // Prepend Liked Songs if it matches
     return likedMatches ? [likedSongsPlaylist, ...filtered] : filtered;

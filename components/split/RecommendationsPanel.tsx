@@ -16,7 +16,7 @@ import { useHydratedCompactMode } from '@/hooks/useCompactModeStore';
 import { TrackRow } from './TrackRow';
 import { TRACK_ROW_HEIGHT, TRACK_ROW_HEIGHT_COMPACT } from './constants';
 import { makeCompositeId } from '@/lib/dnd/id';
-import { cn } from '@/lib/utils';
+import { cn, matchesAllWords } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import type { Track } from '@/lib/spotify/types';
@@ -76,17 +76,17 @@ export function RecommendationsPanel({
   const allRecommendations = data?.recommendations ?? [];
   const isEnabled = data?.enabled ?? true;
   
-  // Filter recommendations by search query
+  // Filter recommendations by search query (words can match in any order)
   const filteredRecommendations = useMemo(() => {
-    if (!searchQuery.trim()) return allRecommendations;
-    const query = searchQuery.toLowerCase();
+    const query = searchQuery.trim();
+    if (!query) return allRecommendations;
     return allRecommendations.filter((r: { track?: Track }) => {
       const track = r.track;
       if (!track) return false;
       return (
-        track.name?.toLowerCase().includes(query) ||
-        track.artists?.some(a => a.toLowerCase().includes(query)) ||
-        track.album?.name?.toLowerCase().includes(query)
+        (track.name ? matchesAllWords(track.name, query) : false) ||
+        track.artists?.some(a => matchesAllWords(a, query)) ||
+        (track.album?.name ? matchesAllWords(track.album.name, query) : false)
       );
     });
   }, [allRecommendations, searchQuery]);
