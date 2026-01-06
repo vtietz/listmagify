@@ -13,32 +13,40 @@ export function MatchStatusIndicator({ status }: MatchStatusIndicatorProps) {
   switch (status) {
     case 'pending':
       return (
-        <Loader2
-          className="h-3.5 w-3.5 animate-spin text-muted-foreground"
-          aria-label="Matching..."
-        />
+        <span title="Matching to Spotify...">
+          <Loader2
+            className="h-3.5 w-3.5 animate-spin text-muted-foreground"
+            aria-label="Matching..."
+          />
+        </span>
       );
     case 'matched':
       return (
-        <CheckCircle2
-          className="h-3.5 w-3.5 text-green-500"
-          aria-label="Matched"
-        />
+        <span title="Matched to Spotify">
+          <CheckCircle2
+            className="h-3.5 w-3.5 text-green-500"
+            aria-label="Matched"
+          />
+        </span>
       );
     case 'failed':
       return (
-        <XCircle
-          className="h-3.5 w-3.5 text-red-500"
-          aria-label="No match found"
-        />
+        <span title="No Spotify match found">
+          <XCircle
+            className="h-3.5 w-3.5 text-red-500"
+            aria-label="No match found"
+          />
+        </span>
       );
     case 'idle':
     default:
       return (
-        <Circle
-          className="h-3.5 w-3.5 text-muted-foreground/50"
-          aria-label="Not matched yet"
-        />
+        <span title="Click to match to Spotify">
+          <Circle
+            className="h-3.5 w-3.5 text-muted-foreground/50"
+            aria-label="Not matched yet"
+          />
+        </span>
       );
   }
 }

@@ -36,6 +36,8 @@ export {
   getActionDistribution,
   getDailyUsers,
   getDailyActions,
+  getTopUsers,
+  getTotalUserCount,
   updateDailyAggregates,
   type DateRange,
   type EventCount,
@@ -45,4 +47,5 @@ export {
   type SessionSummary,
   type DailyUsers,
   type DailyActions,
+  type TopUser,
 } from './aggregations';

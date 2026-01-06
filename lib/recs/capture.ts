@@ -47,11 +47,12 @@ export function captureSnapshot(input: PlaylistSnapshotInput): number {
   return withTransaction((db) => {
     // Upsert track metadata only (no snapshot storage to save space)
     const upsertTrack = db.prepare(`
-      INSERT INTO tracks (track_id, uri, name, artist_ids, album_id, popularity, duration_ms, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO tracks (track_id, uri, name, artist, artist_ids, album_id, popularity, duration_ms, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(track_id) DO UPDATE SET
         uri = excluded.uri,
         name = excluded.name,
+        artist = excluded.artist,
         artist_ids = excluded.artist_ids,
         album_id = excluded.album_id,
         popularity = COALESCE(excluded.popularity, tracks.popularity),
@@ -64,11 +65,13 @@ export function captureSnapshot(input: PlaylistSnapshotInput): number {
       if (!track.id) continue; // Skip local files
       
       const artistIds = track.artistObjects?.map(a => a.id).filter(Boolean) ?? [];
+      const artistNames = track.artistObjects?.map(a => a.name).filter(Boolean).join(', ') ?? '';
       
       upsertTrack.run(
         track.id,
         track.uri,
         track.name,
+        artistNames,
         JSON.stringify(artistIds),
         track.album?.id ?? null,
         track.popularity ?? null,

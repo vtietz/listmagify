@@ -25,6 +25,8 @@ import {
   Database,
   GitBranch,
   Music,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 
 // Time range presets
@@ -106,7 +108,35 @@ interface RecsStats {
     recentSnapshotsLast7Days: number;
     totalEdges: number;
   } | null;
+  topTracks?: TopTrack[];
+  totalTracks?: number;
   message?: string;
+}
+
+interface TopTrack {
+  trackId: string;
+  name: string;
+  artist: string | null;
+  edgeCount: number;
+}
+
+interface TopUser {
+  userHash: string;
+  eventCount: number;
+  tracksAdded: number;
+  tracksRemoved: number;
+  lastActive: string;
+}
+
+interface TopUsersResponse {
+  success: boolean;
+  data: TopUser[];
+  pagination: {
+    limit: number;
+    offset: number;
+    total: number;
+    hasMore: boolean;
+  };
 }
 
 interface DailySummary {
@@ -423,6 +453,213 @@ function TopPlaylistsList({ playlists }: { playlists: TopPlaylist[] }) {
   );
 }
 
+function TopUsersCard({ 
+  dateRange 
+}: { 
+  dateRange: { from: string; to: string } 
+}) {
+  const [page, setPage] = useState(0);
+  const pageSize = 10;
+
+  const { data, isLoading } = useQuery<TopUsersResponse>({
+    queryKey: ['stats', 'users', dateRange, page],
+    queryFn: async () => {
+      const res = await fetch(
+        `/api/stats/users?from=${dateRange.from}&to=${dateRange.to}&limit=${pageSize}&offset=${page * pageSize}`
+      );
+      if (!res.ok) throw new Error('Failed to fetch top users');
+      return res.json();
+    },
+  });
+
+  const users: TopUser[] = data?.data ?? [];
+  const pagination = data?.pagination;
+  const totalPages = pagination ? Math.ceil(pagination.total / pageSize) : 0;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Users className="h-4 w-4" />
+          Top Users (by activity)
+        </CardTitle>
+        <CardDescription>
+          User activity ranking (hashed IDs for privacy)
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="py-8 text-center text-muted-foreground">Loading...</div>
+        ) : users.length === 0 ? (
+          <div className="py-8 text-center text-muted-foreground">
+            No user activity recorded
+          </div>
+        ) : (
+          <>
+            <div className="space-y-2">
+              <div className="grid grid-cols-12 text-xs text-muted-foreground font-medium pb-2 border-b">
+                <div className="col-span-1">#</div>
+                <div className="col-span-4">User Hash</div>
+                <div className="col-span-2 text-right">Events</div>
+                <div className="col-span-2 text-right">Added</div>
+                <div className="col-span-3 text-right">Last Active</div>
+              </div>
+              {users.map((user, i) => (
+                <div key={user.userHash} className="grid grid-cols-12 text-sm items-center py-1.5 hover:bg-muted/50 rounded">
+                  <div className="col-span-1 text-muted-foreground">{page * pageSize + i + 1}</div>
+                  <div className="col-span-4 font-mono text-xs truncate" title={user.userHash}>
+                    {user.userHash.slice(0, 12)}...
+                  </div>
+                  <div className="col-span-2 text-right font-medium">{user.eventCount}</div>
+                  <div className="col-span-2 text-right text-green-600">{user.tracksAdded}</div>
+                  <div className="col-span-3 text-right text-xs text-muted-foreground">
+                    {new Date(user.lastActive).toLocaleDateString()}
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                <span className="text-xs text-muted-foreground">
+                  Showing {page * pageSize + 1}-{Math.min((page + 1) * pageSize, pagination?.total ?? 0)} of {pagination?.total ?? 0}
+                </span>
+                <div className="flex gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage(p => Math.max(0, p - 1))}
+                    disabled={page === 0}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage(p => p + 1)}
+                    disabled={!pagination?.hasMore}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function TopTracksCard({ 
+  topTracks = [], 
+  totalTracks = 0,
+  isLoading 
+}: { 
+  topTracks?: TopTrack[]; 
+  totalTracks?: number;
+  isLoading: boolean;
+}) {
+  const [page, setPage] = useState(0);
+  const pageSize = 10;
+  
+  // For pagination, we'd need to refetch. For now show first 10
+  const displayTracks = topTracks.slice(page * pageSize, (page + 1) * pageSize);
+  const totalPages = Math.ceil(totalTracks / pageSize);
+  const maxEdges = Math.max(...topTracks.map(t => t.edgeCount), 1);
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Music className="h-4 w-4" />
+            Top Tracks (by connections)
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="py-8 text-center text-muted-foreground">Loading...</div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Music className="h-4 w-4" />
+          Top Tracks (by connections)
+        </CardTitle>
+        <CardDescription>
+          Most connected tracks in the recommendation graph
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {displayTracks.length === 0 ? (
+          <div className="py-8 text-center text-muted-foreground">
+            No tracks indexed yet
+          </div>
+        ) : (
+          <>
+            <div className="space-y-2">
+              {displayTracks.map((track, i) => {
+                const displayName = track.artist 
+                  ? `${track.name} — ${track.artist}`
+                  : track.name;
+                return (
+                  <div key={track.trackId} className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground w-6">{page * pageSize + i + 1}.</span>
+                    <div className="flex-1 min-w-0">
+                      <div
+                        className="bg-green-500/20 rounded h-6 flex items-center px-2"
+                        style={{ width: `${Math.max(20, (track.edgeCount / maxEdges) * 100)}%` }}
+                      >
+                        <span className="text-xs truncate" title={displayName}>{displayName}</span>
+                      </div>
+                    </div>
+                    <span className="text-sm font-medium text-muted-foreground w-16 text-right">
+                      {track.edgeCount} edges
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+            
+            {/* Pagination (simplified - would need API support for true pagination) */}
+            {totalPages > 1 && topTracks.length > pageSize && (
+              <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                <span className="text-xs text-muted-foreground">
+                  Showing {page * pageSize + 1}-{Math.min((page + 1) * pageSize, topTracks.length)} of {topTracks.length}
+                </span>
+                <div className="flex gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage(p => Math.max(0, p - 1))}
+                    disabled={page === 0}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage(p => p + 1)}
+                    disabled={(page + 1) * pageSize >= topTracks.length}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function RecsStatsCard({ data, isLoading }: { data?: RecsStats; isLoading: boolean }) {
   if (isLoading) {
     return (
@@ -577,11 +814,11 @@ export function StatsDashboard() {
     },
   });
 
-  // Fetch recs stats (not time-dependent)
+  // Fetch recs stats with top tracks (not time-dependent)
   const { data: recsData, isLoading: recsLoading } = useQuery<RecsStats>({
     queryKey: ['stats', 'recs'],
     queryFn: async () => {
-      const res = await fetch('/api/stats/recs');
+      const res = await fetch('/api/stats/recs?topTracksLimit=50');
       if (!res.ok) throw new Error('Failed to fetch recs stats');
       return res.json();
     },
@@ -751,22 +988,37 @@ export function StatsDashboard() {
         </Card>
       </div>
 
-      {/* Top Playlists */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Top Playlists (by interactions)</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {eventsLoading ? (
-            <div className="py-8 text-center text-muted-foreground">Loading...</div>
-          ) : (
-            <TopPlaylistsList playlists={events?.topPlaylists ?? []} />
-          )}
-        </CardContent>
-      </Card>
+      {/* Rankings Row: Top Users and Top Playlists */}
+      <div className="grid gap-4 md:grid-cols-2">
+        {/* Top Users Ranking */}
+        <TopUsersCard dateRange={dateRange} />
+
+        {/* Top Playlists */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Top Playlists (by interactions)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {eventsLoading ? (
+              <div className="py-8 text-center text-muted-foreground">Loading...</div>
+            ) : (
+              <TopPlaylistsList playlists={events?.topPlaylists ?? []} />
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Recommendations System Stats */}
       <RecsStatsCard data={recsData} isLoading={recsLoading} />
+      
+      {/* Top Tracks from Recommendation Graph */}
+      {recsData?.enabled && (
+        <TopTracksCard 
+          topTracks={recsData?.topTracks} 
+          totalTracks={recsData?.totalTracks}
+          isLoading={recsLoading} 
+        />
+      )}
       </div>
     </TooltipProvider>
   );

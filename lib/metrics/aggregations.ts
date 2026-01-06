@@ -269,6 +269,54 @@ export function getActionDistribution(range: DateRange): { event: string; count:
 }
 
 /**
+ * Top user by event count.
+ */
+export interface TopUser {
+  userHash: string;
+  eventCount: number;
+  tracksAdded: number;
+  tracksRemoved: number;
+  lastActive: string;
+}
+
+/**
+ * Get top users by event count (paginated).
+ */
+export function getTopUsers(range: DateRange, limit: number = 10, offset: number = 0): TopUser[] {
+  return queryAll<TopUser>(
+    `SELECT 
+      user_hash as userHash,
+      COUNT(*) as eventCount,
+      SUM(CASE WHEN event = 'track_add' THEN COALESCE(count, 1) ELSE 0 END) as tracksAdded,
+      SUM(CASE WHEN event = 'track_remove' THEN COALESCE(count, 1) ELSE 0 END) as tracksRemoved,
+      MAX(ts) as lastActive
+    FROM events
+    WHERE 
+      date(ts) BETWEEN ? AND ?
+      AND user_hash IS NOT NULL
+    GROUP BY user_hash
+    ORDER BY eventCount DESC
+    LIMIT ? OFFSET ?`,
+    [range.from, range.to, limit, offset]
+  );
+}
+
+/**
+ * Get total count of unique users for pagination.
+ */
+export function getTotalUserCount(range: DateRange): number {
+  const result = queryOne<{ count: number }>(
+    `SELECT COUNT(DISTINCT user_hash) as count
+    FROM events
+    WHERE 
+      date(ts) BETWEEN ? AND ?
+      AND user_hash IS NOT NULL`,
+    [range.from, range.to]
+  );
+  return result?.count ?? 0;
+}
+
+/**
  * Update daily aggregates (run periodically, e.g., via cron or on-demand).
  */
 export function updateDailyAggregates(date: string): void {

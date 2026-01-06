@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS tracks (
   track_id TEXT PRIMARY KEY,
   uri TEXT NOT NULL,
   name TEXT NOT NULL,
+  artist TEXT, -- Combined artist names
   artist_ids TEXT, -- JSON array of artist IDs
   album_id TEXT,
   genres TEXT, -- JSON array of genres (from artist data)
