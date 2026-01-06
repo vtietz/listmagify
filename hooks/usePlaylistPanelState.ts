@@ -80,12 +80,23 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
   const togglePanelLock = useSplitGridStore((state: any) => state.togglePanelLock);
   const loadPlaylist = useSplitGridStore((state: any) => state.loadPlaylist);
   const selectPlaylist = useSplitGridStore((state: any) => state.selectPlaylist);
+  const setSort = useSplitGridStore((state: any) => state.setSort);
 
   // Local state
   const [playlistName, setPlaylistName] = useState<string>('');
   const [playlistDescription, setPlaylistDescription] = useState<string>('');
-  const [sortKey, setSortKey] = useState<SortKey>('position');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+
+  // Sort state from store (persisted)
+  const sortKey: SortKey = panel?.sortKey || 'position';
+  const sortDirection: SortDirection = panel?.sortDirection || 'asc';
+  
+  const setSortKey = useCallback((key: SortKey) => {
+    setSort(panelId, key, sortDirection);
+  }, [panelId, setSort, sortDirection]);
+  
+  const setSortDirection = useCallback((dir: SortDirection) => {
+    setSort(panelId, sortKey, dir);
+  }, [panelId, setSort, sortKey]);
 
   const playlistId = panel?.playlistId;
   const searchQuery = panel?.searchQuery || '';
@@ -471,12 +482,13 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
 
   const handleSort = useCallback((key: SortKey) => {
     if (key === sortKey) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+      // Toggle direction for same key
+      setSort(panelId, key, sortDirection === 'asc' ? 'desc' : 'asc');
     } else {
-      setSortKey(key);
-      setSortDirection('asc');
+      // New key, reset to ascending
+      setSort(panelId, key, 'asc');
     }
-  }, [sortKey, sortDirection]);
+  }, [panelId, sortKey, sortDirection, setSort]);
 
   const handleDeleteSelected = useCallback(() => {
     if (!playlistId || selection.size === 0) return;
@@ -593,12 +605,11 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
     try {
       await reorderAllTracks.mutateAsync({ playlistId, trackUris });
       // Reset sorting to default after saving
-      setSortKey('position');
-      setSortDirection('asc');
+      setSort(panelId, 'position', 'asc');
     } catch (error) {
       console.error('Failed to save playlist order:', error);
     }
-  }, [playlistId, isEditable, getSortedTrackUris, reorderAllTracks, setSortKey, setSortDirection]);
+  }, [panelId, playlistId, isEditable, getSortedTrackUris, reorderAllTracks, setSort]);
 
   const selectionKey = useCallback((track: Track, index: number) => getTrackSelectionKey(track, index), []);
 

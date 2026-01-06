@@ -21,6 +21,8 @@ export interface PanelConfig {
   scrollOffset: number;
   selection: Set<string>;
   dndMode: 'move' | 'copy';
+  sortKey: 'position' | 'title' | 'artist' | 'album' | 'addedAt' | 'duration';
+  sortDirection: 'asc' | 'desc';
 }
 
 /** A leaf node containing a panel */
@@ -68,6 +70,8 @@ export function createPanelConfig(playlistId: string | null = null): PanelConfig
     scrollOffset: 0,
     selection: new Set(),
     dndMode: 'copy',
+    sortKey: 'position',
+    sortDirection: 'asc',
   };
 }
 
@@ -202,6 +206,8 @@ function serializeTree(node: SplitNode | null): unknown {
       panel: {
         ...node.panel,
         selection: Array.from(node.panel.selection),
+        sortKey: node.panel.sortKey,
+        sortDirection: node.panel.sortDirection,
       },
     };
   }
@@ -232,6 +238,8 @@ function deserializeTree(data: unknown): SplitNode | null {
         scrollOffset: panel.scrollOffset as number,
         selection: new Set(Array.isArray(panel.selection) ? panel.selection : []),
         dndMode: (panel.dndMode as 'move' | 'copy') || 'copy',
+        sortKey: (panel.sortKey as PanelConfig['sortKey']) || 'position',
+        sortDirection: (panel.sortDirection as 'asc' | 'desc') || 'asc',
       },
     };
   }
@@ -265,6 +273,8 @@ function migrateLegacyPanels(panels: unknown[]): SplitNode | null {
       scrollOffset: (pObj.scrollOffset as number) || 0,
       selection: new Set(Array.isArray(pObj.selection) ? pObj.selection : []),
       dndMode: (pObj.dndMode as 'move' | 'copy') || 'copy',
+      sortKey: (pObj.sortKey as PanelConfig['sortKey']) || 'position',
+      sortDirection: (pObj.sortDirection as 'asc' | 'desc') || 'asc',
     };
     return createPanelNode(panel);
   });
@@ -309,6 +319,7 @@ interface SplitGridState {
   setScroll: (panelId: string, offset: number) => void;
   setPanelDnDMode: (panelId: string, mode: 'move' | 'copy') => void;
   togglePanelLock: (panelId: string) => void;
+  setSort: (panelId: string, sortKey: PanelConfig['sortKey'], sortDirection: 'asc' | 'desc') => void;
   
   // Legacy actions (for compatibility)
   addSplit: (direction: 'horizontal' | 'vertical') => void;
@@ -467,6 +478,19 @@ export const useSplitGridStore = create<SplitGridState>()(
         const newRoot = updatePanelInTree(root, panelId, (panel) => ({
           ...panel,
           locked: !panel.locked,
+        }));
+        set({ 
+          root: newRoot,
+          panels: flattenPanels(newRoot),
+        });
+      },
+
+      setSort: (panelId, sortKey, sortDirection) => {
+        const { root } = get();
+        const newRoot = updatePanelInTree(root, panelId, (panel) => ({
+          ...panel,
+          sortKey,
+          sortDirection,
         }));
         set({ 
           root: newRoot,
