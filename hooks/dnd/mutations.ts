@@ -11,7 +11,6 @@ import { buildTracksWithPositions, getTrackPositions, isContiguousRange } from '
 import { logDebug } from '@/lib/utils/debug';
 // @ts-expect-error - sonner's type definitions are incompatible with verbatimModuleSyntax
 import { toast } from 'sonner';
-import { useBrowsePanelStore } from '../useBrowsePanelStore';
 
 /**
  * Mutation functions passed from the hook
@@ -48,6 +47,8 @@ export interface DropContext {
   mutations: MutationHandlers;
   selectedIndices: number[];
   orderedTracks: Track[];
+  /** Optional callback to clear UI selection after drop (e.g., Last.fm selection) */
+  clearSelection?: () => void;
 }
 
 /**
@@ -78,8 +79,8 @@ export function handleLastfmDrop(
     // Multi-selection: use pre-computed matched URIs from drag data
     trackUris = selectedMatchedUris;
 
-    // Clear selection after successful drag
-    useBrowsePanelStore.getState().clearLastfmSelection();
+    // Clear selection after successful drag via context callback
+    context.clearSelection?.();
   } else if (matchedTrack?.uri) {
     // Single track: use the matched track from drag data
     trackUris = [matchedTrack.uri];

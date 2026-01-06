@@ -19,6 +19,7 @@ import { usePointerTracker } from './usePointerTracker';
 import { useContinuousAutoScroll } from './useAutoScrollEdge';
 import { calculateDropPosition } from './useDropPosition';
 import { useHydratedCompactMode } from './useCompactModeStore';
+import { useBrowsePanelStore } from './useBrowsePanelStore';
 import { TABLE_HEADER_HEIGHT, TABLE_HEADER_HEIGHT_COMPACT } from '@/components/split/constants';
 import {
   KeyboardSensor,
@@ -606,6 +607,7 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
         mutations: { addTracks, removeTracks, reorderTracks },
         selectedIndices: [],
         orderedTracks: [],
+        clearSelection: useBrowsePanelStore.getState().clearLastfmSelection,
       };
       
       handleLastfmDrop(
