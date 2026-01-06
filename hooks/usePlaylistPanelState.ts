@@ -443,7 +443,9 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
     }
   }, [isCompact]);
 
-  const items = useMemo(() => virtualizer.getVirtualItems(), [virtualizer]);
+  // Note: getVirtualItems() must be called during render (not memoized with stable deps)
+  // The flushSync warning is a known TanStack Virtual issue that doesn't affect functionality
+  const items = virtualizer.getVirtualItems();
 
   const contextItems = useMemo(() => {
     return filteredTracks.map((t: Track, index: number) => 

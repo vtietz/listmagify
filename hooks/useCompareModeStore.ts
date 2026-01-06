@@ -10,6 +10,7 @@
  */
 
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 
 export interface TrackDistribution {
   /** Map of track URI to the set of panel IDs containing it */
@@ -65,36 +66,44 @@ function computeDistribution(panelTracks: Map<string, string[]>): TrackDistribut
   };
 }
 
-export const useCompareModeStore = create<CompareModeState>()((set, get) => ({
-  isEnabled: false,
-  panelTracks: new Map(),
-  distribution: null,
-  
-  toggle: () => set((state) => ({ isEnabled: !state.isEnabled })),
-  enable: () => set({ isEnabled: true }),
-  disable: () => set({ isEnabled: false }),
-  
-  registerPanelTracks: (panelId: string, trackUris: string[]) => {
-    const current = get().panelTracks;
-    const newMap = new Map(current);
-    newMap.set(panelId, trackUris);
-    set({
-      panelTracks: newMap,
-      distribution: computeDistribution(newMap),
-    });
-  },
-  
-  unregisterPanel: (panelId: string) => {
-    const current = get().panelTracks;
-    if (!current.has(panelId)) return;
-    const newMap = new Map(current);
-    newMap.delete(panelId);
-    set({
-      panelTracks: newMap,
-      distribution: computeDistribution(newMap),
-    });
-  },
-}));
+export const useCompareModeStore = create<CompareModeState>()(
+  persist(
+    (set, get) => ({
+      isEnabled: false,
+      panelTracks: new Map(),
+      distribution: null,
+      
+      toggle: () => set((state) => ({ isEnabled: !state.isEnabled })),
+      enable: () => set({ isEnabled: true }),
+      disable: () => set({ isEnabled: false }),
+      
+      registerPanelTracks: (panelId: string, trackUris: string[]) => {
+        const current = get().panelTracks;
+        const newMap = new Map(current);
+        newMap.set(panelId, trackUris);
+        set({
+          panelTracks: newMap,
+          distribution: computeDistribution(newMap),
+        });
+      },
+      
+      unregisterPanel: (panelId: string) => {
+        const current = get().panelTracks;
+        if (!current.has(panelId)) return;
+        const newMap = new Map(current);
+        newMap.delete(panelId);
+        set({
+          panelTracks: newMap,
+          distribution: computeDistribution(newMap),
+        });
+      },
+    }),
+    {
+      name: 'compare-mode-storage',
+      partialize: (state) => ({ isEnabled: state.isEnabled }),
+    }
+  )
+);
 
 /**
  * Calculate color for a track based on its presence across panels.
