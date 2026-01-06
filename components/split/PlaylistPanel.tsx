@@ -1,12 +1,13 @@
 /**
  * PlaylistPanel component with virtualized track list, search, and DnD support.
  * Each panel can load a playlist independently and sync with other panels showing the same playlist.
+ * 
+ * Refactored to use VirtualizedTrackListContainer for cleaner separation of concerns.
  */
 
 'use client';
 
 import { useEffect } from 'react';
-import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { AlertCircle } from 'lucide-react';
 import { ApiError, AccessTokenExpiredError } from '@/lib/api/client';
 import { SignInButton } from '@/components/auth/SignInButton';
@@ -24,9 +25,7 @@ import {
 import { usePlaylistPanelState } from '@/hooks/usePlaylistPanelState';
 import { PanelToolbar } from './PanelToolbar';
 import { TableHeader } from './TableHeader';
-import { TrackRow } from './TrackRow';
-import { DropIndicator } from './DropIndicator';
-import { InsertionMarkersOverlay } from './InsertionMarker';
+import { VirtualizedTrackListContainer } from './VirtualizedTrackListContainer';
 import { TRACK_ROW_HEIGHT } from './constants';
 import type { Track } from '@/lib/spotify/types';
 
@@ -219,91 +218,40 @@ export function PlaylistPanel({
                 showLikedColumn={true}
                 isCollaborative={state.hasMultipleContributors}
               />
-              <SortableContext
-                items={state.contextItems}
-                strategy={verticalListSortingStrategy}
-              >
-                <div
-                  style={{
-                    height: `${state.virtualizer.getTotalSize()}px`,
-                    position: 'relative',
-                  }}
-                >
-                  {/* Visual drop indicator line */}
-                  <DropIndicator
-                    panelId={panelId}
-                    dropIndicatorIndex={dropIndicatorIndex}
-                    virtualItems={state.items}
-                    filteredTracksCount={state.filteredTracks.length}
-                  />
-
-                  {/* Insertion point markers - hidden when sorted since positions don't match visual order */}
-                  {state.playlistId && state.isEditable && state.activeMarkerIndices.size > 0 && !state.searchQuery && !state.isSorted && (
-                    <InsertionMarkersOverlay
-                      playlistId={state.playlistId}
-                      totalTracks={state.filteredTracks.length}
-                      rowHeight={state.rowHeight}
-                      showToggles={!isDragSource}
-                      activeIndices={state.activeMarkerIndices}
-                    />
-                  )}
-
-                  {state.items.map((virtualRow) => {
-                    const track = state.filteredTracks[virtualRow.index];
-                    if (!track) return null;
-                    
-                    const selectionId = state.selectionKey(track, virtualRow.index);
-                    const trackId = track.id || track.uri;
-
-                    return (
-                      <div
-                        key={`${panelId}-${trackId}-${virtualRow.index}`}
-                        style={{
-                          position: 'absolute',
-                          top: 0,
-                          left: 0,
-                          width: '100%',
-                          height: `${virtualRow.size}px`,
-                          transform: `translateY(${virtualRow.start}px)`,
-                        }}
-                      >
-                        <TrackRow
-                          track={track}
-                          index={virtualRow.index}
-                          selectionKey={selectionId}
-                          isSelected={state.selection.has(selectionId)}
-                          isEditable={state.isEditable}
-                          locked={!state.canDrag}
-                          onSelect={state.handleTrackSelect}
-                          onClick={state.handleTrackClick}
-                          panelId={panelId}
-                          playlistId={state.playlistId}
-                          dndMode={state.dndMode}
-                          isDragSourceSelected={isDragSource && state.selection.has(selectionId)}
-                          showLikedColumn={true}
-                          isLiked={track.id ? state.isLiked(track.id) : false}
-                          onToggleLiked={state.handleToggleLiked}
-                          isPlaying={track.id ? state.isTrackPlaying(track.id) : false}
-                          isPlaybackLoading={state.isTrackLoading(track.uri)}
-                          onPlay={state.playTrack}
-                          onPause={state.pausePlayback}
-                          hasInsertionMarker={!state.searchQuery && !state.isSorted && state.activeMarkerIndices.has(track.position ?? virtualRow.index)}
-                          hasInsertionMarkerAfter={false}
-                          allowInsertionMarkerToggle={!state.searchQuery && !state.isSorted}
-                          isCollaborative={state.hasMultipleContributors}
-                          getProfile={state.hasMultipleContributors ? state.getProfile : undefined}
-                          cumulativeDurationMs={state.cumulativeDurations[virtualRow.index] || 0}
-                          crossesHourBoundary={state.hourBoundaries.has(virtualRow.index)}
-                          hourNumber={state.hourBoundaries.get(virtualRow.index) || 0}
-                          isDuplicate={state.isDuplicate(track.uri)}
-                          isOtherInstanceSelected={state.isOtherInstanceSelected(track.uri)}
-                          compareColor={state.getCompareColorForTrack(track.uri)}
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
-              </SortableContext>
+              <VirtualizedTrackListContainer
+                panelId={panelId}
+                playlistId={state.playlistId!}
+                isEditable={state.isEditable}
+                canDrag={state.canDrag}
+                dndMode={state.dndMode}
+                isDragSource={isDragSource}
+                dropIndicatorIndex={dropIndicatorIndex}
+                searchQuery={state.searchQuery}
+                isSorted={state.isSorted}
+                totalSize={state.virtualizer.getTotalSize()}
+                rowHeight={state.rowHeight}
+                virtualItems={state.items}
+                filteredTracks={state.filteredTracks}
+                contextItems={state.contextItems}
+                selection={state.selection}
+                activeMarkerIndices={state.activeMarkerIndices}
+                hasMultipleContributors={state.hasMultipleContributors}
+                hourBoundaries={state.hourBoundaries}
+                cumulativeDurations={state.cumulativeDurations}
+                selectionKey={state.selectionKey}
+                isLiked={state.isLiked}
+                isTrackPlaying={state.isTrackPlaying}
+                isTrackLoading={state.isTrackLoading}
+                isDuplicate={state.isDuplicate}
+                isOtherInstanceSelected={state.isOtherInstanceSelected}
+                getCompareColorForTrack={state.getCompareColorForTrack}
+                getProfile={state.getProfile}
+                handleTrackSelect={state.handleTrackSelect}
+                handleTrackClick={state.handleTrackClick}
+                handleToggleLiked={state.handleToggleLiked}
+                playTrack={state.playTrack}
+                pausePlayback={state.pausePlayback}
+              />
             </div>
           </>
         )}

@@ -1,25 +1,46 @@
 /**
  * TrackRow component with drag-and-drop support and selection.
  * Renders a single track in a playlist panel.
+ * 
+ * Refactored to use extracted cell and action subcomponents for maintainability.
  */
 
 'use client';
 
 import * as React from 'react';
 import { useMemo } from 'react';
-import { useSortable } from '@dnd-kit/sortable';
 import type { Track } from '@/lib/spotify/types';
-import { makeCompositeId, getTrackPosition } from '@/lib/dnd/id';
 import { cn } from '@/lib/utils';
-import { formatDuration, formatReleaseDate, formatScrobbleDate } from '@/lib/utils/format';
-import { Heart, Play, Pause, Loader2, MapPin } from 'lucide-react';
 import { useCompactModeStore } from '@/hooks/useCompactModeStore';
 import { useBrowsePanelStore } from '@/hooks/useBrowsePanelStore';
 import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
 import { usePlayerStore } from '@/hooks/usePlayerStore';
+import { useInsertionMarkerToggle } from '@/hooks/useInsertionMarkerToggle';
+import { useRowSortable } from '@/hooks/useRowSortable';
 import { AddToMarkedButton } from './AddToMarkedButton';
 import { TRACK_GRID_CLASSES, TRACK_GRID_CLASSES_NORMAL, TRACK_GRID_CLASSES_COMPACT, getTrackGridStyle } from './TableHeader';
-import { Avatar } from '@/components/ui/avatar';
+
+// Cell subcomponents
+import {
+  PositionCell,
+  TitleCell,
+  ArtistCell,
+  AlbumCell,
+  DateCell,
+  PopularityBar,
+  DurationCell,
+  CumulativeTimeCell,
+  HourBoundaryMarker,
+  InsertionMarkerLine,
+} from './TrackRowCells';
+
+// Action subcomponents
+import {
+  HeartButton,
+  PlayPauseButton,
+  InsertionToggleButton,
+  ContributorAvatar,
+} from './TrackRowActions';
 
 interface TrackRowProps {
   track: Track;
@@ -141,6 +162,7 @@ export function TrackRow({
   isOtherInstanceSelected = false,
   compareColor,
 }: TrackRowProps) {
+  // Store hooks
   const { isCompact } = useCompactModeStore();
   const { open: openBrowsePanel, setSearchQuery } = useBrowsePanelStore();
   const togglePoint = useInsertionPointsStore((s) => s.togglePoint);
@@ -160,50 +182,44 @@ export function TrackRow({
     showScrobbleDateColumn,
     showCumulativeTime,
   });
-  
-  // Track whether mouse is near top/bottom edge for insertion marker toggle
-  // null = not near edge, 'top' = near top edge, 'bottom' = near bottom edge
-  const [nearEdge, setNearEdge] = React.useState<'top' | 'bottom' | null>(null);
-  
-  // Create globally unique composite ID scoped by panel and position
-  // Position is required to distinguish duplicate tracks (same song multiple times)
-  const trackId = track.id || track.uri;
-  const position = getTrackPosition(track, index);
-  const compositeId = panelId ? makeCompositeId(panelId, trackId, position) : trackId;
 
+  // Local files can't be saved to library or played
+  const isLocalFile = track.id === null;
+
+  // Sortable hook for DnD
   const {
+    isDragging,
+    setNodeRef,
     attributes,
     listeners,
-    setNodeRef,
-    isDragging,
-  } = useSortable({
-    id: compositeId, // Globally unique ID
-    disabled: locked, // Disable drag if panel is locked (read-only panels can still be drag sources in copy mode)
-    animateLayoutChanges: () => false, // Disable "make room" animation for non-active items
-    data: dragType === 'lastfm-track'
-      ? {
-          type: 'lastfm-track',
-          track: lastfmDto, // Original Last.fm DTO for overlay
-          matchedTrack, // Matched Spotify track for adding to playlist (single track)
-          selectedMatchedUris, // All selected tracks' matched URIs for multi-select
-          panelId,
-          position, // Global position
-        }
-      : {
-          type: 'track',
-          trackId, // Keep pure Spotify ID for mutations
-          track,
-          panelId,
-          playlistId,
-          position, // Global position for mutations
-        },
+  } = useRowSortable({
+    track,
+    index,
+    panelId,
+    playlistId,
+    disabled: locked,
+    dragType,
+    matchedTrack,
+    lastfmDto,
+    selectedMatchedUris,
+    onDragStart,
   });
 
-  // Don't apply transform/transition - we use drag overlay and drop indicator instead
-  // This prevents the original item from moving during drag
-  const style = {};
-
-  const { role: _attrRole, ...restAttributes } = attributes;
+  // Insertion marker toggle hook
+  const {
+    nearEdge,
+    handleMouseMove,
+    handleMouseLeave,
+    handleInsertionMarkerToggle,
+  } = useInsertionMarkerToggle({
+    playlistId,
+    isEditable,
+    locked,
+    allowToggle: allowInsertionMarkerToggle,
+    trackPosition: track.position ?? index,
+    visualIndex: index,
+    togglePoint,
+  });
   
   // Handler to search for artist in browse panel
   const handleArtistClick = (e: React.MouseEvent, artistName: string) => {
@@ -222,11 +238,8 @@ export function TrackRow({
   };
 
   const handleClick = (e: React.MouseEvent) => {
-    // Prevent text selection when using modifier-based range/toggle selection
     if (e.shiftKey || e.ctrlKey || e.metaKey) {
       e.preventDefault();
-    }
-    if (e.shiftKey || e.ctrlKey || e.metaKey) {
       onSelect(selectionKey, index, e);
     } else {
       onClick(selectionKey, index);
@@ -234,28 +247,21 @@ export function TrackRow({
   };
 
   const handleMouseDown = (e: React.MouseEvent) => {
-    // Avoid native text selection during modifier selection
     if (e.shiftKey || e.ctrlKey || e.metaKey) {
       e.preventDefault();
     }
   };
 
   const handleHeartClick = (e: React.MouseEvent) => {
-    // Stop propagation to prevent row selection/DnD interference
     e.stopPropagation();
     e.preventDefault();
-    
-    // Local files have null ID - can't be saved to library
     if (!track.id) return;
-    
     onToggleLiked?.(track.id, isLiked);
   };
 
   const handlePlayClick = (e: React.MouseEvent) => {
-    // Stop propagation to prevent row selection/DnD interference
     e.stopPropagation();
     e.preventDefault();
-    
     if (isPlaying) {
       onPause?.();
     } else {
@@ -263,70 +269,7 @@ export function TrackRow({
     }
   };
 
-  const handleInsertionMarkerToggle = (e: React.MouseEvent) => {
-    // Stop propagation to prevent row selection/DnD interference
-    e.stopPropagation();
-    e.preventDefault();
-    
-    if (playlistId && isEditable && !locked && allowInsertionMarkerToggle) {
-      // Use the track's actual playlist position, not visual index
-      // This ensures markers work correctly even when the list is sorted/filtered
-      const actualPosition = track.position ?? index;
-      const targetPosition = nearEdge === 'bottom' ? actualPosition + 1 : actualPosition;
-      togglePoint(playlistId, targetPosition);
-    }
-  };
-
-  // Edge detection thresholds in pixels
-  const EDGE_THRESHOLD_Y = 8;  // Vertical: how close to top/bottom edge
-  const EDGE_THRESHOLD_X = 30; // Horizontal: how close to left edge
-
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const relativeX = e.clientX - rect.left;
-    const relativeY = e.clientY - rect.top;
-    
-    // Only show toggle when mouse is near left edge AND near top/bottom edge
-    const nearLeftEdge = relativeX <= EDGE_THRESHOLD_X;
-    
-    if (!nearLeftEdge) {
-      setNearEdge(null);
-      return;
-    }
-    
-    // Check if mouse is near top or bottom edge
-    if (relativeY <= EDGE_THRESHOLD_Y) {
-      setNearEdge('top');
-    } else if (relativeY >= rect.height - EDGE_THRESHOLD_Y) {
-      setNearEdge('bottom');
-    } else {
-      setNearEdge(null);
-    }
-  };
-
-  const handleMouseLeave = () => {
-    setNearEdge(null);
-  };
-
-  // Local files can't be saved to library
-  const isLocalFile = track.id === null;
-
-  // Wrap listeners to trigger onDragStart callback (for Last.fm matching)
-  const wrappedListeners = useMemo(() => {
-    if (!onDragStart || !listeners) return listeners;
-    
-    const { onPointerDown, ...rest } = listeners;
-    return {
-      ...rest,
-      onPointerDown: (e: React.PointerEvent) => {
-        onDragStart();
-        onPointerDown?.(e);
-      },
-    };
-  }, [listeners, onDragStart]);
-
   // Compute the effective background style for compare mode
-  // Compare color is only applied when track is not selected and not a duplicate
   const effectiveBackgroundStyle = useMemo(() => {
     if (compareColor && compareColor !== 'transparent' && !isSelected && !isDuplicate) {
       return { backgroundColor: compareColor };
@@ -334,28 +277,34 @@ export function TrackRow({
     return {};
   }, [compareColor, isSelected, isDuplicate]);
 
+  // Get contributor profile data
+  const contributorProfile = useMemo(() => {
+    if (!isCollaborative || !track.addedBy) return null;
+    const profile = getProfile?.(track.addedBy.id);
+    return {
+      userId: track.addedBy.id,
+      displayName: profile?.displayName ?? track.addedBy.displayName ?? null,
+      imageUrl: profile?.imageUrl ?? null,
+    };
+  }, [isCollaborative, track.addedBy, getProfile]);
+
   return (
     <div
       ref={setNodeRef}
-      style={{ ...style, ...gridStyle, ...effectiveBackgroundStyle }}
+      style={{ ...gridStyle, ...effectiveBackgroundStyle }}
       className={cn(
-        'relative group/row cursor-default', // relative and group for the insertion marker toggle, default cursor for row
-        // Only apply bg-card when not using compare color
+        'relative group/row cursor-default',
         !compareColor || compareColor === 'transparent' || isSelected || isDuplicate ? 'bg-card' : '',
         TRACK_GRID_CLASSES,
         isCompact ? 'h-7 ' + TRACK_GRID_CLASSES_COMPACT : 'h-10 ' + TRACK_GRID_CLASSES_NORMAL,
         'border-b border-border transition-colors',
-        // Selected duplicate - prominent orange background
+        // Selection and duplicate states
         isSelected && isDuplicate && 'bg-orange-500/30 text-foreground hover:bg-orange-500/40',
-        // Selected non-duplicate - standard gray selection
         isSelected && !isDuplicate && 'bg-accent/70 text-foreground hover:bg-accent/80',
-        // Unselected duplicate with another instance selected - brighter orange to show it's related to selection
         !isSelected && isDuplicate && isOtherInstanceSelected && 'bg-orange-500/20 hover:bg-orange-500/30',
-        // Unselected duplicate without other instance selected - subtle orange to show it's a duplicate
         !isSelected && isDuplicate && !isOtherInstanceSelected && 'bg-orange-500/5 hover:bg-orange-500/10',
-        // Unselected non-duplicate without compare color - standard hover
         !isSelected && !isDuplicate && (!compareColor || compareColor === 'transparent') && 'hover:bg-accent/40 hover:text-foreground',
-        // Visual feedback during drag - apply to dragged item OR all selected items in multi-select
+        // Drag states
         (isDragging || isDragSourceSelected) && dndMode === 'move' && 'opacity-0',
         (isDragging || isDragSourceSelected) && dndMode === 'copy' && 'opacity-50',
       )}
@@ -373,71 +322,30 @@ export function TrackRow({
             ? 'Click and drag to copy (Ctrl to move)'
             : 'Click and drag to move (Ctrl to copy)'
       }
-      {...(!locked ? { ...restAttributes, ...wrappedListeners } : {})}
+      {...(!locked ? { ...attributes, ...listeners } : {})}
     >
       {/* Prefix columns (e.g., match status + custom add button for Last.fm) */}
       {renderPrefixColumns?.()}
 
       {/* Contributor avatar - only for collaborative playlists */}
       {isCollaborative && (
-        <div className="flex items-center justify-center">
-          {track.addedBy ? (
-            (() => {
-              // Get cached profile data if available
-              const profile = getProfile?.(track.addedBy.id);
-              const displayName = profile?.displayName ?? track.addedBy.displayName ?? null;
-              const imageUrl = profile?.imageUrl ?? null;
-              return (
-                <Avatar
-                  displayName={displayName}
-                  userId={track.addedBy.id}
-                  imageUrl={imageUrl}
-                  size={isCompact ? 'sm' : 'md'}
-                  title={`Added by ${displayName || track.addedBy.id}`}
-                />
-              );
-            })()
-          ) : (
-            <div
-              className={cn(
-                'rounded-full bg-muted/30',
-                isCompact ? 'h-4 w-4' : 'h-5 w-5'
-              )}
-              title="Unknown contributor"
-            />
-          )}
-        </div>
+        <ContributorAvatar
+          isCompact={isCompact}
+          userId={contributorProfile?.userId}
+          displayName={contributorProfile?.displayName}
+          imageUrl={contributorProfile?.imageUrl}
+        />
       )}
 
       {/* Play button - only show when player is visible */}
       {isPlayerVisible && (
-        <button
+        <PlayPauseButton
+          isCompact={isCompact}
+          isPlaying={isPlaying}
+          isLoading={isPlaybackLoading}
+          isLocalFile={isLocalFile}
           onClick={handlePlayClick}
-          disabled={isLocalFile || isPlaybackLoading}
-          className={cn(
-            'flex items-center justify-center rounded-full transition-all',
-            isCompact ? 'h-5 w-5' : 'h-6 w-6',
-            isLocalFile && 'opacity-30 cursor-not-allowed',
-            !isLocalFile && 'hover:scale-110 hover:bg-green-500 hover:text-white',
-            isPlaying ? 'bg-green-500 text-white' : 'text-muted-foreground',
-          )}
-          title={
-            isLocalFile
-              ? 'Local files cannot be played'
-              : isPlaying
-                ? 'Pause'
-                : 'Play'
-          }
-          aria-label={isPlaying ? 'Pause track' : 'Play track'}
-        >
-          {isPlaybackLoading ? (
-            <Loader2 className={isCompact ? 'h-3 w-3 animate-spin' : 'h-4 w-4 animate-spin'} />
-          ) : isPlaying ? (
-            <Pause className={isCompact ? 'h-3 w-3' : 'h-4 w-4'} />
-          ) : (
-            <Play className={isCompact ? 'h-3 w-3 ml-0.5' : 'h-4 w-4 ml-0.5'} />
-          )}
-        </button>
+        />
       )}
 
       {/* Add to marked insertion points button - only when using standard add column */}
@@ -450,237 +358,79 @@ export function TrackRow({
 
       {/* Liked status button */}
       {showLikedColumn ? (
-        <button
+        <HeartButton
+          isCompact={isCompact}
+          isLiked={isLiked}
+          isLocalFile={isLocalFile}
           onClick={handleHeartClick}
-          disabled={isLocalFile}
-          className={cn(
-            'flex items-center justify-center transition-colors',
-            isLocalFile && 'opacity-30 cursor-not-allowed',
-            !isLocalFile && 'hover:scale-110',
-            isLiked ? 'text-[#9759f5]' : 'text-muted-foreground hover:text-foreground',
-          )}
-          title={
-            isLocalFile
-              ? 'Local files cannot be saved to library'
-              : isLiked
-                ? 'Remove from Liked Songs'
-                : 'Save to Liked Songs'
-          }
-          aria-label={isLiked ? 'Unlike track' : 'Like track'}
-        >
-          <Heart
-            className={cn(isCompact ? 'h-3 w-3' : 'h-4 w-4', isLiked && 'fill-current')}
-          />
-        </button>
+        />
       ) : (
         <div />
       )}
 
       {/* Position number */}
-      <div className={cn('text-muted-foreground tabular-nums select-none', isCompact ? 'text-xs' : 'text-sm')}>
-        {track.position != null ? track.position + 1 : index + 1}
-      </div>
+      <PositionCell
+        isCompact={isCompact}
+        index={index}
+        position={track.position}
+      />
 
-      {/* Track title with explicit badge and Open in Spotify link */}
-      <div className="min-w-0 flex items-center gap-1.5">
-        {/* Explicit content badge per Spotify guidelines */}
-        {track.explicit && (
-          <span 
-            className={cn(
-              'shrink-0 inline-flex items-center justify-center rounded font-bold bg-muted-foreground/20 text-muted-foreground',
-              isCompact ? 'text-[8px] px-1 h-3' : 'text-[9px] px-1.5 h-4'
-            )}
-            title="Explicit content"
-            aria-label="Explicit"
-          >
-            E
-          </span>
-        )}
-        {track.id ? (
-          <a
-            href={`https://open.spotify.com/track/${track.id}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            className={cn('truncate select-none hover:underline hover:text-green-500', isCompact ? 'text-xs' : 'text-sm')}
-            title={`${track.name} — Open in Spotify ↗`}
-          >
-            {track.name}
-          </a>
-        ) : (
-          <span className={cn('truncate select-none', isCompact ? 'text-xs' : 'text-sm')}>
-            {track.name}
-          </span>
-        )}
-      </div>
+      {/* Track title */}
+      <TitleCell isCompact={isCompact} track={track} />
 
-      {/* Artist - click to search in browse panel */}
-      <div className="min-w-0">
-        <div className={cn('text-muted-foreground truncate', isCompact ? 'text-xs' : 'text-sm')}>
-          {track.artistObjects && track.artistObjects.length > 0 ? (
-            track.artistObjects.map((artist, idx) => (
-              <span key={artist.id || artist.name}>
-                <button
-                  className="hover:underline hover:text-green-500 text-left cursor-pointer"
-                  onClick={(e) => handleArtistClick(e, artist.name)}
-                  title={`Search for tracks by "${artist.name}"`}
-                >
-                  {artist.name}
-                </button>
-                {idx < track.artistObjects!.length - 1 && ', '}
-              </span>
-            ))
-          ) : (
-            track.artists.map((artistName, idx) => (
-              <span key={artistName}>
-                <button
-                  className="hover:underline hover:text-green-500 text-left cursor-pointer"
-                  onClick={(e) => handleArtistClick(e, artistName)}
-                  title={`Search for tracks by "${artistName}"`}
-                >
-                  {artistName}
-                </button>
-                {idx < track.artists.length - 1 && ', '}
-              </span>
-            ))
-          )}
-        </div>
-      </div>
+      {/* Artist */}
+      <ArtistCell
+        isCompact={isCompact}
+        track={track}
+        onArtistClick={handleArtistClick}
+      />
 
-      {/* Album - click to search in browse panel, hidden on small screens */}
-      <div className="hidden lg:block min-w-0">
-        {track.album?.name && (
-          <div className={cn('text-muted-foreground truncate', isCompact ? 'text-xs' : 'text-sm')}>
-            <button
-              className="hover:underline hover:text-green-500 text-left cursor-pointer truncate max-w-full"
-              onClick={(e) => handleAlbumClick(e, track.album!.name as string)}
-              title={`Search for tracks from "${track.album.name}"`}
-            >
-              {track.album.name}
-            </button>
-          </div>
-        )}
-      </div>
+      {/* Album */}
+      <AlbumCell
+        isCompact={isCompact}
+        track={track}
+        onAlbumClick={handleAlbumClick}
+      />
 
-      {/* Date column - shows scrobble date if available, otherwise release year */}
-      {scrobbleTimestamp ? (
-        <div 
-          className={cn('text-muted-foreground tabular-nums text-center select-none whitespace-nowrap', isCompact ? 'text-xs' : 'text-sm')}
-          title={`Scrobbled: ${new Date(scrobbleTimestamp * 1000).toLocaleString()}`}
-        >
-          {formatScrobbleDate(scrobbleTimestamp)}
-        </div>
-      ) : (
-        <div 
-          className={cn('text-muted-foreground tabular-nums text-center select-none', isCompact ? 'text-xs' : 'text-sm')}
-          title={track.album?.releaseDate ? `Released: ${formatReleaseDate(track.album.releaseDate, track.album.releaseDatePrecision)}` : 'Release date unknown'}
-        >
-          {track.album?.releaseDate ? track.album.releaseDate.substring(0, 4) : '—'}
-        </div>
-      )}
+      {/* Date (release year or scrobble timestamp) */}
+      <DateCell
+        isCompact={isCompact}
+        track={track}
+        scrobbleTimestamp={scrobbleTimestamp}
+      />
 
-      {/* Popularity bar - visual representation of 0-100 popularity */}
-      <div 
-        className="flex items-center justify-center select-none"
-        title={track.popularity != null ? `Popularity: ${track.popularity}%` : 'Popularity: Unknown'}
-      >
-        {track.popularity != null ? (
-          <div className={cn('w-full rounded-full bg-muted/50', isCompact ? 'h-1' : 'h-1.5')}>
-            <div 
-              className="h-full rounded-full transition-all"
-              style={{ 
-                width: `${track.popularity}%`,
-                backgroundColor: `color-mix(in srgb, #11B7AE ${track.popularity}%, #6b7280)`
-              }}
-            />
-          </div>
-        ) : (
-          <div className={cn('w-full rounded-full bg-muted/30', isCompact ? 'h-1' : 'h-1.5')} />
-        )}
-      </div>
+      {/* Popularity bar */}
+      <PopularityBar isCompact={isCompact} popularity={track.popularity} />
 
-      {/* Duration - right aligned */}
-      <div className={cn('text-muted-foreground tabular-nums text-right select-none', isCompact ? 'text-xs' : 'text-sm')}>
-        {formatDuration(track.durationMs)}
-      </div>
+      {/* Duration */}
+      <DurationCell isCompact={isCompact} durationMs={track.durationMs} />
 
-      {/* Cumulative duration - right aligned */}
+      {/* Cumulative duration */}
       {showCumulativeTime && (
-        <div 
-          className={cn('text-muted-foreground/60 tabular-nums text-right select-none', isCompact ? 'text-xs' : 'text-sm')}
-          title={`Total time elapsed: ${formatDuration(cumulativeDurationMs)}`}
-        >
-          {formatDuration(cumulativeDurationMs)}
-        </div>
+        <CumulativeTimeCell
+          isCompact={isCompact}
+          cumulativeDurationMs={cumulativeDurationMs}
+        />
       )}
 
-      {/* Hour boundary marker - horizontal line when an hour is elapsed */}
+      {/* Hour boundary marker */}
       {crossesHourBoundary && (
-        <div
-          className="absolute left-0 right-0 flex items-center pointer-events-none z-10"
-          style={{ bottom: '-7px' }}
-        >
-          <div className="flex-1 h-[1px] bg-gradient-to-r from-transparent via-cyan-500/70 to-cyan-500/70" />
-          <span 
-            className={cn(
-              'px-1.5 text-cyan-500 font-medium whitespace-nowrap',
-              isCompact ? 'text-[9px]' : 'text-[10px]'
-            )}
-            style={{ transform: 'translateY(-25%)' }}
-          >
-            {hourNumber}h
-          </span>
-          <div className="w-2 h-[1px] bg-cyan-500/70" />
-        </div>
+        <HourBoundaryMarker isCompact={isCompact} hourNumber={hourNumber} />
       )}
 
-      {/* Insertion marker line - shown at top edge when marked (before this row) */}
-      {hasInsertionMarker && (
-        <div
-          className="absolute left-0 right-0 h-[3px] bg-orange-500 pointer-events-none z-10"
-          style={{ top: '-1.5px', boxShadow: '0 0 6px rgba(249, 115, 22, 0.7)' }}
-        />
-      )}
+      {/* Insertion marker lines */}
+      {hasInsertionMarker && <InsertionMarkerLine position="top" />}
+      {hasInsertionMarkerAfter && <InsertionMarkerLine position="bottom" />}
 
-      {/* Insertion marker line - shown at bottom edge when marked (after this row) */}
-      {hasInsertionMarkerAfter && (
-        <div
-          className="absolute left-0 right-0 h-[3px] bg-orange-500 pointer-events-none z-10"
-          style={{ bottom: '-1.5px', boxShadow: '0 0 6px rgba(249, 115, 22, 0.7)' }}
-        />
-      )}
-
-      {/* Insertion marker toggle button - only appears when mouse is near top/bottom edge */}
+      {/* Insertion marker toggle button */}
       {isEditable && !locked && allowInsertionMarkerToggle && nearEdge !== null && (
-        <button
+        <InsertionToggleButton
+          isCompact={isCompact}
+          edge={nearEdge}
+          hasMarker={nearEdge === 'bottom' ? hasInsertionMarkerAfter : hasInsertionMarker}
+          rowIndex={index}
           onClick={handleInsertionMarkerToggle}
-          className={cn(
-            'absolute z-20 rounded-full transition-all duration-150',
-            'focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-1',
-            isCompact ? 'w-4 h-4 -left-1' : 'w-5 h-5 -left-1.5',
-            // Position at top or bottom based on which edge mouse is near
-            nearEdge === 'bottom'
-              ? (isCompact ? '-bottom-2' : '-bottom-2.5')
-              : (isCompact ? '-top-2' : '-top-2.5'),
-            // Show as active if there's a marker at the relevant position
-            (nearEdge === 'bottom' ? hasInsertionMarkerAfter : hasInsertionMarker)
-              ? 'bg-orange-500 text-white hover:bg-orange-600'
-              : 'bg-muted text-muted-foreground hover:bg-orange-100 hover:text-orange-600 dark:hover:bg-orange-950',
-          )}
-          title={
-            nearEdge === 'bottom'
-              ? (hasInsertionMarkerAfter ? 'Remove insertion marker' : 'Add insertion marker after this row')
-              : (hasInsertionMarker ? 'Remove insertion marker' : 'Add insertion marker before this row')
-          }
-          aria-pressed={nearEdge === 'bottom' ? hasInsertionMarkerAfter : hasInsertionMarker}
-          aria-label={
-            nearEdge === 'bottom'
-              ? (hasInsertionMarkerAfter ? `Remove insertion point after row ${index + 1}` : `Add insertion point after row ${index + 1}`)
-              : (hasInsertionMarker ? `Remove insertion point before row ${index + 1}` : `Add insertion point before row ${index + 1}`)
-          }
-        >
-          <MapPin className={cn(isCompact ? 'w-2.5 h-2.5' : 'w-3 h-3', 'mx-auto')} />
-        </button>
+        />
       )}
     </div>
   );
