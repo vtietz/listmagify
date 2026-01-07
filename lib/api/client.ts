@@ -19,10 +19,27 @@ export class AccessTokenExpiredError extends Error {
   }
 }
 
+// Deduplication state for session expiry handling
+// Prevents multiple toasts and redirects when many API calls fail simultaneously
+let sessionExpiredHandled = false;
+let sessionExpiredTimeout: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * Reset the session expiry handling state.
+ * Called internally after redirect, exposed for testing.
+ */
+export function resetSessionExpiredState() {
+  sessionExpiredHandled = false;
+  if (sessionExpiredTimeout) {
+    clearTimeout(sessionExpiredTimeout);
+    sessionExpiredTimeout = null;
+  }
+}
+
 /**
  * Custom fetch wrapper that handles API errors.
- * On 401 errors, shows a toast and redirects to login after a brief delay.
- * This ensures users are automatically sent to the login page when their session expires.
+ * On 401 errors, shows a single toast and redirects to login after a brief delay.
+ * Multiple simultaneous 401 errors are deduplicated to prevent toast spam.
  * 
  * Usage:
  * ```ts
@@ -30,7 +47,7 @@ export class AccessTokenExpiredError extends Error {
  *   const data = await apiFetch('/api/me/playlists');
  * } catch (error) {
  *   if (error instanceof AccessTokenExpiredError) {
- *     // Toast shown, redirect scheduled
+ *     // Toast shown (once), redirect scheduled
  *   }
  * }
  * ```
@@ -48,12 +65,19 @@ export async function apiFetch<T = any>(
       // Don't redirect if already on login page (prevents infinite loop)
       const isLoginPage = window.location.pathname === '/login';
       
-      if (!isLoginPage) {
-        toast.error("Your session has expired. Redirecting to login...");
+      // Deduplicate: only show toast and redirect once per session expiry
+      if (!isLoginPage && !sessionExpiredHandled) {
+        sessionExpiredHandled = true;
+        
+        // Show a single toast with a unique ID to prevent duplicates
+        toast.error("Your session has expired. Redirecting to login...", {
+          id: 'session-expired',
+          duration: 3000,
+        });
         
         // Redirect to login after a brief delay to show the toast
         // Only use pathname as next (not query params to avoid nested encoding)
-        setTimeout(() => {
+        sessionExpiredTimeout = setTimeout(() => {
           const nextPath = window.location.pathname;
           window.location.href = `/login?reason=expired&next=${encodeURIComponent(nextPath)}`;
         }, 1500);
