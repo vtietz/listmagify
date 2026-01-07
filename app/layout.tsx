@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/lib/ui/toast";
@@ -19,6 +19,17 @@ const geistMono = Geist_Mono({
 // Base URL for metadata - read at runtime from env (server-side only)
 const appUrl = process.env.APP_URL || process.env.NEXTAUTH_URL || 'http://localhost:3000';
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+  userScalable: true,
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#000000" },
+  ],
+};
+
 export const metadata: Metadata = {
   title: {
     default: "Listmagify - Playlist Magic for Spotify",
@@ -29,6 +40,15 @@ export const metadata: Metadata = {
   authors: [{ name: "Listmagify" }],
   creator: "Listmagify",
   metadataBase: new URL(appUrl),
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Listmagify",
+  },
+  formatDetection: {
+    telephone: false,
+  },
   icons: {
     icon: [
       { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },

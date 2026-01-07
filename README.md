@@ -16,6 +16,29 @@ Playlist magic for Spotify. Edit multiple playlists side-by-side with drag-and-d
 - **Track Recommendations** – Get AI-powered suggestions based on your playlist patterns
 - **Integrated Player** – Preview tracks without leaving the app
 - **Compact Mode** – Dense view to see more tracks on screen
+- **PWA Support** – Install on mobile devices and use as a native app
+
+## Mobile Installation
+
+Listmagify can be installed on your mobile device for a native-like experience:
+
+**iOS (Safari)**:
+1. Open the site in Safari
+2. Tap the Share button (square with arrow)
+3. Scroll down and tap "Add to Home Screen"
+4. Tap "Add" to confirm
+
+**Android (Chrome)**:
+1. Open the site in Chrome
+2. Tap the menu (three dots)
+3. Tap "Add to Home Screen" or "Install App"
+4. Tap "Install" to confirm
+
+Once installed, the app will:
+- Launch in standalone mode (no browser UI)
+- Have its own icon on your home screen
+- Work offline for previously loaded content
+- Provide a native app-like experience
 
 ## Production Setup (listmagify.com)
 
