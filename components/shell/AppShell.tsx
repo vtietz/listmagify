@@ -2,10 +2,17 @@
 
 import React from "react";
 import { usePathname } from "next/navigation";
-import { Search, Music2, ListMusic, Columns2, LogIn, LogOut, Minimize2, MapPinOff, BarChart3, GitCompare } from "lucide-react";
+import { Search, Music2, ListMusic, Columns2, LogIn, LogOut, Minimize2, MapPinOff, BarChart3, GitCompare, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AppLogo } from "@/components/ui/app-logo";
 import { AppFooter } from "@/components/ui/app-footer";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useBrowsePanelStore } from "@/hooks/useBrowsePanelStore";
 import { usePlayerStore } from "@/hooks/usePlayerStore";
 import { useCompactModeStore } from "@/hooks/useCompactModeStore";
@@ -113,6 +120,9 @@ function Header({ title }: { title: string }) {
   const isSplitEditorActive = pathname === '/split-editor';
   const isStatsActive = pathname === '/stats' || pathname.startsWith('/stats/');
   
+  // Pages that support player and compare mode
+  const supportsPlayerAndCompare = isSplitEditorActive || isPlaylistsActive;
+  
   return (
     <header className="h-12 flex items-center justify-between px-4 border-b">
       <AppLogo size="sm" />
@@ -121,133 +131,217 @@ function Header({ title }: { title: string }) {
         {/* Only show nav items when authenticated */}
         {authenticated && (
           <>
-            <Button
-              variant={isPlaylistsActive ? "secondary" : "ghost"}
-              size="sm"
-              asChild
-              className="h-7 gap-1.5 cursor-pointer"
-            >
-              <Link href="/playlists">
-                <ListMusic className="h-3.5 w-3.5" />
-                Playlists
-              </Link>
-            </Button>
-            <Button
-              variant={isSplitEditorActive ? "secondary" : "ghost"}
-              size="sm"
-              asChild
-              className="h-7 gap-1.5 cursor-pointer"
-            >
-              <Link href="/split-editor">
-                <Columns2 className="h-3.5 w-3.5" />
-                Split Editor
-              </Link>
-            </Button>
-            <Button
-              variant={isOpen ? "secondary" : "ghost"}
-              size="sm"
-              onClick={toggle}
-              className="h-7 gap-1.5 cursor-pointer"
-            >
-              <Search className="h-3.5 w-3.5" />
-              Browse
-            </Button>
-            {/* Player toggle - only show on pages that support the player */}
-            {(isSplitEditorActive || isPlaylistsActive) && (
+            {/* Desktop navigation - visible on md and larger screens */}
+            <div className="hidden md:flex items-center gap-1">
               <Button
-                variant={isPlayerVisible ? "secondary" : "ghost"}
-                size="sm"
-                onClick={togglePlayerVisible}
-                className="h-7 gap-1.5 cursor-pointer"
-              >
-                <Music2 className="h-3.5 w-3.5" />
-                Player
-              </Button>
-            )}
-            <Button
-              variant={isCompact ? "secondary" : "ghost"}
-              size="sm"
-              onClick={toggleCompact}
-              className="h-7 gap-1.5 cursor-pointer"
-              title="Toggle compact mode"
-            >
-              <Minimize2 className="h-3.5 w-3.5" />
-              Compact
-            </Button>
-            {/* Compare mode - color tracks by presence across panels */}
-            {(isSplitEditorActive || isPlaylistsActive) && (
-              <Button
-                variant={isCompareEnabled ? "secondary" : "ghost"}
-                size="sm"
-                onClick={toggleCompare}
-                className="h-7 gap-1.5 cursor-pointer"
-                title="Compare mode: color tracks by presence across panels"
-              >
-                <GitCompare className="h-3.5 w-3.5" />
-                Compare
-              </Button>
-            )}
-            {/* Clear Markers - only show when markers exist */}
-            {markerStats.totalMarkers > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={clearAllMarkers}
-                className="h-7 gap-1.5 cursor-pointer"
-                title={`Clear all ${markerStats.totalMarkers} marker${markerStats.totalMarkers > 1 ? 's' : ''} in ${markerStats.playlistCount} playlist${markerStats.playlistCount > 1 ? 's' : ''}`}
-              >
-                <MapPinOff className="h-3.5 w-3.5" />
-                Clear Markers
-                <span className="text-xs bg-orange-500 text-white px-1.5 py-0.5 rounded-full">
-                  {markerStats.totalMarkers}
-                </span>
-              </Button>
-            )}
-            {/* Stats link - only visible to allowed users */}
-            {hasStatsAccess && (
-              <Button
-                variant={isStatsActive ? "secondary" : "ghost"}
+                variant={isPlaylistsActive ? "secondary" : "ghost"}
                 size="sm"
                 asChild
                 className="h-7 gap-1.5 cursor-pointer"
               >
-                <Link href="/stats">
-                  <BarChart3 className="h-3.5 w-3.5" />
-                  Stats
+                <Link href="/playlists">
+                  <ListMusic className="h-3.5 w-3.5" />
+                  Playlists
                 </Link>
               </Button>
-            )}
-            <div className="w-px h-4 bg-border mx-2" />
+              <Button
+                variant={isSplitEditorActive ? "secondary" : "ghost"}
+                size="sm"
+                asChild
+                className="h-7 gap-1.5 cursor-pointer"
+              >
+                <Link href="/split-editor">
+                  <Columns2 className="h-3.5 w-3.5" />
+                  Split Editor
+                </Link>
+              </Button>
+              <Button
+                variant={isOpen ? "secondary" : "ghost"}
+                size="sm"
+                onClick={toggle}
+                className="h-7 gap-1.5 cursor-pointer"
+              >
+                <Search className="h-3.5 w-3.5" />
+                Browse
+              </Button>
+              {/* Player toggle - only show on pages that support the player */}
+              {supportsPlayerAndCompare && (
+                <Button
+                  variant={isPlayerVisible ? "secondary" : "ghost"}
+                  size="sm"
+                  onClick={togglePlayerVisible}
+                  className="h-7 gap-1.5 cursor-pointer"
+                >
+                  <Music2 className="h-3.5 w-3.5" />
+                  Player
+                </Button>
+              )}
+              <Button
+                variant={isCompact ? "secondary" : "ghost"}
+                size="sm"
+                onClick={toggleCompact}
+                className="h-7 gap-1.5 cursor-pointer"
+                title="Toggle compact mode"
+              >
+                <Minimize2 className="h-3.5 w-3.5" />
+                Compact
+              </Button>
+              {/* Compare mode - color tracks by presence across panels */}
+              {supportsPlayerAndCompare && (
+                <Button
+                  variant={isCompareEnabled ? "secondary" : "ghost"}
+                  size="sm"
+                  onClick={toggleCompare}
+                  className="h-7 gap-1.5 cursor-pointer"
+                  title="Compare mode: color tracks by presence across panels"
+                >
+                  <GitCompare className="h-3.5 w-3.5" />
+                  Compare
+                </Button>
+              )}
+              {/* Clear Markers - only show when markers exist */}
+              {markerStats.totalMarkers > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearAllMarkers}
+                  className="h-7 gap-1.5 cursor-pointer"
+                  title={`Clear all ${markerStats.totalMarkers} marker${markerStats.totalMarkers > 1 ? 's' : ''} in ${markerStats.playlistCount} playlist${markerStats.playlistCount > 1 ? 's' : ''}`}
+                >
+                  <MapPinOff className="h-3.5 w-3.5" />
+                  Clear Markers
+                  <span className="text-xs bg-orange-500 text-white px-1.5 py-0.5 rounded-full">
+                    {markerStats.totalMarkers}
+                  </span>
+                </Button>
+              )}
+              {/* Stats link - only visible to allowed users */}
+              {hasStatsAccess && (
+                <Button
+                  variant={isStatsActive ? "secondary" : "ghost"}
+                  size="sm"
+                  asChild
+                  className="h-7 gap-1.5 cursor-pointer"
+                >
+                  <Link href="/stats">
+                    <BarChart3 className="h-3.5 w-3.5" />
+                    Stats
+                  </Link>
+                </Button>
+              )}
+              <div className="w-px h-4 bg-border mx-2" />
+              {/* Desktop Logout button */}
+              {!loading && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  asChild
+                  className="h-7 gap-1.5 cursor-pointer text-muted-foreground"
+                >
+                  <Link href="/logout">
+                    <LogOut className="h-3.5 w-3.5" />
+                    Logout
+                  </Link>
+                </Button>
+              )}
+            </div>
+
+            {/* Mobile navigation - dropdown menu visible on smaller screens */}
+            <div className="md:hidden">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-7 gap-1.5">
+                    <Menu className="h-4 w-4" />
+                    Menu
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem asChild>
+                    <Link href="/playlists" className="flex items-center gap-2 cursor-pointer">
+                      <ListMusic className="h-4 w-4" />
+                      Playlists
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/split-editor" className="flex items-center gap-2 cursor-pointer">
+                      <Columns2 className="h-4 w-4" />
+                      Split Editor
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={toggle} className="flex items-center gap-2 cursor-pointer">
+                    <Search className="h-4 w-4" />
+                    Browse
+                    {isOpen && <span className="ml-auto text-xs text-muted-foreground">✓</span>}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  {supportsPlayerAndCompare && (
+                    <DropdownMenuItem onClick={togglePlayerVisible} className="flex items-center gap-2 cursor-pointer">
+                      <Music2 className="h-4 w-4" />
+                      Player
+                      {isPlayerVisible && <span className="ml-auto text-xs text-muted-foreground">✓</span>}
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem onClick={toggleCompact} className="flex items-center gap-2 cursor-pointer">
+                    <Minimize2 className="h-4 w-4" />
+                    Compact
+                    {isCompact && <span className="ml-auto text-xs text-muted-foreground">✓</span>}
+                  </DropdownMenuItem>
+                  {supportsPlayerAndCompare && (
+                    <DropdownMenuItem onClick={toggleCompare} className="flex items-center gap-2 cursor-pointer">
+                      <GitCompare className="h-4 w-4" />
+                      Compare
+                      {isCompareEnabled && <span className="ml-auto text-xs text-muted-foreground">✓</span>}
+                    </DropdownMenuItem>
+                  )}
+                  {markerStats.totalMarkers > 0 && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={clearAllMarkers} className="flex items-center gap-2 cursor-pointer">
+                        <MapPinOff className="h-4 w-4" />
+                        Clear Markers
+                        <span className="ml-auto text-xs bg-orange-500 text-white px-1.5 py-0.5 rounded-full">
+                          {markerStats.totalMarkers}
+                        </span>
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                  {hasStatsAccess && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem asChild>
+                        <Link href="/stats" className="flex items-center gap-2 cursor-pointer">
+                          <BarChart3 className="h-4 w-4" />
+                          Stats
+                        </Link>
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link href="/logout" className="flex items-center gap-2 cursor-pointer text-muted-foreground">
+                      <LogOut className="h-4 w-4" />
+                      Logout
+                    </Link>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </>
         )}
         
-        {/* Show Login or Logout based on auth state */}
-        {!loading && (
-          authenticated ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              asChild
-              className="h-7 gap-1.5 cursor-pointer text-muted-foreground"
-            >
-              <Link href="/logout">
-                <LogOut className="h-3.5 w-3.5" />
-                Logout
-              </Link>
-            </Button>
-          ) : (
-            <Button
-              variant="ghost"
-              size="sm"
-              asChild
-              className="h-7 gap-1.5 cursor-pointer"
-            >
-              <Link href="/login">
-                <LogIn className="h-3.5 w-3.5" />
-                Login
-              </Link>
-            </Button>
-          )
+        {/* Show Login button when not authenticated */}
+        {!loading && !authenticated && (
+          <Button
+            variant="ghost"
+            size="sm"
+            asChild
+            className="h-7 gap-1.5 cursor-pointer"
+          >
+            <Link href="/login">
+              <LogIn className="h-3.5 w-3.5" />
+              Login
+            </Link>
+          </Button>
         )}
       </nav>
     </header>
