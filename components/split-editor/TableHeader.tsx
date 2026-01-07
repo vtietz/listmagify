@@ -83,8 +83,8 @@ export function getTrackGridStyle(
   if (showAddToMarkedColumn) columns.push('20px'); // Add to marked button
   columns.push('20px');                            // Heart (liked)
   columns.push('28px');                            // Position #
-  columns.push('minmax(80px, 2fr)');               // Title
-  columns.push('minmax(60px, 1fr)');               // Artist
+  columns.push('minmax(100px, 3fr)');              // Title - larger share for more visibility
+  columns.push('minmax(60px, 1.5fr)');             // Artist
   columns.push('minmax(60px, 1fr)');               // Album
   // Date column: wider for scrobble dates (e.g., "3 Jan, 10:24"), narrow for just year
   columns.push(options?.showScrobbleDateColumn ? '90px' : '36px');
