@@ -254,6 +254,24 @@ export function PanelToolbar({
             </Button>
           )}
 
+          {/* Save Current Order - visible when sorted in non-default order */}
+          {playlistId && isEditable && !locked && isSorted && onSaveCurrentOrder && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onSaveCurrentOrder}
+              disabled={isSavingOrder}
+              className="h-8 w-8 p-0 shrink-0"
+              title="Save current order"
+            >
+              {isSavingOrder ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
+            </Button>
+          )}
+
           {/* Clear Insertion Markers */}
           {playlistId && isEditable && !locked && insertionMarkerCount > 0 && (
             <Button

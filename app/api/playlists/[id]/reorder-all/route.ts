@@ -37,8 +37,15 @@ export async function PUT(
 
     // Validate all URIs
     if (!trackUris.every((uri: unknown) => typeof uri === "string" && uri.startsWith("spotify:track:"))) {
+      const invalidUris = trackUris.filter((uri: unknown) => 
+        typeof uri !== "string" || !uri.startsWith("spotify:track:")
+      );
+      console.error(`[api/playlists/reorder-all] Invalid URIs found:`, invalidUris.slice(0, 5));
       return NextResponse.json(
-        { error: "All trackUris must be valid Spotify track URIs" },
+        { 
+          error: "All trackUris must be valid Spotify track URIs starting with 'spotify:track:'",
+          details: `Found ${invalidUris.length} invalid URI(s). Local files and other non-Spotify tracks cannot be reordered.`
+        },
         { status: 400 }
       );
     }

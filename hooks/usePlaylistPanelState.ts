@@ -592,7 +592,13 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
 
   // Get URIs of all tracks in current sorted order (for saving order)
   const getSortedTrackUris = useCallback((): string[] => {
-    return sortedTracks.map((track: Track) => track.uri);
+    return sortedTracks
+      .map((track: Track) => track.uri)
+      .filter((uri): uri is string => 
+        typeof uri === 'string' && 
+        uri.length > 0 && 
+        uri.startsWith('spotify:track:')
+      );
   }, [sortedTracks]);
 
   // Handler for saving the current sorted order as the new playlist order
