@@ -87,7 +87,7 @@ This document summarizes the key requirements from Spotify's Design & Branding G
   - App logo must not include or mimic Spotify brand elements (Spotify Green, circle, waves). No co-branded lockups.
 - Current status:
   - ✅ Public-facing app name is "Listmagify" — does not include "Spotify". Compliant.
-  - ⚠️ Internal package name is "spotify-playlist-editor" in [package.json](../package.json). This is not user-visible, but could be renamed for consistency.
+  - ✅ Internal package name is "listmagify" in [package.json](../package.json), consistent with the branding.
   - ⚠️ Web Playback SDK player name is "Spotify Playlist Editor" in [hooks/useWebPlaybackSDK.ts](../hooks/useWebPlaybackSDK.ts). Consider renaming to "Listmagify".
   - ✅ Our app brand logo (Listmagify) is separate from Spotify logo; no co-branded lockups.
 
@@ -103,7 +103,7 @@ This document summarizes the key requirements from Spotify's Design & Branding G
 
 | Item | Priority | Notes |
 |------|----------|-------|
-| Rename internal package name | Low | "spotify-playlist-editor" → "listmagify" in package.json |
+| ~~Rename internal package name~~ | ~~Low~~ | ✅ Completed: "listmagify" in package.json |
 | Rename Web Playback SDK player | Low | "Spotify Playlist Editor" → "Listmagify" in useWebPlaybackSDK.ts |
 | Artwork corner radii documentation | Low | Currently using rounded classes; could document 4px/8px more explicitly |
 

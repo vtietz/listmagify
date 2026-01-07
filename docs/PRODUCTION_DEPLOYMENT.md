@@ -11,8 +11,8 @@ The repository includes clean, version-controlled Docker Compose files. Server-s
 ### 1. Clone and Setup
 
 ```bash
-git clone https://github.com/your-org/spotify-playlist-editor.git
-cd spotify-playlist-editor
+git clone https://github.com/your-org/listmagify.git
+cd listmagify
 ```
 
 ### 2. Configure Environment

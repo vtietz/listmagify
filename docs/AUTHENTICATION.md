@@ -1,6 +1,6 @@
 # Authentication & Token Security
 
-This document describes how **spotify-playlist-editor** implements secure, persistent Spotify OAuth authentication using NextAuth.js with the JWT strategy.
+This document describes how **Listmagify** implements secure, persistent Spotify OAuth authentication using NextAuth.js with the JWT strategy.
 
 ## Security Model
 

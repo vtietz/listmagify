@@ -1,5 +1,5 @@
 {
-  "name": "spotify-playlist-editor",
+  "name": "listmagify",
   "version": "0.1.0",
   "private": true,
   "description": "Modern Spotify playlist editor (Next.js 15 + TS) — single-app at repo root",
