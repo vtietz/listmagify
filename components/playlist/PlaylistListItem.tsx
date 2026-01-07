@@ -6,6 +6,7 @@ import { Heart, Pencil, Play } from "lucide-react";
 import { type Playlist } from "@/lib/spotify/types";
 import { cn } from "@/lib/utils";
 import { isLikedSongsPlaylist } from "@/hooks/useLikedVirtualPlaylist";
+import { useSessionUser } from "@/hooks/useSessionUser";
 import { useSpotifyPlayer } from "@/hooks/useSpotifyPlayer";
 import { usePlayerStore } from "@/hooks/usePlayerStore";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,7 @@ type PlaylistListItemProps = {
  * Shows playlist cover, name, and track count in a horizontal row.
  */
 export function PlaylistListItem({ playlist, className }: PlaylistListItemProps) {
+  const { user } = useSessionUser();
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const updatePlaylist = useUpdatePlaylist();
   const { play } = useSpotifyPlayer();
@@ -29,6 +31,8 @@ export function PlaylistListItem({ playlist, className }: PlaylistListItemProps)
   
   const cover = playlist.image?.url;
   const isLiked = isLikedSongsPlaylist(playlist.id);
+  // Only allow editing if user owns the playlist (not Liked Songs, not imported)
+  const isEditable = !isLiked && user?.id && playlist.owner?.id === user.id;
   
   const handleEditClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -97,7 +101,7 @@ export function PlaylistListItem({ playlist, className }: PlaylistListItemProps)
 
         {/* Action buttons */}
         <div className="flex items-center gap-1 shrink-0">
-          {!isLiked && (
+          {isEditable && (
             <Button
               variant="ghost"
               size="icon"
@@ -125,7 +129,7 @@ export function PlaylistListItem({ playlist, className }: PlaylistListItemProps)
       </Link>
 
       {/* Edit dialog */}
-      {!isLiked && (
+      {isEditable && (
         <PlaylistDialog
           open={editDialogOpen}
           onOpenChange={setEditDialogOpen}

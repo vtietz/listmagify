@@ -7,6 +7,7 @@ import { type Playlist } from "@/lib/spotify/types";
 import { cn } from "@/lib/utils";
 import { isLikedSongsPlaylist } from "@/hooks/useLikedVirtualPlaylist";
 import { useCompactModeStore } from "@/hooks/useCompactModeStore";
+import { useSessionUser } from "@/hooks/useSessionUser";
 import { useSpotifyPlayer } from "@/hooks/useSpotifyPlayer";
 import { usePlayerStore } from "@/hooks/usePlayerStore";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,7 @@ type PlaylistCardProps = {
 
 export function PlaylistCard({ playlist, className }: PlaylistCardProps) {
   const { isCompact } = useCompactModeStore();
+  const { user } = useSessionUser();
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const updatePlaylist = useUpdatePlaylist();
   const { play } = useSpotifyPlayer();
@@ -27,6 +29,8 @@ export function PlaylistCard({ playlist, className }: PlaylistCardProps) {
   
   const cover = playlist.image?.url;
   const isLiked = isLikedSongsPlaylist(playlist.id);
+  // Only allow editing if user owns the playlist (not Liked Songs, not imported)
+  const isEditable = !isLiked && user?.id && playlist.owner?.id === user.id;
   
   const handleEditClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -92,8 +96,8 @@ export function PlaylistCard({ playlist, className }: PlaylistCardProps) {
           <div className="flex items-start justify-between gap-1">
             <div className={cn("font-medium line-clamp-1 flex-1 min-w-0", isCompact && "text-xs")}>{playlist.name}</div>
             <div className="flex items-center gap-1 shrink-0">
-              {/* Edit button - only show for non-Liked Songs playlists */}
-              {!isLiked && (
+              {/* Edit button - only show for playlists owned by current user */}
+              {isEditable && (
                 <Button
                   variant="ghost"
                   size="icon"
@@ -132,8 +136,8 @@ export function PlaylistCard({ playlist, className }: PlaylistCardProps) {
         </div>
       </Link>
 
-      {/* Edit dialog - only rendered for non-Liked Songs playlists */}
-      {!isLiked && (
+      {/* Edit dialog - only rendered for playlists owned by current user */}
+      {isEditable && (
         <PlaylistDialog
           open={editDialogOpen}
           onOpenChange={setEditDialogOpen}

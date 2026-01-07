@@ -2,7 +2,7 @@
 
 import React from "react";
 import { usePathname } from "next/navigation";
-import { ListMusic, LogIn, LogOut, Minimize2, MapPinOff, BarChart3, GitCompare, Menu, Shield, FileText } from "lucide-react";
+import { ListMusic, LogIn, LogOut, Minimize2, MapPinOff, BarChart3, GitCompare, Menu, Shield, FileText, Columns } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AppLogo } from "@/components/ui/app-logo";
 import { AppFooter } from "@/components/ui/app-footer";
@@ -170,6 +170,17 @@ function Header({ title }: { title: string }) {
                 </Link>
               </Button>
               <Button
+                variant={isSplitEditorActive ? "secondary" : "ghost"}
+                size="sm"
+                asChild
+                className="h-7 gap-1.5 cursor-pointer"
+              >
+                <Link href="/split-editor">
+                  <Columns className="h-3.5 w-3.5" />
+                  Panel View
+                </Link>
+              </Button>
+              <Button
                 variant={isCompact ? "secondary" : "ghost"}
                 size="sm"
                 onClick={toggleCompact}
@@ -237,30 +248,6 @@ function Header({ title }: { title: string }) {
                   </Link>
                 </Button>
               )}
-              <div className="w-px h-4 bg-border mx-2" />
-              {/* Privacy and Imprint links */}
-              <Button
-                variant="ghost"
-                size="sm"
-                asChild
-                className="h-7 gap-1.5 cursor-pointer text-muted-foreground"
-              >
-                <Link href="/privacy">
-                  <Shield className="h-3.5 w-3.5" />
-                  Privacy
-                </Link>
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                asChild
-                className="h-7 gap-1.5 cursor-pointer text-muted-foreground"
-              >
-                <Link href="/imprint">
-                  <FileText className="h-3.5 w-3.5" />
-                  Imprint
-                </Link>
-              </Button>
             </div>
 
             {/* Mobile navigation - dropdown menu visible on smaller screens */}
@@ -277,6 +264,12 @@ function Header({ title }: { title: string }) {
                     <Link href="/playlists" className="flex items-center gap-2 cursor-pointer">
                       <ListMusic className="h-4 w-4" />
                       Playlists
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/split-editor" className="flex items-center gap-2 cursor-pointer">
+                      <Columns className="h-4 w-4" />
+                      Panel View
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={toggleCompact} className="flex items-center gap-2 cursor-pointer">
