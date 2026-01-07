@@ -34,6 +34,7 @@ import {
   Sparkles,
   MoreHorizontal,
   ExternalLink,
+  X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useDeviceType } from '@/hooks/useDeviceType';
@@ -73,6 +74,8 @@ export interface TrackActions {
   onGoToArtist?: () => void;
   onGoToAlbum?: () => void;
   onOpenInSpotify?: () => void;
+  /** Clear current selection */
+  onClearSelection?: () => void;
   isPlaying?: boolean;
   isLiked?: boolean;
   canRemove?: boolean;
@@ -467,6 +470,18 @@ function TabletMenuContent({
             label={isMultiSelect ? `Remove ${selectedCount} tracks` : 'Remove from playlist'}
             onClick={withClose(trackActions?.onRemoveFromPlaylist)}
             destructive
+          />
+        </>
+      )}
+      
+      {/* Clear selection - only for multi-select */}
+      {isMultiSelect && trackActions?.onClearSelection && (
+        <>
+          <div className="h-px bg-border my-1" />
+          <PopoverMenuItem 
+            icon={X} 
+            label="Clear selection"
+            onClick={withClose(trackActions.onClearSelection)}
           />
         </>
       )}

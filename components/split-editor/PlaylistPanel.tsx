@@ -72,7 +72,13 @@ export function PlaylistPanel({
     const selected = state.getFirstSelectedTrack();
     if (!selected) return;
     
-    const trackActions: { onRemoveFromPlaylist?: () => void; canRemove?: boolean } = {};
+    const trackActions: { 
+      onRemoveFromPlaylist?: () => void; 
+      canRemove?: boolean;
+      onClearSelection?: () => void;
+    } = {
+      onClearSelection: state.clearSelection,
+    };
     if (state.isEditable) {
       trackActions.onRemoveFromPlaylist = state.handleDeleteSelected;
       trackActions.canRemove = true;

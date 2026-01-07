@@ -171,18 +171,18 @@ export function PanelToolbar({
         </div>
       )}
 
-      {/* Selection Actions Button - shown when tracks are selected */}
-      {selectionCount > 0 && onOpenSelectionMenu && (
+      {/* Selection Actions Button - shown when tracks are selected (desktop/tablet only) */}
+      {selectionCount > 0 && onOpenSelectionMenu && !isPhone && (
         <Button
           ref={selectionButtonRef}
           variant="ghost"
           size="sm"
           onClick={handleSelectionMenuClick}
-          className="h-8 px-2 shrink-0 gap-1 text-emerald-500 hover:text-emerald-400"
+          className="h-8 px-2 shrink-0 gap-1 text-orange-500 hover:text-orange-400"
           title={`${selectionCount} track${selectionCount > 1 ? 's' : ''} selected - click for actions`}
         >
           <ListChecks className="h-4 w-4" />
-          <span className="text-xs font-medium bg-emerald-500 text-white px-1.5 py-0.5 rounded-full">
+          <span className="text-xs font-medium bg-orange-500 text-white px-1.5 py-0.5 rounded-full">
             {selectionCount}
           </span>
         </Button>
@@ -229,6 +229,19 @@ export function PanelToolbar({
               title={locked ? 'Unlock panel' : 'Lock panel'}
             >
               {locked ? <Lock className="h-4 w-4" /> : <LockOpen className="h-4 w-4" />}
+            </Button>
+          )}
+
+          {/* Edit Playlist Info */}
+          {canEditPlaylistInfo && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setEditDialogOpen(true)}
+              className="h-8 w-8 p-0 shrink-0"
+              title="Edit playlist info"
+            >
+              <Pencil className="h-4 w-4" />
             </Button>
           )}
 

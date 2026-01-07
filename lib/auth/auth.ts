@@ -196,8 +196,14 @@ export const authOptions: AuthOptions = {
       (session as any).error = token.error;
       
       // Add user info if available
-      if (session.user && token.email) {
-        session.user.email = token.email;
+      if (session.user) {
+        if (token.email) {
+          session.user.email = token.email;
+        }
+        // Add Spotify user ID from JWT sub (subject) claim
+        if (token.sub) {
+          session.user.id = token.sub;
+        }
       }
       
       return session;
