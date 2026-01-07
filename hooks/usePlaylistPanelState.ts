@@ -26,7 +26,7 @@ import { useHydratedCompactMode } from '@/hooks/useCompactModeStore';
 import { useCompareModeStore, getTrackCompareColor, type TrackDistribution } from '@/hooks/useCompareModeStore';
 import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
 import { usePrefetchContributorProfiles, useUserProfilesCache } from '@/hooks/useUserProfiles';
-import { TRACK_ROW_HEIGHT, TRACK_ROW_HEIGHT_COMPACT, VIRTUALIZATION_OVERSCAN } from '@/components/split/constants';
+import { TRACK_ROW_HEIGHT, TRACK_ROW_HEIGHT_COMPACT, VIRTUALIZATION_OVERSCAN } from '@/components/split-editor/constants';
 import type { Track } from '@/lib/spotify/types';
 
 interface UsePlaylistPanelStateProps {

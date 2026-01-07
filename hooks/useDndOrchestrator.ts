@@ -20,7 +20,7 @@ import { useContinuousAutoScroll } from './useAutoScrollEdge';
 import { calculateDropPosition } from './useDropPosition';
 import { useHydratedCompactMode } from './useCompactModeStore';
 import { useBrowsePanelStore } from './useBrowsePanelStore';
-import { TABLE_HEADER_HEIGHT, TABLE_HEADER_HEIGHT_COMPACT } from '@/components/split/constants';
+import { TABLE_HEADER_HEIGHT, TABLE_HEADER_HEIGHT_COMPACT } from '@/components/split-editor/constants';
 import {
   KeyboardSensor,
   PointerSensor,

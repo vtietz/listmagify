@@ -7,7 +7,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
-import { PlaylistSelector } from '@/components/split/PlaylistSelector';
+import { PlaylistSelector } from '@/components/split-editor/PlaylistSelector';
 import type { ComponentProps } from 'react';
 
 // Mock the API client

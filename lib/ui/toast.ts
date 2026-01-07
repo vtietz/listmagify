@@ -11,7 +11,6 @@
  */
 
 // Import sonner with require to bypass verbatimModuleSyntax issues
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const sonner = require('sonner') as { toast: ToastFunction; Toaster: ToasterComponent };
 
 /**

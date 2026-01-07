@@ -4,7 +4,7 @@ import type { Virtualizer } from '@tanstack/react-virtual';
 import type { Track } from '@/lib/spotify/types';
 import { getNextTrackIndex } from '@/lib/dnd/selection';
 import { scrollToIndexIfOutOfView } from '@/lib/utils/virtualScroll';
-import { TABLE_HEADER_HEIGHT, TRACK_ROW_HEIGHT } from '@/components/split/constants';
+import { TABLE_HEADER_HEIGHT, TRACK_ROW_HEIGHT } from '@/components/split-editor/constants';
 
 interface Params {
   filteredTracks: Track[];

@@ -14,7 +14,7 @@ import { useInsertionPointsStore } from "@/hooks/useInsertionPointsStore";
 import { useSessionUser } from "@/hooks/useSessionUser";
 import { useStatsAccess } from "@/hooks/useStatsAccess";
 import { SpotifyPlayer } from "@/components/player";
-import { BrowsePanel } from "@/components/split/BrowsePanel";
+import { BrowsePanel } from "@/components/split-editor/BrowsePanel";
 import Link from "next/link";
 
 type AppShellProps = {
