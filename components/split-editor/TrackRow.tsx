@@ -489,10 +489,10 @@ export function TrackRow({
       // Long-press handlers for mobile multi-select
       {...longPressTouchHandlers}
     >
-      {/* Selection indicator - orange triangle on the left edge */}
+      {/* Selection indicator - small centered orange dot */}
       {isSelected && (
-        <div 
-          className="absolute left-0 top-0 w-0 h-0 border-t-[8px] border-r-[8px] border-t-orange-500 border-r-transparent z-10"
+        <div
+          className="absolute left-0 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-orange-500 z-10"
           aria-hidden="true"
         />
       )}

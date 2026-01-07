@@ -1,6 +1,6 @@
 import type { MetadataRoute } from 'next';
 
-export default function manifest(): MetadataRoute.Manifest {
+export default function manifest() {
   return {
     name: 'Listmagify - Playlist Magic for Spotify',
     short_name: 'Listmagify',

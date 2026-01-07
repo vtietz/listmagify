@@ -1,4 +1,4 @@
-import type { Metadata, Viewport } from "next";
+import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/lib/ui/toast";
@@ -19,7 +19,7 @@ const geistMono = Geist_Mono({
 // Base URL for metadata - read at runtime from env (server-side only)
 const appUrl = process.env.APP_URL || process.env.NEXTAUTH_URL || 'http://localhost:3000';
 
-export const viewport: Viewport = {
+export const viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 5,
