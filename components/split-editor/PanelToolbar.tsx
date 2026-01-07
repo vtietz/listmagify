@@ -2,23 +2,18 @@
  * PanelToolbar component for individual playlist panels.
  * Includes search, reload, lock indicator, close, and playlist selector.
  * Shows inline buttons when panel is wide (≥600px), collapses to dropdown menu when narrow.
+ * 
+ * Note: Track-level actions (delete, add to markers) are now in the TrackContextMenu.
  */
 
 'use client';
 
 import { useState, useRef, useEffect, ChangeEvent, useCallback } from 'react';
-import { Search, RefreshCw, Lock, LockOpen, X, SplitSquareHorizontal, SplitSquareVertical, Move, Copy, Trash2, MoreHorizontal, MapPinOff, Pencil, Plus, Loader2, Save } from 'lucide-react';
+import { Search, RefreshCw, Lock, LockOpen, X, SplitSquareHorizontal, SplitSquareVertical, Move, Copy, MoreHorizontal, MapPinOff, Pencil, Loader2, Save } from 'lucide-react';
 import { PlaylistSelector } from './PlaylistSelector';
-import { AddSelectedToMarkersButton } from './AddSelectedToMarkersButton';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,23 +21,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
 import { PlaylistDialog } from '@/components/playlist/PlaylistDialog';
 import { useUpdatePlaylist } from '@/lib/spotify/playlistMutations';
-import { useAddTracks, useReorderAllTracks } from '@/lib/spotify/playlistMutations';
-import { useInsertionPointsStore, computeInsertionPositions } from '@/hooks/useInsertionPointsStore';
 import { isLikedSongsPlaylist } from '@/hooks/useLikedVirtualPlaylist';
 import { cn } from '@/lib/utils';
-import { toast } from '@/lib/ui/toast';
 import type { SortKey, SortDirection } from '@/hooks/usePlaylistSort';
 
 /** Minimum width (in px) to show inline buttons instead of dropdown menu */
@@ -60,17 +42,11 @@ interface PanelToolbarProps {
   isReloading?: boolean;
   sortKey?: SortKey;
   sortDirection?: SortDirection;
-  selectedCount?: number;
-  isDeleting?: boolean;
   insertionMarkerCount?: number;
   /** Whether the playlist is sorted in non-default order (can save current order) */
   isSorted?: boolean;
   /** Whether saving current order is in progress */
   isSavingOrder?: boolean;
-  /** Callback to get selected track URIs for adding to markers */
-  getSelectedTrackUris?: () => string[];
-  /** Callback to get all track URIs in current visual order */
-  getSortedTrackUris?: () => string[];
   onSearchChange: (query: string) => void;
   onSortChange?: (key: SortKey, direction: SortDirection) => void;
   onReload: () => void;
@@ -80,7 +56,6 @@ interface PanelToolbarProps {
   onDndModeToggle: () => void;
   onLockToggle: () => void;
   onLoadPlaylist: (playlistId: string) => void;
-  onDeleteSelected?: () => void;
   onClearInsertionMarkers?: () => void;
   onSaveCurrentOrder?: () => void;
 }
@@ -97,13 +72,9 @@ export function PanelToolbar({
   isReloading = false,
   sortKey = 'position',
   sortDirection = 'asc',
-  selectedCount = 0,
-  isDeleting = false,
   insertionMarkerCount = 0,
   isSorted = false,
   isSavingOrder = false,
-  getSelectedTrackUris,
-  getSortedTrackUris,
   onSearchChange,
   onSortChange,
   onReload,
@@ -113,29 +84,17 @@ export function PanelToolbar({
   onDndModeToggle,
   onLockToggle,
   onLoadPlaylist,
-  onDeleteSelected,
   onClearInsertionMarkers,
   onSaveCurrentOrder,
 }: PanelToolbarProps) {
   const [localSearch, setLocalSearch] = useState(searchQuery);
   const [isCompact, setIsCompact] = useState(true);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [isInsertingAtMarkers, setIsInsertingAtMarkers] = useState(false);
   const toolbarRef = useRef<HTMLDivElement>(null);
   
   const updatePlaylist = useUpdatePlaylist();
-  const addTracksMutation = useAddTracks();
-  const allPlaylists = useInsertionPointsStore((s) => s.playlists);
-  const shiftAfterMultiInsert = useInsertionPointsStore((s) => s.shiftAfterMultiInsert);
   const isLiked = playlistId ? isLikedSongsPlaylist(playlistId) : false;
   const canEditPlaylistInfo = playlistId && isEditable && !isLiked;
-  
-  // Calculate all playlists with markers (including current - same-playlist insertion is valid)
-  const playlistsWithMarkers = Object.entries(allPlaylists)
-    .filter(([, data]) => data.markers.length > 0);
-  const hasAnyMarkers = playlistsWithMarkers.length > 0;
-  const totalMarkers = playlistsWithMarkers.reduce((sum, [, data]) => sum + data.markers.length, 0);
 
   // Track toolbar width to toggle between compact (dropdown) and expanded (inline buttons) mode
   useEffect(() => {
@@ -157,11 +116,6 @@ export function PanelToolbar({
     onSearchChange(value);
   };
 
-  const handleDeleteConfirm = () => {
-    setDeleteDialogOpen(false);
-    onDeleteSelected?.();
-  };
-
   const handleUpdatePlaylist = useCallback(async (values: { name: string; description: string }) => {
     if (!playlistId) return;
     await updatePlaylist.mutateAsync({
@@ -170,63 +124,6 @@ export function PanelToolbar({
       description: values.description,
     });
   }, [playlistId, updatePlaylist]);
-
-  /** Handle inserting selected tracks at all markers (for dropdown menu) */
-  const handleInsertAtMarkers = useCallback(async () => {
-    if (!getSelectedTrackUris || selectedCount === 0 || !hasAnyMarkers) return;
-    
-    setIsInsertingAtMarkers(true);
-    
-    try {
-      const uris = await getSelectedTrackUris();
-      
-      if (uris.length === 0) {
-        toast.error('No tracks to add');
-        return;
-      }
-      
-      let successCount = 0;
-      let errorCount = 0;
-      
-      for (const [targetPlaylistId, playlistData] of playlistsWithMarkers) {
-        if (playlistData.markers.length === 0) continue;
-        
-        try {
-          const positions = computeInsertionPositions(playlistData.markers, uris.length);
-          
-          for (const position of positions) {
-            await addTracksMutation.mutateAsync({
-              playlistId: targetPlaylistId,
-              trackUris: uris,
-              position: position.effectiveIndex,
-            });
-          }
-          
-          if (playlistData.markers.length > 1) {
-            shiftAfterMultiInsert(targetPlaylistId);
-          }
-          
-          successCount += playlistData.markers.length;
-        } catch (error) {
-          console.error(`Failed to add tracks to playlist ${targetPlaylistId}:`, error);
-          errorCount++;
-        }
-      }
-      
-      if (successCount > 0 && errorCount === 0) {
-        // Success - no toast needed
-      } else if (successCount > 0 && errorCount > 0) {
-        toast.warning(`Added to ${successCount} markers, failed for ${errorCount} playlist${errorCount > 1 ? 's' : ''}`);
-      } else {
-        toast.error('Failed to add tracks to markers');
-      }
-    } catch (error) {
-      console.error('Failed to insert at markers:', error);
-      toast.error('Failed to add tracks');
-    } finally {
-      setIsInsertingAtMarkers(false);
-    }
-  }, [getSelectedTrackUris, selectedCount, hasAnyMarkers, playlistsWithMarkers, addTracksMutation, shiftAfterMultiInsert]);
 
   return (
     <div ref={toolbarRef} className="flex items-center gap-1.5 p-1.5 border-b border-border bg-card relative z-20">
@@ -294,29 +191,6 @@ export function PanelToolbar({
               title={locked ? 'Unlock panel' : 'Lock panel'}
             >
               {locked ? <Lock className="h-4 w-4" /> : <LockOpen className="h-4 w-4" />}
-            </Button>
-          )}
-
-          {/* Add Selected to Markers */}
-          {playlistId && getSelectedTrackUris && (
-            <AddSelectedToMarkersButton
-              selectedCount={selectedCount}
-              getTrackUris={async () => getSelectedTrackUris()}
-              className="h-8 w-8 p-0 shrink-0"
-            />
-          )}
-
-          {/* Delete Selected */}
-          {playlistId && isEditable && !locked && selectedCount > 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={isDeleting}
-              onClick={() => setDeleteDialogOpen(true)}
-              className="h-8 w-8 p-0 shrink-0 text-destructive hover:text-destructive"
-              title={`Delete ${selectedCount} track${selectedCount > 1 ? 's' : ''}`}
-            >
-              <Trash2 className={cn('h-4 w-4', isDeleting && 'animate-pulse')} />
             </Button>
           )}
 
@@ -450,37 +324,6 @@ export function PanelToolbar({
               </DropdownMenuItem>
             )}
 
-            {/* Delete Selected */}
-            {playlistId && isEditable && !locked && selectedCount > 0 && (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => setDeleteDialogOpen(true)}
-                  disabled={isDeleting}
-                  className="text-destructive focus:text-destructive"
-                >
-                  <Trash2 className={cn('h-4 w-4 mr-2', isDeleting && 'animate-pulse')} />
-                  Delete {selectedCount} track{selectedCount > 1 ? 's' : ''}
-                </DropdownMenuItem>
-              </>
-            )}
-
-            {/* Insert at Markers */}
-            {playlistId && selectedCount > 0 && hasAnyMarkers && (
-              <DropdownMenuItem
-                onClick={handleInsertAtMarkers}
-                disabled={isInsertingAtMarkers}
-                className="text-green-500 focus:text-green-600"
-              >
-                {isInsertingAtMarkers ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Plus className="h-4 w-4 mr-2" />
-                )}
-                Insert {selectedCount} at markers
-              </DropdownMenuItem>
-            )}
-
             {/* Clear Insertion Markers */}
             {playlistId && isEditable && !locked && insertionMarkerCount > 0 && (
               <DropdownMenuItem onClick={onClearInsertionMarkers} className="text-orange-500 focus:text-orange-600">
@@ -511,27 +354,6 @@ export function PanelToolbar({
           </DropdownMenuContent>
         </DropdownMenu>
       )}
-
-      {/* Delete confirmation dialog - controlled to prevent unmounting during re-renders */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete {selectedCount} track{selectedCount > 1 ? 's' : ''}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will remove {selectedCount} track{selectedCount > 1 ? 's' : ''} from the playlist. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteConfirm}
-              className="bg-destructive text-white hover:bg-destructive/90"
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       {/* Edit playlist dialog */}
       {canEditPlaylistInfo && (

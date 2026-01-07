@@ -3,22 +3,33 @@
  * Handles tree-based grid layout, DnD context, and panel orchestration.
  * 
  * Uses a recursive split tree model for nested horizontal/vertical splits.
+ * 
+ * Responsive behavior:
+ * - Phone (<600px): max 2 panels, orientation-aware (portrait=top/bottom, landscape=left/right)
+ * - Tablet (≥600px, <1024px): user-configurable panels, orientation-aware grid
+ * - Desktop (≥1024px): current multi-panel behavior
  */
 
 'use client';
 
+import { useEffect, useMemo } from 'react';
 import { DndContext, DragOverlay } from '@dnd-kit/core';
 import { LogIn, Loader2 } from 'lucide-react';
-import { useSplitGridStore } from '@/hooks/useSplitGridStore';
+import { useSplitGridStore, flattenPanels } from '@/hooks/useSplitGridStore';
 import { useBrowsePanelStore } from '@/hooks/useBrowsePanelStore';
 import { useHydratedCompactMode } from '@/hooks/useCompactModeStore';
 import { useDndOrchestrator } from '@/hooks/useDndOrchestrator';
 import { useSplitUrlSync } from '@/hooks/useSplitUrlSync';
 import { useSessionUser } from '@/hooks/useSessionUser';
+import { useDeviceType, getOrientationClasses, TABLET_PERFORMANCE_WARNING_THRESHOLD } from '@/hooks/useDeviceType';
+import { usePanelFocusStore } from '@/hooks/usePanelFocusStore';
 import { SplitNodeView } from './SplitNodeView';
 import { BrowsePanel } from './BrowsePanel';
+import { MobilePanelSwitcher } from './MobilePanelSwitcher';
 import { SignInButton } from '@/components/auth/SignInButton';
 import { TRACK_ROW_HEIGHT, TRACK_ROW_HEIGHT_COMPACT } from './constants';
+import { toast } from '@/lib/ui/toast';
+import { cn } from '@/lib/utils';
 
 export function SplitGrid() {
   // Sync split grid state with URL for sharing/bookmarking
@@ -29,6 +40,39 @@ export function SplitGrid() {
   const isBrowsePanelOpen = useBrowsePanelStore((state) => state.isOpen);
   const isCompact = useHydratedCompactMode();
   const { authenticated, loading } = useSessionUser();
+  
+  // Device and orientation detection
+  const deviceInfo = useDeviceType();
+  const { isPhone, isTablet, deviceType, orientation, hasTouch } = deviceInfo;
+  const orientationClasses = getOrientationClasses(deviceInfo);
+  
+  // Panel focus state (for phone layout)
+  const { focusedPanelId, focusPanel } = usePanelFocusStore();
+  
+  // Auto-focus first panel on phones when panels change
+  useEffect(() => {
+    if (isPhone && panels.length > 0 && !focusedPanelId) {
+      focusPanel(panels[0]!.id);
+    }
+  }, [isPhone, panels, focusedPanelId, focusPanel]);
+  
+  // Performance warning for tablets with many panels
+  useEffect(() => {
+    if (isTablet && panels.length > TABLET_PERFORMANCE_WARNING_THRESHOLD) {
+      toast.info(
+        `You have ${panels.length} panels open. Consider closing some for better performance.`,
+        { duration: 5000 }
+      );
+    }
+  }, [isTablet, panels.length]);
+  
+  // Build playlist names map for mobile switcher
+  const playlistNames = useMemo(() => {
+    const map = new Map<string, string>();
+    // Note: actual playlist names would come from the panels' loaded playlist data
+    // This is a placeholder - the PlaylistPanel would need to provide names
+    return map;
+  }, []);
 
   // IMPORTANT: All hooks must be called before any conditional returns (Rules of Hooks)
   // Use the orchestrator hook to manage all DnD state and logic
@@ -105,24 +149,43 @@ export function SplitGrid() {
       // which correctly targets only the panel under the pointer.
       autoScroll={false}
     >
-      <div className="h-full w-full flex">
-        {/* Main split panel area */}
-        <div className="flex-1 min-w-0 p-2">
-          <SplitNodeView
-            node={root}
-            onRegisterVirtualizer={registerVirtualizer}
-            onUnregisterVirtualizer={unregisterVirtualizer}
-            activePanelId={activePanelId}
-            sourcePanelId={sourcePanelId}
-            dropIndicatorIndex={dropIndicatorIndex}
-            ephemeralInsertion={ephemeralInsertion}
-          />
+      <div 
+        className={cn(
+          'h-full w-full flex flex-col',
+          orientationClasses,
+          hasTouch && 'has-touch'
+        )}
+        data-device={deviceType}
+        data-orientation={orientation}
+      >
+        {/* Main content area */}
+        <div className={cn(
+          'flex-1 min-h-0 flex',
+          // On phones, add bottom padding for the panel switcher
+          isPhone && panels.length >= 2 && 'pb-14'
+        )}>
+          {/* Main split panel area */}
+          <div className="flex-1 min-w-0 p-2">
+            <SplitNodeView
+              node={root}
+              onRegisterVirtualizer={registerVirtualizer}
+              onUnregisterVirtualizer={unregisterVirtualizer}
+              activePanelId={activePanelId}
+              sourcePanelId={sourcePanelId}
+              dropIndicatorIndex={dropIndicatorIndex}
+              ephemeralInsertion={ephemeralInsertion}
+              isRoot={true}
+            />
+          </div>
+          
+          {/* Browse panel (Spotify search) - hide on phones when using bottom sheet */}
+          {isBrowsePanelOpen && !isPhone && (
+            <BrowsePanel />
+          )}
         </div>
         
-        {/* Browse panel (Spotify search) */}
-        {isBrowsePanelOpen && (
-          <BrowsePanel />
-        )}
+        {/* Mobile panel switcher (phones only) */}
+        <MobilePanelSwitcher panels={panels} playlistNames={playlistNames} />
       </div>
 
       <DragOverlay 

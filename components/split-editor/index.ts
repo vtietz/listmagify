@@ -17,8 +17,24 @@ export { PanelToolbar } from './PanelToolbar';
 
 // Track list components
 export { TrackRow } from './TrackRow';
-export { TrackRowCells, IndexCell, TitleCell, ArtistCell, AlbumCell, DateAddedCell, DurationCell, LikedIndicatorCell } from './TrackRowCells';
-export { TrackRowActions, PlayButton, AddToMarkerButton, TrackContextMenu } from './TrackRowActions';
+export { 
+  PositionCell, 
+  TitleCell, 
+  ArtistCell, 
+  AlbumCell, 
+  DateCell,
+  PopularityBar,
+  DurationCell, 
+  CumulativeTimeCell,
+  HourBoundaryMarker,
+  InsertionMarkerLine,
+} from './TrackRowCells';
+export { 
+  HeartButton, 
+  PlayPauseButton, 
+  InsertionToggleButton, 
+  ContributorAvatar,
+} from './TrackRowActions';
 export { TableHeader, TRACK_GRID_CLASSES, TRACK_GRID_CLASSES_NORMAL, TRACK_GRID_CLASSES_COMPACT, getTrackGridStyle } from './TableHeader';
 export { VirtualizedTrackListContainer } from './VirtualizedTrackListContainer';
 
@@ -38,13 +54,25 @@ export { AddToMarkedButton } from './AddToMarkedButton';
 export { AddSelectedToMarkersButton } from './AddSelectedToMarkersButton';
 export { LastfmAddToMarkedButton } from './LastfmAddToMarkedButton';
 
+// Mobile-specific components
+export { DragHandle, useDragHandle } from './DragHandle';
+export { MobilePanelSwitcher, useMobilePanelSwitcher } from './MobilePanelSwitcher';
+export { MobileBrowseOverlay, useMobileBrowseOverlay, QuickAddButton } from './MobileBrowseOverlay';
+export { 
+  TrackContextMenu as MobileTrackContextMenu, 
+  ContextMenuTrigger, 
+  useTrackContextMenu,
+  type ReorderActions,
+  type MarkerActions,
+  type TrackActions,
+  type RecommendationActions,
+} from './TrackContextMenu';
+
 // Constants
 export {
   TRACK_ROW_HEIGHT,
   TRACK_ROW_HEIGHT_COMPACT,
-  TRACK_ROW_HEIGHT_NORMAL,
   TABLE_HEADER_HEIGHT,
   TABLE_HEADER_HEIGHT_COMPACT,
-  TABLE_HEADER_HEIGHT_NORMAL,
   VIRTUALIZATION_OVERSCAN,
 } from './constants';

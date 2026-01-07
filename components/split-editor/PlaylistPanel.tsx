@@ -127,13 +127,9 @@ export function PlaylistPanel({
         isReloading={state.isReloading}
         sortKey={state.sortKey}
         sortDirection={state.sortDirection}
-        selectedCount={state.selection.size}
-        isDeleting={state.removeTracks.isPending}
         insertionMarkerCount={state.activeMarkerIndices.size}
         isSorted={state.isSorted}
         isSavingOrder={state.isSavingOrder}
-        getSelectedTrackUris={state.getSelectedTrackUris}
-        getSortedTrackUris={state.getSortedTrackUris}
         onSearchChange={state.handleSearchChange}
         onSortChange={(key, direction) => {
           state.setSortKey(key);
@@ -146,7 +142,6 @@ export function PlaylistPanel({
         onDndModeToggle={state.handleDndModeToggle}
         onLockToggle={state.handleLockToggle}
         onLoadPlaylist={state.handleLoadPlaylist}
-        onDeleteSelected={state.handleDeleteSelected}
         onClearInsertionMarkers={() => state.playlistId && state.clearInsertionMarkers(state.playlistId)}
         onSaveCurrentOrder={state.handleSaveCurrentOrder}
       />

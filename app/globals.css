@@ -167,3 +167,255 @@
     background: transparent;
   }
 }
+
+/* ============================================================================
+   Mobile/Touch Device Styles
+   ============================================================================ */
+
+@layer components {
+  /* Touch-friendly target sizes (min 44x44px) */
+  .touch-target {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* Drag handle - only visible on touch devices */
+  .drag-handle {
+    display: none;
+    touch-action: none;
+    cursor: grab;
+    min-width: 44px;
+    min-height: 44px;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .drag-handle:active {
+    cursor: grabbing;
+  }
+
+  /* Show drag handle only on touch devices */
+  .has-touch .drag-handle {
+    display: flex;
+  }
+
+  /* Panel focus states for phones */
+  .device-phone .panel-focused {
+    flex: 65;
+    transition: flex 0.2s ease-out;
+  }
+
+  .device-phone .panel-unfocused {
+    flex: 35;
+    transition: flex 0.2s ease-out;
+  }
+
+  /* Orientation-aware panel layouts */
+  .device-phone.orientation-portrait .split-container {
+    flex-direction: column;
+  }
+
+  .device-phone.orientation-landscape .split-container {
+    flex-direction: row;
+  }
+
+  .device-tablet.orientation-portrait .split-container {
+    flex-direction: column;
+  }
+
+  .device-tablet.orientation-landscape .split-container {
+    flex-direction: row;
+  }
+
+  /* Panel switcher bottom bar for phones */
+  .panel-switcher {
+    display: none;
+  }
+
+  .device-phone .panel-switcher {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 56px;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    z-index: 50;
+    padding: 8px 16px;
+    gap: 8px;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .panel-switcher-tab {
+    flex: 1;
+    max-width: 160px;
+    height: 40px;
+    border-radius: var(--radius);
+    background: var(--muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 0 12px;
+    font-size: 0.875rem;
+    transition: background 0.15s ease;
+  }
+
+  .panel-switcher-tab.active {
+    background: var(--primary);
+    color: var(--primary-foreground);
+  }
+
+  /* Bottom sheet overlay for phone menus */
+  .bottom-sheet-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 100;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+
+  .bottom-sheet-overlay.open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .bottom-sheet {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--card);
+    border-top-left-radius: 16px;
+    border-top-right-radius: 16px;
+    z-index: 101;
+    max-height: 85vh;
+    transform: translateY(100%);
+    transition: transform 0.3s ease;
+    overflow: hidden;
+  }
+
+  .bottom-sheet.open {
+    transform: translateY(0);
+  }
+
+  .bottom-sheet-handle {
+    width: 40px;
+    height: 4px;
+    background: var(--muted-foreground);
+    border-radius: 2px;
+    margin: 12px auto;
+  }
+
+  .bottom-sheet-content {
+    padding: 0 16px 24px;
+    max-height: calc(85vh - 40px);
+    overflow-y: auto;
+  }
+
+  /* Slide-over panel for tablet */
+  .slide-over-panel {
+    position: fixed;
+    top: 0;
+    right: -100%;
+    width: min(400px, 85vw);
+    height: 100%;
+    background: var(--card);
+    border-left: 1px solid var(--border);
+    z-index: 90;
+    transition: right 0.3s ease;
+    overflow-y: auto;
+  }
+
+  .slide-over-panel.open {
+    right: 0;
+  }
+
+  /* Context menu - device-specific positioning */
+  .context-menu-mobile {
+    /* Bottom sheet on phones handled separately */
+  }
+
+  .device-tablet .context-menu-popover {
+    position: fixed;
+    background: var(--popover);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    z-index: 100;
+    min-width: 200px;
+    padding: 8px 0;
+  }
+
+  /* Performance hint banner */
+  .performance-hint {
+    position: fixed;
+    bottom: 70px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--muted);
+    color: var(--muted-foreground);
+    padding: 8px 16px;
+    border-radius: var(--radius);
+    font-size: 0.75rem;
+    z-index: 60;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+  }
+
+  .performance-hint.visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* Insertion marker - touch-friendly */
+  .insertion-marker-mobile {
+    position: relative;
+    height: 2px;
+    background: var(--primary);
+    margin: 2px 0;
+  }
+
+  .insertion-marker-mobile::before {
+    content: 'Marker';
+    position: absolute;
+    left: 8px;
+    top: -10px;
+    font-size: 0.625rem;
+    color: var(--primary);
+    background: var(--card);
+    padding: 0 4px;
+  }
+
+  /* Reduced motion support */
+  @media (prefers-reduced-motion: reduce) {
+    .panel-focused,
+    .panel-unfocused,
+    .bottom-sheet,
+    .slide-over-panel,
+    .bottom-sheet-overlay {
+      transition: none;
+    }
+
+    .drag-handle:active {
+      transform: none;
+    }
+  }
+}
+
+/* Safe area insets for notched devices */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .device-phone .panel-switcher {
+    padding-bottom: calc(8px + env(safe-area-inset-bottom));
+    height: calc(56px + env(safe-area-inset-bottom));
+  }
+
+  .bottom-sheet-content {
+    padding-bottom: calc(24px + env(safe-area-inset-bottom));
+  }
+}
