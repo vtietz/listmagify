@@ -10,6 +10,8 @@ import type { VirtualItem } from '@tanstack/react-virtual';
 import { DropIndicator } from './DropIndicator';
 import { InsertionMarkersOverlay } from './InsertionMarker';
 import { TrackRow } from './TrackRow';
+import { TrackContextMenu } from './TrackContextMenu';
+import { useContextMenuStore } from '@/hooks/useContextMenuStore';
 import type { Track } from '@/lib/spotify/types';
 
 interface VirtualizedTrackListContainerProps {
@@ -113,8 +115,16 @@ export function VirtualizedTrackListContainer({
   playTrack,
   pausePlayback,
 }: VirtualizedTrackListContainerProps) {
+  // Get context menu state from global store
+  const contextMenu = useContextMenuStore();
+  const closeContextMenu = useContextMenuStore((s) => s.closeMenu);
+
+  // Only render context menu if it belongs to this panel
+  const shouldShowContextMenu = contextMenu.isOpen && contextMenu.panelId === panelId;
+
   return (
-    <SortableContext
+    <>
+      <SortableContext
       items={contextItems}
       strategy={verticalListSortingStrategy}
     >
@@ -149,6 +159,7 @@ export function VirtualizedTrackListContainer({
           
           const selectionId = selectionKey(track, virtualRow.index);
           const trackId = track.id || track.uri;
+          const positionActual = track.position ?? virtualRow.index;
 
           return (
             <div
@@ -182,8 +193,8 @@ export function VirtualizedTrackListContainer({
                 isPlaybackLoading={isTrackLoading(track.uri)}
                 onPlay={playTrack}
                 onPause={pausePlayback}
-                hasInsertionMarker={!searchQuery && !isSorted && activeMarkerIndices.has(track.position ?? virtualRow.index)}
-                hasInsertionMarkerAfter={false}
+                hasInsertionMarker={!searchQuery && !isSorted && activeMarkerIndices.has(positionActual)}
+                hasInsertionMarkerAfter={!searchQuery && !isSorted && activeMarkerIndices.has(positionActual + 1)}
                 allowInsertionMarkerToggle={!searchQuery && !isSorted}
                 isCollaborative={hasMultipleContributors}
                 getProfile={hasMultipleContributors ? getProfile : undefined}
@@ -193,11 +204,30 @@ export function VirtualizedTrackListContainer({
                 isDuplicate={isDuplicate(track.uri)}
                 isOtherInstanceSelected={isOtherInstanceSelected(track.uri)}
                 compareColor={getCompareColorForTrack(track.uri)}
+                isMultiSelect={selection.size > 1}
+                selectedCount={selection.size}
               />
             </div>
           );
         })}
       </div>
     </SortableContext>
+
+    {/* Global context menu for this panel */}
+    {shouldShowContextMenu && contextMenu.track && (
+      <TrackContextMenu
+        track={contextMenu.track}
+        isOpen={true}
+        onClose={closeContextMenu}
+        position={contextMenu.position ?? undefined}
+        reorderActions={contextMenu.reorderActions ?? undefined}
+        markerActions={contextMenu.markerActions ?? undefined}
+        trackActions={contextMenu.trackActions ?? undefined}
+        isMultiSelect={contextMenu.isMultiSelect}
+        selectedCount={contextMenu.selectedCount}
+        isEditable={contextMenu.isEditable}
+      />
+    )}
+    </>
   );
 }

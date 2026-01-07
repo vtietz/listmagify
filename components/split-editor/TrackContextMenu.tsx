@@ -13,7 +13,7 @@
 'use client';
 
 import * as React from 'react';
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Play,
@@ -64,6 +64,10 @@ export interface TrackActions {
   onAddToPlaylist?: () => void;
   onRemoveFromPlaylist?: () => void;
   onToggleLiked?: () => void;
+  /** For multi-select: explicitly like all selected tracks */
+  onLikeAll?: () => void;
+  /** For multi-select: explicitly unlike all selected tracks */
+  onUnlikeAll?: () => void;
   onPlay?: () => void;
   onPause?: () => void;
   onGoToArtist?: () => void;
@@ -202,25 +206,21 @@ function PhoneMenuContent({
         <>
           <BottomSheetSection title="Marker">
             <BottomSheetMenuItem
-              icon={Bookmark}
-              label="Add marker before"
+              icon={markerActions?.hasMarkerBefore ? BookmarkMinus : Bookmark}
+              label={markerActions?.hasMarkerBefore 
+                ? (isMultiSelect ? 'Remove marker above selection' : 'Remove marker before')
+                : (isMultiSelect ? 'Add marker above selection' : 'Add marker before')}
               onClick={withClose(markerActions?.onAddMarkerBefore)}
-              disabled={!!markerActions?.hasMarkerBefore}
+              {...(markerActions?.hasMarkerBefore && { destructive: true })}
             />
             <BottomSheetMenuItem
-              icon={Bookmark}
-              label="Add marker after"
+              icon={markerActions?.hasMarkerAfter ? BookmarkMinus : Bookmark}
+              label={markerActions?.hasMarkerAfter 
+                ? (isMultiSelect ? 'Remove marker below selection' : 'Remove marker after')
+                : (isMultiSelect ? 'Add marker below selection' : 'Add marker after')}
               onClick={withClose(markerActions?.onAddMarkerAfter)}
-              disabled={!!markerActions?.hasMarkerAfter}
+              {...(markerActions?.hasMarkerAfter && { destructive: true })}
             />
-            {(markerActions?.hasMarkerBefore || markerActions?.hasMarkerAfter) && (
-              <BottomSheetMenuItem
-                icon={BookmarkMinus}
-                label="Remove marker"
-                onClick={withClose(markerActions?.onRemoveMarker)}
-                destructive
-              />
-            )}
           </BottomSheetSection>
           <BottomSheetDivider />
         </>
@@ -241,61 +241,86 @@ function PhoneMenuContent({
       )}
 
       {/* Track actions */}
-      <BottomSheetSection title="Track">
-        <BottomSheetMenuItem
-          icon={trackActions?.isPlaying ? Pause : Play}
-          label={trackActions?.isPlaying ? 'Pause' : 'Play'}
-          onClick={withClose(trackActions?.isPlaying ? trackActions?.onPause : trackActions?.onPlay)}
-          disabled={!trackActions?.onPlay}
-        />
-        <BottomSheetMenuItem
-          icon={trackActions?.isLiked ? HeartOff : Heart}
-          label={trackActions?.isLiked ? 'Remove from Liked' : 'Add to Liked'}
-          onClick={withClose(trackActions?.onToggleLiked)}
-          disabled={!trackActions?.onToggleLiked}
-        />
+      <BottomSheetSection title={isMultiSelect ? `${selectedCount} Tracks` : 'Track'}>
+        {/* Play - only for single track */}
+        {!isMultiSelect && (
+          <BottomSheetMenuItem
+            icon={trackActions?.isPlaying ? Pause : Play}
+            label={trackActions?.isPlaying ? 'Pause' : 'Play'}
+            onClick={withClose(trackActions?.isPlaying ? trackActions?.onPause : trackActions?.onPlay)}
+            disabled={!trackActions?.onPlay}
+          />
+        )}
+        {/* Like/Unlike - for multi-select show both options, for single show toggle */}
+        {isMultiSelect ? (
+          <>
+            <BottomSheetMenuItem
+              icon={Heart}
+              label={`Like all ${selectedCount} tracks`}
+              onClick={withClose(trackActions?.onLikeAll ?? trackActions?.onToggleLiked)}
+              disabled={!trackActions?.onLikeAll && !trackActions?.onToggleLiked}
+            />
+            <BottomSheetMenuItem
+              icon={HeartOff}
+              label={`Unlike all ${selectedCount} tracks`}
+              onClick={withClose(trackActions?.onUnlikeAll ?? trackActions?.onToggleLiked)}
+              disabled={!trackActions?.onUnlikeAll && !trackActions?.onToggleLiked}
+            />
+          </>
+        ) : (
+          <BottomSheetMenuItem
+            icon={trackActions?.isLiked ? HeartOff : Heart}
+            label={trackActions?.isLiked ? 'Remove from Liked' : 'Add to Liked'}
+            onClick={withClose(trackActions?.onToggleLiked)}
+            disabled={!trackActions?.onToggleLiked}
+          />
+        )}
         {trackActions?.onAddToPlaylist && (
           <BottomSheetMenuItem
             icon={Plus}
-            label="Add to playlist..."
+            label={isMultiSelect ? `Add ${selectedCount} to playlist...` : 'Add to playlist...'}
             onClick={withClose(trackActions.onAddToPlaylist)}
           />
         )}
-        {isEditable && trackActions?.onRemoveFromPlaylist && trackActions.canRemove && !isMultiSelect && (
+        {isEditable && trackActions?.onRemoveFromPlaylist && trackActions.canRemove && (
           <BottomSheetMenuItem
             icon={Trash2}
-            label="Remove from playlist"
+            label={isMultiSelect ? `Remove ${selectedCount} tracks` : 'Remove from playlist'}
             onClick={withClose(trackActions.onRemoveFromPlaylist)}
             destructive
           />
         )}
       </BottomSheetSection>
-      <BottomSheetDivider />
 
-      {/* Navigation */}
-      <BottomSheetSection title="Go to">
-        <BottomSheetMenuItem
-          icon={User}
-          label="Go to artist"
-          onClick={withClose(trackActions?.onGoToArtist)}
-          disabled={!trackActions?.onGoToArtist}
-        />
-        <BottomSheetMenuItem
-          icon={Disc}
-          label="Go to album"
-          onClick={withClose(trackActions?.onGoToAlbum)}
-          disabled={!trackActions?.onGoToAlbum}
-        />
-        <BottomSheetMenuItem
-          icon={ExternalLink}
-          label="Open in Spotify"
-          onClick={withClose(trackActions?.onOpenInSpotify)}
-          disabled={!trackActions?.onOpenInSpotify}
-        />
-      </BottomSheetSection>
+      {/* Navigation - only for single track */}
+      {!isMultiSelect && (
+        <>
+          <BottomSheetDivider />
+          <BottomSheetSection title="Go to">
+            <BottomSheetMenuItem
+              icon={User}
+              label="Go to artist"
+              onClick={withClose(trackActions?.onGoToArtist)}
+              disabled={!trackActions?.onGoToArtist}
+            />
+            <BottomSheetMenuItem
+              icon={Disc}
+              label="Go to album"
+              onClick={withClose(trackActions?.onGoToAlbum)}
+              disabled={!trackActions?.onGoToAlbum}
+            />
+            <BottomSheetMenuItem
+              icon={ExternalLink}
+              label="Open in Spotify"
+              onClick={withClose(trackActions?.onOpenInSpotify)}
+              disabled={!trackActions?.onOpenInSpotify}
+            />
+          </BottomSheetSection>
+        </>
+      )}
 
-      {/* Recommendations */}
-      {(recActions?.onShowSimilar || recActions?.onOpenBrowse) && (
+      {/* Recommendations - only for single track */}
+      {!isMultiSelect && (recActions?.onShowSimilar || recActions?.onOpenBrowse) && (
         <>
           <BottomSheetDivider />
           <BottomSheetSection title="Recommendations">
@@ -347,25 +372,21 @@ function TabletMenuContent({
       {isEditable && (
         <>
           <PopoverMenuItem 
-            icon={Bookmark} 
-            label="Add marker before" 
+            icon={markerActions?.hasMarkerBefore ? BookmarkMinus : Bookmark} 
+            label={markerActions?.hasMarkerBefore 
+              ? (isMultiSelect ? 'Remove marker above selection' : 'Remove marker before')
+              : (isMultiSelect ? 'Add marker above selection' : 'Add marker before')}
             onClick={withClose(markerActions?.onAddMarkerBefore)}
-            disabled={!!markerActions?.hasMarkerBefore}
+            {...(markerActions?.hasMarkerBefore && { destructive: true })}
           />
           <PopoverMenuItem 
-            icon={Bookmark} 
-            label="Add marker after" 
+            icon={markerActions?.hasMarkerAfter ? BookmarkMinus : Bookmark} 
+            label={markerActions?.hasMarkerAfter 
+              ? (isMultiSelect ? 'Remove marker below selection' : 'Remove marker after')
+              : (isMultiSelect ? 'Add marker below selection' : 'Add marker after')}
             onClick={withClose(markerActions?.onAddMarkerAfter)}
-            disabled={!!markerActions?.hasMarkerAfter}
+            {...(markerActions?.hasMarkerAfter && { destructive: true })}
           />
-          {(markerActions?.hasMarkerBefore || markerActions?.hasMarkerAfter) && (
-            <PopoverMenuItem 
-              icon={BookmarkMinus} 
-              label="Remove marker" 
-              onClick={withClose(markerActions?.onRemoveMarker)}
-              destructive
-            />
-          )}
           <div className="h-px bg-border my-1" />
         </>
       )}
@@ -383,37 +404,61 @@ function TabletMenuContent({
       )}
       
       {/* Track actions */}
-      <PopoverMenuItem 
-        icon={trackActions?.isPlaying ? Pause : Play} 
-        label={trackActions?.isPlaying ? 'Pause' : 'Play'} 
-        onClick={withClose(trackActions?.isPlaying ? trackActions?.onPause : trackActions?.onPlay)} 
-      />
-      <PopoverMenuItem 
-        icon={trackActions?.isLiked ? HeartOff : Heart} 
-        label={trackActions?.isLiked ? 'Unlike' : 'Like'} 
-        onClick={withClose(trackActions?.onToggleLiked)} 
-      />
+      {/* Play - only for single track */}
+      {!isMultiSelect && (
+        <PopoverMenuItem 
+          icon={trackActions?.isPlaying ? Pause : Play} 
+          label={trackActions?.isPlaying ? 'Pause' : 'Play'} 
+          onClick={withClose(trackActions?.isPlaying ? trackActions?.onPause : trackActions?.onPlay)} 
+        />
+      )}
+      {/* Like/Unlike - for multi-select show both options, for single show toggle */}
+      {isMultiSelect ? (
+        <>
+          <PopoverMenuItem 
+            icon={Heart} 
+            label={`Like all ${selectedCount}`}
+            onClick={withClose(trackActions?.onLikeAll ?? trackActions?.onToggleLiked)} 
+          />
+          <PopoverMenuItem 
+            icon={HeartOff} 
+            label={`Unlike all ${selectedCount}`}
+            onClick={withClose(trackActions?.onUnlikeAll ?? trackActions?.onToggleLiked)} 
+          />
+        </>
+      ) : (
+        <PopoverMenuItem 
+          icon={trackActions?.isLiked ? HeartOff : Heart} 
+          label={trackActions?.isLiked ? 'Unlike' : 'Like'} 
+          onClick={withClose(trackActions?.onToggleLiked)} 
+        />
+      )}
       
-      {/* Navigation */}
-      <PopoverMenuItem 
-        icon={User} 
-        label="Go to artist" 
-        onClick={withClose(trackActions?.onGoToArtist)}
-        disabled={!trackActions?.onGoToArtist}
-      />
-      <PopoverMenuItem 
-        icon={Disc} 
-        label="Go to album" 
-        onClick={withClose(trackActions?.onGoToAlbum)}
-        disabled={!trackActions?.onGoToAlbum}
-      />
-      <PopoverMenuItem 
-        icon={ExternalLink} 
-        label="Open in Spotify" 
-        onClick={withClose(trackActions?.onOpenInSpotify)}
-        disabled={!trackActions?.onOpenInSpotify}
-      />
+      {/* Navigation - only for single track */}
+      {!isMultiSelect && (
+        <>
+          <PopoverMenuItem 
+            icon={User} 
+            label="Go to artist" 
+            onClick={withClose(trackActions?.onGoToArtist)}
+            disabled={!trackActions?.onGoToArtist}
+          />
+          <PopoverMenuItem 
+            icon={Disc} 
+            label="Go to album" 
+            onClick={withClose(trackActions?.onGoToAlbum)}
+            disabled={!trackActions?.onGoToAlbum}
+          />
+          <PopoverMenuItem 
+            icon={ExternalLink} 
+            label="Open in Spotify" 
+            onClick={withClose(trackActions?.onOpenInSpotify)}
+            disabled={!trackActions?.onOpenInSpotify}
+          />
+        </>
+      )}
       
+      {/* Remove - works for both single and multi */}
       {isEditable && trackActions?.canRemove && (
         <>
           <div className="h-px bg-border my-1" />
@@ -444,11 +489,39 @@ export function TrackContextMenu({
 }: TrackContextMenuProps) {
   const { isPhone } = useDeviceType();
   const [mounted, setMounted] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   // Ensure we only render portal after mount (for SSR compatibility)
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Calculate menu position to keep it within viewport
+  const menuPosition = useMemo(() => {
+    if (!position) return null;
+
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const padding = 8;
+    
+    // Estimate menu dimensions (actual width ~200px, height varies)
+    const menuWidth = 220;
+    const menuHeight = 450; // Conservative estimate for full menu
+
+    // Calculate left position - keep within viewport
+    let left = position.x;
+    if (left + menuWidth > viewportWidth - padding) {
+      left = Math.max(padding, viewportWidth - menuWidth - padding);
+    }
+
+    // Calculate top position - keep within viewport
+    let top = position.y;
+    if (top + menuHeight > viewportHeight - padding) {
+      top = Math.max(padding, viewportHeight - menuHeight - padding);
+    }
+
+    return { left, top };
+  }, [position]);
 
   // Action wrapper that closes menu after action
   const withClose = useCallback((action?: () => void) => {
@@ -458,8 +531,9 @@ export function TrackContextMenu({
     };
   }, [onClose]);
 
-  const title = isMultiSelect
-    ? `${selectedCount} tracks selected`
+  // Title format: "Track Name" or "Track Name +N" for multi-select
+  const title = isMultiSelect && selectedCount > 1
+    ? `${track.name} +${selectedCount - 1}`
     : track.name;
 
   // Shared props for menu content - pass directly to avoid type issues
@@ -484,8 +558,8 @@ export function TrackContextMenu({
     );
   }
 
-  // Don't render until mounted (SSR safety) or if not open and no position
-  if (!mounted || !position) {
+  // Don't render until mounted (SSR safety) or if no position
+  if (!mounted || !menuPosition) {
     return null;
   }
 
@@ -500,14 +574,15 @@ export function TrackContextMenu({
         />
       )}
       <div
+        ref={menuRef}
         className={cn(
           'fixed z-[9999] bg-popover border border-border rounded-md shadow-lg min-w-[180px]',
           isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
         )}
         style={{
-          left: Math.min(position.x, window.innerWidth - 220),
-          top: Math.min(position.y, window.innerHeight - 350),
-          maxHeight: 'calc(100vh - 32px)',
+          left: menuPosition.left,
+          top: menuPosition.top,
+          maxHeight: 'calc(100vh - 16px)',
           overflowY: 'auto',
         }}
       >

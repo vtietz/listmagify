@@ -14,7 +14,9 @@ import { useSavedTracksIndex } from '@/hooks/useSavedTracksIndex';
 import { useTrackPlayback } from '@/hooks/useTrackPlayback';
 import { useHydratedCompactMode } from '@/hooks/useCompactModeStore';
 import { useCompareModeStore, getTrackCompareColor } from '@/hooks/useCompareModeStore';
+import { useContextMenuStore } from '@/hooks/useContextMenuStore';
 import { TrackRow } from './TrackRow';
+import { TrackContextMenu } from './TrackContextMenu';
 import { TRACK_ROW_HEIGHT, TRACK_ROW_HEIGHT_COMPACT } from './constants';
 import { makeCompositeId } from '@/lib/dnd/id';
 import { cn, matchesAllWords } from '@/lib/utils';
@@ -60,6 +62,11 @@ export function RecommendationsPanel({
   const getCompareColorForTrack = useCallback((trackUri: string) => {
     return getTrackCompareColor(trackUri, compareDistribution, isCompareEnabled);
   }, [compareDistribution, isCompareEnabled]);
+  
+  // Context menu store
+  const contextMenu = useContextMenuStore();
+  const closeContextMenu = useContextMenuStore((s) => s.closeMenu);
+  const shouldShowContextMenu = contextMenu.isOpen && contextMenu.panelId === RECS_PANEL_ID;
   
   // Search/filter state
   const [searchQuery, setSearchQuery] = useState('');
@@ -305,6 +312,21 @@ export function RecommendationsPanel({
           </>
         )}
       </div>
+      
+      {/* Context menu for this panel */}
+      {shouldShowContextMenu && contextMenu.track && (
+        <TrackContextMenu
+          track={contextMenu.track}
+          isOpen={true}
+          onClose={closeContextMenu}
+          position={contextMenu.position ?? undefined}
+          markerActions={contextMenu.markerActions ?? undefined}
+          trackActions={contextMenu.trackActions ?? undefined}
+          isMultiSelect={contextMenu.isMultiSelect}
+          selectedCount={contextMenu.selectedCount}
+          isEditable={false}
+        />
+      )}
     </div>
   );
 }

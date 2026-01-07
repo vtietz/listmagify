@@ -21,6 +21,7 @@ import { User, Loader2, Radio } from 'lucide-react';
 import { useBrowsePanelStore } from '@/hooks/useBrowsePanelStore';
 import { useHydratedCompactMode } from '@/hooks/useCompactModeStore';
 import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
+import { useContextMenuStore } from '@/hooks/useContextMenuStore';
 import { useLastfmMatch, makeMatchKeyFromDTO } from '@/hooks/useLastfmMatchCache';
 import { lastfmToTrack, type IndexedTrackDTO, type LastfmTrack } from '@/hooks/useLastfmTracks';
 import { useSavedTracksIndex } from '@/hooks/useSavedTracksIndex';
@@ -32,6 +33,7 @@ import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { TrackRow } from './TrackRow';
+import { TrackContextMenu } from './TrackContextMenu';
 import { TableHeader } from './TableHeader';
 import { AddSelectedToMarkersButton } from './AddSelectedToMarkersButton';
 import { LastfmAddToMarkedButton } from './LastfmAddToMarkedButton';
@@ -108,6 +110,11 @@ export function LastfmBrowseTab({ isActive = true }: LastfmBrowseTabProps) {
   // Check if any markers exist (for showing add to markers button)
   const allPlaylists = useInsertionPointsStore((s) => s.playlists);
   const hasAnyMarkers = Object.values(allPlaylists).some((p) => p.markers.length > 0);
+  
+  // Context menu store
+  const contextMenu = useContextMenuStore();
+  const closeContextMenu = useContextMenuStore((s) => s.closeMenu);
+  const shouldShowContextMenu = contextMenu.isOpen && contextMenu.panelId === LASTFM_PANEL_ID;
   
   const scrollRef = useRef<HTMLDivElement>(null);
   // Use state for scroll element to avoid flushSync during React render
@@ -644,6 +651,8 @@ export function LastfmBrowseTab({ isActive = true }: LastfmBrowseTabProps) {
                           }}
                           onDragStart={handleDragStart}
                           compareColor={matchedSpotifyTrack?.uri ? getCompareColorForTrack(matchedSpotifyTrack.uri) : undefined}
+                          isMultiSelect={lastfmSelection.size > 1}
+                          selectedCount={lastfmSelection.size}
                           {...(isSelected && selectedMatchedUris.length > 0 
                             ? { selectedMatchedUris } 
                             : {})}
@@ -662,6 +671,21 @@ export function LastfmBrowseTab({ isActive = true }: LastfmBrowseTabProps) {
                 </div>
               )}
             </SortableContext>
+          )}
+          
+          {/* Context menu for this panel */}
+          {shouldShowContextMenu && contextMenu.track && (
+            <TrackContextMenu
+              track={contextMenu.track}
+              isOpen={true}
+              onClose={closeContextMenu}
+              position={contextMenu.position ?? undefined}
+              markerActions={contextMenu.markerActions ?? undefined}
+              trackActions={contextMenu.trackActions ?? undefined}
+              isMultiSelect={contextMenu.isMultiSelect}
+              selectedCount={contextMenu.selectedCount}
+              isEditable={false}
+            />
           )}
         </div>
       </div>

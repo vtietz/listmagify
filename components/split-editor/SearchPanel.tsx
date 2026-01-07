@@ -14,6 +14,7 @@ import { useBrowsePanelStore } from '@/hooks/useBrowsePanelStore';
 import { useHydratedCompactMode } from '@/hooks/useCompactModeStore';
 import { useCompareModeStore, getTrackCompareColor } from '@/hooks/useCompareModeStore';
 import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
+import { useContextMenuStore } from '@/hooks/useContextMenuStore';
 import { useSavedTracksIndex } from '@/hooks/useSavedTracksIndex';
 import { useTrackPlayback } from '@/hooks/useTrackPlayback';
 import { usePlaylistSort, type SortKey, type SortDirection } from '@/hooks/usePlaylistSort';
@@ -22,6 +23,7 @@ import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { TrackRow } from './TrackRow';
+import { TrackContextMenu } from './TrackContextMenu';
 import { TableHeader } from './TableHeader';
 import { AddSelectedToMarkersButton } from './AddSelectedToMarkersButton';
 import { TRACK_ROW_HEIGHT, TRACK_ROW_HEIGHT_COMPACT, VIRTUALIZATION_OVERSCAN } from './constants';
@@ -65,6 +67,11 @@ export function SearchPanel({ isActive = true, inputRef: externalInputRef }: Sea
   // Check if any markers exist (for showing add to markers button)
   const allPlaylists = useInsertionPointsStore((s) => s.playlists);
   const hasAnyMarkers = Object.values(allPlaylists).some((p) => p.markers.length > 0);
+  
+  // Context menu store
+  const contextMenu = useContextMenuStore();
+  const closeContextMenu = useContextMenuStore((s) => s.closeMenu);
+  const shouldShowContextMenu = contextMenu.isOpen && contextMenu.panelId === SEARCH_PANEL_ID;
   
   const scrollRef = useRef<HTMLDivElement>(null);
   const internalInputRef = useRef<HTMLInputElement>(null);
@@ -377,6 +384,8 @@ export function SearchPanel({ isActive = true, inputRef: externalInputRef }: Sea
                           onPlay={playTrack}
                           onPause={pausePlayback}
                           compareColor={getCompareColorForTrack(track.uri)}
+                          isMultiSelect={spotifySelection.length > 1}
+                          selectedCount={spotifySelection.length}
                         />
                       </div>
                     );
@@ -392,6 +401,21 @@ export function SearchPanel({ isActive = true, inputRef: externalInputRef }: Sea
               )}
             </div>
           </SortableContext>
+        )}
+        
+        {/* Context menu for this panel */}
+        {shouldShowContextMenu && contextMenu.track && (
+          <TrackContextMenu
+            track={contextMenu.track}
+            isOpen={true}
+            onClose={closeContextMenu}
+            position={contextMenu.position ?? undefined}
+            markerActions={contextMenu.markerActions ?? undefined}
+            trackActions={contextMenu.trackActions ?? undefined}
+            isMultiSelect={contextMenu.isMultiSelect}
+            selectedCount={contextMenu.selectedCount}
+            isEditable={false}
+          />
         )}
       </div>
     </div>

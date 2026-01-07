@@ -43,11 +43,13 @@ export function PositionCell({ isCompact, index, position }: PositionCellProps) 
 
 interface TitleCellProps extends CellProps {
   track: Track;
+  /** Optional slot for the more button */
+  moreButton?: React.ReactNode;
 }
 
-export function TitleCell({ isCompact, track }: TitleCellProps) {
+export function TitleCell({ isCompact, track, moreButton }: TitleCellProps) {
   return (
-    <div className="min-w-0 flex items-center gap-1.5">
+    <div className="min-w-0 relative flex items-center gap-1.5 group/title">
       {/* Explicit content badge per Spotify guidelines */}
       {track.explicit && (
         <span 
@@ -61,21 +63,17 @@ export function TitleCell({ isCompact, track }: TitleCellProps) {
           E
         </span>
       )}
-      {track.id ? (
-        <a
-          href={`https://open.spotify.com/track/${track.id}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(e) => e.stopPropagation()}
-          className={cn('truncate select-none hover:underline hover:text-green-500', isCompact ? 'text-xs' : 'text-sm')}
-          title={`${track.name} — Open in Spotify ↗`}
-        >
-          {track.name}
-        </a>
-      ) : (
-        <span className={cn('truncate select-none', isCompact ? 'text-xs' : 'text-sm')}>
-          {track.name}
-        </span>
+      <span 
+        className={cn('truncate select-none', isCompact ? 'text-xs pr-6' : 'text-sm pr-7')}
+        title={track.name}
+      >
+        {track.name}
+      </span>
+      {/* More button - absolutely positioned to allow text underneath */}
+      {moreButton && (
+        <div className="absolute right-0 top-1/2 -translate-y-1/2">
+          {moreButton}
+        </div>
       )}
     </div>
   );

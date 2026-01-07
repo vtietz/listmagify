@@ -8,7 +8,7 @@
 'use client';
 
 import * as React from 'react';
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useCallback } from 'react';
 import { MoreHorizontal } from 'lucide-react';
 import type { Track } from '@/lib/spotify/types';
 import { cn } from '@/lib/utils';
@@ -16,6 +16,7 @@ import { useCompactModeStore } from '@/hooks/useCompactModeStore';
 import { useBrowsePanelStore } from '@/hooks/useBrowsePanelStore';
 import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
 import { usePlayerStore } from '@/hooks/usePlayerStore';
+import { useContextMenuStore } from '@/hooks/useContextMenuStore';
 import { useInsertionMarkerToggle } from '@/hooks/useInsertionMarkerToggle';
 import { useRowSortable } from '@/hooks/useRowSortable';
 import { AddToMarkedButton } from './AddToMarkedButton';
@@ -46,9 +47,8 @@ import {
 // Mobile drag handle
 import { DragHandle, useDragHandle } from './DragHandle';
 
-// Context menu
+// Context menu types
 import { 
-  TrackContextMenu,
   type ReorderActions,
   type MarkerActions,
   type TrackActions,
@@ -196,26 +196,8 @@ export function TrackRow({
   const allPlaylists = useInsertionPointsStore((s) => s.playlists);
   const isPlayerVisible = usePlayerStore((s) => s.isPlayerVisible);
   
-  // Context menu state
-  const [contextMenuOpen, setContextMenuOpen] = useState(false);
-  const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | undefined>();
-  // Track whether context menu should show multi-select mode
-  // Only true if this track is selected AND there are multiple selections
-  const [showMultiSelectMenu, setShowMultiSelectMenu] = useState(false);
-  
-  // Close context menu when another row opens its menu
-  useEffect(() => {
-    const handleCloseAllContextMenus = () => {
-      if (contextMenuOpen) {
-        setContextMenuOpen(false);
-        setContextMenuPosition(undefined);
-        setShowMultiSelectMenu(false);
-      }
-    };
-    
-    window.addEventListener('closeAllTrackContextMenus', handleCloseAllContextMenus);
-    return () => window.removeEventListener('closeAllTrackContextMenus', handleCloseAllContextMenus);
-  }, [contextMenuOpen]);
+  // Global context menu store
+  const openContextMenu = useContextMenuStore((s) => s.openMenu);
   
   // Check if any markers exist across all playlists
   const hasAnyMarkers = Object.values(allPlaylists).some((p) => p.markers.length > 0);
@@ -320,37 +302,6 @@ export function TrackRow({
     }
   };
 
-  // Context menu handlers
-  const handleContextMenu = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    // Close any other open context menus first
-    window.dispatchEvent(new CustomEvent('closeAllTrackContextMenus'));
-    setContextMenuPosition({ x: e.clientX, y: e.clientY });
-    // Show multi-select menu only if this track is selected AND there are multiple selections
-    setShowMultiSelectMenu(isSelected && isMultiSelect && selectedCount > 1);
-    setContextMenuOpen(true);
-  }, [isSelected, isMultiSelect, selectedCount]);
-
-  const handleMoreButtonClick = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    e.preventDefault();
-    // Close any other open context menus first
-    window.dispatchEvent(new CustomEvent('closeAllTrackContextMenus'));
-    // Position menu near the button
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    setContextMenuPosition({ x: rect.right, y: rect.top });
-    // Show multi-select menu only if this track is selected AND there are multiple selections
-    setShowMultiSelectMenu(isSelected && isMultiSelect && selectedCount > 1);
-    setContextMenuOpen(true);
-  }, [isSelected, isMultiSelect, selectedCount]);
-
-  const closeContextMenu = useCallback(() => {
-    setContextMenuOpen(false);
-    setContextMenuPosition(undefined);
-    setShowMultiSelectMenu(false);
-  }, []);
-
   // Build context menu track actions with play/like/go-to handlers
   const fullTrackActions: TrackActions = useMemo(() => ({
     ...contextTrackActions,
@@ -379,11 +330,64 @@ export function TrackRow({
     canRemove: contextTrackActions?.canRemove,
   }), [contextTrackActions, track, onPlay, onPause, onToggleLiked, isLiked, isPlaying, setSearchQuery, openBrowsePanel]);
 
-  // Build marker actions with hasAnyMarkers flag
+  // Build marker actions with actual handlers
+  const trackPosition = track.position ?? index;
   const fullMarkerActions: MarkerActions = useMemo(() => ({
     ...markerActions,
     hasAnyMarkers,
-  }), [markerActions, hasAnyMarkers]);
+    hasMarkerBefore: hasInsertionMarker,
+    hasMarkerAfter: hasInsertionMarkerAfter,
+    onAddMarkerBefore: playlistId && isEditable && allowInsertionMarkerToggle ? () => {
+      togglePoint(playlistId, trackPosition);
+    } : undefined,
+    onAddMarkerAfter: playlistId && isEditable && allowInsertionMarkerToggle ? () => {
+      togglePoint(playlistId, trackPosition + 1);
+    } : undefined,
+    onRemoveMarker: playlistId && isEditable && (hasInsertionMarker || hasInsertionMarkerAfter) ? () => {
+      if (hasInsertionMarker) {
+        togglePoint(playlistId, trackPosition);
+      }
+      if (hasInsertionMarkerAfter) {
+        togglePoint(playlistId, trackPosition + 1);
+      }
+    } : undefined,
+  }), [markerActions, hasAnyMarkers, hasInsertionMarker, hasInsertionMarkerAfter, playlistId, isEditable, allowInsertionMarkerToggle, trackPosition, togglePoint]);
+
+  // Context menu handlers - use global store
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const showMulti = isSelected && isMultiSelect && selectedCount > 1;
+    openContextMenu({
+      track,
+      position: { x: e.clientX, y: e.clientY },
+      isMultiSelect: showMulti,
+      selectedCount: showMulti ? selectedCount : 1,
+      isEditable,
+      panelId: panelId || '',
+      markerActions: fullMarkerActions,
+      trackActions: fullTrackActions,
+      reorderActions,
+    });
+  }, [track, isSelected, isMultiSelect, selectedCount, isEditable, panelId, fullMarkerActions, fullTrackActions, reorderActions, openContextMenu]);
+
+  const handleMoreButtonClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const showMulti = isSelected && isMultiSelect && selectedCount > 1;
+    openContextMenu({
+      track,
+      position: { x: rect.right, y: rect.top },
+      isMultiSelect: showMulti,
+      selectedCount: showMulti ? selectedCount : 1,
+      isEditable,
+      panelId: panelId || '',
+      markerActions: fullMarkerActions,
+      trackActions: fullTrackActions,
+      reorderActions,
+    });
+  }, [track, isSelected, isMultiSelect, selectedCount, isEditable, panelId, fullMarkerActions, fullTrackActions, reorderActions, openContextMenu]);
 
   // Compute the effective background style for compare mode
   const effectiveBackgroundStyle = useMemo(() => {
@@ -503,8 +507,25 @@ export function TrackRow({
         position={track.position}
       />
 
-      {/* Track title */}
-      <TitleCell isCompact={isCompact} track={track} />
+      {/* Track title with inline more button */}
+      <TitleCell 
+        isCompact={isCompact} 
+        track={track}
+        moreButton={
+          <button
+            className={cn(
+              'shrink-0 flex items-center justify-center rounded',
+              'opacity-0 group-hover/row:opacity-100 group-hover/title:opacity-100 focus:opacity-100',
+              'bg-muted/80 hover:bg-muted transition-all',
+              isCompact ? 'w-6 h-6' : 'w-7 h-7',
+            )}
+            onClick={handleMoreButtonClick}
+            aria-label="More options"
+          >
+            <MoreHorizontal className={isCompact ? 'h-3.5 w-3.5' : 'h-4 w-4'} />
+          </button>
+        }
+      />
 
       {/* Artist */}
       <ArtistCell
@@ -545,33 +566,6 @@ export function TrackRow({
       {crossesHourBoundary && (
         <HourBoundaryMarker isCompact={isCompact} hourNumber={hourNumber} />
       )}
-
-      {/* Three-dot menu button - always visible on hover */}
-      <button
-        className={cn(
-          'absolute right-1 top-1/2 -translate-y-1/2 flex items-center justify-center rounded',
-          'opacity-0 group-hover/row:opacity-100 focus:opacity-100 hover:bg-muted transition-opacity',
-          isCompact ? 'w-6 h-6' : 'w-8 h-8',
-        )}
-        onClick={handleMoreButtonClick}
-        aria-label="More options"
-      >
-        <MoreHorizontal className={isCompact ? 'h-4 w-4' : 'h-5 w-5'} />
-      </button>
-
-      {/* Context menu */}
-      <TrackContextMenu
-        track={track}
-        isOpen={contextMenuOpen}
-        onClose={closeContextMenu}
-        position={contextMenuPosition}
-        reorderActions={reorderActions}
-        markerActions={fullMarkerActions}
-        trackActions={fullTrackActions}
-        isMultiSelect={showMultiSelectMenu}
-        selectedCount={showMultiSelectMenu ? selectedCount : 1}
-        isEditable={isEditable}
-      />
 
       {/* Insertion marker lines */}
       {hasInsertionMarker && <InsertionMarkerLine position="top" />}
