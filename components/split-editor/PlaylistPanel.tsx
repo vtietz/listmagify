@@ -7,7 +7,7 @@
 
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useCallback } from 'react';
 import { AlertCircle } from 'lucide-react';
 import { ApiError, AccessTokenExpiredError } from '@/lib/api/client';
 import { SignInButton } from '@/components/auth/SignInButton';
@@ -23,6 +23,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { usePlaylistPanelState } from '@/hooks/usePlaylistPanelState';
+import { useContextMenuStore } from '@/hooks/useContextMenuStore';
 import { PanelToolbar } from './PanelToolbar';
 import { TableHeader } from './TableHeader';
 import { VirtualizedTrackListContainer } from './VirtualizedTrackListContainer';
@@ -64,6 +65,30 @@ export function PlaylistPanel({
   dropIndicatorIndex,
 }: PlaylistPanelProps) {
   const state = usePlaylistPanelState({ panelId, isDragSource });
+  const openContextMenu = useContextMenuStore((s) => s.openMenu);
+
+  // Handler to open selection menu from toolbar
+  const handleOpenSelectionMenu = useCallback((position: { x: number; y: number }) => {
+    const selected = state.getFirstSelectedTrack();
+    if (!selected) return;
+    
+    const trackActions: { onRemoveFromPlaylist?: () => void; canRemove?: boolean } = {};
+    if (state.isEditable) {
+      trackActions.onRemoveFromPlaylist = state.handleDeleteSelected;
+      trackActions.canRemove = true;
+    }
+    
+    openContextMenu({
+      track: selected.track,
+      position,
+      isMultiSelect: true,
+      selectedCount: state.selection.size,
+      isEditable: state.isEditable,
+      panelId,
+      markerActions: {},
+      trackActions,
+    });
+  }, [state, panelId, openContextMenu]);
 
   // Register virtualizer with parent for drop position calculation
   useEffect(() => {
@@ -130,6 +155,9 @@ export function PlaylistPanel({
         insertionMarkerCount={state.activeMarkerIndices.size}
         isSorted={state.isSorted}
         isSavingOrder={state.isSavingOrder}
+        selectionCount={state.selection.size}
+        onOpenSelectionMenu={handleOpenSelectionMenu}
+        onClearSelection={state.clearSelection}
         onSearchChange={state.handleSearchChange}
         onSortChange={(key, direction) => {
           state.setSortKey(key);
@@ -150,7 +178,7 @@ export function PlaylistPanel({
         ref={state.scrollDroppableRef}
         data-testid="track-list-scroll"
         className="flex-1 overflow-auto focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
-        style={{ paddingBottom: TRACK_ROW_HEIGHT * 2, overscrollBehaviorX: 'none' }}
+        style={{ paddingBottom: TRACK_ROW_HEIGHT * 2, overscrollBehaviorX: 'none', overscrollBehaviorY: 'contain' }}
         role="listbox"
         aria-multiselectable="true"
         aria-activedescendant={state.focusedIndex !== null ? `option-${panelId}-${state.focusedIndex}` : undefined}
@@ -219,8 +247,8 @@ export function PlaylistPanel({
                 isEditable={state.isEditable}
                 canDrag={state.canDrag}
                 dndMode={state.dndMode}
-                isDragSource={isDragSource}
-                dropIndicatorIndex={dropIndicatorIndex}
+                {...(isDragSource !== undefined ? { isDragSource } : {})}
+                dropIndicatorIndex={dropIndicatorIndex ?? null}
                 searchQuery={state.searchQuery}
                 isSorted={state.isSorted}
                 totalSize={state.virtualizer.getTotalSize()}

@@ -219,10 +219,10 @@ export function VirtualizedTrackListContainer({
         track={contextMenu.track}
         isOpen={true}
         onClose={closeContextMenu}
-        position={contextMenu.position ?? undefined}
-        reorderActions={contextMenu.reorderActions ?? undefined}
-        markerActions={contextMenu.markerActions ?? undefined}
-        trackActions={contextMenu.trackActions ?? undefined}
+        {...(contextMenu.position ? { position: contextMenu.position } : {})}
+        {...(contextMenu.reorderActions ? { reorderActions: contextMenu.reorderActions } : {})}
+        {...(contextMenu.markerActions ? { markerActions: contextMenu.markerActions } : {})}
+        {...(contextMenu.trackActions ? { trackActions: contextMenu.trackActions } : {})}
         isMultiSelect={contextMenu.isMultiSelect}
         selectedCount={contextMenu.selectedCount}
         isEditable={contextMenu.isEditable}

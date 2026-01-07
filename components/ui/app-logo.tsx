@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useSessionUser } from "@/hooks/useSessionUser";
 
 type AppLogoProps = {
   /** Size variant */
@@ -13,14 +12,13 @@ type AppLogoProps = {
 /**
  * Centralized app logo component with icon and gradient text.
  * Used in header and landing page for consistent branding.
- * Links to /playlists when authenticated, otherwise to landing page.
+ * Always links to landing page (/).
  */
 export function AppLogo({ size = "sm", asLink = true }: AppLogoProps) {
   const isLarge = size === "lg";
-  const { authenticated } = useSessionUser();
   
-  // Link to playlists when authenticated, landing page otherwise
-  const href = authenticated ? "/playlists" : "/";
+  // Always link to landing page
+  const href = "/";
   
   const content = (
     <div className={`flex items-center ${isLarge ? "flex-col gap-4" : "gap-2"}`}>

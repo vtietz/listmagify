@@ -15,12 +15,13 @@ import { useCallback } from 'react';
 import { GripVertical } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useDeviceType } from '@/hooks/useDeviceType';
+import type { SyntheticListenerMap } from '@dnd-kit/core/dist/hooks/utilities';
 
 interface DragHandleProps {
   /** Whether dragging is disabled for this row */
   disabled?: boolean;
   /** Sortable listeners from @dnd-kit (onPointerDown, etc.) */
-  listeners?: Record<string, (event: React.SyntheticEvent) => void>;
+  listeners?: SyntheticListenerMap;
   /** Whether the row is currently being dragged */
   isDragging?: boolean;
   /** Whether compact mode is enabled */
@@ -50,9 +51,10 @@ export function DragHandle({
   }
 
   // Filter listeners to only pass touch/pointer events, not click
+  // Type assertion needed because dnd-kit uses Function type
   const dragListeners = listeners ? {
-    onPointerDown: listeners.onPointerDown,
-    onKeyDown: listeners.onKeyDown,
+    onPointerDown: listeners.onPointerDown as React.PointerEventHandler<HTMLDivElement> | undefined,
+    onKeyDown: listeners.onKeyDown as React.KeyboardEventHandler<HTMLDivElement> | undefined,
   } : {};
 
   return (

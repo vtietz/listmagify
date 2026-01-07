@@ -9,7 +9,7 @@
 'use client';
 
 import { useState, useRef, useEffect, ChangeEvent, useCallback } from 'react';
-import { Search, RefreshCw, Lock, LockOpen, X, SplitSquareHorizontal, SplitSquareVertical, Move, Copy, MoreHorizontal, MapPinOff, Pencil, Loader2, Save } from 'lucide-react';
+import { Search, RefreshCw, Lock, LockOpen, X, SplitSquareHorizontal, SplitSquareVertical, Move, Copy, MoreHorizontal, MapPinOff, Pencil, Loader2, Save, ListChecks } from 'lucide-react';
 import { PlaylistSelector } from './PlaylistSelector';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -48,6 +48,12 @@ interface PanelToolbarProps {
   isSorted?: boolean;
   /** Whether saving current order is in progress */
   isSavingOrder?: boolean;
+  /** Number of selected tracks in this panel */
+  selectionCount?: number;
+  /** Callback to open selection actions menu */
+  onOpenSelectionMenu?: (position: { x: number; y: number }) => void;
+  /** Callback to clear selection */
+  onClearSelection?: () => void;
   onSearchChange: (query: string) => void;
   onSortChange?: (key: SortKey, direction: SortDirection) => void;
   onReload: () => void;
@@ -76,6 +82,9 @@ export function PanelToolbar({
   insertionMarkerCount = 0,
   isSorted = false,
   isSavingOrder = false,
+  selectionCount = 0,
+  onOpenSelectionMenu,
+  onClearSelection,
   onSearchChange,
   onSortChange,
   onReload,
@@ -92,6 +101,7 @@ export function PanelToolbar({
   const [isCompact, setIsCompact] = useState(true);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const toolbarRef = useRef<HTMLDivElement>(null);
+  const selectionButtonRef = useRef<HTMLButtonElement>(null);
   
   const updatePlaylist = useUpdatePlaylist();
   const { isPhone } = useDeviceType();
@@ -130,8 +140,14 @@ export function PanelToolbar({
     });
   }, [playlistId, updatePlaylist]);
 
+  const handleSelectionMenuClick = useCallback((e: React.MouseEvent) => {
+    if (!onOpenSelectionMenu) return;
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    onOpenSelectionMenu({ x: rect.right, y: rect.bottom });
+  }, [onOpenSelectionMenu]);
+
   return (
-    <div ref={toolbarRef} className="flex items-center gap-1.5 p-1.5 border-b border-border bg-card relative z-20">
+    <div ref={toolbarRef} className="flex items-center gap-1.5 p-1.5 border-b border-border bg-card relative z-30">
       {/* Playlist selector - max 50% width */}
       <div className="shrink-0 max-w-[50%]">
         <PlaylistSelector
@@ -153,6 +169,23 @@ export function PanelToolbar({
             className="pl-9 h-9 text-sm"
           />
         </div>
+      )}
+
+      {/* Selection Actions Button - shown when tracks are selected */}
+      {selectionCount > 0 && onOpenSelectionMenu && (
+        <Button
+          ref={selectionButtonRef}
+          variant="ghost"
+          size="sm"
+          onClick={handleSelectionMenuClick}
+          className="h-8 px-2 shrink-0 gap-1 text-emerald-500 hover:text-emerald-400"
+          title={`${selectionCount} track${selectionCount > 1 ? 's' : ''} selected - click for actions`}
+        >
+          <ListChecks className="h-4 w-4" />
+          <span className="text-xs font-medium bg-emerald-500 text-white px-1.5 py-0.5 rounded-full">
+            {selectionCount}
+          </span>
+        </Button>
       )}
 
       {/* Inline buttons when panel is wide enough */}

@@ -651,8 +651,8 @@ export function LastfmBrowseTab({ isActive = true }: LastfmBrowseTabProps) {
                           }}
                           onDragStart={handleDragStart}
                           compareColor={matchedSpotifyTrack?.uri ? getCompareColorForTrack(matchedSpotifyTrack.uri) : undefined}
-                          isMultiSelect={lastfmSelection.size > 1}
-                          selectedCount={lastfmSelection.size}
+                          isMultiSelect={lastfmSelection.length > 1}
+                          selectedCount={lastfmSelection.length}
                           {...(isSelected && selectedMatchedUris.length > 0 
                             ? { selectedMatchedUris } 
                             : {})}
@@ -679,9 +679,9 @@ export function LastfmBrowseTab({ isActive = true }: LastfmBrowseTabProps) {
               track={contextMenu.track}
               isOpen={true}
               onClose={closeContextMenu}
-              position={contextMenu.position ?? undefined}
-              markerActions={contextMenu.markerActions ?? undefined}
-              trackActions={contextMenu.trackActions ?? undefined}
+              {...(contextMenu.position ? { position: contextMenu.position } : {})}
+              {...(contextMenu.markerActions ? { markerActions: contextMenu.markerActions } : {})}
+              {...(contextMenu.trackActions ? { trackActions: contextMenu.trackActions } : {})}
               isMultiSelect={contextMenu.isMultiSelect}
               selectedCount={contextMenu.selectedCount}
               isEditable={false}

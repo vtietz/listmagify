@@ -19,6 +19,7 @@ import { usePlayerStore } from '@/hooks/usePlayerStore';
 import { useContextMenuStore } from '@/hooks/useContextMenuStore';
 import { useInsertionMarkerToggle } from '@/hooks/useInsertionMarkerToggle';
 import { useRowSortable } from '@/hooks/useRowSortable';
+import { useLongPress } from '@/hooks/useLongPress';
 import { AddToMarkedButton } from './AddToMarkedButton';
 import { TRACK_GRID_CLASSES, TRACK_GRID_CLASSES_NORMAL, TRACK_GRID_CLASSES_COMPACT, getTrackGridStyle } from './TableHeader';
 
@@ -208,6 +209,16 @@ export function TrackRow({
   // Mobile drag handle visibility - must be called before getTrackGridStyle
   const { showHandle, handleOnlyDrag } = useDragHandle();
   
+  // Long-press handler for mobile multi-select (toggle selection)
+  const { wasLongPress, resetLongPress, ...longPressTouchHandlers } = useLongPress({
+    delay: 400,
+    onLongPress: useCallback(() => {
+      // Toggle selection on long press (like Ctrl+Click)
+      onSelect(selectionKey, index, { ctrlKey: true, metaKey: false, shiftKey: false } as React.MouseEvent);
+    }, [onSelect, selectionKey, index]),
+    disabled: !showHandle, // Only enable on touch devices
+  });
+  
   // Dynamic grid style based on visible columns
   const gridStyle = getTrackGridStyle(
     isPlayerVisible, 
@@ -309,60 +320,75 @@ export function TrackRow({
   };
 
   // Build context menu track actions with play/like/go-to handlers
-  const fullTrackActions: TrackActions = useMemo(() => ({
-    ...contextTrackActions,
-    onPlay: () => onPlay?.(track.uri),
-    onPause: onPause,
-    onToggleLiked: () => track.id && onToggleLiked?.(track.id, isLiked),
-    onGoToArtist: () => {
-      const artistName = track.artists?.[0]?.name;
-      if (artistName) {
-        setSearchQuery(`artist:"${artistName}"`);
-        openBrowsePanel();
-      }
-    },
-    onGoToAlbum: () => {
-      const albumName = track.album?.name;
-      if (albumName) {
-        setSearchQuery(`album:"${albumName}"`);
-        openBrowsePanel();
-      }
-    },
-    onOpenInSpotify: track.id ? () => {
-      window.open(`https://open.spotify.com/track/${track.id}`, '_blank', 'noopener,noreferrer');
-    } : undefined,
-    isPlaying,
-    isLiked,
-    canRemove: contextTrackActions?.canRemove,
-  }), [contextTrackActions, track, onPlay, onPause, onToggleLiked, isLiked, isPlaying, setSearchQuery, openBrowsePanel]);
+  const fullTrackActions = useMemo((): TrackActions => {
+    const actions: TrackActions = {
+      ...contextTrackActions,
+      onPlay: () => onPlay?.(track.uri),
+      onGoToArtist: () => {
+        const artistName = track.artists?.[0];
+        if (artistName) {
+          setSearchQuery(`artist:"${artistName}"`);
+          openBrowsePanel();
+        }
+      },
+      onGoToAlbum: () => {
+        const albumName = track.album?.name;
+        if (albumName) {
+          setSearchQuery(`album:"${albumName}"`);
+          openBrowsePanel();
+        }
+      },
+      isPlaying,
+      isLiked,
+    };
+    if (contextTrackActions?.canRemove !== undefined) {
+      actions.canRemove = contextTrackActions.canRemove;
+    }
+    if (onPause) actions.onPause = onPause;
+    if (track.id && onToggleLiked) {
+      actions.onToggleLiked = () => onToggleLiked(track.id!, isLiked);
+    }
+    if (track.id) {
+      actions.onOpenInSpotify = () => {
+        window.open(`https://open.spotify.com/track/${track.id}`, '_blank', 'noopener,noreferrer');
+      };
+    }
+    return actions;
+  }, [contextTrackActions, track, onPlay, onPause, onToggleLiked, isLiked, isPlaying, setSearchQuery, openBrowsePanel]);
 
   // Build marker actions with actual handlers
   const trackPosition = track.position ?? index;
-  const fullMarkerActions: MarkerActions = useMemo(() => ({
-    ...markerActions,
-    hasAnyMarkers,
-    hasMarkerBefore: hasInsertionMarker,
-    hasMarkerAfter: hasInsertionMarkerAfter,
-    onAddMarkerBefore: playlistId && isEditable && allowInsertionMarkerToggle ? () => {
-      togglePoint(playlistId, trackPosition);
-    } : undefined,
-    onAddMarkerAfter: playlistId && isEditable && allowInsertionMarkerToggle ? () => {
-      togglePoint(playlistId, trackPosition + 1);
-    } : undefined,
-    onRemoveMarker: playlistId && isEditable && (hasInsertionMarker || hasInsertionMarkerAfter) ? () => {
-      if (hasInsertionMarker) {
-        togglePoint(playlistId, trackPosition);
-      }
-      if (hasInsertionMarkerAfter) {
-        togglePoint(playlistId, trackPosition + 1);
-      }
-    } : undefined,
-  }), [markerActions, hasAnyMarkers, hasInsertionMarker, hasInsertionMarkerAfter, playlistId, isEditable, allowInsertionMarkerToggle, trackPosition, togglePoint]);
+  const fullMarkerActions = useMemo((): MarkerActions => {
+    const actions: MarkerActions = {
+      ...markerActions,
+      hasAnyMarkers,
+      hasMarkerBefore: hasInsertionMarker,
+      hasMarkerAfter: hasInsertionMarkerAfter,
+    };
+    if (playlistId && isEditable && allowInsertionMarkerToggle) {
+      actions.onAddMarkerBefore = () => togglePoint(playlistId, trackPosition);
+      actions.onAddMarkerAfter = () => togglePoint(playlistId, trackPosition + 1);
+    }
+    if (playlistId && isEditable && (hasInsertionMarker || hasInsertionMarkerAfter)) {
+      actions.onRemoveMarker = () => {
+        if (hasInsertionMarker) togglePoint(playlistId, trackPosition);
+        if (hasInsertionMarkerAfter) togglePoint(playlistId, trackPosition + 1);
+      };
+    }
+    return actions;
+  }, [markerActions, hasAnyMarkers, hasInsertionMarker, hasInsertionMarkerAfter, playlistId, isEditable, allowInsertionMarkerToggle, trackPosition, togglePoint]);
 
   // Context menu handlers - use global store
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    
+    // Skip context menu if this was triggered by a long press (on touch devices)
+    if (wasLongPress()) {
+      resetLongPress();
+      return;
+    }
+    
     const showMulti = isSelected && isMultiSelect && selectedCount > 1;
     openContextMenu({
       track,
@@ -373,9 +399,9 @@ export function TrackRow({
       panelId: panelId || '',
       markerActions: fullMarkerActions,
       trackActions: fullTrackActions,
-      reorderActions,
+      reorderActions: reorderActions || {},
     });
-  }, [track, isSelected, isMultiSelect, selectedCount, isEditable, panelId, fullMarkerActions, fullTrackActions, reorderActions, openContextMenu]);
+  }, [track, isSelected, isMultiSelect, selectedCount, isEditable, panelId, fullMarkerActions, fullTrackActions, reorderActions, openContextMenu, wasLongPress, resetLongPress]);
 
   const handleMoreButtonClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -391,7 +417,7 @@ export function TrackRow({
       panelId: panelId || '',
       markerActions: fullMarkerActions,
       trackActions: fullTrackActions,
-      reorderActions,
+      reorderActions: reorderActions || {},
     });
   }, [track, isSelected, isMultiSelect, selectedCount, isEditable, panelId, fullMarkerActions, fullTrackActions, reorderActions, openContextMenu]);
 
@@ -451,12 +477,22 @@ export function TrackRow({
       }
       // Only attach drag listeners to row on desktop; on touch devices, use DragHandle
       {...(!locked && !handleOnlyDrag ? { ...attributes, ...listeners } : { ...attributes })}
+      // Long-press handlers for mobile multi-select
+      {...longPressTouchHandlers}
     >
+      {/* Selection indicator - orange triangle on the left edge */}
+      {isSelected && (
+        <div 
+          className="absolute left-0 top-0 w-0 h-0 border-t-[8px] border-r-[8px] border-t-orange-500 border-r-transparent z-10"
+          aria-hidden="true"
+        />
+      )}
+      
       {/* Mobile drag handle - only visible on touch devices */}
       {showHandle && (
         <DragHandle
           disabled={locked}
-          listeners={listeners}
+          {...(listeners ? { listeners } : {})}
           isDragging={isDragging}
           isCompact={isCompact}
         />

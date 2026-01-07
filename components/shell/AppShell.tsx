@@ -2,7 +2,7 @@
 
 import React from "react";
 import { usePathname } from "next/navigation";
-import { ListMusic, LogIn, LogOut, Minimize2, MapPinOff, BarChart3, GitCompare, Menu, Shield, FileText, Columns } from "lucide-react";
+import { ListMusic, LogIn, LogOut, Minimize2, MapPinOff, BarChart3, GitCompare, Menu, Shield, FileText, Columns, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AppLogo } from "@/components/ui/app-logo";
 import { AppFooter } from "@/components/ui/app-footer";
@@ -124,6 +124,7 @@ function Header({ title }: { title: string }) {
   const pathname = usePathname();
   const { isCompact, toggle: toggleCompact } = useCompactModeStore();
   const { isEnabled: isCompareEnabled, toggle: toggleCompare } = useCompareModeStore();
+  const { isOpen: isBrowseOpen, toggle: toggleBrowse } = useBrowsePanelStore();
   const clearAllMarkers = useInsertionPointsStore((s) => s.clearAll);
   const playlists = useInsertionPointsStore((s) => s.playlists);
   const { authenticated, loading } = useSessionUser();
@@ -179,6 +180,16 @@ function Header({ title }: { title: string }) {
                   <Columns className="h-3.5 w-3.5" />
                   Panel View
                 </Link>
+              </Button>
+              <Button
+                variant={isBrowseOpen ? "secondary" : "ghost"}
+                size="sm"
+                onClick={toggleBrowse}
+                className="h-7 gap-1.5 cursor-pointer"
+                title="Toggle browse panel (search & Last.fm)"
+              >
+                <Search className="h-3.5 w-3.5" />
+                Browse
               </Button>
               <Button
                 variant={isCompact ? "secondary" : "ghost"}

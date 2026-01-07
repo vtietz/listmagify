@@ -649,6 +649,7 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
     selectionKey,
     onDeleteKeyPress: handleDeleteKeyPress,
     canDelete,
+    isCompact,
   });
 
   // Auto-reload config
@@ -693,6 +694,24 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
       return () => cancelAnimationFrame(rafId);
     }
   }, [dataUpdatedAt, panel?.scrollOffset]);
+
+  // Clear selection
+  const clearSelection = useCallback(() => {
+    setSelection(panelId, []);
+  }, [panelId, setSelection]);
+
+  // Get first selected track and its index
+  const getFirstSelectedTrack = useCallback((): { track: Track; index: number } | null => {
+    for (let i = 0; i < filteredTracks.length; i++) {
+      const track = filteredTracks[i];
+      if (!track) continue;
+      const key = getTrackSelectionKey(track, i);
+      if (selection.has(key)) {
+        return { track, index: i };
+      }
+    }
+    return null;
+  }, [filteredTracks, selection]);
 
   return {
     // Refs
@@ -792,5 +811,9 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
     // Mouse/keyboard state
     isMouseOver,
     setIsMouseOver,
+
+    // Selection actions
+    clearSelection,
+    getFirstSelectedTrack,
   };
 }

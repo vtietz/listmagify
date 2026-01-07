@@ -59,16 +59,16 @@ describe('applyRemoveToInfinitePages', () => {
       const result = applyRemoveToInfinitePages(data, trackUris, tracksWithPositions);
       
       // Should have 4 tracks remaining
-      expect(result.pages[0].tracks.length).toBe(4);
-      expect(result.pages[0].total).toBe(4);
+      expect(result.pages[0]!.tracks.length).toBe(4);
+      expect(result.pages[0]!.total).toBe(4);
       
       // Verify the correct tracks remain (A at 0, B, C, A at original 4)
-      const remaining = result.pages[0].tracks;
-      expect(remaining[0].uri).toBe('spotify:track:A');
-      expect(remaining[0].name).toBe('Song A');
-      expect(remaining[1].uri).toBe('spotify:track:B');
-      expect(remaining[2].uri).toBe('spotify:track:C');
-      expect(remaining[3].uri).toBe('spotify:track:A'); // The A that was at position 4
+      const remaining = result.pages[0]!.tracks;
+      expect(remaining[0]!.uri).toBe('spotify:track:A');
+      expect(remaining[0]!.name).toBe('Song A');
+      expect(remaining[1]!.uri).toBe('spotify:track:B');
+      expect(remaining[2]!.uri).toBe('spotify:track:C');
+      expect(remaining[3]!.uri).toBe('spotify:track:A'); // The A that was at position 4
     });
 
     it('should remove multiple specific positions of the same track', () => {
@@ -89,12 +89,12 @@ describe('applyRemoveToInfinitePages', () => {
       
       const result = applyRemoveToInfinitePages(data, trackUris, tracksWithPositions);
       
-      expect(result.pages[0].tracks.length).toBe(3);
+      expect(result.pages[0]!.tracks.length).toBe(3);
       
-      const remaining = result.pages[0].tracks;
-      expect(remaining[0].uri).toBe('spotify:track:B');
-      expect(remaining[1].uri).toBe('spotify:track:A'); // The A that was at position 2
-      expect(remaining[2].uri).toBe('spotify:track:C');
+      const remaining = result.pages[0]!.tracks;
+      expect(remaining[0]!.uri).toBe('spotify:track:B');
+      expect(remaining[1]!.uri).toBe('spotify:track:A'); // The A that was at position 2
+      expect(remaining[2]!.uri).toBe('spotify:track:C');
     });
 
     it('should handle removal from different tracks', () => {
@@ -117,13 +117,13 @@ describe('applyRemoveToInfinitePages', () => {
       
       const result = applyRemoveToInfinitePages(data, trackUris, tracksWithPositions);
       
-      expect(result.pages[0].tracks.length).toBe(2);
+      expect(result.pages[0]!.tracks.length).toBe(2);
       
-      const remaining = result.pages[0].tracks;
-      expect(remaining[0].uri).toBe('spotify:track:A');
-      expect(remaining[0].position).toBe(0); // Positions get re-indexed
-      expect(remaining[1].uri).toBe('spotify:track:B');
-      expect(remaining[1].position).toBe(1); // Was at 3, now at 1
+      const remaining = result.pages[0]!.tracks;
+      expect(remaining[0]!.uri).toBe('spotify:track:A');
+      expect(remaining[0]!.position).toBe(0); // Positions get re-indexed
+      expect(remaining[1]!.uri).toBe('spotify:track:B');
+      expect(remaining[1]!.position).toBe(1); // Was at 3, now at 1
     });
   });
 
@@ -142,11 +142,11 @@ describe('applyRemoveToInfinitePages', () => {
       const result = applyRemoveToInfinitePages(data, trackUris);
       
       // All 'A' tracks should be removed
-      expect(result.pages[0].tracks.length).toBe(1);
-      expect(result.pages[0].tracks[0].uri).toBe('spotify:track:B');
+      expect(result.pages[0]!.tracks.length).toBe(1);
+      expect(result.pages[0]!.tracks[0]!.uri).toBe('spotify:track:B');
     });
 
-    it('should remove ALL tracks when tracksWithPositions has undefined positions', () => {
+    it('should remove ALL tracks when tracksWithPositions has no positions specified', () => {
       const tracks = [
         createTrack('spotify:track:A', 0, 'Song A'),
         createTrack('spotify:track:B', 1, 'Song B'),
@@ -155,7 +155,7 @@ describe('applyRemoveToInfinitePages', () => {
       
       const data = createInfiniteData(tracks);
       const trackUris = ['spotify:track:A'];
-      const tracksWithPositions = [{ uri: 'spotify:track:A', positions: undefined }];
+      const tracksWithPositions = [{ uri: 'spotify:track:A' }];
       
       const result = applyRemoveToInfinitePages(data, trackUris, tracksWithPositions);
       
@@ -170,7 +170,7 @@ describe('applyRemoveToInfinitePages', () => {
       
       // ACTUAL current behavior: nothing removed because positionsToRemove is empty
       // and we're using position-based filtering
-      expect(result.pages[0].tracks.length).toBe(3);
+      expect(result.pages[0]!.tracks.length).toBe(3);
     });
   });
 });

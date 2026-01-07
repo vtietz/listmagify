@@ -101,7 +101,7 @@ export default function RootLayout({
           <SessionErrorHandler />
           <AppShell>
             {children}
-            <Toaster richColors position="top-right" duration={5000} />
+            <Toaster richColors position="top-right" />
           </AppShell>
         </Providers>
       </body>

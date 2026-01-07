@@ -4,7 +4,12 @@ import type { Virtualizer } from '@tanstack/react-virtual';
 import type { Track } from '@/lib/spotify/types';
 import { getNextTrackIndex } from '@/lib/dnd/selection';
 import { scrollToIndexIfOutOfView } from '@/lib/utils/virtualScroll';
-import { TABLE_HEADER_HEIGHT, TRACK_ROW_HEIGHT } from '@/components/split-editor/constants';
+import {
+  TABLE_HEADER_HEIGHT,
+  TABLE_HEADER_HEIGHT_COMPACT,
+  TRACK_ROW_HEIGHT,
+  TRACK_ROW_HEIGHT_COMPACT,
+} from '@/components/split-editor/constants';
 
 interface Params {
   filteredTracks: Track[];
@@ -18,6 +23,8 @@ interface Params {
   onDeleteKeyPress?: (selectionCount: number, nextIndexToSelect: number | null) => void;
   /** Whether delete is allowed (panel is editable and not locked) */
   canDelete?: boolean;
+  /** Whether compact mode is enabled */
+  isCompact?: boolean;
 }
 
 export function useTrackListSelection({
@@ -30,13 +37,14 @@ export function useTrackListSelection({
   selectionKey,
   onDeleteKeyPress,
   canDelete = false,
+  isCompact = false,
 }: Params) {
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
   const lastFocusedIndexRef = useRef<number | null>(null);
 
   const handleTrackClick = useCallback(
     (selectionId: string, index: number) => {
-      virtualizer.scrollElement?.focus();
+      virtualizer.scrollElement?.focus({ preventScroll: true });
       setSelection(panelId, [selectionId]);
       setFocusedIndex(index);
       lastFocusedIndexRef.current = index;
@@ -46,7 +54,7 @@ export function useTrackListSelection({
 
   const handleTrackSelect = useCallback(
     (selectionId: string, index: number, event: any) => {
-      virtualizer.scrollElement?.focus();
+      virtualizer.scrollElement?.focus({ preventScroll: true });
 
       if (event.shiftKey) {
         const tracks = filteredTracks.map((t: Track, i: number) => selectionKey(t, i));
@@ -138,7 +146,9 @@ export function useTrackListSelection({
       }
       const nextSelectionId = selectionKey(nextTrack, nextIndex);
 
-      scrollToIndexIfOutOfView(virtualizer, nextIndex, TABLE_HEADER_HEIGHT, TRACK_ROW_HEIGHT);
+      const headerOffset = isCompact ? TABLE_HEADER_HEIGHT_COMPACT : TABLE_HEADER_HEIGHT;
+      const rowHeight = isCompact ? TRACK_ROW_HEIGHT_COMPACT : TRACK_ROW_HEIGHT;
+      scrollToIndexIfOutOfView(virtualizer, nextIndex, headerOffset, rowHeight);
 
       if (event.shiftKey) {
         let anchorIndex = lastFocusedIndexRef.current;
@@ -168,7 +178,7 @@ export function useTrackListSelection({
       setFocusedIndex(nextIndex);
       lastFocusedIndexRef.current = nextIndex;
     },
-    [filteredTracks, focusedIndex, panelId, selection, setSelection, virtualizer, selectionKey, canDelete, onDeleteKeyPress]
+    [filteredTracks, focusedIndex, panelId, selection, setSelection, virtualizer, selectionKey, canDelete, onDeleteKeyPress, isCompact]
   );
 
   return {
