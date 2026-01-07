@@ -157,34 +157,43 @@ export function PanelToolbar({
         />
       </div>
 
-      {/* Search - grows to fill space */}
+      {/* Search - grows to fill space, smaller on mobile */}
       {playlistId && (
-        <div className="relative flex-1 min-w-[60px]">
+        <div className={cn("relative flex-1", isPhone ? "min-w-[40px]" : "min-w-[60px]")}>
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
           <Input
             type="text"
             placeholder="Search..."
             value={localSearch}
             onChange={(e: ChangeEvent<HTMLInputElement>) => handleSearchChange(e.target.value)}
-            className="pl-9 h-9 text-sm"
+            className={cn("pl-9 h-9 text-sm", isPhone && "h-8")}
           />
         </div>
       )}
 
-      {/* Selection Actions Button - shown when tracks are selected (desktop/tablet only) */}
-      {selectionCount > 0 && onOpenSelectionMenu && !isPhone && (
+      {/* Selection Actions Button - always visible when playlist loaded, disabled when no selection */}
+      {playlistId && onOpenSelectionMenu && (
         <Button
           ref={selectionButtonRef}
           variant="ghost"
           size="sm"
           onClick={handleSelectionMenuClick}
-          className="h-8 px-2 shrink-0 gap-1 text-orange-500 hover:text-orange-400"
-          title={`${selectionCount} track${selectionCount > 1 ? 's' : ''} selected - click for actions`}
+          disabled={selectionCount === 0}
+          className={cn(
+            "h-8 px-2 shrink-0 gap-1",
+            selectionCount > 0 ? "text-foreground hover:text-foreground" : "text-muted-foreground"
+          )}
+          title={selectionCount > 0 
+            ? `${selectionCount} track${selectionCount > 1 ? 's' : ''} selected - click for actions`
+            : 'No tracks selected'
+          }
         >
           <ListChecks className="h-4 w-4" />
-          <span className="text-xs font-medium bg-orange-500 text-white px-1.5 py-0.5 rounded-full">
-            {selectionCount}
-          </span>
+          {selectionCount > 1 && (
+            <span className="text-xs font-medium bg-orange-500 text-white px-1.5 py-0.5 rounded-full">
+              {selectionCount}
+            </span>
+          )}
         </Button>
       )}
 

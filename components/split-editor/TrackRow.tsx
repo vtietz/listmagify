@@ -291,6 +291,10 @@ export function TrackRow({
     if (e.shiftKey || e.ctrlKey || e.metaKey) {
       e.preventDefault();
       onSelect(selectionKey, index, e);
+    } else if (showHandle && isMultiSelect) {
+      // On touch devices, when in multi-select mode, tap toggles selection (like Ctrl+Click)
+      e.preventDefault();
+      onSelect(selectionKey, index, { ctrlKey: true, metaKey: false, shiftKey: false } as React.MouseEvent);
     } else {
       onClick(selectionKey, index);
     }
@@ -378,10 +382,15 @@ export function TrackRow({
     return actions;
   }, [markerActions, hasAnyMarkers, hasInsertionMarker, hasInsertionMarkerAfter, playlistId, isEditable, allowInsertionMarkerToggle, trackPosition, togglePoint]);
 
-  // Context menu handlers - use global store
+  // Context menu handlers - use global store (desktop only)
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    
+    // Skip context menu entirely on touch devices - use toolbar selection menu instead
+    if (showHandle) {
+      return;
+    }
     
     // Skip context menu if this was triggered by a long press (on touch devices)
     if (wasLongPress()) {
@@ -401,7 +410,7 @@ export function TrackRow({
       trackActions: fullTrackActions,
       reorderActions: reorderActions || {},
     });
-  }, [track, isSelected, isMultiSelect, selectedCount, isEditable, panelId, fullMarkerActions, fullTrackActions, reorderActions, openContextMenu, wasLongPress, resetLongPress]);
+  }, [track, isSelected, isMultiSelect, selectedCount, isEditable, panelId, fullMarkerActions, fullTrackActions, reorderActions, openContextMenu, wasLongPress, resetLongPress, showHandle]);
 
   const handleMoreButtonClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -553,7 +562,7 @@ export function TrackRow({
       <TitleCell 
         isCompact={isCompact} 
         track={track}
-        moreButton={
+        moreButton={!showHandle ? (
           <button
             className={cn(
               'shrink-0 flex items-center justify-center rounded',
@@ -566,7 +575,7 @@ export function TrackRow({
           >
             <MoreHorizontal className={isCompact ? 'h-3.5 w-3.5' : 'h-4 w-4'} />
           </button>
-        }
+        ) : undefined}
       />
 
       {/* Artist */}
