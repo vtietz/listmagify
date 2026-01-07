@@ -9,9 +9,7 @@ import { apiFetch } from '@/lib/api/client';
 import { usePlayerStore, type PlaybackContext } from './usePlayerStore';
 import { useSessionUser } from './useSessionUser';
 import type { SpotifyDevice, PlaybackState } from '@/lib/spotify/playerTypes';
-
-// @ts-expect-error - sonner's type definitions are incompatible with verbatimModuleSyntax
-import { toast } from 'sonner';
+import { toast } from '@/lib/ui/toast';
 
 const POLL_INTERVAL = 5000; // Poll playback state every 5 seconds
 

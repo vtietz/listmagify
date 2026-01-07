@@ -26,8 +26,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-// @ts-expect-error - sonner's type definitions are incompatible with verbatimModuleSyntax
-import { toast } from 'sonner';
+import { toast } from '@/lib/ui/toast';
 
 interface AddToMarkedButtonProps {
   /** Track URI to add */

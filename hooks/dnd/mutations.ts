@@ -9,8 +9,7 @@ import type { Track } from '@/lib/spotify/types';
 import type { PanelConfig, TrackWithPositions } from './types';
 import { buildTracksWithPositions, getTrackPositions, isContiguousRange } from './helpers';
 import { logDebug } from '@/lib/utils/debug';
-// @ts-expect-error - sonner's type definitions are incompatible with verbatimModuleSyntax
-import { toast } from 'sonner';
+import { toast } from '@/lib/ui/toast';
 
 /**
  * Mutation functions passed from the hook

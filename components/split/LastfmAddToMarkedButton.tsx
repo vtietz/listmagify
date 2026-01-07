@@ -15,8 +15,7 @@ import { useCompactModeStore } from '@/hooks/useCompactModeStore';
 import { useInsertionPointsStore, computeInsertionPositions } from '@/hooks/useInsertionPointsStore';
 import { useLastfmMatch, makeMatchKeyFromDTO, type CachedMatch } from '@/hooks/useLastfmMatchCache';
 import { useAddTracks } from '@/lib/spotify/playlistMutations';
-// @ts-expect-error - sonner's type definitions are incompatible with verbatimModuleSyntax
-import { toast } from 'sonner';
+import { toast } from '@/lib/ui/toast';
 import type { ImportedTrackDTO } from '@/lib/importers/types';
 
 interface LastfmAddToMarkedButtonProps {

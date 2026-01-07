@@ -21,8 +21,7 @@ import {
 import { useInsertionPointsStore, computeInsertionPositions } from '@/hooks/useInsertionPointsStore';
 import { useAddTracks } from '@/lib/spotify/playlistMutations';
 import { cn } from '@/lib/utils';
-// @ts-expect-error - sonner's type definitions are incompatible with verbatimModuleSyntax
-import { toast } from 'sonner';
+import { toast } from '@/lib/ui/toast';
 
 interface AddSelectedToMarkersButtonProps {
   /** Number of selected tracks to add */

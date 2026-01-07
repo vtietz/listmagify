@@ -38,8 +38,7 @@ import { LastfmAddToMarkedButton } from './LastfmAddToMarkedButton';
 import { MatchStatusIndicator } from './MatchStatusIndicator';
 import { TRACK_ROW_HEIGHT, TRACK_ROW_HEIGHT_COMPACT, VIRTUALIZATION_OVERSCAN } from './constants';
 import { makeCompositeId } from '@/lib/dnd/id';
-// @ts-expect-error - sonner's type definitions are incompatible with verbatimModuleSyntax
-import { toast } from 'sonner';
+import { toast } from '@/lib/ui/toast';
 import type { ImportedTrackDTO, ImportSource, LastfmPeriod } from '@/lib/importers/types';
 
 /** Virtual panel ID for Last.fm browse (used in DnD composite IDs) */

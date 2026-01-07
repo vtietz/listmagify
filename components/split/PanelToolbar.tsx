@@ -42,8 +42,7 @@ import { useAddTracks, useReorderAllTracks } from '@/lib/spotify/playlistMutatio
 import { useInsertionPointsStore, computeInsertionPositions } from '@/hooks/useInsertionPointsStore';
 import { isLikedSongsPlaylist } from '@/hooks/useLikedVirtualPlaylist';
 import { cn } from '@/lib/utils';
-// @ts-expect-error - sonner's type definitions are incompatible with verbatimModuleSyntax
-import { toast } from 'sonner';
+import { toast } from '@/lib/ui/toast';
 import type { SortKey, SortDirection } from '@/hooks/usePlaylistSort';
 
 /** Minimum width (in px) to show inline buttons instead of dropdown menu */

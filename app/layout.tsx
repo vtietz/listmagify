@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { Toaster } from "sonner";
+import { Toaster } from "@/lib/ui/toast";
 import { AppShell } from "@/components/shell/AppShell";
 import { SessionErrorHandler } from "@/components/auth/SessionErrorHandler";
 import { Providers } from "@/components/providers";
@@ -101,7 +101,6 @@ export default function RootLayout({
           <SessionErrorHandler />
           <AppShell>
             {children}
-            {/* @ts-expect-error - sonner's type definitions don't match runtime props */}
             <Toaster richColors position="top-right" duration={5000} />
           </AppShell>
         </Providers>

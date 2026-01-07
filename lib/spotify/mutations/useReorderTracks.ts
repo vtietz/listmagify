@@ -7,8 +7,7 @@ import { apiFetch } from '@/lib/api/client';
 import { playlistTracks, playlistTracksInfinite } from '@/lib/api/queryKeys';
 import { applyReorderToInfinitePages } from '@/lib/dnd/sortUtils';
 import { eventBus } from '@/lib/sync/eventBus';
-// @ts-expect-error - sonner's type definitions are incompatible with verbatimModuleSyntax
-import { toast } from 'sonner';
+import { toast } from '@/lib/ui/toast';
 
 import type { 
   ReorderTracksParams, 

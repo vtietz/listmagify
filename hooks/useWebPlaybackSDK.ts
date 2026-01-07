@@ -10,9 +10,7 @@ import { useSessionUser } from './useSessionUser';
 import { usePlayerStore } from './usePlayerStore';
 import { apiFetch } from '@/lib/api/client';
 import type { SpotifyDevice } from '@/lib/spotify/playerTypes';
-
-// @ts-expect-error - sonner's type definitions are incompatible with verbatimModuleSyntax
-import { toast } from 'sonner';
+import { toast } from '@/lib/ui/toast';
 
 const PLAYER_NAME = 'Spotify Playlist Editor';
 const SDK_SCRIPT_ID = 'spotify-web-playback-sdk';

@@ -47,8 +47,7 @@ import {
   type MutationHandlers,
   type DropContext,
 } from './dnd';
-// @ts-expect-error - sonner's type definitions are incompatible with verbatimModuleSyntax
-import { toast } from 'sonner';
+import { toast } from '@/lib/ui/toast';
 import type { Track } from '@/lib/spotify/types';
 import type { Virtualizer } from '@tanstack/react-virtual';
 

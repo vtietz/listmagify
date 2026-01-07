@@ -3,10 +3,7 @@
  * All client-side API calls should use this instead of raw fetch.
  */
 
-// @ts-expect-error - sonner's type definitions are incompatible with verbatimModuleSyntax
-// The module exports toast correctly at runtime, but the .d.mts file structure causes TS errors
-// This is a known issue: https://github.com/emilkowalski/sonner/issues/  
-import { toast } from "sonner";
+import { toast } from "@/lib/ui/toast";
 
 interface FetchOptions extends RequestInit {}
 
