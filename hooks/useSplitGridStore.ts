@@ -8,290 +8,42 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-// ============================================================================
-// Types
-// ============================================================================
+// Import types and helpers from modular files
+import {
+  type PanelConfig,
+  type PanelNode,
+  type GroupNode,
+  type SplitNode,
+  generatePanelId,
+  generateGroupId,
+  createPanelConfig,
+  createPanelNode,
+} from './splitGrid/types';
 
-export interface PanelConfig {
-  id: string;
-  playlistId: string | null;
-  isEditable: boolean;
-  locked: boolean; // User-controlled lock (prevents dragging tracks from this panel)
-  searchQuery: string;
-  scrollOffset: number;
-  selection: Set<string>;
-  dndMode: 'move' | 'copy';
-  sortKey: 'position' | 'title' | 'artist' | 'album' | 'addedAt' | 'duration';
-  sortDirection: 'asc' | 'desc';
-}
+import {
+  flattenPanels,
+  countPanels,
+  updatePanelInTree,
+  splitPanelInTree,
+  removePanelFromTree,
+} from './splitGrid/tree';
 
-/** A leaf node containing a panel */
-export interface PanelNode {
-  kind: 'panel';
-  id: string;
-  panel: PanelConfig;
-}
+import { serializeTree, deserializeTree } from './splitGrid/persistence';
+import { migrateLegacyPanels } from './splitGrid/migrate';
 
-/** A group node containing children arranged by orientation */
-export interface GroupNode {
-  kind: 'group';
-  id: string;
-  orientation: 'horizontal' | 'vertical';
-  children: SplitNode[];
-}
-
-/** A node in the split tree - either a panel or a group */
-export type SplitNode = PanelNode | GroupNode;
-
-// ============================================================================
-// Helper Functions
-// ============================================================================
-
-function generateId(): string {
-  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-}
-
-export function generatePanelId(): string {
-  return `panel-${generateId()}`;
-}
-
-export function generateGroupId(): string {
-  return `group-${generateId()}`;
-}
-
-/** Create a new empty panel config */
-export function createPanelConfig(playlistId: string | null = null): PanelConfig {
-  return {
-    id: generatePanelId(),
-    playlistId,
-    isEditable: false,
-    locked: false,
-    searchQuery: '',
-    scrollOffset: 0,
-    selection: new Set(),
-    dndMode: 'copy',
-    sortKey: 'position',
-    sortDirection: 'asc',
-  };
-}
-
-/** Create a panel node from a panel config */
-export function createPanelNode(panel: PanelConfig): PanelNode {
-  return {
-    kind: 'panel',
-    id: panel.id,
-    panel,
-  };
-}
-
-/** Clone a panel config with a new ID and cleared selection */
-function clonePanelConfig(source: PanelConfig): PanelConfig {
-  return {
-    ...source,
-    id: generatePanelId(),
-    selection: new Set(), // Clear selection in clone
-  };
-}
-
-/** Flatten the tree to get all panel configs (for orchestrator and legacy consumers) */
-export function flattenPanels(node: SplitNode | null): PanelConfig[] {
-  if (!node) return [];
-  
-  if (node.kind === 'panel') {
-    return [node.panel];
-  }
-  
-  return node.children.flatMap(flattenPanels);
-}
-
-/** Count total panels in tree */
-function countPanels(node: SplitNode | null): number {
-  if (!node) return 0;
-  if (node.kind === 'panel') return 1;
-  return node.children.reduce((sum, child) => sum + countPanels(child), 0);
-}
-
-/** Update a panel in the tree immutably */
-function updatePanelInTree(
-  node: SplitNode | null,
-  panelId: string,
-  updater: (panel: PanelConfig) => PanelConfig
-): SplitNode | null {
-  if (!node) return null;
-  
-  if (node.kind === 'panel') {
-    if (node.panel.id === panelId) {
-      const updatedPanel = updater(node.panel);
-      return { ...node, panel: updatedPanel };
-    }
-    return node;
-  }
-  
-  // Group node - recurse into children
-  const updatedChildren = node.children.map(child => 
-    updatePanelInTree(child, panelId, updater)
-  ).filter((child): child is SplitNode => child !== null);
-  
-  return { ...node, children: updatedChildren };
-}
-
-/** Split a panel, creating a group with the original and a clone */
-function splitPanelInTree(
-  node: SplitNode | null,
-  panelId: string,
-  orientation: 'horizontal' | 'vertical'
-): SplitNode | null {
-  if (!node) return null;
-  
-  if (node.kind === 'panel') {
-    if (node.panel.id === panelId) {
-      // Found the panel to split - create a group with original + clone
-      const clonedPanel = clonePanelConfig(node.panel);
-      const newGroup: GroupNode = {
-        kind: 'group',
-        id: generateGroupId(),
-        orientation,
-        children: [
-          node, // Keep original panel
-          createPanelNode(clonedPanel), // Add cloned panel
-        ],
-      };
-      return newGroup;
-    }
-    return node;
-  }
-  
-  // Group node - recurse into children
-  const updatedChildren = node.children.map(child =>
-    splitPanelInTree(child, panelId, orientation)
-  ).filter((child): child is SplitNode => child !== null);
-  
-  return { ...node, children: updatedChildren };
-}
-
-/** Remove a panel and collapse groups with single children */
-function removePanelFromTree(node: SplitNode | null, panelId: string): SplitNode | null {
-  if (!node) return null;
-  
-  if (node.kind === 'panel') {
-    // If this is the panel to remove, return null
-    return node.panel.id === panelId ? null : node;
-  }
-  
-  // Group node - recurse into children
-  const updatedChildren = node.children
-    .map(child => removePanelFromTree(child, panelId))
-    .filter((child): child is SplitNode => child !== null);
-  
-  // If no children left, remove this group
-  if (updatedChildren.length === 0) {
-    return null;
-  }
-  
-  // If only one child left, collapse the group
-  if (updatedChildren.length === 1) {
-    return updatedChildren[0]!;
-  }
-  
-  return { ...node, children: updatedChildren };
-}
-
-/** Serialize tree for persistence (convert Sets to arrays) */
-function serializeTree(node: SplitNode | null): unknown {
-  if (!node) return null;
-  
-  if (node.kind === 'panel') {
-    return {
-      ...node,
-      panel: {
-        ...node.panel,
-        selection: Array.from(node.panel.selection),
-        sortKey: node.panel.sortKey,
-        sortDirection: node.panel.sortDirection,
-      },
-    };
-  }
-  
-  return {
-    ...node,
-    children: node.children.map(serializeTree),
-  };
-}
-
-/** Deserialize tree from persistence (convert arrays back to Sets) */
-function deserializeTree(data: unknown): SplitNode | null {
-  if (!data || typeof data !== 'object') return null;
-  
-  const obj = data as Record<string, unknown>;
-  
-  if (obj.kind === 'panel') {
-    const panel = obj.panel as Record<string, unknown>;
-    return {
-      kind: 'panel',
-      id: obj.id as string,
-      panel: {
-        id: panel.id as string,
-        playlistId: panel.playlistId as string | null,
-        isEditable: panel.isEditable as boolean,
-        locked: panel.locked as boolean,
-        searchQuery: panel.searchQuery as string,
-        scrollOffset: panel.scrollOffset as number,
-        selection: new Set(Array.isArray(panel.selection) ? panel.selection : []),
-        dndMode: (panel.dndMode as 'move' | 'copy') || 'copy',
-        sortKey: (panel.sortKey as PanelConfig['sortKey']) || 'position',
-        sortDirection: (panel.sortDirection as 'asc' | 'desc') || 'asc',
-      },
-    };
-  }
-  
-  if (obj.kind === 'group') {
-    const children = obj.children as unknown[];
-    return {
-      kind: 'group',
-      id: obj.id as string,
-      orientation: obj.orientation as 'horizontal' | 'vertical',
-      children: children.map(deserializeTree).filter((c): c is SplitNode => c !== null),
-    };
-  }
-  
-  return null;
-}
-
-/** Migrate legacy panels array to tree structure */
-function migrateLegacyPanels(panels: unknown[]): SplitNode | null {
-  if (!panels || panels.length === 0) return null;
-  
-  // Convert legacy panel data to PanelConfigs
-  const panelNodes: PanelNode[] = panels.map((p: unknown) => {
-    const pObj = p as Record<string, unknown>;
-    const panel: PanelConfig = {
-      id: (pObj.id as string) || generatePanelId(),
-      playlistId: (pObj.playlistId as string | null) || null,
-      isEditable: (pObj.isEditable as boolean) || false,
-      locked: (pObj.locked as boolean) || false,
-      searchQuery: (pObj.searchQuery as string) || '',
-      scrollOffset: (pObj.scrollOffset as number) || 0,
-      selection: new Set(Array.isArray(pObj.selection) ? pObj.selection : []),
-      dndMode: (pObj.dndMode as 'move' | 'copy') || 'copy',
-      sortKey: (pObj.sortKey as PanelConfig['sortKey']) || 'position',
-      sortDirection: (pObj.sortDirection as 'asc' | 'desc') || 'asc',
-    };
-    return createPanelNode(panel);
-  });
-  
-  // If only one panel, return it directly
-  if (panelNodes.length === 1) {
-    return panelNodes[0]!;
-  }
-  
-  // Multiple panels - create a horizontal group (side by side)
-  return {
-    kind: 'group',
-    id: generateGroupId(),
-    orientation: 'horizontal',
-    children: panelNodes,
-  };
-}
+// Re-export types and functions for external consumers
+export type { PanelConfig, PanelNode, GroupNode, SplitNode };
+export { 
+  flattenPanels, 
+  generatePanelId, 
+  generateGroupId, 
+  createPanelConfig, 
+  createPanelNode,
+  countPanels,
+  updatePanelInTree,
+  splitPanelInTree,
+  removePanelFromTree,
+};
 
 // ============================================================================
 // Store Interface
