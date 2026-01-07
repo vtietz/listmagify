@@ -3,7 +3,7 @@
  * Provides privacy-preserving event logging with hashed user identifiers.
  */
 
-import { createHash } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import { getDb, execute } from './db';
 import { getMetricsConfig } from './env';
 
@@ -93,7 +93,7 @@ export function startSession(userId: string, userAgent?: string): string {
   if (!db) return '';
 
   try {
-    const sessionId = crypto.randomUUID();
+    const sessionId = randomUUID();
     const userHash = hashUserId(userId);
     const truncatedUserAgent = userAgent?.substring(0, 256) || null;
 
