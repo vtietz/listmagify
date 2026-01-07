@@ -211,6 +211,33 @@ CONTACT_EMAIL=contact@example.com
 | `CONTACT_COUNTRY` | Country | `[Country]` |
 | `CONTACT_EMAIL` | Contact email | `[your@email.com]` |
 
+## Error Reporting (Optional)
+
+Allow users to report errors they encounter directly from the app. When an error occurs (e.g., rate limits, API failures), users see a dialog with error details and can optionally send a report.
+
+### Enable Error Reporting
+
+```env
+# .env
+ERROR_REPORTING_ENABLED=true
+CONTACT_EMAIL=your@email.com  # Required for error reports
+```
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `ERROR_REPORTING_ENABLED` | Enable error reporting dialog | `false` |
+| `CONTACT_EMAIL` | Email for receiving error reports | (required) |
+
+### How It Works
+
+1. When an error occurs, a toast notification appears
+2. Click "View Details" to see error information and countdown timers (for rate limits)
+3. Add an optional description of what you were doing
+4. Click "Send Report" to submit the error report
+5. Reports are logged to console (email sending can be configured separately)
+
+**Note:** Error reporting requires `CONTACT_EMAIL` to be configured. Reports include error details, user description, and anonymous environment info (browser, screen size) but no personal data.
+
 ## Track Recommendations (Optional)
 
 Listmagify includes a graph-based recommendation system that learns from your playlist organization. When enabled:

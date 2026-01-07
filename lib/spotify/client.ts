@@ -40,6 +40,23 @@ export type SpotifyClientOptions = {
 const DEFAULT_BASE = "https://api.spotify.com/v1";
 
 /**
+ * Extract a safe request path for error reporting (no query params with sensitive data)
+ */
+function getSafeRequestPath(path: string): string {
+  try {
+    // If it's a full URL, extract just the pathname
+    if (path.startsWith("http")) {
+      const url = new URL(path);
+      return url.pathname;
+    }
+    // Otherwise, strip query params
+    return path.split("?")[0];
+  } catch {
+    return path.split("?")[0];
+  }
+}
+
+/**
  * Low-level GET/POST wrapper that injects the access token and applies
  * rate-limit/backoff retry strategy. Returns raw Response.
  */
@@ -64,7 +81,7 @@ export async function spotifyFetch(
       headers,
     });
 
-  return withRateLimitRetry(requestFactory, opts?.backoff);
+  return withRateLimitRetry(requestFactory, opts?.backoff, getSafeRequestPath(path));
 }
 
 /**
@@ -100,7 +117,7 @@ export async function spotifyFetchWithToken(
       headers,
     });
 
-  return withRateLimitRetry(requestFactory, opts?.backoff);
+  return withRateLimitRetry(requestFactory, opts?.backoff, getSafeRequestPath(path));
 }
 
 /**

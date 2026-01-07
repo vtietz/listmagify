@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/auth';
 import { spotifyFetch } from '@/lib/spotify/client';
+import { handleApiError } from '@/lib/api/errorHandler';
 
 /**
  * POST /api/playlists
@@ -86,20 +87,7 @@ export async function POST(request: NextRequest) {
       tracksTotal: playlist.tracks?.total ?? 0,
     });
   } catch (error) {
-    console.error('[api/playlists] Error:', error);
-
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    if (
-      errorMessage.includes('401') ||
-      errorMessage.includes('Unauthorized') ||
-      errorMessage.includes('access token expired')
-    ) {
-      return NextResponse.json({ error: 'token_expired' }, { status: 401 });
-    }
-
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Internal server error' },
-      { status: 500 }
-    );
+    // Handle rate limit and other errors
+    return handleApiError(error);
   }
 }

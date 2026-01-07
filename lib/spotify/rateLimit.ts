@@ -10,6 +10,45 @@ export type BackoffOptions = {
   maxDelayMs?: number;  // cap for backoff delay
 };
 
+/**
+ * Custom error for rate limit exceeded (429).
+ * Includes retry information for client-side handling.
+ */
+export class RateLimitError extends Error {
+  public readonly retryAfterMs: number;
+  public readonly retryAt: Date;
+  public readonly statusCode = 429;
+  public readonly requestPath?: string;
+
+  constructor(retryAfterMs: number, requestPath?: string) {
+    const retryAt = new Date(Date.now() + retryAfterMs);
+    const seconds = Math.ceil(retryAfterMs / 1000);
+    const humanTime = formatRetryTime(seconds);
+    super(`Spotify rate limit exceeded. Retry after ${humanTime}.`);
+    this.name = "RateLimitError";
+    this.retryAfterMs = retryAfterMs;
+    this.retryAt = retryAt;
+    this.requestPath = requestPath;
+  }
+}
+
+/**
+ * Format seconds into human-readable time
+ */
+function formatRetryTime(seconds: number): string {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+  
+  if (hours > 0) {
+    if (minutes > 0) return `${hours} hour${hours > 1 ? 's' : ''} ${minutes} min`;
+    return `${hours} hour${hours > 1 ? 's' : ''}`;
+  } else if (minutes > 0) {
+    return `${minutes} minute${minutes > 1 ? 's' : ''}`;
+  }
+  return `${seconds} second${seconds !== 1 ? 's' : ''}`;
+}
+
 const defaultBackoff: Required<BackoffOptions> = {
   maxRetries: 4,
   baseDelayMs: 400,
@@ -29,10 +68,13 @@ function expBackoff(attempt: number, base: number, cap: number): number {
 /**
  * Wrap a fetch-call factory with retry/backoff.
  * The factory is re-invoked for each retry to allow recalculating headers/etc.
+ * 
+ * @throws {RateLimitError} When rate limit is exceeded and max retries reached
  */
-export async function withRateLimitRetry<T>(
+export async function withRateLimitRetry(
   fetchFactory: () => Promise<Response>,
-  opts: BackoffOptions = {}
+  opts: BackoffOptions = {},
+  requestPath?: string
 ): Promise<Response> {
   const cfg = { ...defaultBackoff, ...opts };
 
@@ -61,9 +103,17 @@ export async function withRateLimitRetry<T>(
       const ra = res.headers.get("Retry-After");
       const waitSec = ra ? Number(ra) : NaN;
       const delayMs = Number.isFinite(waitSec) ? waitSec * 1000 : expBackoff(attempt, cfg.baseDelayMs, cfg.maxDelayMs);
+      
+      // If retry time is very long (> 1 hour), don't wait - throw immediately
+      const maxWaitMs = 60 * 60 * 1000; // 1 hour
+      if (delayMs > maxWaitMs) {
+        console.warn(`[spotify] 429 with long wait (${Math.ceil(delayMs / 1000)}s), throwing RateLimitError`);
+        throw new RateLimitError(delayMs, requestPath);
+      }
+      
       if (attempt > cfg.maxRetries) {
-        console.warn(`[spotify] 429 and maxRetries reached, giving up`);
-        return res;
+        console.warn(`[spotify] 429 and maxRetries reached, throwing RateLimitError`);
+        throw new RateLimitError(delayMs, requestPath);
       }
       console.warn(`[spotify] 429 received, retry after ${delayMs}ms (attempt ${attempt}/${cfg.maxRetries})`);
       await sleep(delayMs);

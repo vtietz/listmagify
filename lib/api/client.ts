@@ -4,6 +4,8 @@
  */
 
 import { toast } from "@/lib/ui/toast";
+import { reportError, useErrorStore } from "@/lib/errors/store";
+import { createRateLimitError, createAppError } from "@/lib/errors/types";
 
 interface FetchOptions extends RequestInit {}
 
@@ -86,6 +88,27 @@ export async function apiFetch<T = any>(
       throw new AccessTokenExpiredError(data.error || "Session expired");
     }
 
+    // Handle 429 Rate Limit - report to error store
+    if (response.status === 429) {
+      const retryAfter = response.headers.get("Retry-After");
+      const retryAfterMs = retryAfter 
+        ? parseInt(retryAfter, 10) * 1000 
+        : 60 * 60 * 1000; // Default to 1 hour
+      
+      const requestPath = url.split("?")[0]; // Remove query params
+      const rateLimitError = createRateLimitError(retryAfterMs, requestPath);
+      
+      // Report to error store and show dialog
+      reportError(rateLimitError);
+      useErrorStore.getState().openDialog(rateLimitError);
+      
+      throw new RateLimitApiError(
+        rateLimitError.message,
+        retryAfterMs,
+        data
+      );
+    }
+
     // Handle other error statuses
     if (!response.ok) {
       throw new ApiError(
@@ -97,8 +120,12 @@ export async function apiFetch<T = any>(
 
     return data as T;
   } catch (error) {
-    // Re-throw AccessTokenExpiredError and ApiError as-is
-    if (error instanceof AccessTokenExpiredError || error instanceof ApiError) {
+    // Re-throw known error types as-is
+    if (
+      error instanceof AccessTokenExpiredError || 
+      error instanceof ApiError ||
+      error instanceof RateLimitApiError
+    ) {
       throw error;
     }
 
@@ -139,8 +166,33 @@ export class ApiError extends Error {
     return this.status === 404;
   }
 
+  /** Check if this is a rate limit error (429) */
+  get isRateLimited(): boolean {
+    return this.status === 429;
+  }
+
   /** Check if this is a network error (no status code) */
   get isNetworkError(): boolean {
     return this.status === 0;
+  }
+}
+
+/**
+ * Custom error class for rate limit errors (429).
+ * Contains retry information.
+ */
+export class RateLimitApiError extends ApiError {
+  constructor(
+    message: string,
+    public retryAfterMs: number,
+    data: any
+  ) {
+    super(message, 429, data);
+    this.name = "RateLimitApiError";
+  }
+
+  /** Get the timestamp when retry is allowed */
+  get retryAt(): Date {
+    return new Date(Date.now() + this.retryAfterMs);
   }
 }
