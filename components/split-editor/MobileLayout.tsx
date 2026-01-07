@@ -34,6 +34,8 @@ interface MobileLayoutProps {
   setActiveOverlay: (overlay: MobileOverlay) => void;
   /** Whether Panel 2 exists */
   hasPanel2: boolean;
+  /** Callback to split the first panel when Panel 2 doesn't exist */
+  onSplitFirstPanel: () => void;
   /** Register virtualizer callback */
   onRegisterVirtualizer: (
     panelId: string,
@@ -60,6 +62,7 @@ export function MobileLayout({
   activeOverlay,
   setActiveOverlay,
   hasPanel2,
+  onSplitFirstPanel,
   onRegisterVirtualizer,
   onUnregisterVirtualizer,
   activePanelId,
@@ -143,6 +146,7 @@ export function MobileLayout({
         activeOverlay={activeOverlay}
         setActiveOverlay={setActiveOverlay}
         hasPanel2={hasPanel2}
+        onSplitFirstPanel={onSplitFirstPanel}
       />
     </>
   );

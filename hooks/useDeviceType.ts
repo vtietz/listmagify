@@ -84,39 +84,23 @@ function checkTouchSupport(): boolean {
 /**
  * Hook to detect device type, orientation, and touch support.
  * Re-evaluates on window resize and orientation change.
+ * 
+ * IMPORTANT: Returns desktop defaults on first render to avoid hydration mismatch.
+ * Actual device values are set after mount via useEffect.
  */
 export function useDeviceType(): DeviceInfo {
-  const [deviceInfo, setDeviceInfo] = useState<DeviceInfo>(() => {
-    // SSR-safe defaults
-    if (typeof window === 'undefined') {
-      return {
-        deviceType: 'desktop',
-        orientation: 'landscape',
-        hasTouch: false,
-        isPhone: false,
-        isTablet: false,
-        isDesktop: true,
-        maxPanels: MAX_PANELS_BY_DEVICE.desktop,
-        viewportWidth: 1920,
-        viewportHeight: 1080,
-      };
-    }
-
-    const width = window.innerWidth;
-    const height = window.innerHeight;
-    const deviceType = getDeviceType(width);
-    
-    return {
-      deviceType,
-      orientation: getOrientation(width, height),
-      hasTouch: checkTouchSupport(),
-      isPhone: deviceType === 'phone',
-      isTablet: deviceType === 'tablet',
-      isDesktop: deviceType === 'desktop',
-      maxPanels: MAX_PANELS_BY_DEVICE[deviceType],
-      viewportWidth: width,
-      viewportHeight: height,
-    };
+  // Always start with desktop defaults for SSR/hydration consistency
+  // Actual device detection happens in useEffect after mount
+  const [deviceInfo, setDeviceInfo] = useState<DeviceInfo>({
+    deviceType: 'desktop',
+    orientation: 'landscape',
+    hasTouch: false,
+    isPhone: false,
+    isTablet: false,
+    isDesktop: true,
+    maxPanels: MAX_PANELS_BY_DEVICE.desktop,
+    viewportWidth: 1920,
+    viewportHeight: 1080,
   });
 
   const updateDeviceInfo = useCallback(() => {
@@ -153,28 +137,9 @@ export function useDeviceType(): DeviceInfo {
 
   // Sync with actual window dimensions on mount (after hydration)
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const width = window.innerWidth;
-      const height = window.innerHeight;
-      const deviceType = getDeviceType(width);
-      
-      // Only update if different from initial SSR values
-      if (width !== deviceInfo.viewportWidth || height !== deviceInfo.viewportHeight) {
-        setDeviceInfo({
-          deviceType,
-          orientation: getOrientation(width, height),
-          hasTouch: checkTouchSupport(),
-          isPhone: deviceType === 'phone',
-          isTablet: deviceType === 'tablet',
-          isDesktop: deviceType === 'desktop',
-          maxPanels: MAX_PANELS_BY_DEVICE[deviceType],
-          viewportWidth: width,
-          viewportHeight: height,
-        });
-      }
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    // Always update on mount to get actual device values
+    updateDeviceInfo();
+  }, [updateDeviceInfo]);
 
   return deviceInfo;
 }

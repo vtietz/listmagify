@@ -12,7 +12,7 @@
 
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useCallback } from 'react';
 import { DndContext } from '@dnd-kit/core';
 import { LogIn, Loader2 } from 'lucide-react';
 import { useSplitGridStore, flattenPanels } from '@/hooks/useSplitGridStore';
@@ -38,6 +38,7 @@ export function SplitGrid() {
 
   const root = useSplitGridStore((state) => state.root);
   const panels = useSplitGridStore((state) => state.panels);
+  const splitPanel = useSplitGridStore((state) => state.splitPanel);
   const isBrowsePanelOpen = useBrowsePanelStore((state) => state.isOpen);
   const isCompact = useHydratedCompactMode();
   const { authenticated, loading } = useSessionUser();
@@ -78,6 +79,14 @@ export function SplitGrid() {
     // This is a placeholder - the PlaylistPanel would need to provide names
     return map;
   }, []);
+
+  // Callback to split the first panel (creates Panel 2)
+  // Must be declared before conditional returns (Rules of Hooks)
+  const handleSplitFirstPanel = useCallback(() => {
+    if (panels.length > 0 && panels[0]) {
+      splitPanel(panels[0].id, 'horizontal');
+    }
+  }, [panels, splitPanel]);
 
   // IMPORTANT: All hooks must be called before any conditional returns (Rules of Hooks)
   // Use the orchestrator hook to manage all DnD state and logic
@@ -174,6 +183,7 @@ export function SplitGrid() {
             activeOverlay={activeOverlay}
             setActiveOverlay={setActiveOverlay}
             hasPanel2={hasPanel2}
+            onSplitFirstPanel={handleSplitFirstPanel}
             onRegisterVirtualizer={registerVirtualizer}
             onUnregisterVirtualizer={unregisterVirtualizer}
             activePanelId={activePanelId}

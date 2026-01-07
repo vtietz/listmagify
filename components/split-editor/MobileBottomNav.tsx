@@ -36,6 +36,8 @@ interface MobileBottomNavProps {
   setActiveOverlay: (overlay: MobileOverlay) => void;
   /** Whether Panel 2 exists */
   hasPanel2: boolean;
+  /** Callback to split the first panel when Panel 2 doesn't exist */
+  onSplitFirstPanel: () => void;
 }
 
 interface NavButtonProps {
@@ -71,6 +73,7 @@ export function MobileBottomNav({
   activeOverlay, 
   setActiveOverlay,
   hasPanel2,
+  onSplitFirstPanel,
 }: MobileBottomNavProps) {
   const { isPhone } = useDeviceType();
   const isPlayerVisible = usePlayerStore((s) => s.isPlayerVisible);
@@ -88,24 +91,31 @@ export function MobileBottomNav({
     }
   };
 
+  const handlePanel2Click = () => {
+    if (!hasPanel2) {
+      // Split the first panel to create Panel 2
+      onSplitFirstPanel();
+    }
+    // Toggle the panel2 overlay
+    handleToggle('panel2');
+  };
+
   return (
     <nav 
       className="mobile-bottom-nav"
       role="navigation" 
       aria-label="Mobile navigation"
     >
-      {/* Panel 2 toggle - only if we have 2 panels */}
-      {hasPanel2 && (
-        <NavButton
-          icon={LayoutPanelTop}
-          label="Panel 2"
-          isActive={activeOverlay === 'panel2'}
-          onClick={() => handleToggle('panel2')}
-        />
-      )}
+      {/* Panel 2 toggle - always visible, creates panel if needed */}
+      <NavButton
+        icon={LayoutPanelTop}
+        label="Panel 2"
+        isActive={activeOverlay === 'panel2'}
+        onClick={handlePanel2Click}
+      />
 
       {/* Divider */}
-      {hasPanel2 && <div className="w-px h-8 bg-border mx-1" />}
+      <div className="w-px h-8 bg-border mx-1" />
 
       {/* Browse section buttons */}
       <NavButton
