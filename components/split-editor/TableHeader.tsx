@@ -32,7 +32,7 @@ interface TableHeaderProps {
 }
 
 /** Grid template for consistent column alignment between header and rows */
-export const TRACK_GRID_CLASSES = 'grid items-center';
+export const TRACK_GRID_CLASSES = 'grid items-center content-center';
 export const TRACK_GRID_CLASSES_NORMAL = 'gap-2 px-2';
 export const TRACK_GRID_CLASSES_COMPACT = 'gap-1 px-1';
 

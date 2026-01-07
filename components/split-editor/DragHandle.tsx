@@ -59,11 +59,8 @@ export function DragHandle({
     <div
       className={cn(
         'drag-handle',
-        'flex items-center justify-center',
+        'flex items-center justify-center self-center',
         'touch-action-none select-none',
-        isCompact ? 'w-6 h-6' : 'w-8 h-8',
-        // Ensure minimum touch target
-        'min-w-[44px] min-h-[44px]',
         // Visual states
         disabled && 'opacity-30 cursor-not-allowed',
         !disabled && 'cursor-grab active:cursor-grabbing',
