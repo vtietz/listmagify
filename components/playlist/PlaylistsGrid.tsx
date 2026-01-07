@@ -3,12 +3,13 @@
 import { useEffect, useMemo } from "react";
 import type { Playlist } from "@/lib/spotify/types";
 import { PlaylistCard } from "@/components/playlist/PlaylistCard";
+import { PlaylistListItem } from "@/components/playlist/PlaylistListItem";
 import { apiFetch, ApiError } from "@/lib/api/client";
 import { useAutoLoadPaginated } from "@/hooks/useAutoLoadPaginated";
 import { LIKED_SONGS_METADATA } from "@/hooks/useLikedVirtualPlaylist";
 import { useLikedSongsTotal } from "@/hooks/useSavedTracksIndex";
 import { useCompactModeStore } from "@/hooks/useCompactModeStore";
-import { cn, matchesAllWords } from "@/lib/utils";
+import { matchesAllWords } from "@/lib/utils";
 
 export interface PlaylistsGridProps {
   initialItems: Playlist[];
@@ -138,16 +139,21 @@ export function PlaylistsGrid({
 
   return (
     <div className="space-y-6">
-      <div className={cn(
-        "grid",
-        isCompact 
-          ? "grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-2" 
-          : "grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4"
-      )}>
-        {filteredItems.map((playlist) => (
-          <PlaylistCard key={playlist.id} playlist={playlist} />
-        ))}
-      </div>
+      {isCompact ? (
+        /* Compact mode: List view with 1-3 columns */
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-1">
+          {filteredItems.map((playlist) => (
+            <PlaylistListItem key={playlist.id} playlist={playlist} />
+          ))}
+        </div>
+      ) : (
+        /* Normal mode: Card grid */
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+          {filteredItems.map((playlist) => (
+            <PlaylistCard key={playlist.id} playlist={playlist} />
+          ))}
+        </div>
+      )}
 
       {/* Auto-loading indicator */}
       {isAutoLoading && (

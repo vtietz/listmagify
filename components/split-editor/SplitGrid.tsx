@@ -26,6 +26,7 @@ import { usePanelFocusStore } from '@/hooks/usePanelFocusStore';
 import { SplitNodeView } from './SplitNodeView';
 import { BrowsePanel } from './BrowsePanel';
 import { MobilePanelSwitcher } from './MobilePanelSwitcher';
+import { MobileBottomNav, useMobileOverlayStore } from './MobileBottomNav';
 import { SignInButton } from '@/components/auth/SignInButton';
 import { TRACK_ROW_HEIGHT, TRACK_ROW_HEIGHT_COMPACT } from './constants';
 import { toast } from '@/lib/ui/toast';
@@ -48,6 +49,10 @@ export function SplitGrid() {
   
   // Panel focus state (for phone layout)
   const { focusedPanelId, focusPanel } = usePanelFocusStore();
+  
+  // Mobile overlay state
+  const activeOverlay = useMobileOverlayStore((s) => s.activeOverlay);
+  const setActiveOverlay = useMobileOverlayStore((s) => s.setActiveOverlay);
   
   // Auto-focus first panel on phones when panels change
   useEffect(() => {
@@ -136,6 +141,20 @@ export function SplitGrid() {
     );
   }
 
+  // Check if we have a second panel
+  const hasPanel2 = panels.length >= 2;
+  
+  // Mobile layout logic:
+  // - panel2 active: show 50/50 split (Panel 1 in main, Panel 2 in overlay)
+  // - search/lastfm/recs/player active: show Panel 1 at 50% + overlay at 50%
+  // - none: show only Panel 1 at 100%
+  const showMobileOverlay = isPhone && activeOverlay !== 'none';
+  
+  // Panel 2 mode: both panels visible in 50/50 split
+  const isPanel2Mode = activeOverlay === 'panel2';
+  // Browse overlay mode: Panel 1 + browse overlay
+  const isBrowseOverlay = activeOverlay === 'search' || activeOverlay === 'lastfm' || activeOverlay === 'recs' || activeOverlay === 'player';
+
   return (
     <DndContext
       sensors={sensors}
@@ -151,48 +170,115 @@ export function SplitGrid() {
     >
       <div 
         className={cn(
-          'h-full w-full flex flex-col',
+          'h-dvh w-full flex flex-col',
           orientationClasses,
           hasTouch && 'has-touch'
         )}
         data-device={deviceType}
         data-orientation={orientation}
       >
-        {/* Main content area */}
-        <div className={cn(
-          'flex-1 min-h-0 flex',
-          // On phones, add bottom padding for the panel switcher
-          isPhone && panels.length >= 2 && 'pb-14'
-        )}>
-          {/* Main split panel area */}
-          <div className="flex-1 min-w-0 p-2">
-            <SplitNodeView
-              node={root}
-              onRegisterVirtualizer={registerVirtualizer}
-              onUnregisterVirtualizer={unregisterVirtualizer}
-              activePanelId={activePanelId}
-              sourcePanelId={sourcePanelId}
-              dropIndicatorIndex={dropIndicatorIndex}
-              ephemeralInsertion={ephemeralInsertion}
-              isRoot={true}
-            />
+        {/* Main content area - different layout for phones */}
+        {isPhone ? (
+          // Mobile layout with bottom nav
+          <div className={cn(
+            'mobile-split-container flex-1 min-h-0',
+            showMobileOverlay && 'has-overlay'
+          )}>
+            {/* Main panel (Panel 1) - takes full height or top half */}
+            <div className="mobile-panel-main p-1">
+              <SplitNodeView
+                node={root}
+                onRegisterVirtualizer={registerVirtualizer}
+                onUnregisterVirtualizer={unregisterVirtualizer}
+                activePanelId={activePanelId}
+                sourcePanelId={sourcePanelId}
+                dropIndicatorIndex={dropIndicatorIndex}
+                ephemeralInsertion={ephemeralInsertion}
+                isRoot={true}
+                // On mobile, always show only first panel in main area
+                mobileShowOnlyFirst={true}
+              />
+            </div>
+            
+            {/* Overlay panel (bottom half when active) */}
+            {showMobileOverlay && (
+              <div className="mobile-panel-overlay">
+                {/* Panel 2 mode: show second panel */}
+                {isPanel2Mode && hasPanel2 && (
+                  <div className="h-full p-1">
+                    <SplitNodeView
+                      node={root}
+                      onRegisterVirtualizer={registerVirtualizer}
+                      onUnregisterVirtualizer={unregisterVirtualizer}
+                      activePanelId={activePanelId}
+                      sourcePanelId={sourcePanelId}
+                      dropIndicatorIndex={dropIndicatorIndex}
+                      ephemeralInsertion={ephemeralInsertion}
+                      isRoot={true}
+                      // On mobile, only show second panel in overlay
+                      mobileShowOnlySecond={true}
+                    />
+                  </div>
+                )}
+                {/* Browse overlays */}
+                {(activeOverlay === 'search' || activeOverlay === 'lastfm' || activeOverlay === 'recs') && (
+                  <BrowsePanel 
+                    defaultTab={
+                      activeOverlay === 'search' ? 'spotify' :
+                      activeOverlay === 'lastfm' ? 'lastfm' :
+                      'recs'
+                    }
+                    isMobileOverlay={true}
+                  />
+                )}
+                {activeOverlay === 'player' && (
+                  <div className="h-full flex items-center justify-center text-muted-foreground">
+                    Player (coming soon)
+                  </div>
+                )}
+              </div>
+            )}
           </div>
-          
-          {/* Browse panel (Spotify search) - hide on phones when using bottom sheet */}
-          {isBrowsePanelOpen && !isPhone && (
-            <BrowsePanel />
-          )}
-        </div>
+        ) : (
+          // Desktop/tablet layout
+          <div className="flex-1 min-h-0 flex">
+            {/* Main split panel area */}
+            <div className="flex-1 min-w-0 p-2">
+              <SplitNodeView
+                node={root}
+                onRegisterVirtualizer={registerVirtualizer}
+                onUnregisterVirtualizer={unregisterVirtualizer}
+                activePanelId={activePanelId}
+                sourcePanelId={sourcePanelId}
+                dropIndicatorIndex={dropIndicatorIndex}
+                ephemeralInsertion={ephemeralInsertion}
+                isRoot={true}
+              />
+            </div>
+            
+            {/* Browse panel (Spotify search) */}
+            {isBrowsePanelOpen && (
+              <BrowsePanel />
+            )}
+          </div>
+        )}
         
-        {/* Mobile panel switcher (phones only) */}
-        <MobilePanelSwitcher panels={panels} playlistNames={playlistNames} />
+        {/* Mobile bottom nav (phones only) */}
+        {isPhone && (
+          <MobileBottomNav 
+            panels={panels}
+            activeOverlay={activeOverlay}
+            setActiveOverlay={setActiveOverlay}
+            hasPanel2={hasPanel2}
+          />
+        )}
       </div>
 
-      <DragOverlay 
-        dropAnimation={null}
-        style={{ cursor: 'inherit' }}
-      >
-        {activeTrack && (() => {
+      {/* Drag overlay - visual feedback during drag */}
+      <DragOverlay dropAnimation={null}>
+        {(() => {
+          if (!activeTrack) return null;
+
           const effectiveMode = getEffectiveDndMode();
           const targetEditable = isTargetEditable();
           

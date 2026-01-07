@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { PlaylistDialog } from '@/components/playlist/PlaylistDialog';
 import { useUpdatePlaylist } from '@/lib/spotify/playlistMutations';
+import { useDeviceType } from '@/hooks/useDeviceType';
 import { isLikedSongsPlaylist } from '@/hooks/useLikedVirtualPlaylist';
 import { cn } from '@/lib/utils';
 import type { SortKey, SortDirection } from '@/hooks/usePlaylistSort';
@@ -93,8 +94,12 @@ export function PanelToolbar({
   const toolbarRef = useRef<HTMLDivElement>(null);
   
   const updatePlaylist = useUpdatePlaylist();
+  const { isPhone } = useDeviceType();
   const isLiked = playlistId ? isLikedSongsPlaylist(playlistId) : false;
   const canEditPlaylistInfo = playlistId && isEditable && !isLiked;
+  
+  // On mobile, hide split commands (use bottom nav panel toggle instead)
+  const showSplitCommands = !isPhone;
 
   // Track toolbar width to toggle between compact (dropdown) and expanded (inline buttons) mode
   useEffect(() => {
@@ -207,29 +212,34 @@ export function PanelToolbar({
             </Button>
           )}
 
-          <Separator orientation="vertical" className="h-6 mx-0.5" />
+          {/* Split commands - hidden on mobile (use bottom nav instead) */}
+          {showSplitCommands && (
+            <>
+              <Separator orientation="vertical" className="h-6 mx-0.5" />
 
-          {/* Split Horizontal */}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onSplitHorizontal}
-            className="h-8 w-8 p-0 shrink-0"
-            title="Split horizontal"
-          >
-            <SplitSquareHorizontal className="h-4 w-4" />
-          </Button>
+              {/* Split Horizontal */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onSplitHorizontal}
+                className="h-8 w-8 p-0 shrink-0"
+                title="Split horizontal"
+              >
+                <SplitSquareHorizontal className="h-4 w-4" />
+              </Button>
 
-          {/* Split Vertical */}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onSplitVertical}
-            className="h-8 w-8 p-0 shrink-0"
-            title="Split vertical"
-          >
-            <SplitSquareVertical className="h-4 w-4" />
-          </Button>
+              {/* Split Vertical */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onSplitVertical}
+                className="h-8 w-8 p-0 shrink-0"
+                title="Split vertical"
+              >
+                <SplitSquareVertical className="h-4 w-4" />
+              </Button>
+            </>
+          )}
 
           {/* Close */}
           <Button
@@ -334,17 +344,20 @@ export function PanelToolbar({
 
             {playlistId && <DropdownMenuSeparator />}
 
-            {/* Split actions */}
-            <DropdownMenuItem onClick={onSplitHorizontal}>
-              <SplitSquareHorizontal className="h-4 w-4 mr-2" />
-              Split horizontal
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={onSplitVertical}>
-              <SplitSquareVertical className="h-4 w-4 mr-2" />
-              Split vertical
-            </DropdownMenuItem>
-
-            <DropdownMenuSeparator />
+            {/* Split actions - hidden on mobile (use bottom nav instead) */}
+            {showSplitCommands && (
+              <>
+                <DropdownMenuItem onClick={onSplitHorizontal}>
+                  <SplitSquareHorizontal className="h-4 w-4 mr-2" />
+                  Split horizontal
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={onSplitVertical}>
+                  <SplitSquareVertical className="h-4 w-4 mr-2" />
+                  Split vertical
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+              </>
+            )}
 
             {/* Close */}
             <DropdownMenuItem onClick={onClose}>

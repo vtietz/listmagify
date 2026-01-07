@@ -27,7 +27,14 @@ import { Search, Radio } from 'lucide-react';
 /** Re-export panel ID for backwards compatibility */
 export { SEARCH_PANEL_ID as BROWSE_PANEL_ID } from './SearchPanel';
 
-export function BrowsePanel() {
+interface BrowsePanelProps {
+  /** Default tab to show (for mobile overlay) */
+  defaultTab?: BrowseTab | 'recs';
+  /** Whether this is displayed as a mobile overlay (affects styling) */
+  isMobileOverlay?: boolean;
+}
+
+export function BrowsePanel({ defaultTab, isMobileOverlay = false }: BrowsePanelProps = {}) {
   const { 
     isOpen, 
     width, 
@@ -141,29 +148,61 @@ export function BrowsePanel() {
     document.addEventListener('mouseup', handleMouseUp);
   }, [recsHeight, setRecsHeight]);
   
-  if (!isOpen) return null;
+  // Set initial tab from prop (for mobile overlay)
+  useEffect(() => {
+    if (defaultTab && defaultTab !== 'recs') {
+      setActiveTab(defaultTab);
+    }
+  }, [defaultTab, setActiveTab]);
   
-  const showRecs = selectedTrackIds.length > 0 && activeTab === 'spotify';
+  // For mobile overlay, always show (don't check isOpen)
+  if (!isMobileOverlay && !isOpen) return null;
+  
+  // If defaultTab is 'recs', show only recommendations
+  if (defaultTab === 'recs') {
+    return (
+      <div className={cn(
+        "h-full flex flex-col bg-background",
+        !isMobileOverlay && "border-l border-border"
+      )}>
+        <RecommendationsPanel
+          selectedTrackIds={selectedTrackIds}
+          excludeTrackIds={excludeTrackIds}
+          {...(playlistId ? { playlistId } : {})}
+          isExpanded={true}
+          onToggleExpand={() => {}}
+          height={undefined}
+        />
+      </div>
+    );
+  }
+  
+  const showRecs = selectedTrackIds.length > 0 && activeTab === 'spotify' && !isMobileOverlay;
   
   return (
     <div
-      className="h-full flex flex-col border-l border-border bg-background relative"
-      style={{ width }}
+      className={cn(
+        "h-full flex flex-col bg-background relative",
+        !isMobileOverlay && "border-l border-border"
+      )}
+      style={isMobileOverlay ? undefined : { width }}
     >
-      {/* Resize handle for panel width */}
-      <div
-        ref={resizeRef}
-        className="absolute left-0 top-0 bottom-0 w-3 -translate-x-1/2 cursor-ew-resize z-20 group"
-        onMouseDown={handleResizeStart}
-      >
-        <div className={cn(
-          "absolute left-1/2 -translate-x-1/2 top-0 bottom-0 w-1 transition-colors",
-          isResizing ? "bg-primary" : "bg-transparent group-hover:bg-primary/60"
-        )} />
-      </div>
+      {/* Resize handle for panel width - hide on mobile overlay */}
+      {!isMobileOverlay && (
+        <div
+          ref={resizeRef}
+          className="absolute left-0 top-0 bottom-0 w-3 -translate-x-1/2 cursor-ew-resize z-20 group"
+          onMouseDown={handleResizeStart}
+        >
+          <div className={cn(
+            "absolute left-1/2 -translate-x-1/2 top-0 bottom-0 w-1 transition-colors",
+            isResizing ? "bg-primary" : "bg-transparent group-hover:bg-primary/60"
+          )} />
+        </div>
+      )}
       
-      {/* Tab switcher - only show if Last.fm is enabled */}
-      {lastfmEnabled && (
+      {/* Tab switcher - only show if Last.fm is enabled and NOT on mobile overlay (mobile has bottom nav buttons) */}
+      {lastfmEnabled && !isMobileOverlay && (
         <div className="flex border-b border-border">
           <Button
             variant="ghost"

@@ -2,7 +2,7 @@
 
 import React from "react";
 import { usePathname } from "next/navigation";
-import { Search, Music2, ListMusic, Columns2, LogIn, LogOut, Minimize2, MapPinOff, BarChart3, GitCompare, Menu } from "lucide-react";
+import { ListMusic, LogIn, LogOut, Minimize2, MapPinOff, BarChart3, GitCompare, Menu, Shield, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AppLogo } from "@/components/ui/app-logo";
 import { AppFooter } from "@/components/ui/app-footer";
@@ -20,6 +20,7 @@ import { useCompareModeStore } from "@/hooks/useCompareModeStore";
 import { useInsertionPointsStore } from "@/hooks/useInsertionPointsStore";
 import { useSessionUser } from "@/hooks/useSessionUser";
 import { useStatsAccess } from "@/hooks/useStatsAccess";
+import { useDeviceType } from "@/hooks/useDeviceType";
 import { SpotifyPlayer } from "@/components/player";
 import { BrowsePanel } from "@/components/split-editor/BrowsePanel";
 import Link from "next/link";
@@ -43,9 +44,16 @@ export function AppShell({ headerTitle = "Listmagify", children }: AppShellProps
   const pathname = usePathname();
   const isBrowsePanelOpen = useBrowsePanelStore((state) => state.isOpen);
   const { authenticated } = useSessionUser();
+  const { isPhone } = useDeviceType();
   
   // Landing page doesn't use AppShell wrapper (has its own layout)
   const isLandingPage = pathname === '/';
+  
+  // Content pages that don't need player or browse panel (static/legal pages)
+  const isContentPage = pathname === '/privacy' || 
+                        pathname === '/imprint' ||
+                        pathname === '/login' ||
+                        pathname === '/logout';
   
   // Pages that need fixed viewport height (no global scrolling, internal scroll containers)
   // - Split editor: multiple panels with their own scroll
@@ -58,6 +66,21 @@ export function AppShell({ headerTitle = "Listmagify", children }: AppShellProps
     return <>{children}</>;
   }
 
+  // Content pages - simple scrollable layout without player or browse panel
+  if (isContentPage) {
+    return (
+      <div className="min-h-dvh flex flex-col bg-background text-foreground">
+        <Header title={headerTitle} />
+        <main className="flex-1 overflow-auto">{children}</main>
+        {!isPhone && (
+          <div className="flex-shrink-0 px-4 py-2 border-t border-border">
+            <AppFooter />
+          </div>
+        )}
+      </div>
+    );
+  }
+
   // Fixed height layout for split editor and playlist detail (internal scrolling)
   if (isFixedHeightPage) {
     return (
@@ -65,9 +88,11 @@ export function AppShell({ headerTitle = "Listmagify", children }: AppShellProps
         <Header title={headerTitle} />
         <main className="flex-1 min-h-0 overflow-hidden">{children}</main>
         <SpotifyPlayer />
-        <div className="flex-shrink-0 px-4 py-1 border-t border-border">
-          <AppFooter />
-        </div>
+        {!isPhone && (
+          <div className="flex-shrink-0 px-4 py-1 border-t border-border">
+            <AppFooter />
+          </div>
+        )}
       </div>
     );
   }
@@ -81,13 +106,15 @@ export function AppShell({ headerTitle = "Listmagify", children }: AppShellProps
       </div>
       <div className="flex-1 min-h-0 flex overflow-hidden">
         <main className="flex-1 min-w-0 overflow-auto">{children}</main>
-        {authenticated && isBrowsePanelOpen && <BrowsePanel />}
+        {authenticated && isBrowsePanelOpen && !isPhone && <BrowsePanel />}
       </div>
       <div className="flex-shrink-0 bg-background">
         <SpotifyPlayer />
-        <div className="px-4 py-2 border-t border-border">
-          <AppFooter />
-        </div>
+        {!isPhone && (
+          <div className="px-4 py-2 border-t border-border">
+            <AppFooter />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -95,8 +122,6 @@ export function AppShell({ headerTitle = "Listmagify", children }: AppShellProps
 
 function Header({ title }: { title: string }) {
   const pathname = usePathname();
-  const { isOpen, toggle } = useBrowsePanelStore();
-  const { isPlayerVisible, togglePlayerVisible } = usePlayerStore();
   const { isCompact, toggle: toggleCompact } = useCompactModeStore();
   const { isEnabled: isCompareEnabled, toggle: toggleCompare } = useCompareModeStore();
   const clearAllMarkers = useInsertionPointsStore((s) => s.clearAll);
@@ -120,8 +145,8 @@ function Header({ title }: { title: string }) {
   const isSplitEditorActive = pathname === '/split-editor';
   const isStatsActive = pathname === '/stats' || pathname.startsWith('/stats/');
   
-  // Pages that support player and compare mode
-  const supportsPlayerAndCompare = isSplitEditorActive || isPlaylistsActive;
+  // Pages that support compare mode
+  const supportsCompare = isSplitEditorActive || isPlaylistsActive;
   
   return (
     <header className="h-12 flex items-center justify-between px-4 border-b">
@@ -145,38 +170,6 @@ function Header({ title }: { title: string }) {
                 </Link>
               </Button>
               <Button
-                variant={isSplitEditorActive ? "secondary" : "ghost"}
-                size="sm"
-                asChild
-                className="h-7 gap-1.5 cursor-pointer"
-              >
-                <Link href="/split-editor">
-                  <Columns2 className="h-3.5 w-3.5" />
-                  Split Editor
-                </Link>
-              </Button>
-              <Button
-                variant={isOpen ? "secondary" : "ghost"}
-                size="sm"
-                onClick={toggle}
-                className="h-7 gap-1.5 cursor-pointer"
-              >
-                <Search className="h-3.5 w-3.5" />
-                Browse
-              </Button>
-              {/* Player toggle - only show on pages that support the player */}
-              {supportsPlayerAndCompare && (
-                <Button
-                  variant={isPlayerVisible ? "secondary" : "ghost"}
-                  size="sm"
-                  onClick={togglePlayerVisible}
-                  className="h-7 gap-1.5 cursor-pointer"
-                >
-                  <Music2 className="h-3.5 w-3.5" />
-                  Player
-                </Button>
-              )}
-              <Button
                 variant={isCompact ? "secondary" : "ghost"}
                 size="sm"
                 onClick={toggleCompact}
@@ -187,7 +180,7 @@ function Header({ title }: { title: string }) {
                 Compact
               </Button>
               {/* Compare mode - color tracks by presence across panels */}
-              {supportsPlayerAndCompare && (
+              {supportsCompare && (
                 <Button
                   variant={isCompareEnabled ? "secondary" : "ghost"}
                   size="sm"
@@ -244,6 +237,30 @@ function Header({ title }: { title: string }) {
                   </Link>
                 </Button>
               )}
+              <div className="w-px h-4 bg-border mx-2" />
+              {/* Privacy and Imprint links */}
+              <Button
+                variant="ghost"
+                size="sm"
+                asChild
+                className="h-7 gap-1.5 cursor-pointer text-muted-foreground"
+              >
+                <Link href="/privacy">
+                  <Shield className="h-3.5 w-3.5" />
+                  Privacy
+                </Link>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                asChild
+                className="h-7 gap-1.5 cursor-pointer text-muted-foreground"
+              >
+                <Link href="/imprint">
+                  <FileText className="h-3.5 w-3.5" />
+                  Imprint
+                </Link>
+              </Button>
             </div>
 
             {/* Mobile navigation - dropdown menu visible on smaller screens */}
@@ -262,31 +279,12 @@ function Header({ title }: { title: string }) {
                       Playlists
                     </Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/split-editor" className="flex items-center gap-2 cursor-pointer">
-                      <Columns2 className="h-4 w-4" />
-                      Split Editor
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={toggle} className="flex items-center gap-2 cursor-pointer">
-                    <Search className="h-4 w-4" />
-                    Browse
-                    {isOpen && <span className="ml-auto text-xs text-muted-foreground">✓</span>}
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  {supportsPlayerAndCompare && (
-                    <DropdownMenuItem onClick={togglePlayerVisible} className="flex items-center gap-2 cursor-pointer">
-                      <Music2 className="h-4 w-4" />
-                      Player
-                      {isPlayerVisible && <span className="ml-auto text-xs text-muted-foreground">✓</span>}
-                    </DropdownMenuItem>
-                  )}
                   <DropdownMenuItem onClick={toggleCompact} className="flex items-center gap-2 cursor-pointer">
                     <Minimize2 className="h-4 w-4" />
                     Compact
                     {isCompact && <span className="ml-auto text-xs text-muted-foreground">✓</span>}
                   </DropdownMenuItem>
-                  {supportsPlayerAndCompare && (
+                  {supportsCompare && (
                     <DropdownMenuItem onClick={toggleCompare} className="flex items-center gap-2 cursor-pointer">
                       <GitCompare className="h-4 w-4" />
                       Compare
@@ -321,6 +319,19 @@ function Header({ title }: { title: string }) {
                     <Link href="/logout" className="flex items-center gap-2 cursor-pointer text-muted-foreground">
                       <LogOut className="h-4 w-4" />
                       Logout
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link href="/privacy" className="flex items-center gap-2 cursor-pointer text-muted-foreground">
+                      <Shield className="h-4 w-4" />
+                      Privacy
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/imprint" className="flex items-center gap-2 cursor-pointer text-muted-foreground">
+                      <FileText className="h-4 w-4" />
+                      Imprint
                     </Link>
                   </DropdownMenuItem>
                 </DropdownMenuContent>

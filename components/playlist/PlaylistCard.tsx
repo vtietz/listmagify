@@ -91,7 +91,7 @@ export function PlaylistCard({ playlist, className }: PlaylistCardProps) {
         <div className={cn("space-y-0.5", isCompact ? "p-1.5" : "p-3 space-y-1")}>
           <div className="flex items-start justify-between gap-1">
             <div className={cn("font-medium line-clamp-1 flex-1 min-w-0", isCompact && "text-xs")}>{playlist.name}</div>
-            <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="flex items-center gap-1 shrink-0">
               {/* Edit button - only show for non-Liked Songs playlists */}
               {!isLiked && (
                 <Button

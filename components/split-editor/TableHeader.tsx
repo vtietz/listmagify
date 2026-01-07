@@ -5,10 +5,11 @@
 
 'use client';
 
-import { ArrowUp, ArrowDown, Heart, Play, Plus, TrendingUp, Calendar, Users, Timer, Radio } from 'lucide-react';
+import { ArrowUp, ArrowDown, Heart, Play, Plus, TrendingUp, Calendar, Users, Timer, Radio, GripVertical } from 'lucide-react';
 import { useCompactModeStore } from '@/hooks/useCompactModeStore';
 import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
 import { usePlayerStore } from '@/hooks/usePlayerStore';
+import { useDragHandle } from './DragHandle';
 import type { SortKey, SortDirection } from '@/hooks/usePlaylistSort';
 
 interface TableHeaderProps {
@@ -47,19 +48,31 @@ export interface TrackGridOptions {
   showScrobbleDateColumn?: boolean;
   /** Show cumulative time column (default true) */
   showCumulativeTime?: boolean;
+  /** Show drag handle column (for touch devices) */
+  showDragHandle?: boolean;
 }
 
 /**
- * Generates dynamic grid template columns based on which columns are visible
+ * Generates dynamic grid template columns based on which columns are visible.
+ * 
+ * @param showPlayColumn - Whether to show play button column
+ * @param showAddToMarkedColumn - Whether to show add-to-marked button column
+ * @param showContributorColumn - Whether to show contributor avatar column
+ * @param options - Additional column options
+ * @param _isMobile - Whether to use simplified mobile layout (fewer columns)
  */
 export function getTrackGridStyle(
   showPlayColumn: boolean,
   showAddToMarkedColumn: boolean,
   showContributorColumn: boolean = false,
-  options?: Pick<TrackGridOptions, 'showMatchStatusColumn' | 'showCustomAddColumn' | 'showScrobbleDateColumn' | 'showCumulativeTime'>
+  options?: Pick<TrackGridOptions, 'showMatchStatusColumn' | 'showCustomAddColumn' | 'showScrobbleDateColumn' | 'showCumulativeTime' | 'showDragHandle'>,
+  _isMobile: boolean = false // Unused - always use same layout
 ) {
-  // Build columns array dynamically
+  // Build columns array dynamically - same layout for all devices
   const columns: string[] = [];
+  
+  // Drag handle column - first column on touch devices (44px touch target)
+  if (options?.showDragHandle) columns.push('44px');
   
   // Prefix columns (before standard track columns)
   if (options?.showMatchStatusColumn) columns.push('20px'); // Match status indicator
@@ -113,16 +126,25 @@ export function TableHeader({
   const playlists = useInsertionPointsStore((s) => s.playlists);
   const hasAnyMarkers = Object.values(playlists).some((p) => p.markers.length > 0);
   
+  // Mobile drag handle visibility (matches TrackRow)
+  const { showHandle: showDragHandle } = useDragHandle();
+  
   // Don't show standard add column if using custom add column
   const showStandardAddColumn = hasAnyMarkers && !showCustomAddColumn;
   
   // Dynamic grid style based on visible columns
-  const gridStyle = getTrackGridStyle(isPlayerVisible, showStandardAddColumn, isCollaborative, {
-    showMatchStatusColumn,
-    showCustomAddColumn,
-    showScrobbleDateColumn,
-    showCumulativeTime,
-  });
+  const gridStyle = getTrackGridStyle(
+    isPlayerVisible, 
+    showStandardAddColumn, 
+    isCollaborative, 
+    {
+      showMatchStatusColumn,
+      showCustomAddColumn,
+      showScrobbleDateColumn,
+      showCumulativeTime,
+      showDragHandle,
+    }
+  );
 
   const renderColumnHeader = (label: string, key: SortKey, align: 'left' | 'right' = 'left') => {
     const isActive = sortKey === key;
@@ -145,12 +167,20 @@ export function TableHeader({
     );
   };
 
+  // Same layout for all devices
   return (
     <div 
       data-table-header="true" 
       className={`sticky top-0 z-20 border-b border-border bg-card backdrop-blur-sm text-muted-foreground ${TRACK_GRID_CLASSES} ${isCompact ? 'h-8 ' + TRACK_GRID_CLASSES_COMPACT : 'h-10 ' + TRACK_GRID_CLASSES_NORMAL}`}
       style={gridStyle}
     >
+      {/* Drag handle column - for touch devices */}
+      {showDragHandle && (
+        <div className="flex items-center justify-center" title="Drag handle">
+          <GripVertical className={isCompact ? 'h-2.5 w-2.5' : 'h-3 w-3'} />
+        </div>
+      )}
+
       {/* Match status column - for Last.fm import */}
       {showMatchStatusColumn && (
         <div className="flex items-center justify-center" title="Match status">

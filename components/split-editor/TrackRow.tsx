@@ -205,19 +205,25 @@ export function TrackRow({
   // Don't show standard add column if using custom add column
   const showStandardAddColumn = hasAnyMarkers && !showCustomAddColumn && !hideAddToMarkedButton;
   
+  // Mobile drag handle visibility - must be called before getTrackGridStyle
+  const { showHandle, handleOnlyDrag } = useDragHandle();
+  
   // Dynamic grid style based on visible columns
-  const gridStyle = getTrackGridStyle(isPlayerVisible, showStandardAddColumn, isCollaborative, {
-    showMatchStatusColumn,
-    showCustomAddColumn,
-    showScrobbleDateColumn,
-    showCumulativeTime,
-  });
+  const gridStyle = getTrackGridStyle(
+    isPlayerVisible, 
+    showStandardAddColumn, 
+    isCollaborative, 
+    {
+      showMatchStatusColumn,
+      showCustomAddColumn,
+      showScrobbleDateColumn,
+      showCumulativeTime,
+      showDragHandle: showHandle,
+    }
+  );
 
   // Local files can't be saved to library or played
   const isLocalFile = track.id === null;
-  
-  // Mobile drag handle visibility
-  const { showHandle, handleOnlyDrag } = useDragHandle();
 
   // Sortable hook for DnD
   const {

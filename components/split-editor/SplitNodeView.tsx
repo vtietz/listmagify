@@ -41,6 +41,10 @@ interface SplitNodeViewProps {
   } | null;
   /** Whether this is the root node (for responsive layout application) */
   isRoot?: boolean;
+  /** Mobile: only show the first panel */
+  mobileShowOnlyFirst?: boolean;
+  /** Mobile: only show the second panel */
+  mobileShowOnlySecond?: boolean;
 }
 
 export function SplitNodeView({
@@ -52,6 +56,8 @@ export function SplitNodeView({
   dropIndicatorIndex,
   ephemeralInsertion,
   isRoot = false,
+  mobileShowOnlyFirst = false,
+  mobileShowOnlySecond = false,
 }: SplitNodeViewProps) {
   const { isPhone, isTablet, orientation, deviceType } = useDeviceType();
   const { focusedPanelId, focusPanel } = usePanelFocusStore();
@@ -60,8 +66,12 @@ export function SplitNodeView({
     // Determine if this panel is focused (for phone layout)
     const isFocused = focusedPanelId === node.panel.id;
     
-    // Phone-specific: calculate flex basis based on focus
-    const phoneFlexStyle = isPhone ? {
+    // When showing only one panel (mobile overlay mode), don't apply focus-based sizing
+    // The panel should fill its container completely
+    const isSinglePanelMode = mobileShowOnlyFirst || mobileShowOnlySecond;
+    
+    // Phone-specific: calculate flex basis based on focus (only when multiple panels visible)
+    const phoneFlexStyle = isPhone && !isSinglePanelMode ? {
       flexBasis: isFocused ? getFocusedPanelSize() : getUnfocusedPanelSize(),
       flexGrow: 0,
       flexShrink: 0,
@@ -78,12 +88,12 @@ export function SplitNodeView({
       <div 
         className={cn(
           'min-h-0 min-w-0 h-full transition-all duration-200',
-          isPhone && 'cursor-pointer',
-          isPhone && isFocused && 'panel-focused',
-          isPhone && !isFocused && 'panel-unfocused'
+          isPhone && !isSinglePanelMode && 'cursor-pointer',
+          isPhone && !isSinglePanelMode && isFocused && 'panel-focused',
+          isPhone && !isSinglePanelMode && !isFocused && 'panel-unfocused'
         )}
         style={phoneFlexStyle}
-        onClick={!isFocused && isPhone ? handlePanelFocus : undefined}
+        onClick={!isFocused && isPhone && !isSinglePanelMode ? handlePanelFocus : undefined}
       >
         <PlaylistPanel
           panelId={node.panel.id}
@@ -109,10 +119,20 @@ export function SplitNodeView({
   
   const isHorizontal = effectiveOrientation === 'horizontal';
   
-  // Phone: limit to 2 panels
-  const visibleChildren = isPhone 
+  // Phone: limit to 2 panels, or filter based on mobile props
+  let visibleChildren = isPhone 
     ? node.children.slice(0, 2) 
     : node.children;
+  
+  // Mobile overlay filtering: show only first or second panel
+  if (isPhone && mobileShowOnlyFirst && visibleChildren.length > 0) {
+    visibleChildren = [visibleChildren[0]!];
+  } else if (isPhone && mobileShowOnlySecond && visibleChildren.length > 1) {
+    visibleChildren = [visibleChildren[1]!];
+  }
+  
+  // When showing only one panel, pass the flag down for proper sizing
+  const isSinglePanelMode = mobileShowOnlyFirst || mobileShowOnlySecond;
 
   // Use flexbox for phone (for focus-based sizing), grid for others
   if (isPhone) {
@@ -135,6 +155,8 @@ export function SplitNodeView({
             sourcePanelId={sourcePanelId}
             dropIndicatorIndex={dropIndicatorIndex}
             ephemeralInsertion={ephemeralInsertion}
+            mobileShowOnlyFirst={mobileShowOnlyFirst}
+            mobileShowOnlySecond={mobileShowOnlySecond}
           />
         ))}
       </div>

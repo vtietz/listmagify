@@ -227,25 +227,74 @@
     flex-direction: row;
   }
 
-  /* Panel switcher bottom bar for phones */
+  /* Panel switcher bottom bar for phones - DEPRECATED, use mobile-bottom-nav */
   .panel-switcher {
     display: none;
   }
 
   .device-phone .panel-switcher {
+    display: none; /* Replaced by mobile-bottom-nav */
+  }
+
+  /* New mobile bottom navigation */
+  .mobile-bottom-nav {
+    display: none;
+  }
+
+  .device-phone .mobile-bottom-nav {
     display: flex;
-    position: fixed;
+    position: sticky;
     bottom: 0;
     left: 0;
     right: 0;
-    height: 56px;
+    height: calc(56px + env(safe-area-inset-bottom, 0px));
     background: var(--card);
     border-top: 1px solid var(--border);
     z-index: 50;
-    padding: 8px 16px;
-    gap: 8px;
-    align-items: center;
+    padding: 4px 8px;
+    padding-bottom: max(4px, env(safe-area-inset-bottom, 0px));
+    gap: 4px;
+    align-items: flex-start;
     justify-content: center;
+    flex-shrink: 0;
+  }
+
+  /* Mobile 60/40 split layout */
+  .device-phone .mobile-split-container {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .device-phone .mobile-split-container.has-overlay {
+    /* When overlay is active, panels split 60:40 */
+  }
+
+  .device-phone .mobile-panel-main {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .device-phone .mobile-split-container.has-overlay .mobile-panel-main {
+    flex: 3; /* 60% of space */
+  }
+
+  .device-phone .mobile-panel-overlay {
+    flex: 2; /* 40% of space */
+    min-height: 0;
+    overflow: hidden;
+    border-top: 1px solid var(--border);
+  }
+
+  /* Simplified mobile track grid for small screens */
+  .device-phone .track-grid-mobile {
+    display: grid;
+    grid-template-columns: 24px 1fr auto;
+    gap: 8px;
+    padding: 0 8px;
+    align-items: center;
   }
 
   .panel-switcher-tab {
