@@ -20,6 +20,7 @@ import type { MobileOverlay } from './MobileBottomNav';
 import { SplitNodeView } from './SplitNodeView';
 import { BrowsePanel } from './BrowsePanel';
 import { MobileBottomNav } from './MobileBottomNav';
+import { SpotifyPlayer } from '@/components/player';
 import { cn } from '@/lib/utils';
 
 interface MobileLayoutProps {
@@ -128,8 +129,8 @@ export function MobileLayout({
               />
             )}
             {activeOverlay === 'player' && (
-              <div className="h-full flex items-center justify-center text-muted-foreground">
-                Player (coming soon)
+              <div className="h-full overflow-auto bg-background">
+                <SpotifyPlayer forceShow />
               </div>
             )}
           </div>

@@ -24,7 +24,8 @@ import {
   Shield, 
   FileText, 
   Columns, 
-  Search 
+  Search,
+  Music2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -55,6 +56,9 @@ interface NavLinksProps {
 interface ModeTogglesProps {
   isBrowseOpen: boolean;
   toggleBrowse: () => void;
+  isPlayerVisible: boolean;
+  togglePlayerVisible: () => void;
+  supportsPlayer: boolean;
   isCompact: boolean;
   toggleCompact: () => void;
   isCompareEnabled: boolean;
@@ -139,6 +143,9 @@ export function NavLinks({
 export function ModeToggles({
   isBrowseOpen,
   toggleBrowse,
+  isPlayerVisible,
+  togglePlayerVisible,
+  supportsPlayer,
   isCompact,
   toggleCompact,
   isCompareEnabled,
@@ -157,6 +164,18 @@ export function ModeToggles({
         <Search className="h-3.5 w-3.5" />
         Browse
       </Button>
+      {supportsPlayer && (
+        <Button
+          variant={isPlayerVisible ? 'secondary' : 'ghost'}
+          size="sm"
+          onClick={togglePlayerVisible}
+          className="h-7 gap-1.5 cursor-pointer"
+          title="Toggle player visibility"
+        >
+          <Music2 className="h-3.5 w-3.5" />
+          Player
+        </Button>
+      )}
       <Button
         variant={isCompact ? 'secondary' : 'ghost'}
         size="sm"

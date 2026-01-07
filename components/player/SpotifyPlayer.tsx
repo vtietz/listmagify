@@ -31,7 +31,12 @@ import { cn } from '@/lib/utils';
 import { formatDuration } from '@/lib/utils/format';
 import type { Track } from '@/lib/spotify/types';
 
-export function SpotifyPlayer() {
+interface SpotifyPlayerProps {
+  /** Force the player to show regardless of isPlayerVisible state (for mobile overlay) */
+  forceShow?: boolean;
+}
+
+export function SpotifyPlayer({ forceShow = false }: SpotifyPlayerProps) {
   // Initialize the Web Playback SDK for in-browser playback
   const { isReady: isWebPlayerReady, isInitializing: isWebPlayerInitializing } = useWebPlaybackSDK();
   
@@ -164,7 +169,8 @@ export function SpotifyPlayer() {
   const progressPercent = durationMs > 0 ? (localProgress / durationMs) * 100 : 0;
 
   // Hidden state - render nothing (toggle is in the header menu)
-  if (!isPlayerVisible) {
+  // forceShow overrides the visibility check (used for mobile overlay)
+  if (!forceShow && !isPlayerVisible) {
     return null;
   }
 

@@ -87,7 +87,8 @@ export function AppShell({ headerTitle = "Listmagify", children }: AppShellProps
       <div className="h-dvh flex flex-col bg-background text-foreground overflow-hidden">
         <Header title={headerTitle} />
         <main className="flex-1 min-h-0 overflow-hidden">{children}</main>
-        <SpotifyPlayer />
+        {/* On phone, MobileLayout handles the player via bottom nav overlay */}
+        {!isPhone && <SpotifyPlayer />}
         {!isPhone && (
           <div className="flex-shrink-0 px-4 py-1 border-t border-border">
             <AppFooter />
@@ -108,14 +109,15 @@ export function AppShell({ headerTitle = "Listmagify", children }: AppShellProps
         <main className="flex-1 min-w-0 overflow-auto">{children}</main>
         {authenticated && isBrowsePanelOpen && !isPhone && <BrowsePanel />}
       </div>
-      <div className="flex-shrink-0 bg-background">
-        <SpotifyPlayer />
-        {!isPhone && (
+      {/* On phone, player is handled differently (MobileLayout for split-editor, etc.) */}
+      {!isPhone && (
+        <div className="flex-shrink-0 bg-background">
+          <SpotifyPlayer />
           <div className="px-4 py-2 border-t border-border">
             <AppFooter />
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -125,6 +127,7 @@ function Header({ title }: { title: string }) {
   const { isCompact, toggle: toggleCompact } = useCompactModeStore();
   const { isEnabled: isCompareEnabled, toggle: toggleCompare } = useCompareModeStore();
   const { isOpen: isBrowseOpen, toggle: toggleBrowse } = useBrowsePanelStore();
+  const { isPlayerVisible, togglePlayerVisible } = usePlayerStore();
   const clearAllMarkers = useInsertionPointsStore((s) => s.clearAll);
   const playlists = useInsertionPointsStore((s) => s.playlists);
   const { authenticated, loading } = useSessionUser();
@@ -146,8 +149,8 @@ function Header({ title }: { title: string }) {
   const isSplitEditorActive = pathname === '/split-editor';
   const isStatsActive = pathname === '/stats' || pathname.startsWith('/stats/');
   
-  // Pages that support compare mode
-  const supportsCompare = isSplitEditorActive || isPlaylistsActive;
+  // Pages that support player and compare mode
+  const supportsPlayerAndCompare = isSplitEditorActive || isPlaylistsActive;
   
   return (
     <header className="h-12 flex items-center justify-between px-4 border-b">
@@ -168,11 +171,14 @@ function Header({ title }: { title: string }) {
               <ModeToggles
                 isBrowseOpen={isBrowseOpen}
                 toggleBrowse={toggleBrowse}
+                isPlayerVisible={isPlayerVisible}
+                togglePlayerVisible={togglePlayerVisible}
+                supportsPlayer={supportsPlayerAndCompare}
                 isCompact={isCompact}
                 toggleCompact={toggleCompact}
                 isCompareEnabled={isCompareEnabled}
                 toggleCompare={toggleCompare}
-                supportsCompare={supportsCompare}
+                supportsCompare={supportsPlayerAndCompare}
               />
               <MarkerSummary
                 markerStats={markerStats}
@@ -192,7 +198,7 @@ function Header({ title }: { title: string }) {
                 toggleCompact={toggleCompact}
                 isCompareEnabled={isCompareEnabled}
                 toggleCompare={toggleCompare}
-                supportsCompare={supportsCompare}
+                supportsCompare={supportsPlayerAndCompare}
                 hasStatsAccess={hasStatsAccess}
                 markerStats={markerStats}
                 clearAllMarkers={clearAllMarkers}

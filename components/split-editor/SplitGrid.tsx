@@ -159,7 +159,7 @@ export function SplitGrid() {
     >
       <div 
         className={cn(
-          'h-dvh w-full flex flex-col',
+          'h-full w-full flex flex-col',
           orientationClasses,
           hasTouch && 'has-touch'
         )}
