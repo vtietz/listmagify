@@ -44,6 +44,20 @@ export async function GET(request: NextRequest) {
     `/me/tracks/contains?ids=${ids.join(',')}`
   );
 
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    console.error('[api/tracks/contains] Spotify API error:', {
+      status: response.status,
+      statusText: response.statusText,
+      idsCount: ids.length,
+      error: errorData,
+    });
+    return NextResponse.json(
+      { error: errorData.error?.message || errorData.message || `Spotify API error: ${response.status}` },
+      { status: response.status }
+    );
+  }
+
   const data = await response.json();
   return NextResponse.json(data);
 }

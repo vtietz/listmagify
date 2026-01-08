@@ -50,10 +50,24 @@ export async function DELETE(request: NextRequest) {
   }
 
   // Spotify's DELETE /me/tracks expects IDs in query string
-  await spotifyFetch(
+  const response = await spotifyFetch(
     `/me/tracks?ids=${ids.join(',')}`,
     { method: 'DELETE' }
   );
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    console.error('[api/tracks/remove] Spotify API error:', {
+      status: response.status,
+      statusText: response.statusText,
+      idsCount: ids.length,
+      error: errorData,
+    });
+    return NextResponse.json(
+      { error: errorData.error?.message || errorData.message || `Spotify API error: ${response.status}` },
+      { status: response.status }
+    );
+  }
 
   return NextResponse.json({ success: true });
 }

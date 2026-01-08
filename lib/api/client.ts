@@ -111,11 +111,24 @@ export async function apiFetch<T = any>(
 
     // Handle other error statuses
     if (!response.ok) {
-      throw new ApiError(
-        data.error || `Request failed: ${response.status} ${response.statusText}`,
-        response.status,
-        data
-      );
+      const errorMessage = data.error || data.details || `Request failed: ${response.status} ${response.statusText}`;
+      const apiError = new ApiError(errorMessage, response.status, data);
+      
+      // Report API errors to error store and show dialog (except auth errors handled above)
+      const requestPath = url.split("?")[0];
+      const appError = createAppError({
+        message: errorMessage,
+        details: data.details || (data.error && typeof data.error === 'object' ? JSON.stringify(data.error) : undefined),
+        category: 'api',
+        severity: response.status >= 500 ? 'error' : 'warning',
+        statusCode: response.status,
+        ...(requestPath ? { requestPath } : {}),
+      });
+      
+      reportError(appError);
+      useErrorStore.getState().openDialog(appError);
+      
+      throw apiError;
     }
 
     return data as T;

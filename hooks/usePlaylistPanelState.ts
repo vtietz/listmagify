@@ -591,6 +591,9 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
   }, [filteredTracks, selection]);
 
   // Get URIs of all tracks in current sorted order (for saving order)
+  // Extract valid Spotify track URIs from sorted tracks
+  // Filters out: local files (spotify:local:...), episodes (spotify:episode:...), and invalid URIs
+  // Note: Cannot detect unavailable/removed tracks at this stage - Spotify API will reject those
   const getSortedTrackUris = useCallback((): string[] => {
     return sortedTracks
       .map((track: Track) => track.uri)
@@ -606,16 +609,30 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
     if (!playlistId || !isEditable) return;
     
     const trackUris = getSortedTrackUris();
-    if (trackUris.length === 0) return;
+    if (trackUris.length === 0) {
+      console.warn('[handleSaveCurrentOrder] No valid track URIs found to save');
+      return;
+    }
+
+    // Log warning if some tracks were filtered out (local files, episodes, or unavailable tracks)
+    const totalTracks = sortedTracks.length;
+    if (trackUris.length < totalTracks) {
+      console.warn(
+        `[handleSaveCurrentOrder] ${totalTracks - trackUris.length} track(s) filtered out ` +
+        `(local files, episodes, or tracks without valid URIs). Saving ${trackUris.length} valid tracks.`
+      );
+    }
 
     try {
       await reorderAllTracks.mutateAsync({ playlistId, trackUris });
       // Reset sorting to default after saving
       setSort(panelId, 'position', 'asc');
     } catch (error) {
-      console.error('Failed to save playlist order:', error);
+      console.error('[handleSaveCurrentOrder] Failed to save playlist order:', error);
+      // Re-throw to let the mutation error handling show user feedback
+      throw error;
     }
-  }, [panelId, playlistId, isEditable, getSortedTrackUris, reorderAllTracks, setSort]);
+  }, [panelId, playlistId, isEditable, getSortedTrackUris, sortedTracks, reorderAllTracks, setSort]);
 
   const selectionKey = useCallback((track: Track, index: number) => getTrackSelectionKey(track, index), []);
 

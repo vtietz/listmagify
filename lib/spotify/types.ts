@@ -101,6 +101,29 @@ export function mapPlaylist(raw: any): Playlist {
 export function mapPlaylistItemToTrack(raw: any): Track {
   const t = raw?.track ?? raw;
 
+  // Handle unavailable tracks (Spotify returns null for removed/unavailable tracks)
+  if (t === null || t === undefined) {
+    console.warn('[mapPlaylistItemToTrack] Encountered null/undefined track - track may be unavailable');
+    return {
+      id: null,
+      uri: '', // Empty URI will be filtered out when saving playlist order
+      name: '[Unavailable Track]',
+      artists: [],
+      artistObjects: [],
+      durationMs: 0,
+      addedAt: raw?.added_at ?? undefined,
+      album: null,
+      popularity: null,
+      explicit: false,
+      addedBy: raw?.added_by?.id
+        ? {
+            id: String(raw.added_by.id),
+            displayName: raw.added_by.display_name ?? null,
+          }
+        : null,
+    };
+  }
+
   const albumImages: Image[] | undefined = Array.isArray(t?.album?.images)
     ? t.album.images.map((img: any) => ({
         url: String(img?.url ?? ""),
