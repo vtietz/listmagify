@@ -6,6 +6,7 @@
  * - Panel 2 overlay mode for two-panel comparison
  * - Browse overlays (search, Last.fm, recommendations)
  * - Bottom navigation for overlay switching
+ * - Player always inline (not overlay) for proper DnD support
  * 
  * Extracted from SplitGrid for better separation of concerns.
  */
@@ -72,10 +73,13 @@ export function MobileLayout({
 }: MobileLayoutProps) {
   // Mobile layout logic:
   // - panel2 active: show 50/50 split (Panel 1 in main, Panel 2 in overlay)
-  // - search/lastfm/recs/player active: show Panel 1 at 50% + overlay at 50%
+  // - search/lastfm/recs active: show Panel 1 at 50% + overlay at 50%
+  // - player active: show player inline (above bottom nav)
   // - none: show only Panel 1 at 100%
-  const showMobileOverlay = activeOverlay !== 'none';
+  // Note: Player is inline (not overlay) for proper DnD support
+  const showMobileOverlay = activeOverlay !== 'none' && activeOverlay !== 'player';
   const isPanel2Mode = activeOverlay === 'panel2';
+  const showPlayer = activeOverlay === 'player';
 
   return (
     <>
@@ -131,14 +135,12 @@ export function MobileLayout({
                 isMobileOverlay={true}
               />
             )}
-            {activeOverlay === 'player' && (
-              <div className="h-full overflow-auto bg-background">
-                <SpotifyPlayer forceShow />
-              </div>
-            )}
           </div>
         )}
       </div>
+
+      {/* Player inline (above bottom nav) - shown when player toggle is active */}
+      {showPlayer && <SpotifyPlayer forceShow />}
 
       {/* Mobile bottom nav */}
       <MobileBottomNav 

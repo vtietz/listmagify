@@ -264,47 +264,39 @@ export function SearchPanel({ isActive = true, inputRef: externalInputRef }: Sea
     <div className="flex-1 min-h-0 flex flex-col">
       {/* Search input */}
       <div className="px-3 py-2 border-b border-border">
-        <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            ref={inputRef}
-            type="text"
-            placeholder="Search tracks, artists, albums..."
-            value={localQuery}
-            onChange={(e) => setLocalQuery(e.target.value)}
-            className="h-9 pl-9 pr-8 text-sm"
-          />
-          {localQuery && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6"
-              onClick={() => setLocalQuery('')}
-              aria-label="Clear search"
-            >
-              <X className="h-3 w-3" />
-            </Button>
-          )}
-        </div>
-        {debouncedQuery && totalResults > 0 && (
-          <div className="flex items-center justify-between mt-1.5">
-            <p className="text-xs text-muted-foreground">
-              {totalResults.toLocaleString()} results
-              <span className={spotifySelection.length > 0 ? 'ml-2 text-primary' : 'ml-2 invisible'}>
-                ({spotifySelection.length} selected)
-              </span>
-            </p>
-            
-            {/* Add selected to markers button - always show when markers exist, disabled when nothing selected */}
-            {hasAnyMarkers && (
-              <AddSelectedToMarkersButton
-                selectedCount={spotifySelection.length}
-                getTrackUris={getSelectedTrackUris}
-                className="h-7 w-7"
-              />
+        <div className="relative flex items-center gap-1.5">
+          <div className="relative flex-1">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              ref={inputRef}
+              type="text"
+              placeholder="Search tracks, artists, albums..."
+              value={localQuery}
+              onChange={(e) => setLocalQuery(e.target.value)}
+              className="h-9 pl-9 pr-8 text-sm"
+            />
+            {localQuery && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6"
+                onClick={() => setLocalQuery('')}
+                aria-label="Clear search"
+              >
+                <X className="h-3 w-3" />
+              </Button>
             )}
           </div>
-        )}
+          
+          {/* Add selected to markers button - always show when markers exist, disabled when nothing selected */}
+          {hasAnyMarkers && (
+            <AddSelectedToMarkersButton
+              selectedCount={spotifySelection.length}
+              getTrackUris={getSelectedTrackUris}
+              className="h-9 w-9 shrink-0"
+            />
+          )}
+        </div>
       </div>
       
       {/* Results */}

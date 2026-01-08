@@ -32,6 +32,12 @@ import { apiFetch } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { TrackRow } from './TrackRow';
 import { TrackContextMenu } from './TrackContextMenu';
 import { TableHeader } from './TableHeader';
@@ -435,72 +441,72 @@ export function LastfmBrowseTab({ isActive = true }: LastfmBrowseTabProps) {
   
   return (
     <div className="flex-1 min-h-0 flex flex-col">
-      {/* Username input */}
-      <div className="px-3 py-2 border-b border-border space-y-2">
-        <div className="relative">
-          <User className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            ref={inputRef}
-            type="text"
-            placeholder="Last.fm username..."
-            value={localUsername}
-            onChange={(e) => setLocalUsername(e.target.value)}
-            className="h-9 pl-9 text-sm"
-          />
-        </div>
-        
-        {/* Source selector */}
-        <div className="flex gap-1">
-          {SOURCE_OPTIONS.map((opt) => (
-            <Button
-              key={opt.value}
-              variant={lastfmSource === opt.value ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setLastfmSource(opt.value)}
-              className="flex-1 h-7 text-xs"
-            >
-              {opt.label}
-            </Button>
-          ))}
-        </div>
-        
-        {/* Period selector (only for Top) */}
-        {lastfmSource === 'lastfm-top' && (
-          <div className="flex gap-1">
-            {PERIOD_OPTIONS.map((opt) => (
-              <Button
-                key={opt.value}
-                variant={lastfmPeriod === opt.value ? 'secondary' : 'ghost'}
-                size="sm"
-                onClick={() => setLastfmPeriod(opt.value)}
-                className="flex-1 h-6 text-xs px-1"
-              >
-                {opt.label}
+      {/* Username input and filters */}
+      <div className="px-3 py-2 border-b border-border">
+        <div className="flex items-center gap-1.5">
+          <div className="relative flex-1">
+            <User className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              ref={inputRef}
+              type="text"
+              placeholder="Last.fm username..."
+              value={localUsername}
+              onChange={(e) => setLocalUsername(e.target.value)}
+              className="h-9 pl-9 text-sm"
+            />
+          </div>
+          
+          {/* Source selector */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="h-9 text-xs w-[80px] justify-between shrink-0">
+                {SOURCE_OPTIONS.find(opt => opt.value === lastfmSource)?.label}
               </Button>
-            ))}
-          </div>
-        )}
-        
-        {/* Results count and actions */}
-        {debouncedUsername && totalResults > 0 && (
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-muted-foreground">
-              {totalResults.toLocaleString()} tracks
-              <span className={lastfmSelection.length > 0 ? 'ml-2 text-primary' : 'ml-2 invisible'}>
-                ({lastfmSelection.length} selected)
-              </span>
-            </p>
-            
-            {/* Add selected to markers button - only when markers exist */}
-            {hasAnyMarkers && (
-              <AddSelectedToMarkersButton
-                selectedCount={lastfmSelection.length}
-                getTrackUris={getSelectedTrackUris}
-                className="h-7 w-7"
-              />
-            )}
-          </div>
-        )}
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-[140px]">
+              {SOURCE_OPTIONS.map((opt) => (
+                <DropdownMenuItem 
+                  key={opt.value} 
+                  onClick={() => setLastfmSource(opt.value)}
+                  className={cn("text-xs", lastfmSource === opt.value && "bg-accent")}
+                >
+                  {opt.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          
+          {/* Period selector (only for Top) */}
+          {lastfmSource === 'lastfm-top' && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="h-9 text-xs w-[60px] justify-between shrink-0">
+                  {PERIOD_OPTIONS.find(opt => opt.value === lastfmPeriod)?.label}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-[100px]">
+                {PERIOD_OPTIONS.map((opt) => (
+                  <DropdownMenuItem 
+                    key={opt.value} 
+                    onClick={() => setLastfmPeriod(opt.value)}
+                    className={cn("text-xs", lastfmPeriod === opt.value && "bg-accent")}
+                  >
+                    {opt.label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+          
+          {/* Add selected to markers button - always show when markers exist */}
+          {hasAnyMarkers && (
+            <AddSelectedToMarkersButton
+              selectedCount={lastfmSelection.length}
+              getTrackUris={getSelectedTrackUris}
+              className="h-9 w-9 shrink-0"
+            />
+          )}
+        </div>
       </div>
       
       {/* Results - scroll container is always rendered to keep virtualizer stable */}

@@ -4,15 +4,13 @@
  * Features:
  * - Panel 2 toggle: When on, shows 50/50 split with Panel 1
  * - Browse overlay buttons: Search, Last.fm, Recommendations
- * - Player toggle: Opens player in bottom half
+ * - Player toggle: Shows/hides inline player (not overlay for DnD support)
  * - When any overlay is active, Panel 2 hides and overlay takes bottom half
  */
 
 'use client';
 
-import { useMemo } from 'react';
 import { 
-  ListMusic, 
   Search, 
   Sparkles, 
   Radio, 
@@ -21,8 +19,6 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useDeviceType } from '@/hooks/useDeviceType';
-import { useBrowsePanelStore } from '@/hooks/useBrowsePanelStore';
-import { usePlayerStore } from '@/hooks/usePlayerStore';
 import type { PanelConfig } from '@/hooks/useSplitGridStore';
 
 export type MobileOverlay = 'none' | 'panel2' | 'search' | 'lastfm' | 'recs' | 'player';
@@ -76,7 +72,6 @@ export function MobileBottomNav({
   onSplitFirstPanel,
 }: MobileBottomNavProps) {
   const { isPhone } = useDeviceType();
-  const isPlayerVisible = usePlayerStore((s) => s.isPlayerVisible);
 
   // Only show on phones
   if (!isPhone) {
@@ -142,7 +137,7 @@ export function MobileBottomNav({
       {/* Divider */}
       <div className="w-px h-8 bg-border mx-1" />
 
-      {/* Player toggle */}
+      {/* Player toggle - shows/hides inline player */}
       <NavButton
         icon={Music2}
         label="Player"

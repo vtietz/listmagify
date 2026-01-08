@@ -116,7 +116,7 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground select-none;
   }
 
   /* Custom scrollbar styling for dark theme */
@@ -259,7 +259,24 @@
     flex-shrink: 0;
   }
 
-  /* Mobile 60/40 split layout */
+  /* Mobile split layout - unified approach */
+  .device-phone .mobile-split-active {
+    /* When overlay is active, apply 60/40 split */
+  }
+
+  .device-phone .mobile-panel-primary {
+    flex: 3 !important; /* 60% of space when overlay active */
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .device-phone .mobile-panel-secondary {
+    flex: 2; /* 40% of space */
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  /* Legacy support - can be removed after verifying unified layout works */
   .device-phone .mobile-split-container {
     display: flex;
     flex-direction: column;

@@ -13,6 +13,7 @@ import { useSeedRecommendations, useDismissRecommendation } from '@/hooks/useRec
 import { useSavedTracksIndex } from '@/hooks/useSavedTracksIndex';
 import { useTrackPlayback } from '@/hooks/useTrackPlayback';
 import { useHydratedCompactMode } from '@/hooks/useCompactModeStore';
+import { useDeviceType } from '@/hooks/useDeviceType';
 import { useCompareModeStore, getTrackCompareColor } from '@/hooks/useCompareModeStore';
 import { useContextMenuStore } from '@/hooks/useContextMenuStore';
 import { TrackRow } from './TrackRow';
@@ -53,11 +54,32 @@ export function RecommendationsPanel({
   height = 300,
 }: RecommendationsPanelProps) {
   const isCompact = useHydratedCompactMode();
+  const { isPhone } = useDeviceType();
   const { isLiked, toggleLiked } = useSavedTracksIndex();
   const dismissMutation = useDismissRecommendation();
+  const [panelWidth, setPanelWidth] = useState(0);
+  const containerRef = useRef<HTMLDivElement>(null);
   
   // Compare mode: get distribution for coloring (recs panel not included in calculation)
   const isCompareEnabled = useCompareModeStore((s) => s.isEnabled);
+  
+  // Track panel width for responsive header
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setPanelWidth(entry.contentRect.width);
+      }
+    });
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+  
+  // Hide header on narrow panels (< 400px) or on mobile
+  const showHeader = !isPhone && panelWidth >= 400;
   const compareDistribution = useCompareModeStore((s) => s.distribution);
   const getCompareColorForTrack = useCallback((trackUri: string) => {
     return getTrackCompareColor(trackUri, compareDistribution, isCompareEnabled);
@@ -238,44 +260,29 @@ export function RecommendationsPanel({
 
   return (
     <div 
+      ref={containerRef}
       className="border-t border-border bg-background flex flex-col h-full"
     >
-      {/* Header */}
-      <div 
-        className="flex items-center justify-between px-3 py-2 border-b border-border bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors flex-shrink-0"
-        onClick={onToggleExpand}
-      >
-        <div className="flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-primary" />
-          <span className="text-sm font-medium">
-            Recommendations
-          </span>
-          {filteredRecommendations.length > 0 && (
-            <span className="text-xs text-muted-foreground">
-              ({recommendations.length}{hasMore ? `/${filteredRecommendations.length}` : ''} tracks)
+      {/* Header - hidden on narrow panels */}
+      {showHeader && (
+        <div 
+          className="flex items-center justify-between px-3 py-2 border-b border-border bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors flex-shrink-0"
+          onClick={onToggleExpand}
+        >
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-primary" />
+            <span className="text-sm font-medium">
+              Recommendations
             </span>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation();
-              refetch();
-            }}
-            disabled={isLoading}
-            className="h-7 px-2 text-xs"
-          >
-            {isLoading ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
-            ) : (
-              'Refresh'
+            {filteredRecommendations.length > 0 && (
+              <span className="text-xs text-muted-foreground">
+                ({recommendations.length}{hasMore ? `/${filteredRecommendations.length}` : ''} tracks)
+              </span>
             )}
-          </Button>
+          </div>
           <ChevronDown className="h-4 w-4 text-muted-foreground" />
         </div>
-      </div>
+      )}
       
       {/* Search bar */}
       <div className="px-3 py-2 border-b border-border flex-shrink-0">

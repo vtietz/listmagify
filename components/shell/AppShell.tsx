@@ -83,12 +83,16 @@ export function AppShell({ headerTitle = "Listmagify", children }: AppShellProps
 
   // Fixed height layout for split editor and playlist detail (internal scrolling)
   if (isFixedHeightPage) {
+    // Split editor renders its own player inside DndContext for drag-and-drop support
+    const isSplitEditor = pathname === '/split-editor';
+    
     return (
       <div className="h-dvh flex flex-col bg-background text-foreground overflow-hidden">
         <Header title={headerTitle} />
         <main className="flex-1 min-h-0 overflow-hidden">{children}</main>
-        {/* On phone, MobileLayout handles the player via bottom nav overlay */}
-        {!isPhone && <SpotifyPlayer />}
+        {/* On phone, SplitGrid handles player via bottom nav toggle */}
+        {/* Split editor renders player inside its DndContext for drag support */}
+        {!isPhone && !isSplitEditor && <SpotifyPlayer />}
         {!isPhone && (
           <div className="flex-shrink-0 px-4 py-1 border-t border-border">
             <AppFooter />
@@ -109,7 +113,7 @@ export function AppShell({ headerTitle = "Listmagify", children }: AppShellProps
         <main className="flex-1 min-w-0 overflow-auto">{children}</main>
         {authenticated && isBrowsePanelOpen && !isPhone && <BrowsePanel />}
       </div>
-      {/* On phone, player is handled differently (MobileLayout for split-editor, etc.) */}
+      {/* On phone, player is handled by split-editor's bottom nav */}
       {!isPhone && (
         <div className="flex-shrink-0 bg-background">
           <SpotifyPlayer />

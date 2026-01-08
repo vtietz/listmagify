@@ -30,6 +30,10 @@ import type { SortKey, SortDirection } from '@/hooks/usePlaylistSort';
 
 /** Minimum width (in px) to show inline buttons instead of dropdown menu */
 const COMPACT_BREAKPOINT = 600;
+/** Minimum width (in px) to show full toolbar - below this, use ultra-compact mode */
+const ULTRA_COMPACT_BREAKPOINT = 280;
+/** Minimum width to allow horizontal split (need at least ULTRA_COMPACT_BREAKPOINT) */
+const MIN_SPLIT_WIDTH = ULTRA_COMPACT_BREAKPOINT;
 
 interface PanelToolbarProps {
   panelId: string;
@@ -99,6 +103,8 @@ export function PanelToolbar({
 }: PanelToolbarProps) {
   const [localSearch, setLocalSearch] = useState(searchQuery);
   const [isCompact, setIsCompact] = useState(true);
+  const [isUltraCompact, setIsUltraCompact] = useState(false);
+  const [canSplitHorizontal, setCanSplitHorizontal] = useState(true);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const toolbarRef = useRef<HTMLDivElement>(null);
   const selectionButtonRef = useRef<HTMLButtonElement>(null);
@@ -118,7 +124,10 @@ export function PanelToolbar({
 
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
-        setIsCompact(entry.contentRect.width < COMPACT_BREAKPOINT);
+        const width = entry.contentRect.width;
+        setIsCompact(width < COMPACT_BREAKPOINT);
+        setIsUltraCompact(width < ULTRA_COMPACT_BREAKPOINT);
+        setCanSplitHorizontal(width >= MIN_SPLIT_WIDTH);
       }
     });
 
@@ -148,17 +157,19 @@ export function PanelToolbar({
 
   return (
     <div ref={toolbarRef} className="flex items-center gap-1.5 p-1.5 border-b border-border bg-card relative z-30">
-      {/* Playlist selector - max 50% width */}
-      <div className="shrink-0 max-w-[50%]">
-        <PlaylistSelector
-          selectedPlaylistId={playlistId}
-          selectedPlaylistName={playlistName ?? ''}
-          onSelectPlaylist={onLoadPlaylist}
-        />
-      </div>
+      {/* Playlist selector - hidden in ultra-compact mode (moved to dropdown) */}
+      {!isUltraCompact && (
+        <div className="shrink-0 max-w-[50%]">
+          <PlaylistSelector
+            selectedPlaylistId={playlistId}
+            selectedPlaylistName={playlistName ?? ''}
+            onSelectPlaylist={onLoadPlaylist}
+          />
+        </div>
+      )}
 
-      {/* Search - grows to fill space, smaller on mobile */}
-      {playlistId && (
+      {/* Search - hidden in ultra-compact mode (moved to dropdown) */}
+      {playlistId && !isUltraCompact && (
         <div className={cn("relative flex-1", isPhone ? "min-w-[40px]" : "min-w-[60px]")}>
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
           <Input
@@ -171,8 +182,17 @@ export function PanelToolbar({
         </div>
       )}
 
+      {/* Ultra-compact mode: Show playlist name as text + expand button */}
+      {isUltraCompact && (
+        <div className="flex-1 min-w-0 flex items-center gap-1">
+          <span className="text-sm font-medium truncate">
+            {playlistName || '(Select)'}
+          </span>
+        </div>
+      )}
+
       {/* Selection Actions Button - always visible when playlist loaded, disabled when no selection */}
-      {playlistId && onOpenSelectionMenu && (
+      {playlistId && onOpenSelectionMenu && !isUltraCompact && (
         <Button
           ref={selectionButtonRef}
           variant="ghost"
@@ -290,13 +310,14 @@ export function PanelToolbar({
             <>
               <Separator orientation="vertical" className="h-6 mx-0.5" />
 
-              {/* Split Horizontal */}
+              {/* Split Horizontal - disabled if panel too narrow */}
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={onSplitHorizontal}
-                className="h-8 w-8 p-0 shrink-0"
-                title="Split horizontal"
+                disabled={!canSplitHorizontal}
+                className={cn("h-8 w-8 p-0 shrink-0", !canSplitHorizontal && "opacity-40")}
+                title={canSplitHorizontal ? "Split horizontal" : "Panel too narrow to split"}
               >
                 <SplitSquareHorizontal className="h-4 w-4" />
               </Button>
@@ -341,7 +362,54 @@ export function PanelToolbar({
               <span className="sr-only">More actions</span>
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuContent align="end" className="w-56 max-h-[70vh] overflow-y-auto">
+            {/* Ultra-compact mode: Playlist selector in dropdown */}
+            {isUltraCompact && (
+              <>
+                <div className="px-2 py-1.5">
+                  <PlaylistSelector
+                    selectedPlaylistId={playlistId}
+                    selectedPlaylistName={playlistName ?? ''}
+                    onSelectPlaylist={onLoadPlaylist}
+                  />
+                </div>
+                {playlistId && (
+                  <div className="px-2 py-1.5">
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                      <Input
+                        type="text"
+                        placeholder="Search..."
+                        value={localSearch}
+                        onChange={(e: ChangeEvent<HTMLInputElement>) => handleSearchChange(e.target.value)}
+                        className="pl-9 h-8 text-sm"
+                      />
+                    </div>
+                  </div>
+                )}
+                <DropdownMenuSeparator />
+              </>
+            )}
+
+            {/* Selection Actions - in ultra-compact mode */}
+            {isUltraCompact && playlistId && onOpenSelectionMenu && (
+              <>
+                <DropdownMenuItem
+                  onClick={selectionCount > 0 ? handleSelectionMenuClick : undefined}
+                  disabled={selectionCount === 0}
+                >
+                  <ListChecks className="h-4 w-4 mr-2" />
+                  Selection actions
+                  {selectionCount > 0 && (
+                    <span className="text-xs font-medium bg-orange-500 text-white px-1.5 py-0.5 rounded-full ml-auto">
+                      {selectionCount}
+                    </span>
+                  )}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+              </>
+            )}
+
             {/* Reload */}
             {playlistId && (
               <DropdownMenuItem onClick={onReload} disabled={isReloading}>
@@ -420,9 +488,14 @@ export function PanelToolbar({
             {/* Split actions - hidden on mobile (use bottom nav instead) */}
             {showSplitCommands && (
               <>
-                <DropdownMenuItem onClick={onSplitHorizontal}>
+                <DropdownMenuItem 
+                  onClick={canSplitHorizontal ? onSplitHorizontal : undefined}
+                  disabled={!canSplitHorizontal}
+                  className={cn(!canSplitHorizontal && "opacity-40 cursor-not-allowed")}
+                >
                   <SplitSquareHorizontal className="h-4 w-4 mr-2" />
                   Split horizontal
+                  {!canSplitHorizontal && <span className="text-xs text-muted-foreground ml-auto">(too narrow)</span>}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={onSplitVertical}>
                   <SplitSquareVertical className="h-4 w-4 mr-2" />

@@ -1,21 +1,22 @@
-﻿/**
+/**
  * SplitGrid container for managing multiple playlist panels.
  * Handles tree-based grid layout, DnD context, and panel orchestration.
  * 
  * Uses a recursive split tree model for nested horizontal/vertical splits.
  * 
- * Responsive behavior:
- * - Phone (<600px): max 2 panels, orientation-aware (portrait=top/bottom, landscape=left/right)
- * - Tablet (≥600px, <1024px): user-configurable panels, orientation-aware grid
- * - Desktop (≥1024px): current multi-panel behavior
+ * Unified responsive layout:
+ * - Phone (<600px): Panels stack vertically, bottom nav for overlays
+ * - Tablet/Desktop (≥600px): Side-by-side panels with optional browse panel
+ * 
+ * All breakpoint adaptations use CSS/Tailwind, not separate layout components.
  */
 
 'use client';
 
-import { useEffect, useMemo, useCallback } from 'react';
+import { useEffect, useCallback } from 'react';
 import { DndContext } from '@dnd-kit/core';
 import { LogIn, Loader2 } from 'lucide-react';
-import { useSplitGridStore, flattenPanels } from '@/hooks/useSplitGridStore';
+import { useSplitGridStore } from '@/hooks/useSplitGridStore';
 import { useBrowsePanelStore } from '@/hooks/useBrowsePanelStore';
 import { useHydratedCompactMode } from '@/hooks/useCompactModeStore';
 import { useDndOrchestrator } from '@/hooks/useDndOrchestrator';
@@ -23,11 +24,11 @@ import { useSplitUrlSync } from '@/hooks/useSplitUrlSync';
 import { useSessionUser } from '@/hooks/useSessionUser';
 import { useDeviceType, getOrientationClasses, TABLET_PERFORMANCE_WARNING_THRESHOLD } from '@/hooks/useDeviceType';
 import { usePanelFocusStore } from '@/hooks/usePanelFocusStore';
+import { SplitNodeView } from './SplitNodeView';
 import { BrowsePanel } from './BrowsePanel';
-import { useMobileOverlayStore } from './MobileBottomNav';
-import { MobileLayout } from './MobileLayout';
-import { DesktopLayout } from './DesktopLayout';
+import { useMobileOverlayStore, MobileBottomNav } from './MobileBottomNav';
 import { DndDragOverlay } from './DndDragOverlay';
+import { SpotifyPlayer } from '@/components/player';
 import { SignInButton } from '@/components/auth/SignInButton';
 import { toast } from '@/lib/ui/toast';
 import { cn } from '@/lib/utils';
@@ -51,7 +52,7 @@ export function SplitGrid() {
   // Panel focus state (for phone layout)
   const { focusedPanelId, focusPanel } = usePanelFocusStore();
   
-  // Mobile overlay state
+  // Mobile overlay state (for phones only)
   const activeOverlay = useMobileOverlayStore((s) => s.activeOverlay);
   const setActiveOverlay = useMobileOverlayStore((s) => s.setActiveOverlay);
   
@@ -71,17 +72,8 @@ export function SplitGrid() {
       );
     }
   }, [isTablet, panels.length]);
-  
-  // Build playlist names map for mobile switcher
-  const playlistNames = useMemo(() => {
-    const map = new Map<string, string>();
-    // Note: actual playlist names would come from the panels' loaded playlist data
-    // This is a placeholder - the PlaylistPanel would need to provide names
-    return map;
-  }, []);
 
   // Callback to split the first panel (creates Panel 2)
-  // Must be declared before conditional returns (Rules of Hooks)
   const handleSplitFirstPanel = useCallback(() => {
     if (panels.length > 0 && panels[0]) {
       splitPanel(panels[0].id, 'horizontal');
@@ -89,7 +81,6 @@ export function SplitGrid() {
   }, [panels, splitPanel]);
 
   // IMPORTANT: All hooks must be called before any conditional returns (Rules of Hooks)
-  // Use the orchestrator hook to manage all DnD state and logic
   const {
     activeTrack,
     sourcePanelId,
@@ -142,16 +133,17 @@ export function SplitGrid() {
         <div className="flex-1 flex items-center justify-center text-muted-foreground">
           <p>Click &quot;Split Horizontal&quot; or &quot;Split Vertical&quot; to add a panel</p>
         </div>
-        {/* Browse panel outside DnD context when no panels */}
-        {isBrowsePanelOpen && (
-          <BrowsePanel />
-        )}
+        {isBrowsePanelOpen && <BrowsePanel />}
       </div>
     );
   }
 
-  // Check if we have a second panel
+  // Derived state for mobile overlays
   const hasPanel2 = panels.length >= 2;
+  const showMobileOverlay = isPhone && activeOverlay !== 'none' && activeOverlay !== 'player';
+  const isPanel2Mode = activeOverlay === 'panel2';
+  const showMobilePlayer = isPhone && activeOverlay === 'player';
+  const showBrowseOverlay = isPhone && (activeOverlay === 'search' || activeOverlay === 'lastfm' || activeOverlay === 'recs');
 
   return (
     <DndContext
@@ -161,9 +153,6 @@ export function SplitGrid() {
       onDragOver={onDragOver}
       onDragEnd={onDragEnd}
       onDragCancel={onDragCancel}
-      // Disable dnd-kit's built-in autoScroll to prevent it from scrolling
-      // unrelated panels. We use our own autoScrollEdge in useDndOrchestrator
-      // which correctly targets only the panel under the pointer.
       autoScroll={false}
     >
       <div 
@@ -175,32 +164,86 @@ export function SplitGrid() {
         data-device={deviceType}
         data-orientation={orientation}
       >
-        {/* Main content area - different layout for phones */}
-        {isPhone ? (
-          <MobileLayout
-            root={root}
+        {/* Main content area - unified layout */}
+        <div className={cn(
+          'flex-1 min-h-0 flex',
+          // Phone: column layout for stacking
+          isPhone && 'flex-col',
+          // Phone with overlay: apply split
+          isPhone && showMobileOverlay && 'mobile-split-active'
+        )}>
+          {/* Primary panel area */}
+          <div className={cn(
+            // Desktop/Tablet: takes remaining space, side by side with browse
+            !isPhone && 'flex-1 min-w-0 p-2',
+            // Phone: full height or top portion when overlay active
+            isPhone && 'flex-1 min-h-0 p-1',
+            isPhone && showMobileOverlay && 'mobile-panel-primary'
+          )}>
+            <SplitNodeView
+              node={root}
+              onRegisterVirtualizer={registerVirtualizer}
+              onUnregisterVirtualizer={unregisterVirtualizer}
+              activePanelId={activePanelId}
+              sourcePanelId={sourcePanelId}
+              dropIndicatorIndex={dropIndicatorIndex}
+              ephemeralInsertion={ephemeralInsertion}
+              isRoot={true}
+              // Phone: show only first panel in primary area
+              mobileShowOnlyFirst={isPhone}
+            />
+          </div>
+
+          {/* Desktop/Tablet: Browse panel (inline) */}
+          {!isPhone && isBrowsePanelOpen && <BrowsePanel />}
+
+          {/* Phone: Overlay area (Panel 2 or Browse) */}
+          {isPhone && showMobileOverlay && (
+            <div className="mobile-panel-secondary border-t border-border">
+              {/* Panel 2 overlay */}
+              {isPanel2Mode && hasPanel2 && (
+                <div className="h-full p-1">
+                  <SplitNodeView
+                    node={root}
+                    onRegisterVirtualizer={registerVirtualizer}
+                    onUnregisterVirtualizer={unregisterVirtualizer}
+                    activePanelId={activePanelId}
+                    sourcePanelId={sourcePanelId}
+                    dropIndicatorIndex={dropIndicatorIndex}
+                    ephemeralInsertion={ephemeralInsertion}
+                    isRoot={true}
+                    mobileShowOnlySecond={true}
+                  />
+                </div>
+              )}
+              {/* Browse overlay */}
+              {showBrowseOverlay && (
+                <BrowsePanel 
+                  defaultTab={
+                    activeOverlay === 'search' ? 'spotify' :
+                    activeOverlay === 'lastfm' ? 'lastfm' :
+                    'recs'
+                  }
+                  isMobileOverlay={true}
+                />
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Player - always inline for proper DnD support */}
+        {/* Phone: only show when player overlay is active */}
+        {/* Desktop/Tablet: always visible */}
+        {(showMobilePlayer || !isPhone) && <SpotifyPlayer forceShow={isPhone} />}
+
+        {/* Phone: Bottom navigation */}
+        {isPhone && (
+          <MobileBottomNav
             panels={panels}
             activeOverlay={activeOverlay}
             setActiveOverlay={setActiveOverlay}
             hasPanel2={hasPanel2}
             onSplitFirstPanel={handleSplitFirstPanel}
-            onRegisterVirtualizer={registerVirtualizer}
-            onUnregisterVirtualizer={unregisterVirtualizer}
-            activePanelId={activePanelId}
-            sourcePanelId={sourcePanelId}
-            dropIndicatorIndex={dropIndicatorIndex}
-            ephemeralInsertion={ephemeralInsertion}
-          />
-        ) : (
-          <DesktopLayout
-            root={root}
-            isBrowsePanelOpen={isBrowsePanelOpen}
-            onRegisterVirtualizer={registerVirtualizer}
-            onUnregisterVirtualizer={unregisterVirtualizer}
-            activePanelId={activePanelId}
-            sourcePanelId={sourcePanelId}
-            dropIndicatorIndex={dropIndicatorIndex}
-            ephemeralInsertion={ephemeralInsertion}
           />
         )}
       </div>

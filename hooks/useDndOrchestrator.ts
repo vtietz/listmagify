@@ -24,6 +24,7 @@ import { TABLE_HEADER_HEIGHT, TABLE_HEADER_HEIGHT_COMPACT } from '@/components/s
 import {
   KeyboardSensor,
   PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   pointerWithin,
@@ -267,10 +268,17 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
   }, [findPanelUnderPointer]);
 
   // Set up DnD sensors (disable auto-scroll to prevent source panel scrolling)
+  // Use both PointerSensor and TouchSensor for better cross-device support
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
         distance: 8,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 100,
+        tolerance: 8,
       },
     }),
     useSensor(KeyboardSensor, {
@@ -627,9 +635,16 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
     const sourceTrack: Track = sourceData.track;
     const sourceIndex: number = sourceData.position; // Use position from data payload (global index)
 
-    // Handle Spotify search results (copy only - no source playlist)
-    // Search results have panelId but no playlistId
+    // Handle Spotify search results and player (copy only - no source playlist)
+    // Search results and player have panelId but no playlistId
     if (!sourcePlaylistId && sourcePanelIdFromData && targetPlaylistId && targetPanelId) {
+      console.debug('[DND] Handling copy from search/player:', {
+        sourcePanelId: sourcePanelIdFromData,
+        targetPanelId,
+        targetPlaylistId,
+        trackUri: sourceTrack?.uri
+      });
+      
       const targetPanel = panels.find((p) => p.id === targetPanelId);
       if (!targetPanel?.isEditable) {
         toast.error('Target playlist is not editable');
@@ -638,6 +653,12 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
 
       const targetIndex = finalDropPosition ?? (targetData.position ?? 0);
       const trackUris = [sourceTrack.uri];
+      
+      console.debug('[DND] Adding track from search/player to playlist:', {
+        playlistId: targetPlaylistId,
+        trackUris,
+        targetIndex
+      });
       
       addTracks.mutate({
         playlistId: targetPlaylistId,
