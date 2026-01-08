@@ -193,9 +193,36 @@ export function PlaylistPanel({
       >
         {/* Loading state */}
         {state.isLoading && (
-          <div className="p-4 space-y-2">
-            {Array.from({ length: 10 }).map((_, i) => (
-              <Skeleton key={i} className="h-16 w-full" />
+          <div className="p-2 space-y-1">
+            {Array.from({ length: 12 }).map((_, i) => (
+              <div 
+                key={i} 
+                className="grid items-center gap-2 px-2 py-1"
+                style={{ 
+                  gridTemplateColumns: '20px 20px 28px minmax(100px, 3fr) minmax(60px, 1.5fr) minmax(60px, 1fr) 36px 36px 44px 52px'
+                }}
+              >
+                {/* Heart */}
+                <Skeleton className="h-4 w-4 rounded" />
+                {/* Play/Add */}
+                <Skeleton className="h-4 w-4 rounded" />
+                {/* Position */}
+                <Skeleton className="h-3 w-6" />
+                {/* Title */}
+                <Skeleton className="h-4 w-full" />
+                {/* Artist */}
+                <Skeleton className="h-3 w-3/4" />
+                {/* Album */}
+                <Skeleton className="h-3 w-2/3" />
+                {/* Date */}
+                <Skeleton className="h-3 w-8" />
+                {/* Popularity */}
+                <Skeleton className="h-2 w-full rounded-full" />
+                {/* Duration */}
+                <Skeleton className="h-3 w-10" />
+                {/* Cumulative */}
+                <Skeleton className="h-3 w-10" />
+              </div>
             ))}
           </div>
         )}
