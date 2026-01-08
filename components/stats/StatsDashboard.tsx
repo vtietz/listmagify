@@ -537,7 +537,7 @@ function TopUsersCard({
               {users.map((user, i) => {
                 const profile = user.userId ? profilesMap.get(user.userId) : null;
                 return (
-                  <Tooltip key={user.userHash}>
+                  <Tooltip key={`user-${page * pageSize + i}`}>
                     <TooltipTrigger asChild>
                       <div className="grid grid-cols-12 text-sm items-center py-1.5 hover:bg-muted/50 rounded cursor-help">
                         <div className="col-span-1 text-muted-foreground">{page * pageSize + i + 1}</div>
