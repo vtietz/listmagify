@@ -47,6 +47,16 @@ if "%1"=="start-prod" (
   docker compose -f docker\docker-compose.yml up prod %2 %3 %4 %5 %6 %7 %8 %9
   goto :eof
 )
+if "%1"=="prod-build" (
+  rem Build production image
+  if exist "docker\docker-compose.prod.override.yml" (
+    echo Building production image with override...
+    docker compose -f docker\docker-compose.prod.yml -f docker\docker-compose.prod.override.yml build %2 %3 %4 %5 %6 %7 %8 %9
+  ) else (
+    docker compose -f docker\docker-compose.prod.yml build %2 %3 %4 %5 %6 %7 %8 %9
+  )
+  goto :eof
+)
 if "%1"=="prod-up" (
   rem Check for override file
   if exist "docker\docker-compose.prod.override.yml" (
@@ -138,6 +148,7 @@ echo   run.bat up/down         - Start/stop dev services
  echo   run.bat install         - Install dependencies in the container
  echo   run.bat build           - Create a production build
  echo   run.bat start-prod      - Start the production server (dev compose)
+ echo   run.bat prod-build      - Build production image (use --no-cache to force rebuild)
  echo   run.bat prod-up         - Start production deployment (prod compose)
  echo   run.bat prod-down       - Stop production deploymentecho   run.bat prod-update     - Pull latest code, rebuild, and restart productionecho   run.bat dev ^<cmd^>      - Execute a command in a temporary dev container (e.g., run pnpm lint)
 echo   run.bat prod ^<cmd^>     - Execute a command in a temporary prod container

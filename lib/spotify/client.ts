@@ -42,7 +42,10 @@ const DEFAULT_BASE = "https://api.spotify.com/v1";
 /**
  * Extract a safe request path for error reporting (no query params with sensitive data)
  */
-function getSafeRequestPath(path: string): string {
+function getSafeRequestPath(path?: string): string {
+  if (path === undefined) return "";
+  
+  // After undefined check, use non-null assertion for split operations
   try {
     // If it's a full URL, extract just the pathname
     if (path.startsWith("http")) {
@@ -50,9 +53,9 @@ function getSafeRequestPath(path: string): string {
       return url.pathname;
     }
     // Otherwise, strip query params
-    return path.split("?")[0];
+    return path.split("?")[0]!;
   } catch {
-    return path.split("?")[0];
+    return path.split("?")[0]!;
   }
 }
 

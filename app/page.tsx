@@ -1,11 +1,12 @@
 import { getServerSession } from "next-auth";
+import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth/auth";
 import Link from "next/link";
 import { SignInButton } from "@/components/auth/SignInButton";
 import { AccessRequestDialog } from "@/components/landing/AccessRequestDialog";
 import { AppLogo } from "@/components/ui/app-logo";
 import { AppFooter } from "@/components/ui/app-footer";
-import { LogIn, LogOut } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { 
   Columns, 
   GripVertical, 
@@ -21,15 +22,43 @@ import {
   GitCompare
 } from "lucide-react";
 
+type Props = {
+  searchParams: Promise<{ next?: string; reason?: string }>;
+};
+
 /**
  * Root page - Landing page shown to all users (authenticated or not).
- * Authenticated users see "Open App" button, unauthenticated see "Sign in".
+ * Authenticated users are automatically redirected to playlists (or 'next' param).
+ * Unauthenticated users see the landing page with sign-in options.
  * 
  * This page handles its own layout since AppShell passes through for '/'.
+ * Also serves as the login page when accessed with query params (reason/next).
  */
-export default async function Home() {
+export default async function Home({ searchParams }: Props) {
   const session = await getServerSession(authOptions);
-  const isAuthenticated = !!session;
+  const { next, reason } = await searchParams;
+
+  // Default return path if none specified
+  const returnTo = next && next.startsWith("/") ? next : "/playlists";
+
+  // Check for session error (e.g., revoked refresh token)
+  const sessionError = (session as { error?: string } | null)?.error;
+  const hasValidSession = session && !sessionError;
+
+  // If authenticated with valid session, redirect to intended destination
+  if (hasValidSession) {
+    redirect(returnTo);
+  }
+
+  // Determine message based on reason or session error
+  const message =
+    reason === "expired" || sessionError
+      ? "Your session has expired. Please sign in again."
+      : reason === "unauthenticated"
+      ? "Sign in to access this page."
+      : null;
+
+  const isAuthenticated = false; // Always false here since we redirect if authenticated above
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -56,23 +85,13 @@ export default async function Home() {
       <header className="sticky top-0 z-40 h-12 flex items-center justify-between px-4 border-b border-border bg-background">
         <AppLogo size="sm" />
         <nav className="flex items-center gap-1 text-sm">
-          {isAuthenticated ? (
-            <Link
-              href="/logout"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <LogOut className="h-3.5 w-3.5" />
-              Logout
-            </Link>
-          ) : (
-            <Link
-              href="/login"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <LogIn className="h-3.5 w-3.5" />
-              Login
-            </Link>
-          )}
+          <Link
+            href="/logout"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <LogOut className="h-3.5 w-3.5" />
+            Logout
+          </Link>
         </nav>
       </header>
 
@@ -84,29 +103,26 @@ export default async function Home() {
             <div className="flex justify-center">
               <AppLogo size="lg" asLink={false} />
             </div>
+            
+            {/* Show message if present (session expired, unauthenticated, etc.) */}
+            {message && (
+              <div className="p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/30 max-w-xl mx-auto">
+                <p className="text-sm text-muted-foreground">{message}</p>
+              </div>
+            )}
+            
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
               Professional playlist management for Spotify. Edit multiple playlists side-by-side with drag-and-drop.
             </p>
             <div className="flex justify-center gap-4 pt-4">
-              {isAuthenticated ? (
-                <Link
-                  href="/playlists"
-                  className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-6 py-3 text-sm font-medium hover:bg-primary/90 transition-colors"
-                >
-                  Open Playlists
-                </Link>
-              ) : (
-                <>
-                  <SignInButton callbackUrl="/playlists" />
-                  <AccessRequestDialog
-                    trigger={
-                      <button className="inline-flex items-center justify-center gap-2 rounded-md border border-border bg-background px-6 py-3 text-sm font-medium hover:bg-accent transition-colors">
-                        Request Access
-                      </button>
-                    }
-                  />
-                </>
-              )}
+              <SignInButton callbackUrl={returnTo} />
+              <AccessRequestDialog
+                trigger={
+                  <button className="inline-flex items-center justify-center gap-2 rounded-md border border-border bg-background px-6 py-3 text-sm font-medium hover:bg-accent transition-colors">
+                    Request Access
+                  </button>
+                }
+              />
             </div>
             <p className="text-sm text-muted-foreground">
               Free to use • Requires Spotify account • Your data stays with Spotify

@@ -26,7 +26,7 @@ export interface ApiErrorResponse {
  * }
  * ```
  */
-export function handleApiError(error: unknown): NextResponse<ApiErrorResponse> {
+export function handleApiError(error: unknown): NextResponse {
   // Handle rate limit errors specially
   if (error instanceof RateLimitError) {
     console.warn(`[api] Rate limit error: ${error.message}`);

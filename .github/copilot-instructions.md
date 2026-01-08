@@ -52,9 +52,12 @@ PowerShell commands you'll use frequently:
 | Stop dev server          | `run.bat down`                   | `.\run.bat down`                 | `./run.sh down`                  |
 | Run tests                | `run.bat test`                   | `.\run.bat test`                 | `./run.sh test`                  |
 | Run tests (watch mode)   | `run.bat test --watch`           | `.\run.bat test --watch`         | `./run.sh test -- --watch`       |
+| Build (production-like)  | `run.bat prod-build`             | `.\run.bat prod-build`           | `./run.sh prod-build`            |
 | Execute arbitrary command| `run.bat dev <cmd>`              | `.\run.bat dev <cmd>`            | `./run.sh exec <cmd>`            |
 
 **Important**: Always use `run.bat dev pnpm add <package>` (Windows) or `./run.sh exec pnpm add <package>` (macOS/Linux) to install packages instead of manually editing `package.json`. This ensures you get the latest compatible versions and properly updates the lockfile.
+
+**Build Testing**: To test if the production build works correctly, use `./run.sh prod-build` instead of `./run.sh exec pnpm build`. The latter uses `NODE_ENV=development` which triggers Next.js 16.1.1 prerendering bugs, while `prod-build` uses `NODE_ENV=production` (matching the CI environment) and builds successfully.
 
 ---
 

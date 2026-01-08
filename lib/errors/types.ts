@@ -131,7 +131,7 @@ export function createRateLimitError(
     category: 'rate_limit',
     severity: 'warning',
     statusCode: 429,
-    requestPath,
+    ...(requestPath ? { requestPath } : {}),
     retryAfter: {
       seconds: retryAfterSeconds,
       retryAt,

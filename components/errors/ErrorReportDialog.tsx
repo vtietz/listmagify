@@ -129,9 +129,11 @@ export function ErrorReportDialog({ testError }: ErrorReportDialogProps) {
 
     setIsSubmitting(true);
     try {
+      const trimmedDescription = userDescription.trim();
+
       const report: ErrorReport = {
         error,
-        userDescription: userDescription.trim() || undefined,
+        ...(trimmedDescription ? { userDescription: trimmedDescription } : {}),
         environment: {
           userAgent: navigator.userAgent,
           language: navigator.language,

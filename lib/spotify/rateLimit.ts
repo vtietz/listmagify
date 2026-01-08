@@ -28,7 +28,9 @@ export class RateLimitError extends Error {
     this.name = "RateLimitError";
     this.retryAfterMs = retryAfterMs;
     this.retryAt = retryAt;
-    this.requestPath = requestPath;
+    if (requestPath !== undefined) {
+      this.requestPath = requestPath;
+    }
   }
 }
 
