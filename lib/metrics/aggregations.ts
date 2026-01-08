@@ -273,6 +273,7 @@ export function getActionDistribution(range: DateRange): { event: string; count:
  */
 export interface TopUser {
   userHash: string;
+  userId: string | null; // Actual Spotify user ID for profile fetching
   eventCount: number;
   tracksAdded: number;
   tracksRemoved: number;
@@ -286,6 +287,7 @@ export function getTopUsers(range: DateRange, limit: number = 10, offset: number
   return queryAll<TopUser>(
     `SELECT 
       user_hash as userHash,
+      user_id as userId,
       COUNT(*) as eventCount,
       SUM(CASE WHEN event = 'track_add' THEN COALESCE(count, 1) ELSE 0 END) as tracksAdded,
       SUM(CASE WHEN event = 'track_remove' THEN COALESCE(count, 1) ELSE 0 END) as tracksRemoved,
@@ -294,7 +296,7 @@ export function getTopUsers(range: DateRange, limit: number = 10, offset: number
     WHERE 
       date(ts) BETWEEN ? AND ?
       AND user_hash IS NOT NULL
-    GROUP BY user_hash
+    GROUP BY user_hash, user_id
     ORDER BY eventCount DESC
     LIMIT ? OFFSET ?`,
     [range.from, range.to, limit, offset]

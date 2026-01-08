@@ -60,13 +60,15 @@ export function insertEvent(params: EventParams): void {
   if (!db) return;
 
   try {
+    const userId = params.userId || null;
     const userHash = params.userId ? hashUserId(params.userId) : null;
     const metaJson = params.meta ? JSON.stringify(params.meta) : null;
 
     execute(
-      `INSERT INTO events (user_hash, event, source, entity_type, entity_id, count, duration_ms, success, error_code, meta_json)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO events (user_id, user_hash, event, source, entity_type, entity_id, count, duration_ms, success, error_code, meta_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
+        userId,
         userHash,
         params.event,
         params.source || 'api',
@@ -98,9 +100,9 @@ export function startSession(userId: string, userAgent?: string): string {
     const truncatedUserAgent = userAgent?.substring(0, 256) || null;
 
     execute(
-      `INSERT INTO sessions (id, user_hash, user_agent)
-       VALUES (?, ?, ?)`,
-      [sessionId, userHash, truncatedUserAgent]
+      `INSERT INTO sessions (id, user_id, user_hash, user_agent)
+       VALUES (?, ?, ?, ?)`,
+      [sessionId, userId, userHash, truncatedUserAgent]
     );
     return sessionId;
   } catch (error) {

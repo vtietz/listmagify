@@ -122,6 +122,7 @@ interface TopTrack {
 
 interface TopUser {
   userHash: string;
+  userId: string | null;
   eventCount: number;
   tracksAdded: number;
   tracksRemoved: number;
@@ -476,6 +477,35 @@ function TopUsersCard({
   const pagination = data?.pagination;
   const totalPages = pagination ? Math.ceil(pagination.total / pageSize) : 0;
 
+  // Fetch user profiles for current page
+  const userIds = users.filter(u => u.userId).map(u => u.userId!);
+  const { data: profilesData } = useQuery({
+    queryKey: ['stats', 'user-profiles', userIds],
+    queryFn: async () => {
+      if (userIds.length === 0) return null;
+      const res = await fetch('/api/stats/user-profiles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userIds }),
+      });
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: userIds.length > 0,
+  });
+
+  const profilesMap = new Map<string, { displayName: string; email?: string | null }>();
+  if (profilesData?.data) {
+    for (const profile of profilesData.data) {
+      profilesMap.set(profile.id, {
+        displayName: profile.displayName,
+        email: profile.email,
+      });
+    }
+  }
+
+  const showEmails = profilesData?.showEmails ?? false;
+
   return (
     <Card>
       <CardHeader>
@@ -484,7 +514,7 @@ function TopUsersCard({
           Top Users (by activity)
         </CardTitle>
         <CardDescription>
-          User activity ranking (hashed IDs for privacy)
+          User activity ranking (hover for details)
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -504,19 +534,39 @@ function TopUsersCard({
                 <div className="col-span-2 text-right">Added</div>
                 <div className="col-span-3 text-right">Last Active</div>
               </div>
-              {users.map((user, i) => (
-                <div key={user.userHash} className="grid grid-cols-12 text-sm items-center py-1.5 hover:bg-muted/50 rounded">
-                  <div className="col-span-1 text-muted-foreground">{page * pageSize + i + 1}</div>
-                  <div className="col-span-4 font-mono text-xs truncate" title={user.userHash}>
-                    {user.userHash.slice(0, 12)}...
-                  </div>
-                  <div className="col-span-2 text-right font-medium">{user.eventCount}</div>
-                  <div className="col-span-2 text-right text-green-600">{user.tracksAdded}</div>
-                  <div className="col-span-3 text-right text-xs text-muted-foreground">
-                    {new Date(user.lastActive).toLocaleDateString()}
-                  </div>
-                </div>
-              ))}
+              {users.map((user, i) => {
+                const profile = user.userId ? profilesMap.get(user.userId) : null;
+                return (
+                  <Tooltip key={user.userHash}>
+                    <TooltipTrigger asChild>
+                      <div className="grid grid-cols-12 text-sm items-center py-1.5 hover:bg-muted/50 rounded cursor-help">
+                        <div className="col-span-1 text-muted-foreground">{page * pageSize + i + 1}</div>
+                        <div className="col-span-4 font-mono text-xs truncate" title={user.userHash}>
+                          {user.userHash.slice(0, 12)}...
+                        </div>
+                        <div className="col-span-2 text-right font-medium">{user.eventCount}</div>
+                        <div className="col-span-2 text-right text-green-600">{user.tracksAdded}</div>
+                        <div className="col-span-3 text-right text-xs text-muted-foreground">
+                          {new Date(user.lastActive).toLocaleDateString()}
+                        </div>
+                      </div>
+                    </TooltipTrigger>
+                    {profile && (
+                      <TooltipContent side="right" className="max-w-xs">
+                        <div className="space-y-1">
+                          <div className="font-medium">{profile.displayName}</div>
+                          {showEmails && profile.email && (
+                            <div className="text-xs text-muted-foreground">{profile.email}</div>
+                          )}
+                          <div className="text-xs text-muted-foreground border-t pt-1 mt-1">
+                            {user.tracksRemoved} removed · {user.eventCount} total events
+                          </div>
+                        </div>
+                      </TooltipContent>
+                    )}
+                  </Tooltip>
+                );
+              })}
             </div>
             
             {/* Pagination */}

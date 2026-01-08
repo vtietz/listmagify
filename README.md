@@ -187,6 +187,9 @@ STATS_ALLOWED_USER_IDS=your-spotify-user-id
 | `STATS_DB_PATH` | SQLite database path | `./data/metrics.db` |
 | `STATS_SALT` | Salt for hashing user IDs | `default-salt-change-me` |
 | `STATS_ALLOWED_USER_IDS` | Comma-separated Spotify IDs for /stats access | (none) |
+| `STATS_SHOW_EMAILS` | Show email addresses in stats (dev/admin only) | `false` |
+
+**Privacy Note:** Stats display anonymized hashed user IDs by default. Hover over a user to see their Spotify username. If `STATS_SHOW_EMAILS=true`, email addresses are also shown on hover for identifying users in API settings.
 
 ## Legal Pages (Imprint & Privacy)
 

@@ -64,10 +64,18 @@ export const metricsMigrations: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_aggregates_day ON aggregates_daily(day);
     `,
   },
-  // Future migrations go here:
-  // {
-  //   version: 2,
-  //   name: 'add_user_preferences',
-  //   sql: 'ALTER TABLE sessions ADD COLUMN preferences_json TEXT;',
-  // },
+  {
+    version: 2,
+    name: 'add_user_id_for_profile_fetching',
+    sql: `
+      -- Add user_id column to store actual Spotify user IDs (for profile fetching)
+      -- Keep user_hash for privacy-preserving aggregations
+      ALTER TABLE events ADD COLUMN user_id TEXT;
+      ALTER TABLE sessions ADD COLUMN user_id TEXT;
+      
+      -- Index for efficient user lookups
+      CREATE INDEX IF NOT EXISTS idx_events_user_id ON events(user_id);
+      CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
+    `,
+  },
 ];
