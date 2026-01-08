@@ -1,16 +1,16 @@
 /**
  * Header subcomponents for AppShell.
  * 
- * Extracted from the monolithic Header component for better separation of concerns:
- * - NavLinks: Main navigation buttons
- * - ModeToggles: Compact mode, compare mode, browse panel toggles
- * - MarkerSummary: Clear markers button with badge
- * - MobileMenu: Dropdown menu for mobile devices
+ * Provides an adaptive navigation system with progressive overflow:
+ * - Portrait phone: Shows burger menu (≡) with all items
+ * - Landscape/Desktop: Shows items inline, overflows to three-dot menu (⋯) when space is tight
+ * 
+ * Items are defined once and conditionally rendered based on available space.
  */
 
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { 
   ListMusic, 
@@ -26,6 +26,7 @@ import {
   Columns, 
   Search,
   Music2,
+  MoreHorizontal,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -46,57 +47,150 @@ export interface MarkerStats {
   totalMarkers: number;
 }
 
-interface NavLinksProps {
-  isPlaylistsActive: boolean;
-  isSplitEditorActive: boolean;
+interface AdaptiveNavProps {
+  /** Whether we're in portrait phone mode (use burger menu) */
+  isPhone: boolean;
+  /** Current pathname for active state */
+  pathname: string;
+  /** Whether stats access is available */
   hasStatsAccess: boolean;
-  isStatsActive: boolean;
-}
-
-interface ModeTogglesProps {
+  /** Whether browse panel is open */
   isBrowseOpen: boolean;
+  /** Toggle browse panel */
   toggleBrowse: () => void;
+  /** Whether player is visible */
   isPlayerVisible: boolean;
+  /** Toggle player visibility */
   togglePlayerVisible: () => void;
+  /** Whether player toggle should be shown (split-editor/playlists pages) */
   supportsPlayer: boolean;
+  /** Whether compact mode is enabled */
   isCompact: boolean;
+  /** Toggle compact mode */
   toggleCompact: () => void;
+  /** Whether compare mode is enabled */
   isCompareEnabled: boolean;
+  /** Toggle compare mode */
   toggleCompare: () => void;
+  /** Whether compare toggle should be shown */
   supportsCompare: boolean;
-}
-
-interface MarkerSummaryProps {
+  /** Marker statistics */
   markerStats: MarkerStats;
-  clearAllMarkers: () => void;
-}
-
-interface MobileMenuProps {
-  isPlaylistsActive: boolean;
-  isSplitEditorActive: boolean;
-  isStatsActive: boolean;
-  isCompact: boolean;
-  toggleCompact: () => void;
-  isCompareEnabled: boolean;
-  toggleCompare: () => void;
-  supportsCompare: boolean;
-  hasStatsAccess: boolean;
-  markerStats: MarkerStats;
+  /** Clear all markers */
   clearAllMarkers: () => void;
 }
 
 // ============================================================================
-// NavLinks - Main navigation buttons
+// AdaptiveNav - Unified navigation with progressive overflow
 // ============================================================================
 
-export function NavLinks({ 
-  isPlaylistsActive, 
-  isSplitEditorActive,
+export function AdaptiveNav({
+  isPhone,
+  pathname,
   hasStatsAccess,
-  isStatsActive,
-}: NavLinksProps) {
+  isBrowseOpen,
+  toggleBrowse,
+  isPlayerVisible,
+  togglePlayerVisible,
+  supportsPlayer,
+  isCompact,
+  toggleCompact,
+  isCompareEnabled,
+  toggleCompare,
+  supportsCompare,
+  markerStats,
+  clearAllMarkers,
+}: AdaptiveNavProps) {
+  const isPlaylistsActive = pathname === '/playlists' || pathname.startsWith('/playlists/');
+  const isSplitEditorActive = pathname === '/split-editor';
+  const isStatsActive = pathname === '/stats' || pathname.startsWith('/stats/');
+
+  // Portrait phone: Always show burger menu
+  if (isPhone) {
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="sm" className="h-7 px-2">
+            <Menu className="h-4 w-4" />
+            <span className="sr-only">Menu</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuItem asChild>
+            <Link href="/playlists" className="flex items-center gap-2 cursor-pointer">
+              <ListMusic className="h-4 w-4" />
+              Playlists
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/split-editor" className="flex items-center gap-2 cursor-pointer">
+              <Columns className="h-4 w-4" />
+              Panels
+            </Link>
+          </DropdownMenuItem>
+          {hasStatsAccess && (
+            <DropdownMenuItem asChild>
+              <Link href="/stats" className="flex items-center gap-2 cursor-pointer">
+                <BarChart3 className="h-4 w-4" />
+                Stats
+              </Link>
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuSeparator />
+          {/* Browse and Player are handled by bottom nav, so exclude them here */}
+          <DropdownMenuItem onClick={toggleCompact} className="flex items-center gap-2 cursor-pointer">
+            <Minimize2 className="h-4 w-4" />
+            Compact
+            {isCompact && <span className="ml-auto text-xs text-muted-foreground">✓</span>}
+          </DropdownMenuItem>
+          {supportsCompare && (
+            <DropdownMenuItem onClick={toggleCompare} className="flex items-center gap-2 cursor-pointer">
+              <GitCompare className="h-4 w-4" />
+              Compare
+              {isCompareEnabled && <span className="ml-auto text-xs text-muted-foreground">✓</span>}
+            </DropdownMenuItem>
+          )}
+          {markerStats.totalMarkers > 0 && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={clearAllMarkers} className="flex items-center gap-2 cursor-pointer">
+                <MapPinOff className="h-4 w-4" />
+                Clear Markers
+                <span className="ml-auto text-xs bg-orange-500 text-white px-1.5 py-0.5 rounded-full">
+                  {markerStats.totalMarkers}
+                </span>
+              </DropdownMenuItem>
+            </>
+          )}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem asChild>
+            <Link href="/logout" className="flex items-center gap-2 cursor-pointer text-muted-foreground">
+              <LogOut className="h-4 w-4" />
+              Logout
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem asChild>
+            <Link href="/privacy" className="flex items-center gap-2 cursor-pointer text-muted-foreground">
+              <Shield className="h-4 w-4" />
+              Privacy
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/imprint" className="flex items-center gap-2 cursor-pointer text-muted-foreground">
+              <FileText className="h-4 w-4" />
+              Imprint
+            </Link>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  }
+
+  // Landscape/Desktop: Show all items inline (no overflow for now - can be added later with ResizeObserver)
   return (
-    <>
+    <div className="flex items-center gap-1">
+      {/* Main navigation */}
       <Button
         variant={isPlaylistsActive ? 'secondary' : 'ghost'}
         size="sm"
@@ -105,7 +199,7 @@ export function NavLinks({
       >
         <Link href="/playlists">
           <ListMusic className="h-3.5 w-3.5" />
-          Playlists
+          <span className="hidden lg:inline">Playlists</span>
         </Link>
       </Button>
       <Button
@@ -116,7 +210,7 @@ export function NavLinks({
       >
         <Link href="/split-editor">
           <Columns className="h-3.5 w-3.5" />
-          Panels
+          <span className="hidden lg:inline">Panels</span>
         </Link>
       </Button>
       {hasStatsAccess && (
@@ -128,41 +222,21 @@ export function NavLinks({
         >
           <Link href="/stats">
             <BarChart3 className="h-3.5 w-3.5" />
-            Stats
+            <span className="hidden lg:inline">Stats</span>
           </Link>
         </Button>
       )}
-    </>
-  );
-}
 
-// ============================================================================
-// ModeToggles - Browse panel, compact mode, compare mode toggles
-// ============================================================================
-
-export function ModeToggles({
-  isBrowseOpen,
-  toggleBrowse,
-  isPlayerVisible,
-  togglePlayerVisible,
-  supportsPlayer,
-  isCompact,
-  toggleCompact,
-  isCompareEnabled,
-  toggleCompare,
-  supportsCompare,
-}: ModeTogglesProps) {
-  return (
-    <>
+      {/* Mode toggles */}
       <Button
         variant={isBrowseOpen ? 'secondary' : 'ghost'}
         size="sm"
         onClick={toggleBrowse}
         className="h-7 gap-1.5 cursor-pointer"
-        title="Toggle browse panel (search & Last.fm)"
+        title="Toggle browse panel"
       >
         <Search className="h-3.5 w-3.5" />
-        Browse
+        <span className="hidden xl:inline">Browse</span>
       </Button>
       {supportsPlayer && (
         <Button
@@ -170,10 +244,10 @@ export function ModeToggles({
           size="sm"
           onClick={togglePlayerVisible}
           className="h-7 gap-1.5 cursor-pointer"
-          title="Toggle player visibility"
+          title="Toggle player"
         >
           <Music2 className="h-3.5 w-3.5" />
-          Player
+          <span className="hidden xl:inline">Player</span>
         </Button>
       )}
       <Button
@@ -184,7 +258,7 @@ export function ModeToggles({
         title="Toggle compact mode"
       >
         <Minimize2 className="h-3.5 w-3.5" />
-        Compact
+        <span className="hidden xl:inline">Compact</span>
       </Button>
       {supportsCompare && (
         <Button
@@ -192,59 +266,56 @@ export function ModeToggles({
           size="sm"
           onClick={toggleCompare}
           className="h-7 gap-1.5 cursor-pointer"
-          title="Compare mode: color tracks by presence across panels"
+          title="Compare mode"
         >
           <GitCompare className="h-3.5 w-3.5" />
-          Compare
+          <span className="hidden 2xl:inline">Compare</span>
         </Button>
       )}
-    </>
-  );
-}
 
-// ============================================================================
-// MarkerSummary - Clear markers button with badge
-// ============================================================================
-
-export function MarkerSummary({ markerStats, clearAllMarkers }: MarkerSummaryProps) {
-  if (markerStats.totalMarkers === 0) {
-    return null;
-  }
-
-  return (
-    <Button
-      variant="ghost"
-      size="sm"
-      onClick={clearAllMarkers}
-      className="h-7 gap-1.5 cursor-pointer"
-      title={`Clear all ${markerStats.totalMarkers} marker${markerStats.totalMarkers > 1 ? 's' : ''} in ${markerStats.playlistCount} playlist${markerStats.playlistCount > 1 ? 's' : ''}`}
-    >
-      <MapPinOff className="h-3.5 w-3.5" />
-      Clear Markers
-      <span className="text-xs bg-orange-500 text-white px-1.5 py-0.5 rounded-full">
-        {markerStats.totalMarkers}
-      </span>
-    </Button>
-  );
-}
-
-// ============================================================================
-// LogoutButton - Logout link with icon
-// ============================================================================
-
-export function LogoutButton() {
-  return (
-    <Button
-      variant="ghost"
-      size="sm"
-      asChild
-      className="h-7 gap-1.5 cursor-pointer text-muted-foreground"
-    >
-      <Link href="/logout">
-        <LogOut className="h-3.5 w-3.5" />
-        Logout
-      </Link>
-    </Button>
+      {/* Overflow menu with remaining items */}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="sm" className="h-7 px-2" title="More options">
+            <MoreHorizontal className="h-4 w-4" />
+            <span className="sr-only">More</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-48">
+          {markerStats.totalMarkers > 0 && (
+            <>
+              <DropdownMenuItem onClick={clearAllMarkers} className="flex items-center gap-2 cursor-pointer">
+                <MapPinOff className="h-4 w-4" />
+                Clear Markers
+                <span className="ml-auto text-xs bg-orange-500 text-white px-1.5 py-0.5 rounded-full">
+                  {markerStats.totalMarkers}
+                </span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
+          )}
+          <DropdownMenuItem asChild>
+            <Link href="/logout" className="flex items-center gap-2 cursor-pointer">
+              <LogOut className="h-4 w-4" />
+              Logout
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem asChild>
+            <Link href="/privacy" className="flex items-center gap-2 cursor-pointer text-muted-foreground">
+              <Shield className="h-4 w-4" />
+              Privacy
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/imprint" className="flex items-center gap-2 cursor-pointer text-muted-foreground">
+              <FileText className="h-4 w-4" />
+              Imprint
+            </Link>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   );
 }
 
@@ -265,103 +336,5 @@ export function LoginButton() {
         Login
       </Link>
     </Button>
-  );
-}
-
-// ============================================================================
-// MobileMenu - Dropdown menu for mobile devices
-// ============================================================================
-
-export function MobileMenu({
-  isPlaylistsActive,
-  isSplitEditorActive,
-  isStatsActive,
-  isCompact,
-  toggleCompact,
-  isCompareEnabled,
-  toggleCompare,
-  supportsCompare,
-  hasStatsAccess,
-  markerStats,
-  clearAllMarkers,
-}: MobileMenuProps) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="sm" className="h-7 gap-1.5">
-          <Menu className="h-4 w-4" />
-          Menu
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-48">
-        <DropdownMenuItem asChild>
-          <Link href="/playlists" className="flex items-center gap-2 cursor-pointer">
-            <ListMusic className="h-4 w-4" />
-            Playlists
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href="/split-editor" className="flex items-center gap-2 cursor-pointer">
-            <Columns className="h-4 w-4" />
-            Panels
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={toggleCompact} className="flex items-center gap-2 cursor-pointer">
-          <Minimize2 className="h-4 w-4" />
-          Compact
-          {isCompact && <span className="ml-auto text-xs text-muted-foreground">✓</span>}
-        </DropdownMenuItem>
-        {supportsCompare && (
-          <DropdownMenuItem onClick={toggleCompare} className="flex items-center gap-2 cursor-pointer">
-            <GitCompare className="h-4 w-4" />
-            Compare
-            {isCompareEnabled && <span className="ml-auto text-xs text-muted-foreground">✓</span>}
-          </DropdownMenuItem>
-        )}
-        {markerStats.totalMarkers > 0 && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={clearAllMarkers} className="flex items-center gap-2 cursor-pointer">
-              <MapPinOff className="h-4 w-4" />
-              Clear Markers
-              <span className="ml-auto text-xs bg-orange-500 text-white px-1.5 py-0.5 rounded-full">
-                {markerStats.totalMarkers}
-              </span>
-            </DropdownMenuItem>
-          </>
-        )}
-        {hasStatsAccess && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              <Link href="/stats" className="flex items-center gap-2 cursor-pointer">
-                <BarChart3 className="h-4 w-4" />
-                Stats
-              </Link>
-            </DropdownMenuItem>
-          </>
-        )}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-          <Link href="/logout" className="flex items-center gap-2 cursor-pointer text-muted-foreground">
-            <LogOut className="h-4 w-4" />
-            Logout
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-          <Link href="/privacy" className="flex items-center gap-2 cursor-pointer text-muted-foreground">
-            <Shield className="h-4 w-4" />
-            Privacy
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href="/imprint" className="flex items-center gap-2 cursor-pointer text-muted-foreground">
-            <FileText className="h-4 w-4" />
-            Imprint
-          </Link>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
   );
 }

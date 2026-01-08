@@ -15,11 +15,7 @@ import { BrowsePanel } from "@/components/split-editor/BrowsePanel";
 import { AppLogo } from "@/components/ui/app-logo";
 import { AppFooter } from "@/components/ui/app-footer";
 import {
-  NavLinks,
-  ModeToggles,
-  MarkerSummary,
-  MobileMenu,
-  LogoutButton,
+  AdaptiveNav,
   LoginButton,
   type MarkerStats,
 } from "./HeaderComponents";
@@ -136,6 +132,7 @@ function Header({ title }: { title: string }) {
   const playlists = useInsertionPointsStore((s) => s.playlists);
   const { authenticated, loading } = useSessionUser();
   const { hasAccess: hasStatsAccess } = useStatsAccess();
+  const { isPhone } = useDeviceType();
   
   // Compute marker stats from playlists state using memoized selector
   const markerStats: MarkerStats = React.useMemo(() => {
@@ -163,52 +160,23 @@ function Header({ title }: { title: string }) {
       <nav className="flex items-center gap-1 text-sm">
         {/* Only show nav items when authenticated */}
         {authenticated && (
-          <>
-            {/* Desktop navigation - visible on md and larger screens */}
-            <div className="hidden md:flex items-center gap-1">
-              <NavLinks
-                isPlaylistsActive={isPlaylistsActive}
-                isSplitEditorActive={isSplitEditorActive}
-                hasStatsAccess={hasStatsAccess}
-                isStatsActive={isStatsActive}
-              />
-              <ModeToggles
-                isBrowseOpen={isBrowseOpen}
-                toggleBrowse={toggleBrowse}
-                isPlayerVisible={isPlayerVisible}
-                togglePlayerVisible={togglePlayerVisible}
-                supportsPlayer={supportsPlayerAndCompare}
-                isCompact={isCompact}
-                toggleCompact={toggleCompact}
-                isCompareEnabled={isCompareEnabled}
-                toggleCompare={toggleCompare}
-                supportsCompare={supportsPlayerAndCompare}
-              />
-              <MarkerSummary
-                markerStats={markerStats}
-                clearAllMarkers={clearAllMarkers}
-              />
-              <div className="w-px h-4 bg-border mx-2" />
-              {!loading && <LogoutButton />}
-            </div>
-
-            {/* Mobile navigation - dropdown menu visible on smaller screens */}
-            <div className="md:hidden">
-              <MobileMenu
-                isPlaylistsActive={isPlaylistsActive}
-                isSplitEditorActive={isSplitEditorActive}
-                isStatsActive={isStatsActive}
-                isCompact={isCompact}
-                toggleCompact={toggleCompact}
-                isCompareEnabled={isCompareEnabled}
-                toggleCompare={toggleCompare}
-                supportsCompare={supportsPlayerAndCompare}
-                hasStatsAccess={hasStatsAccess}
-                markerStats={markerStats}
-                clearAllMarkers={clearAllMarkers}
-              />
-            </div>
-          </>
+          <AdaptiveNav
+            isPhone={isPhone}
+            pathname={pathname}
+            hasStatsAccess={hasStatsAccess}
+            isBrowseOpen={isBrowseOpen}
+            toggleBrowse={toggleBrowse}
+            isPlayerVisible={isPlayerVisible}
+            togglePlayerVisible={togglePlayerVisible}
+            supportsPlayer={supportsPlayerAndCompare}
+            isCompact={isCompact}
+            toggleCompact={toggleCompact}
+            isCompareEnabled={isCompareEnabled}
+            toggleCompare={toggleCompare}
+            supportsCompare={supportsPlayerAndCompare}
+            markerStats={markerStats}
+            clearAllMarkers={clearAllMarkers}
+          />
         )}
         
         {/* Show Login button when not authenticated */}

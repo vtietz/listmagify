@@ -107,14 +107,20 @@ export function useDeviceType(): DeviceInfo {
     const width = window.innerWidth;
     const height = window.innerHeight;
     const deviceType = getDeviceType(width);
+    const orientation = getOrientation(width, height);
+    
+    // Landscape phones use desktop layout for better space utilization
+    // This makes isPhone=false so components render desktop mode
+    const isPhoneLandscape = deviceType === 'phone' && orientation === 'landscape';
+    const effectiveIsPhone = deviceType === 'phone' && !isPhoneLandscape;
     
     setDeviceInfo({
       deviceType,
-      orientation: getOrientation(width, height),
+      orientation,
       hasTouch: checkTouchSupport(),
-      isPhone: deviceType === 'phone',
+      isPhone: effectiveIsPhone,
       isTablet: deviceType === 'tablet',
-      isDesktop: deviceType === 'desktop',
+      isDesktop: deviceType === 'desktop' || isPhoneLandscape,
       maxPanels: MAX_PANELS_BY_DEVICE[deviceType],
       viewportWidth: width,
       viewportHeight: height,
