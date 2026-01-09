@@ -34,6 +34,143 @@ interface BrowsePanelProps {
   isMobileOverlay?: boolean;
 }
 
+/** Extract selected track IDs from panels for recommendations */
+function useSelectedTrackIds(panels: ReturnType<typeof useSplitGridStore.getState>['panels']) {
+  return useMemo(() => {
+    const selectedIds: string[] = [];
+    let contextPlaylistId: string | undefined;
+    
+    for (const panel of panels) {
+      const selectionItems = panel.selection instanceof Set 
+        ? Array.from(panel.selection) 
+        : Array.isArray(panel.selection) ? panel.selection : [];
+      
+      for (const selectionKey of selectionItems) {
+        const parsed = parseSelectionKey(selectionKey);
+        if (parsed) selectedIds.push(parsed.trackId);
+      }
+      
+      if (panel.playlistId && !contextPlaylistId) {
+        contextPlaylistId = panel.playlistId;
+      }
+    }
+    
+    return {
+      selectedTrackIds: [...new Set(selectedIds)],
+      excludeTrackIds: [] as string[],
+      playlistId: contextPlaylistId,
+    };
+  }, [panels]);
+}
+
+/** Hook to check if Last.fm is enabled */
+function useLastfmEnabled() {
+  const { data } = useQuery({
+    queryKey: ['lastfm-status'],
+    queryFn: async () => {
+      const response = await fetch('/api/lastfm/status');
+      if (!response.ok) return { enabled: false };
+      return response.json() as Promise<{ enabled: boolean }>;
+    },
+    staleTime: Infinity,
+  });
+  return data?.enabled ?? false;
+}
+
+/** Hook for horizontal resize drag behavior */
+function useHorizontalResize(initialWidth: number, setWidth: (w: number) => void) {
+  const [isResizing, setIsResizing] = useState(false);
+  
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+    const startX = e.clientX;
+    const startWidth = initialWidth;
+    
+    const handleMouseMove = (e: MouseEvent) => {
+      setWidth(startWidth + (startX - e.clientX));
+    };
+    
+    const handleMouseUp = () => {
+      setIsResizing(false);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+    
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }, [initialWidth, setWidth]);
+  
+  return { isResizing, handleResizeStart };
+}
+
+/** Hook for vertical resize drag behavior */
+function useVerticalResize(initialHeight: number, setHeight: (h: number) => void) {
+  const [isResizing, setIsResizing] = useState(false);
+  
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsResizing(true);
+    const startY = e.clientY;
+    const startHeight = initialHeight;
+    
+    const handleMouseMove = (e: MouseEvent) => {
+      setHeight(startHeight + (startY - e.clientY));
+    };
+    
+    const handleMouseUp = () => {
+      setIsResizing(false);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+    
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }, [initialHeight, setHeight]);
+  
+  return { isResizing, handleResizeStart };
+}
+
+/** Tab switcher component */
+function TabSwitcher({ activeTab, setActiveTab }: { 
+  activeTab: BrowseTab; 
+  setActiveTab: (tab: BrowseTab) => void;
+}) {
+  return (
+    <div className="flex border-b border-border">
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => setActiveTab('spotify')}
+        className={cn(
+          'flex-1 rounded-none h-9 gap-1.5',
+          activeTab === 'spotify' 
+            ? 'bg-accent text-accent-foreground' 
+            : 'text-muted-foreground hover:text-foreground'
+        )}
+      >
+        <Search className="h-3.5 w-3.5" />
+        Spotify
+      </Button>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => setActiveTab('lastfm')}
+        className={cn(
+          'flex-1 rounded-none h-9 gap-1.5',
+          activeTab === 'lastfm' 
+            ? 'bg-accent text-accent-foreground' 
+            : 'text-muted-foreground hover:text-foreground'
+        )}
+      >
+        <Radio className="h-3.5 w-3.5" />
+        Last.fm
+      </Button>
+    </div>
+  );
+}
+
 export function BrowsePanel({ defaultTab, isMobileOverlay = false }: BrowsePanelProps = {}) {
   const { 
     isOpen, 
@@ -51,102 +188,10 @@ export function BrowsePanel({ defaultTab, isMobileOverlay = false }: BrowsePanel
   const resizeRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   
-  // Check if Last.fm is enabled
-  const { data: lastfmStatus } = useQuery({
-    queryKey: ['lastfm-status'],
-    queryFn: async () => {
-      const response = await fetch('/api/lastfm/status');
-      if (!response.ok) return { enabled: false };
-      return response.json() as Promise<{ enabled: boolean }>;
-    },
-    staleTime: Infinity,
-  });
-  const lastfmEnabled = lastfmStatus?.enabled ?? false;
-  
-  // Track resize dragging state for visual feedback
-  const [isResizing, setIsResizing] = useState(false);
-  const [isResizingRecs, setIsResizingRecs] = useState(false);
-  
-  // Get selected track IDs from all panels for recommendations
-  const { selectedTrackIds, excludeTrackIds, playlistId } = useMemo(() => {
-    const selectedIds: string[] = [];
-    const allPlaylistTrackIds: string[] = [];
-    let contextPlaylistId: string | undefined;
-    
-    for (const panel of panels) {
-      // Collect selected track IDs from selection keys
-      // Handle both Set and Array (in case of serialization issues)
-      const selectionItems = panel.selection instanceof Set 
-        ? Array.from(panel.selection) 
-        : Array.isArray(panel.selection) 
-          ? panel.selection 
-          : [];
-      
-      for (const selectionKey of selectionItems) {
-        // Selection keys are in format "trackId::position"
-        const parsed = parseSelectionKey(selectionKey);
-        if (parsed) {
-          selectedIds.push(parsed.trackId);
-        }
-      }
-      
-      // Use first panel's playlist ID as context
-      if (panel.playlistId && !contextPlaylistId) {
-        contextPlaylistId = panel.playlistId;
-      }
-    }
-    
-    return {
-      selectedTrackIds: [...new Set(selectedIds)],
-      excludeTrackIds: allPlaylistTrackIds,
-      playlistId: contextPlaylistId,
-    };
-  }, [panels]);
-  
-  // Handle panel width resize drag
-  const handleResizeStart = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    setIsResizing(true);
-    const startX = e.clientX;
-    const startWidth = width;
-    
-    const handleMouseMove = (e: MouseEvent) => {
-      const delta = startX - e.clientX;
-      setWidth(startWidth + delta);
-    };
-    
-    const handleMouseUp = () => {
-      setIsResizing(false);
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-    
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-  }, [width, setWidth]);
-  
-  // Handle recommendations panel height resize
-  const handleRecsResizeStart = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsResizingRecs(true);
-    const startY = e.clientY;
-    const startHeight = recsHeight;
-    
-    const handleMouseMove = (e: MouseEvent) => {
-      const delta = startY - e.clientY;
-      setRecsHeight(startHeight + delta);
-    };
-    
-    const handleMouseUp = () => {
-      setIsResizingRecs(false);
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-    
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-  }, [recsHeight, setRecsHeight]);
+  const lastfmEnabled = useLastfmEnabled();
+  const { selectedTrackIds, excludeTrackIds, playlistId } = useSelectedTrackIds(panels);
+  const { isResizing, handleResizeStart } = useHorizontalResize(width, setWidth);
+  const { isResizing: isResizingRecs, handleResizeStart: handleRecsResizeStart } = useVerticalResize(recsHeight, setRecsHeight);
   
   // Set initial tab from prop (for mobile overlay)
   useEffect(() => {
@@ -201,38 +246,9 @@ export function BrowsePanel({ defaultTab, isMobileOverlay = false }: BrowsePanel
         </div>
       )}
       
-      {/* Tab switcher - only show if Last.fm is enabled and NOT on mobile overlay (mobile has bottom nav buttons) */}
+      {/* Tab switcher - only show if Last.fm is enabled and NOT on mobile overlay */}
       {lastfmEnabled && !isMobileOverlay && (
-        <div className="flex border-b border-border">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setActiveTab('spotify')}
-            className={cn(
-              'flex-1 rounded-none h-9 gap-1.5',
-              activeTab === 'spotify' 
-                ? 'bg-accent text-accent-foreground' 
-                : 'text-muted-foreground hover:text-foreground'
-            )}
-          >
-            <Search className="h-3.5 w-3.5" />
-            Spotify
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setActiveTab('lastfm')}
-            className={cn(
-              'flex-1 rounded-none h-9 gap-1.5',
-              activeTab === 'lastfm' 
-                ? 'bg-accent text-accent-foreground' 
-                : 'text-muted-foreground hover:text-foreground'
-            )}
-          >
-            <Radio className="h-3.5 w-3.5" />
-            Last.fm
-          </Button>
-        </div>
+        <TabSwitcher activeTab={activeTab} setActiveTab={setActiveTab} />
       )}
       
       {/* Tab content - takes remaining space */}
