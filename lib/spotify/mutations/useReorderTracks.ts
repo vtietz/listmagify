@@ -78,15 +78,24 @@ export function useReorderTracks() {
 
       return { previousInfiniteData, previousData };
     },
-    onSuccess: async (data: MutationResponse, params: ReorderTracksParams) => {
-      // Refetch from server to get correct positions
-      // This ensures the UI reflects the exact server state after reorder
-      await queryClient.refetchQueries({
-        queryKey: playlistTracksInfinite(params.playlistId),
-      });
-
-      // Also update legacy query snapshotId
+    onSuccess: (data: MutationResponse, params: ReorderTracksParams) => {
+      // Update snapshotId to keep cache in sync with server
       updateLegacySnapshotId(queryClient, params.playlistId, data.snapshotId);
+
+      // Update snapshotId in infinite query pages
+      const currentData = queryClient.getQueryData<InfinitePlaylistData>(
+        playlistTracksInfinite(params.playlistId)
+      );
+      if (currentData?.pages) {
+        const updatedData = {
+          ...currentData,
+          pages: currentData.pages.map((page) => ({
+            ...page,
+            snapshotId: data.snapshotId,
+          })),
+        };
+        queryClient.setQueryData(playlistTracksInfinite(params.playlistId), updatedData);
+      }
 
       eventBus.emit('playlist:update', { playlistId: params.playlistId, cause: 'reorder' });
       // Success - no toast needed

@@ -143,6 +143,7 @@ export function usePlaylistTracksInfinite({
   }, [playlistId]);
 
   // Flatten all pages into a single tracks array with stable reference
+  // Include dataUpdatedAt in deps to trigger re-memoization when cache is updated via setQueryData
   const allTracks = useMemo(() => {
     if (!data?.pages) return [];
     
@@ -161,7 +162,7 @@ export function usePlaylistTracksInfinite({
     }
     
     return tracks;
-  }, [data?.pages]);
+  }, [data?.pages, dataUpdatedAt]);
 
   // Get latest snapshot ID from most recent page
   const snapshotId = data?.pages[data.pages.length - 1]?.snapshotId;

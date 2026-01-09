@@ -143,12 +143,22 @@ export function getComparator(sortKey: SortKey): (a: Track, b: Track) => number 
 
 /**
  * Sort tracks by the given key and direction
+ * Note: When sortKey is "position" with "asc" direction, returns tracks as-is
+ * because the array order already represents the playlist order.
+ * This is crucial for optimistic updates where array order changes but
+ * position fields may not be updated yet.
  */
 export function sortTracks(
   tracks: Track[],
   sortKey: SortKey,
   direction: SortDirection = "asc"
 ): Track[] {
+  // For default playlist order (position asc), preserve array order
+  // The array order IS the playlist order - don't re-sort by position fields
+  if (sortKey === "position" && direction === "asc") {
+    return tracks;
+  }
+  
   const comparator = getComparator(sortKey);
   const sorted = [...tracks].sort(comparator);
   return direction === "desc" ? sorted.reverse() : sorted;

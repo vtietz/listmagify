@@ -88,6 +88,22 @@ export function useRemoveTracks() {
       // Update snapshotId in both caches without refetching
       updateBothSnapshotIds(queryClient, params.playlistId, data);
 
+      // Update total count in infinite query pages after removal
+      const currentData = queryClient.getQueryData<InfinitePlaylistData>(
+        playlistTracksInfinite(params.playlistId)
+      );
+      if (currentData?.pages) {
+        const newTotal = currentData.pages.reduce((sum, page) => sum + page.tracks.length, 0);
+        const updatedData = {
+          ...currentData,
+          pages: currentData.pages.map((page) => ({
+            ...page,
+            total: newTotal,
+          })),
+        };
+        queryClient.setQueryData(playlistTracksInfinite(params.playlistId), updatedData);
+      }
+
       eventBus.emit('playlist:update', { playlistId: params.playlistId, cause: 'remove' });
       // Success - no toast needed
     },
