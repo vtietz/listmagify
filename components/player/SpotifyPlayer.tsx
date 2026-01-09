@@ -8,7 +8,7 @@
 'use client';
 
 import { useCallback, useState, useEffect, useRef } from 'react';
-import { useDraggable } from '@dnd-kit/core';
+import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { 
   Play, 
   Pause, 
@@ -42,6 +42,7 @@ import { DeviceSelector } from './DeviceSelector';
 import { toast } from '@/lib/ui/toast';
 import { cn } from '@/lib/utils';
 import { formatDuration } from '@/lib/utils/format';
+import { useDeviceType } from '@/hooks/useDeviceType';
 import type { Track } from '@/lib/spotify/types';
 
 interface SpotifyPlayerProps {
@@ -52,6 +53,10 @@ interface SpotifyPlayerProps {
 export function SpotifyPlayer({ forceShow = false }: SpotifyPlayerProps) {
   // Initialize the Web Playback SDK for in-browser playback
   const { isReady: isWebPlayerReady, isInitializing: isWebPlayerInitializing } = useWebPlaybackSDK();
+  
+  // Detect device type for conditional drag behavior
+  const { isPhone, isTablet } = useDeviceType();
+  const isMobileDevice = isPhone || isTablet;
   
   const {
     playbackState,
@@ -173,7 +178,7 @@ export function SpotifyPlayer({ forceShow = false }: SpotifyPlayerProps) {
     album: track.albumName ? { name: track.albumName, image: track.albumImage ? { url: track.albumImage } : null } : null,
   } : null;
 
-  // Set up draggable for the now playing track
+  // Set up draggable for the now playing track (disabled on mobile)
   const {
     attributes: dragAttributes,
     listeners: dragListeners,
@@ -181,7 +186,7 @@ export function SpotifyPlayer({ forceShow = false }: SpotifyPlayerProps) {
     isDragging: isTrackDragging,
   } = useDraggable({
     id: track ? `player-track-${track.id || track.uri}` : 'player-track-empty',
-    disabled: !track || !track.id, // Can't drag if no track or if it's a local file
+    disabled: !track || !track.id || isMobileDevice, // Can't drag if no track, local file, or on mobile
     data: {
       type: 'track',
       trackId: track?.id,
@@ -189,6 +194,15 @@ export function SpotifyPlayer({ forceShow = false }: SpotifyPlayerProps) {
       panelId: 'player', // Special panel ID for the player
       playlistId: undefined, // Not from a specific playlist
       position: 0,
+    },
+  });
+
+  // Set up droppable to accept tracks and play them
+  const { setNodeRef: setDropNodeRef, isOver } = useDroppable({
+    id: 'player-droppable',
+    data: {
+      type: 'player',
+      accepts: ['track'],
     },
   });
 
@@ -309,22 +323,28 @@ export function SpotifyPlayer({ forceShow = false }: SpotifyPlayerProps) {
   }
 
   return (
-    <div className="h-auto min-h-20 border-t border-border bg-background/95 backdrop-blur px-4 py-3">
+    <div 
+      ref={setDropNodeRef}
+      className={cn(
+        "h-auto min-h-20 border-t border-border bg-background/95 backdrop-blur px-4 py-3 transition-colors",
+        isOver && "bg-primary/10"
+      )}
+    >
       <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr_200px] gap-4 items-center">
-        {/* Track info - draggable to add to playlists */}
+        {/* Track info - draggable to add to playlists (desktop only) */}
         <div 
           ref={setDragNodeRef}
           className={cn(
             "flex items-center gap-3 min-w-0 group/track-info rounded-md p-1 -m-1 transition-colors",
-            track.id && "cursor-grab hover:bg-accent/50 touch-action-none",
+            track.id && !isMobileDevice && "cursor-grab hover:bg-accent/50 touch-action-none",
             isTrackDragging && "opacity-50 cursor-grabbing",
             !track.id && "cursor-default"
           )}
-          {...(track.id ? { ...dragAttributes, ...dragListeners } : {})}
-          title={track.id ? "Drag to add to a playlist" : "Local files cannot be added to playlists"}
+          {...(track.id && !isMobileDevice ? { ...dragAttributes, ...dragListeners } : {})}
+          title={track.id && !isMobileDevice ? "Drag to add to a playlist" : track.id ? "" : "Local files cannot be added to playlists"}
         >
-          {/* Drag handle indicator - visible when track can be dragged */}
-          {track.id && (
+          {/* Drag handle indicator - visible when track can be dragged (desktop only) */}
+          {track.id && !isMobileDevice && (
             <GripVertical className="h-5 w-5 text-muted-foreground/70 group-hover/track-info:text-muted-foreground transition-colors shrink-0" />
           )}
           {track.albumImage && (

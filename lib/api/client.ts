@@ -88,6 +88,8 @@ export async function apiFetch<T = any>(
       throw new AccessTokenExpiredError(data.error || "Session expired");
     }
 
+    const requestPath = url.split("?")[0];
+
     // Handle 429 Rate Limit - report to error store
     if (response.status === 429) {
       const retryAfter = response.headers.get("Retry-After");
@@ -95,7 +97,7 @@ export async function apiFetch<T = any>(
         ? parseInt(retryAfter, 10) * 1000 
         : 60 * 60 * 1000; // Default to 1 hour
       
-      const requestPath = url.split("?")[0]; // Remove query params
+      // Remove query params for reporting
       const rateLimitError = createRateLimitError(retryAfterMs, requestPath);
       
       // Report to error store and show dialog
@@ -113,20 +115,24 @@ export async function apiFetch<T = any>(
     if (!response.ok) {
       const errorMessage = data.error || data.details || `Request failed: ${response.status} ${response.statusText}`;
       const apiError = new ApiError(errorMessage, response.status, data);
+
+      const suppressDialog =
+        requestPath === '/api/player/control' && data?.error === 'no_active_device';
       
       // Report API errors to error store and show dialog (except auth errors handled above)
-      const requestPath = url.split("?")[0];
-      const appError = createAppError({
-        message: errorMessage,
-        details: data.details || (data.error && typeof data.error === 'object' ? JSON.stringify(data.error) : undefined),
-        category: 'api',
-        severity: response.status >= 500 ? 'error' : 'warning',
-        statusCode: response.status,
-        ...(requestPath ? { requestPath } : {}),
-      });
-      
-      reportError(appError);
-      useErrorStore.getState().openDialog(appError);
+      if (!suppressDialog) {
+        const appError = createAppError({
+          message: errorMessage,
+          details: data.details || (data.error && typeof data.error === 'object' ? JSON.stringify(data.error) : undefined),
+          category: 'api',
+          severity: response.status >= 500 ? 'error' : 'warning',
+          statusCode: response.status,
+          ...(requestPath ? { requestPath } : {}),
+        });
+        
+        reportError(appError);
+        useErrorStore.getState().openDialog(appError);
+      }
       
       throw apiError;
     }

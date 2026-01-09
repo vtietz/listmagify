@@ -36,6 +36,8 @@ export function usePointerTracker() {
 
   const handlersRef = useRef<{
     pointerMove?: (e: PointerEvent) => void;
+    touchMove?: (e: TouchEvent) => void;
+    touchStart?: (e: TouchEvent) => void;
     keyChange?: (e: KeyboardEvent) => void;
   }>({});
 
@@ -53,6 +55,21 @@ export function usePointerTracker() {
       };
     };
 
+    const handleTouchUpdate = (e: TouchEvent) => {
+      const primaryTouch = e.touches[0];
+      if (!primaryTouch) return;
+      pointerPositionRef.current = {
+        x: primaryTouch.clientX,
+        y: primaryTouch.clientY,
+      };
+      // Touch events do not carry modifier keys; reset them to avoid stale state
+      modifierKeysRef.current = {
+        ctrlKey: false,
+        altKey: false,
+        shiftKey: false,
+      };
+    };
+
     const handleKeyChange = (e: KeyboardEvent) => {
       modifierKeysRef.current = {
         ctrlKey: e.ctrlKey,
@@ -61,9 +78,16 @@ export function usePointerTracker() {
       };
     };
 
-    handlersRef.current = { pointerMove: handlePointerMove, keyChange: handleKeyChange };
+    handlersRef.current = {
+      pointerMove: handlePointerMove,
+      touchMove: handleTouchUpdate,
+      touchStart: handleTouchUpdate,
+      keyChange: handleKeyChange,
+    };
 
     document.addEventListener('pointermove', handlePointerMove);
+    document.addEventListener('touchstart', handleTouchUpdate, { passive: true });
+    document.addEventListener('touchmove', handleTouchUpdate, { passive: true });
     document.addEventListener('keydown', handleKeyChange);
     document.addEventListener('keyup', handleKeyChange);
   }, []);
@@ -72,10 +96,16 @@ export function usePointerTracker() {
    * Stop tracking and clean up event listeners.
    */
   const stopTracking = useCallback(() => {
-    const { pointerMove, keyChange } = handlersRef.current;
+    const { pointerMove, touchMove, touchStart, keyChange } = handlersRef.current;
     
     if (pointerMove) {
       document.removeEventListener('pointermove', pointerMove);
+    }
+    if (touchStart) {
+      document.removeEventListener('touchstart', touchStart);
+    }
+    if (touchMove) {
+      document.removeEventListener('touchmove', touchMove);
     }
     if (keyChange) {
       document.removeEventListener('keydown', keyChange);

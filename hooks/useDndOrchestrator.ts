@@ -37,6 +37,7 @@ import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { useAddTracks, useRemoveTracks, useReorderTracks } from '@/lib/spotify/playlistMutations';
 import { logDebug } from '@/lib/utils/debug';
 import { getTrackSelectionKey } from '@/lib/dnd/selection';
+import { apiFetch } from '@/lib/api/client';
 import {
   computeAdjustedTargetIndex,
   handleLastfmDrop,
@@ -590,6 +591,28 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
 
     // Source must be a track or lastfm-track
     if (!sourceData || (sourceData.type !== 'track' && sourceData.type !== 'lastfm-track')) {
+      return;
+    }
+
+    // Handle drop onto player - play the track instead of adding to playlist
+    if (targetData?.type === 'player') {
+      const sourceTrack: Track = sourceData.track;
+      if (sourceTrack?.uri) {
+        // Call the player control API directly to play the track
+        apiFetch<{ success?: boolean }>('/api/player/control', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'play',
+            uris: [sourceTrack.uri],
+          }),
+        }).then(() => {
+          toast.success(`Playing "${sourceTrack.name}"`);
+        }).catch((error) => {
+          console.error('[DND] Failed to play track:', error);
+          // Error toast already shown by apiFetch error handler
+        });
+      }
       return;
     }
 
