@@ -21,6 +21,8 @@ interface StandardDragData {
   panelId?: string | undefined;
   playlistId?: string | undefined;
   position: number;
+  /** Selected tracks for browse panels (search, recommendations) */
+  selectedTracks?: Track[] | undefined;
 }
 
 interface LastfmDragData {
@@ -30,6 +32,8 @@ interface LastfmDragData {
   selectedMatchedUris?: string[] | undefined;
   panelId?: string | undefined;
   position: number;
+  /** Selected matched tracks for Last.fm browse panel */
+  selectedTracks?: Track[] | undefined;
 }
 
 export type RowDragData = StandardDragData | LastfmDragData;
@@ -53,6 +57,8 @@ interface UseRowSortableOptions {
   lastfmDto?: { artistName: string; trackName: string; albumName?: string | undefined } | undefined;
   /** All selected tracks' matched URIs for multi-select Last.fm drag */
   selectedMatchedUris?: string[] | undefined;
+  /** All selected tracks for multi-select drag (browse panels) */
+  selectedTracks?: Track[] | undefined;
   /** Callback when drag starts (used to trigger Last.fm matching) */
   onDragStart?: (() => void) | undefined;
 }
@@ -89,6 +95,7 @@ export function useRowSortable({
   matchedTrack,
   lastfmDto,
   selectedMatchedUris,
+  selectedTracks,
   onDragStart,
 }: UseRowSortableOptions): UseRowSortableReturn {
   // Create globally unique composite ID scoped by panel and position
@@ -104,6 +111,7 @@ export function useRowSortable({
         track: lastfmDto,
         matchedTrack,
         selectedMatchedUris,
+        selectedTracks,
         panelId,
         position,
       };
@@ -115,8 +123,9 @@ export function useRowSortable({
       panelId,
       playlistId,
       position,
+      selectedTracks,
     };
-  }, [dragType, lastfmDto, matchedTrack, selectedMatchedUris, panelId, position, trackId, track, playlistId]);
+  }, [dragType, lastfmDto, matchedTrack, selectedMatchedUris, selectedTracks, panelId, position, trackId, track, playlistId]);
 
   const {
     attributes,

@@ -60,6 +60,9 @@ export function RecommendationsPanel({
   const [panelWidth, setPanelWidth] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   
+  // Selection state for recommendations
+  const [recsSelection, setRecsSelection] = useState<number[]>([]);
+  
   // Compare mode: get distribution for coloring (recs panel not included in calculation)
   const isCompareEnabled = useCompareModeStore((s) => s.isEnabled);
   
@@ -190,9 +193,34 @@ export function RecommendationsPanel({
     dismissMutation.mutate({ trackId, contextId: playlistId });
   }, [dismissMutation, playlistId]);
 
-  // Dummy selection handlers (recommendations don't support multi-select)
-  const handleSelect = useCallback(() => {}, []);
-  const handleClick = useCallback(() => {}, []);
+  // Handle track selection with modifier keys
+  const handleSelect = useCallback((_selectionKey: string, index: number, event: React.MouseEvent) => {
+    // Toggle selection based on modifier keys
+    if (event.shiftKey || event.ctrlKey || event.metaKey) {
+      setRecsSelection(prev => {
+        const idx = prev.indexOf(index);
+        if (idx >= 0) {
+          return prev.filter(i => i !== index);
+        }
+        return [...prev, index];
+      });
+    } else {
+      setRecsSelection([index]);
+    }
+  }, []);
+  
+  // Handle click (single select)
+  const handleClick = useCallback((_selectionKey: string, index: number) => {
+    setRecsSelection([index]);
+  }, []);
+  
+  // Get selected tracks for drag operations
+  const getSelectedTracks = useCallback((): Track[] => {
+    return recsSelection
+      .sort((a, b) => a - b)
+      .map((idx) => recommendations[idx]?.track)
+      .filter((t): t is Track => t !== undefined);
+  }, [recsSelection, recommendations]);
 
   // Dynamic row height
   const rowHeight = isCompact ? TRACK_ROW_HEIGHT_COMPACT : TRACK_ROW_HEIGHT;
@@ -340,6 +368,8 @@ export function RecommendationsPanel({
                 onSelect={handleSelect}
                 onClick={handleClick}
                 getCompareColorForTrack={getCompareColorForTrack}
+                recsSelection={recsSelection}
+                getSelectedTracks={getSelectedTracks}
               />
               {/* Invisible trigger for infinite scroll - inside scroll container */}
               {hasMore && (
@@ -384,9 +414,11 @@ interface RecommendationsListProps {
   isTrackLoading: (uri: string) => boolean;
   onPlay: (trackUri: string) => void;
   onPause: () => void;
-  onSelect: () => void;
-  onClick: () => void;
+  onSelect: (_selectionKey: string, index: number, event: React.MouseEvent) => void;
+  onClick: (_selectionKey: string, index: number) => void;
   getCompareColorForTrack: (trackUri: string) => string;
+  recsSelection: number[];
+  getSelectedTracks: () => Track[];
 }
 
 function RecommendationsList({
@@ -402,6 +434,8 @@ function RecommendationsList({
   onSelect,
   onClick,
   getCompareColorForTrack,
+  recsSelection,
+  getSelectedTracks,
 }: RecommendationsListProps) {
   // Convert to Track[] for the list
   const tracks = useMemo(() => 
@@ -422,6 +456,12 @@ function RecommendationsList({
           const trackId = track.id || track.uri;
           const compositeId = makeCompositeId(RECS_PANEL_ID, trackId, index);
           const liked = track.id ? isLiked(track.id) : false;
+          
+          // Get selected tracks if current track is in selection
+          const isCurrentSelected = recsSelection.includes(index);
+          const selectedTracksForDrag = isCurrentSelected && recsSelection.length > 0 
+            ? getSelectedTracks() 
+            : undefined;
 
           return (
             <div 
@@ -433,7 +473,7 @@ function RecommendationsList({
                 track={track}
                 index={index}
                 selectionKey={compositeId}
-                isSelected={false}
+                isSelected={isCurrentSelected}
                 isEditable={false}
                 locked={false}
                 onSelect={onSelect}
@@ -449,6 +489,9 @@ function RecommendationsList({
                 onPlay={onPlay}
                 onPause={onPause}
                 compareColor={getCompareColorForTrack(track.uri)}
+                isMultiSelect={recsSelection.length > 1}
+                selectedCount={recsSelection.length}
+                selectedTracks={selectedTracksForDrag}
               />
               {/* Dismiss button overlay */}
               <Button

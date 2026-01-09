@@ -141,6 +141,8 @@ interface TrackRowProps {
   isMultiSelect?: boolean;
   /** Number of selected tracks */
   selectedCount?: number;
+  /** Selected tracks for multi-select drag (browse panels) */
+  selectedTracks?: Track[] | undefined;
 }
 
 export function TrackRow({
@@ -191,6 +193,7 @@ export function TrackRow({
   contextTrackActions,
   isMultiSelect = false,
   selectedCount = 1,
+  selectedTracks,
 }: TrackRowProps) {
   // Store hooks
   const { isCompact } = useCompactModeStore();
@@ -259,6 +262,7 @@ export function TrackRow({
     matchedTrack,
     lastfmDto,
     selectedMatchedUris,
+    selectedTracks,
     onDragStart,
   });
 

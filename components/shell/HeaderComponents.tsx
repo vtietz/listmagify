@@ -268,7 +268,7 @@ export function AdaptiveNav({
           title="Compare mode"
         >
           <GitCompare className="h-3.5 w-3.5" />
-          <span className="hidden 2xl:inline">Compare</span>
+          <span className="hidden xl:inline">Compare</span>
         </Button>
       )}
 

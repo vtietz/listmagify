@@ -3,6 +3,8 @@
  * Extracts ~400 lines of hooks/effects/callbacks from the component.
  */
 
+'use no memo';
+
 import { useEffect, useRef, useState, useMemo, useCallback, useDeferredValue } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useVirtualizer } from '@tanstack/react-virtual';

@@ -294,16 +294,24 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
     const trackType = active.data.current?.type;
     const compositeId = active.id as string; // e.g., "panel-1:track-abc123"
     const sourcePanel = active.data.current?.panelId;
+    const selectedTracksFromData = active.data.current?.selectedTracks as Track[] | undefined;
     
     // Handle Last.fm track drag start
     if (trackType === 'lastfm-track') {
       const matchedTrack = active.data.current?.matchedTrack;
       const selectedMatchedUris = active.data.current?.selectedMatchedUris as string[] | undefined;
       
-      // Selection count is based on matched URIs (the actual tracks that will be dropped)
-      const selectionCount = selectedMatchedUris && selectedMatchedUris.length > 0 
-        ? selectedMatchedUris.length 
-        : 1;
+      // Use selectedTracks if provided, otherwise fall back to selectedMatchedUris count
+      const dragTracks = selectedTracksFromData && selectedTracksFromData.length > 0
+        ? selectedTracksFromData
+        : undefined;
+      
+      // Selection count is based on matched URIs or selectedTracks
+      const selectionCount = dragTracks 
+        ? dragTracks.length
+        : (selectedMatchedUris && selectedMatchedUris.length > 0 
+            ? selectedMatchedUris.length 
+            : 1);
       
       // Create a minimal Track object for the overlay
       // Use matched Spotify track if available, otherwise use Last.fm track info
@@ -324,6 +332,9 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
             artistObjects: [{ id: null, name: track.artistName }],
             durationMs: 0,
           };
+      
+      // Store drag tracks for the overlay
+      activeDragTracksRef.current = dragTracks ?? [overlayTrack];
       
       setActiveTrack(overlayTrack);
       setActiveSelectionCount(selectionCount);
@@ -355,66 +366,84 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
     }
     
     if (track) {
-      // Resolve ordered selection from the source panel; fall back to the active track
-      const panelSelection = panels.find((p) => p.id === sourcePanel)?.selection ?? new Set<string>();
-      const panelData = sourcePanel ? panelVirtualizersRef.current.get(sourcePanel) : null;
-      const orderedTracks = panelData?.filteredTracks ?? [];
-
-      // Find the index of the dragged track
-      const draggedTrackIndex = orderedTracks.findIndex(t => t.uri === track.uri && t.position === track.position);
-      const draggedTrackKey = getTrackSelectionKey(track, draggedTrackIndex);
-      
-      // Check if the dragged track is part of the current selection
-      const isDraggedTrackSelected = panelSelection.has(draggedTrackKey);
-
-      // Snapshot tracks and selected indices for stable reference during drag
-      orderedTracksSnapshotRef.current = orderedTracks;
-      
-      let dragTracks: Track[];
-      
-      if (isDraggedTrackSelected && panelSelection.size > 0) {
-        // Dragged track is in selection - use all selected tracks
-        const selectedWithIndices = orderedTracks
-          .map((t, idx) => ({ t, idx }))
-          .filter(({ t, idx }) => panelSelection.has(getTrackSelectionKey(t, idx)));
-        selectedIndicesRef.current = selectedWithIndices.map(({ idx }) => idx);
-        dragTracks = selectedWithIndices.map(({ t }) => t);
+      // Check if selectedTracks is provided (from browse panels)
+      if (selectedTracksFromData && selectedTracksFromData.length > 0) {
+        // Browse panel with selection - use provided tracks
+        activeDragTracksRef.current = selectedTracksFromData;
+        selectedIndicesRef.current = selectedTracksFromData.map((_, idx) => idx);
+        orderedTracksSnapshotRef.current = selectedTracksFromData;
+        
+        setActiveTrack(track);
+        setActiveSelectionCount(selectedTracksFromData.length);
+        
+        logDebug('🎵 DRAG START (Browse):', {
+          panelId: sourcePanel,
+          selectedCount: selectedTracksFromData.length,
+          dragging: selectedTracksFromData.map(t => `${t.name ?? 'unknown'}`).join(', ')
+        });
       } else {
-        // Dragged track is NOT in selection - just drag this single track
-        selectedIndicesRef.current = draggedTrackIndex >= 0 ? [draggedTrackIndex] : [];
-        dragTracks = [track];
-      }
+        // Playlist panel - use existing selection logic
+        // Resolve ordered selection from the source panel; fall back to the active track
+        const panelSelection = panels.find((p) => p.id === sourcePanel)?.selection ?? new Set<string>();
+        const panelData = sourcePanel ? panelVirtualizersRef.current.get(sourcePanel) : null;
+        const orderedTracks = panelData?.filteredTracks ?? [];
 
-      activeDragTracksRef.current = dragTracks;
-      // Always show the track that was actually clicked/dragged in the overlay
-      // (not the first selected track which may be different)
-      setActiveTrack(track);
-      setActiveSelectionCount(dragTracks.length);
-      
-      // Simple readable log - server side
-      logDebug('🎵 DRAG START:', {
-        isDraggedTrackSelected,
-        selected: selectedIndicesRef.current,
-        selectedPositions: dragTracks.map(t => t?.position).filter(p => p != null),
-        dragging: dragTracks.map(t => `#${t?.position ?? '?'} ${t?.name ?? 'unknown'}`).join(', ')
-      });
-      
-      console.debug('[DND] start', {
-        panelId: sourcePanel,
-        selectionSize: panelSelection.size,
-        selectionKeys: Array.from(panelSelection).slice(0, 10),
-        orderedLen: orderedTracks.length,
-        selectedCount: selectedIndicesRef.current.length,
-        selectedIndices: selectedIndicesRef.current.slice(0, 25),
-        draggedTrack: track.name,
-        draggedTrackKey,
-        isDraggedTrackSelected,
-        firstFewKeys: orderedTracks.slice(0, 5).map((t, idx) => ({
-          name: t.name,
-          position: t.position,
-          key: getTrackSelectionKey(t, idx)
-        }))
-      });
+        // Find the index of the dragged track
+        const draggedTrackIndex = orderedTracks.findIndex(t => t.uri === track.uri && t.position === track.position);
+        const draggedTrackKey = getTrackSelectionKey(track, draggedTrackIndex);
+        
+        // Check if the dragged track is part of the current selection
+        const isDraggedTrackSelected = panelSelection.has(draggedTrackKey);
+
+        // Snapshot tracks and selected indices for stable reference during drag
+        orderedTracksSnapshotRef.current = orderedTracks;
+        
+        let dragTracks: Track[];
+        
+        if (isDraggedTrackSelected && panelSelection.size > 0) {
+          // Dragged track is in selection - use all selected tracks
+          const selectedWithIndices = orderedTracks
+            .map((t, idx) => ({ t, idx }))
+            .filter(({ t, idx }) => panelSelection.has(getTrackSelectionKey(t, idx)));
+          selectedIndicesRef.current = selectedWithIndices.map(({ idx }) => idx);
+          dragTracks = selectedWithIndices.map(({ t }) => t);
+        } else {
+          // Dragged track is NOT in selection - just drag this single track
+          selectedIndicesRef.current = draggedTrackIndex >= 0 ? [draggedTrackIndex] : [];
+          dragTracks = [track];
+        }
+
+        activeDragTracksRef.current = dragTracks;
+        // Always show the track that was actually clicked/dragged in the overlay
+        // (not the first selected track which may be different)
+        setActiveTrack(track);
+        setActiveSelectionCount(dragTracks.length);
+        
+        // Simple readable log - server side
+        logDebug('🎵 DRAG START:', {
+          isDraggedTrackSelected,
+          selected: selectedIndicesRef.current,
+          selectedPositions: dragTracks.map(t => t?.position).filter(p => p != null),
+          dragging: dragTracks.map(t => `#${t?.position ?? '?'} ${t?.name ?? 'unknown'}`).join(', ')
+        });
+        
+        console.debug('[DND] start', {
+          panelId: sourcePanel,
+          selectionSize: panelSelection.size,
+          selectionKeys: Array.from(panelSelection).slice(0, 10),
+          orderedLen: orderedTracks.length,
+          selectedCount: selectedIndicesRef.current.length,
+          selectedIndices: selectedIndicesRef.current.slice(0, 25),
+          draggedTrack: track.name,
+          draggedTrackKey,
+          isDraggedTrackSelected,
+          firstFewKeys: orderedTracks.slice(0, 5).map((t, idx) => ({
+            name: t.name,
+            position: t.position,
+            key: getTrackSelectionKey(t, idx)
+          }))
+        });
+      }
     }
     setActiveId(compositeId);
     setSourcePanelId(sourcePanel || null);

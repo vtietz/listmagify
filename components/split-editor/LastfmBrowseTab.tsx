@@ -12,6 +12,7 @@
  */
 
 'use client';
+'use no memo';
 
 import { useState, useEffect, useRef, useCallback, useMemo, useDeferredValue } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
@@ -48,6 +49,7 @@ import { TRACK_ROW_HEIGHT, TRACK_ROW_HEIGHT_COMPACT, VIRTUALIZATION_OVERSCAN } f
 import { makeCompositeId } from '@/lib/dnd/id';
 import { toast } from '@/lib/ui/toast';
 import type { ImportedTrackDTO, ImportSource, LastfmPeriod } from '@/lib/importers/types';
+import type { Track } from '@/lib/spotify/types';
 
 /** Virtual panel ID for Last.fm browse (used in DnD composite IDs) */
 export const LASTFM_PANEL_ID = 'lastfm-panel';
@@ -241,6 +243,31 @@ export function LastfmBrowseTab({ isActive = true }: LastfmBrowseTabProps) {
     }
     
     return uris;
+  }, [lastfmSelection, allLastfmTracks, getCachedMatch]);
+  
+  // Get selected tracks as Track objects for drag overlay
+  const selectedTracks = useMemo(() => {
+    if (lastfmSelection.length === 0) return [];
+    
+    const tracks: Track[] = [];
+    for (const idx of lastfmSelection) {
+      const lastfmTrack = allLastfmTracks[idx];
+      if (!lastfmTrack) continue;
+      
+      const cached = getCachedMatch(lastfmTrack);
+      const spotifyTrack = cached?.spotifyTrack;
+      
+      if (spotifyTrack && 
+          (cached.confidence === 'high' || cached.confidence === 'medium')) {
+        // Use the matched Spotify track
+        tracks.push(spotifyTrack);
+      } else {
+        // Create a minimal Track object from Last.fm data
+        tracks.push(lastfmToTrack(lastfmTrack, cached));
+      }
+    }
+    
+    return tracks;
   }, [lastfmSelection, allLastfmTracks, getCachedMatch]);
   
   // Track URIs for playback (only matched tracks)
@@ -658,6 +685,9 @@ export function LastfmBrowseTab({ isActive = true }: LastfmBrowseTabProps) {
                           selectedCount={lastfmSelection.length}
                           {...(isSelected && selectedMatchedUris.length > 0 
                             ? { selectedMatchedUris } 
+                            : {})}
+                          {...(isSelected && selectedTracks.length > 0
+                            ? { selectedTracks }
                             : {})}
                           {...optionalProps}
                         />

@@ -4,6 +4,7 @@
  */
 
 'use client';
+'use no memo';
 
 import { useState, useEffect, useRef, useCallback, useMemo, useDeferredValue } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
@@ -258,6 +259,14 @@ export function SearchPanel({ isActive = true, inputRef: externalInputRef }: Sea
       .map((t) => t.uri);
   }, [spotifySelection, sortedTracks]);
   
+  // Get selected tracks for drag operations
+  const getSelectedTracks = useCallback((): Track[] => {
+    return Array.from(spotifySelection)
+      .sort((a, b) => a - b)
+      .map((idx) => sortedTracks[idx])
+      .filter((t): t is Track => t !== undefined);
+  }, [spotifySelection, sortedTracks]);
+  
   return (
     <div className="flex-1 min-h-0 flex flex-col">
       {/* Search input */}
@@ -343,6 +352,12 @@ export function SearchPanel({ isActive = true, inputRef: externalInputRef }: Sea
                     const compositeId = makeCompositeId(SEARCH_PANEL_ID, trackId, position);
                     const liked = track.id ? isLiked(track.id) : false;
                     
+                    // Get selected tracks if current track is in selection
+                    const isCurrentSelected = spotifySelection.includes(virtualRow.index);
+                    const selectedTracksForDrag = isCurrentSelected && spotifySelection.length > 0 
+                      ? getSelectedTracks() 
+                      : undefined;
+                    
                     return (
                       <div
                         key={compositeId}
@@ -358,7 +373,7 @@ export function SearchPanel({ isActive = true, inputRef: externalInputRef }: Sea
                           track={track}
                           index={virtualRow.index}
                           selectionKey={compositeId}
-                          isSelected={spotifySelection.includes(virtualRow.index)}
+                          isSelected={isCurrentSelected}
                           isEditable={false}
                           locked={false}
                           onSelect={handleSelect}
@@ -376,6 +391,7 @@ export function SearchPanel({ isActive = true, inputRef: externalInputRef }: Sea
                           compareColor={getCompareColorForTrack(track.uri)}
                           isMultiSelect={spotifySelection.length > 1}
                           selectedCount={spotifySelection.length}
+                          selectedTracks={selectedTracksForDrag}
                         />
                       </div>
                     );
