@@ -17,6 +17,8 @@ import { useBrowsePanelStore } from '@/hooks/useBrowsePanelStore';
 import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
 import { usePlayerStore } from '@/hooks/usePlayerStore';
 import { useContextMenuStore } from '@/hooks/useContextMenuStore';
+import { useDeviceType } from '@/hooks/useDeviceType';
+import { useMobileOverlayStore } from './MobileBottomNav';
 import { useInsertionMarkerToggle } from '@/hooks/useInsertionMarkerToggle';
 import { useRowSortable } from '@/hooks/useRowSortable';
 import { useLongPress } from '@/hooks/useLongPress';
@@ -196,6 +198,11 @@ export function TrackRow({
   const togglePoint = useInsertionPointsStore((s) => s.togglePoint);
   const allPlaylists = useInsertionPointsStore((s) => s.playlists);
   const isPlayerVisible = usePlayerStore((s) => s.isPlayerVisible);
+  const { isPhone } = useDeviceType();
+  const mobileOverlay = useMobileOverlayStore((s) => s.activeOverlay);
+  
+  // On mobile, show play button when player overlay is active
+  const shouldShowPlayButton = isPlayerVisible || (isPhone && mobileOverlay === 'player');
   
   // Global context menu store
   const openContextMenu = useContextMenuStore((s) => s.openMenu);
@@ -221,7 +228,7 @@ export function TrackRow({
   
   // Dynamic grid style based on visible columns
   const gridStyle = getTrackGridStyle(
-    isPlayerVisible, 
+    shouldShowPlayButton, 
     showStandardAddColumn, 
     isCollaborative, 
     {
@@ -521,7 +528,7 @@ export function TrackRow({
       )}
 
       {/* Play button - only show when player is visible */}
-      {isPlayerVisible && (
+      {shouldShowPlayButton && (
         <PlayPauseButton
           isCompact={isCompact}
           isPlaying={isPlaying}

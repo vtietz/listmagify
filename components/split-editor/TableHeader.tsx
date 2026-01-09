@@ -9,7 +9,9 @@ import { ArrowUp, ArrowDown, Heart, Play, Plus, TrendingUp, Calendar, Users, Tim
 import { useCompactModeStore } from '@/hooks/useCompactModeStore';
 import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
 import { usePlayerStore } from '@/hooks/usePlayerStore';
+import { useDeviceType } from '@/hooks/useDeviceType';
 import { useDragHandle } from './DragHandle';
+import { useMobileOverlayStore } from './MobileBottomNav';
 import type { SortKey, SortDirection } from '@/hooks/usePlaylistSort';
 
 interface TableHeaderProps {
@@ -123,8 +125,13 @@ export function TableHeader({
   
   // Get visibility states from stores
   const isPlayerVisible = usePlayerStore((s) => s.isPlayerVisible);
+  const { isPhone } = useDeviceType();
+  const mobileOverlay = useMobileOverlayStore((s) => s.activeOverlay);
   const playlists = useInsertionPointsStore((s) => s.playlists);
   const hasAnyMarkers = Object.values(playlists).some((p) => p.markers.length > 0);
+  
+  // On mobile, show play button when player overlay is active
+  const shouldShowPlayButton = isPlayerVisible || (isPhone && mobileOverlay === 'player');
   
   // Mobile drag handle visibility (matches TrackRow)
   const { showHandle: showDragHandle } = useDragHandle();
@@ -134,7 +141,7 @@ export function TableHeader({
   
   // Dynamic grid style based on visible columns
   const gridStyle = getTrackGridStyle(
-    isPlayerVisible, 
+    shouldShowPlayButton, 
     showStandardAddColumn, 
     isCollaborative, 
     {
@@ -203,7 +210,7 @@ export function TableHeader({
       )}
 
       {/* Play button column - only when player is visible */}
-      {isPlayerVisible && (
+      {shouldShowPlayButton && (
         <div className="flex items-center justify-center" title="Play">
           <Play className={isCompact ? 'h-2.5 w-2.5' : 'h-3 w-3'} />
         </div>
