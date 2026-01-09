@@ -120,6 +120,7 @@ export function PlaylistPanel({
           locked={false}
           searchQuery=""
           isReloading={false}
+          panelCount={state.panelCount}
           onSearchChange={() => {}}
           onReload={() => {}}
           onClose={state.handleClose}
@@ -162,6 +163,7 @@ export function PlaylistPanel({
         isSorted={state.isSorted}
         isSavingOrder={state.isSavingOrder}
         selectionCount={state.selection.size}
+        panelCount={state.panelCount}
         onOpenSelectionMenu={handleOpenSelectionMenu}
         onClearSelection={state.clearSelection}
         onSearchChange={state.handleSearchChange}

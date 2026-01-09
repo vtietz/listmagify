@@ -13,6 +13,7 @@ import { makeCompositeId, getTrackPosition } from '@/lib/dnd/id';
 import { matchesAllWords } from '@/lib/utils';
 import { eventBus } from '@/lib/sync/eventBus';
 import { useSplitGridStore } from '@/hooks/useSplitGridStore';
+import { useMobileOverlayStore } from '@/components/split-editor/MobileBottomNav';
 import { usePlaylistSort, type SortKey, type SortDirection } from '@/hooks/usePlaylistSort';
 import { useTrackListSelection } from '@/hooks/useTrackListSelection';
 import { usePlaylistTracksInfinite } from '@/hooks/usePlaylistTracksInfinite';
@@ -26,6 +27,7 @@ import { useHydratedCompactMode } from '@/hooks/useCompactModeStore';
 import { useCompareModeStore, getTrackCompareColor } from '@/hooks/useCompareModeStore';
 import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
 import { usePrefetchContributorProfiles, useUserProfilesCache } from '@/hooks/useUserProfiles';
+import { useDeviceType } from '@/hooks/useDeviceType';
 import { TRACK_ROW_HEIGHT, TRACK_ROW_HEIGHT_COMPACT, VIRTUALIZATION_OVERSCAN } from '@/components/split-editor/constants';
 import type { Track } from '@/lib/spotify/types';
 
@@ -70,6 +72,7 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
   const panel = useSplitGridStore((state: any) =>
     state.panels.find((p: any) => p.id === panelId)
   );
+  const panelCount = useSplitGridStore((state: any) => state.panels.length);
   const setSearch = useSplitGridStore((state: any) => state.setSearch);
   const setSelection = useSplitGridStore((state: any) => state.setSelection);
   const toggleSelection = useSplitGridStore((state: any) => state.toggleSelection);
@@ -81,6 +84,11 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
   const loadPlaylist = useSplitGridStore((state: any) => state.loadPlaylist);
   const selectPlaylist = useSplitGridStore((state: any) => state.selectPlaylist);
   const setSort = useSplitGridStore((state: any) => state.setSort);
+
+  // Mobile overlay state for hide/show behavior
+  const { isPhone } = useDeviceType();
+  const activeOverlay = useMobileOverlayStore((s) => s.activeOverlay);
+  const setActiveOverlay = useMobileOverlayStore((s) => s.setActiveOverlay);
 
   // Local state
   const [playlistName, setPlaylistName] = useState<string>('');
@@ -468,7 +476,17 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
   const handleReload = useCallback(() => {
     if (playlistId) eventBus.emit('playlist:reload', { playlistId });
   }, [playlistId]);
-  const handleClose = useCallback(() => closePanel(panelId), [panelId, closePanel]);
+  
+  const handleClose = useCallback(() => {
+    // On mobile: hide the panel (set overlay to 'none') instead of removing it
+    // On desktop: close the panel completely
+    if (isPhone && activeOverlay === 'panel2') {
+      setActiveOverlay('none');
+    } else {
+      closePanel(panelId);
+    }
+  }, [isPhone, activeOverlay, setActiveOverlay, closePanel, panelId]);
+  
   const handleSplitHorizontal = useCallback(() => splitPanel(panelId, 'horizontal'), [panelId, splitPanel]);
   const handleSplitVertical = useCallback(() => splitPanel(panelId, 'vertical'), [panelId, splitPanel]);
   const handleDndModeToggle = useCallback(() => {
@@ -818,6 +836,9 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
     clearInsertionMarkers,
     focusedIndex,
     getSelectedTrackUris,
+
+    // Panel info
+    panelCount,
 
     // Save current order
     isSorted,

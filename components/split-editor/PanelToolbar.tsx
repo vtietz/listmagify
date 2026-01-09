@@ -58,6 +58,8 @@ interface PanelToolbarProps {
   onOpenSelectionMenu?: (position: { x: number; y: number }) => void;
   /** Callback to clear selection */
   onClearSelection?: () => void;
+  /** Total number of panels (to disable close button when last panel) */
+  panelCount?: number;
   onSearchChange: (query: string) => void;
   onSortChange?: (key: SortKey, direction: SortDirection) => void;
   onReload: () => void;
@@ -89,6 +91,7 @@ export function PanelToolbar({
   selectionCount = 0,
   onOpenSelectionMenu,
   onClearSelection: _onClearSelection,
+  panelCount = 1,
   onSearchChange,
   onSortChange: _onSortChange,
   onReload,
@@ -116,6 +119,11 @@ export function PanelToolbar({
   
   // On mobile, hide split commands (use bottom nav panel toggle instead)
   const showSplitCommands = !isPhone;
+  
+  // Disable close button when it's the last panel (desktop)
+  // On mobile, close means hide (like Panel 2 toggle), so never disable
+  const isLastPanel = panelCount <= 1;
+  const disableClose = !isPhone && isLastPanel;
 
   // Track toolbar width to toggle between compact (dropdown) and expanded (inline buttons) mode
   useEffect(() => {
@@ -340,8 +348,9 @@ export function PanelToolbar({
             variant="ghost"
             size="sm"
             onClick={onClose}
-            className="h-8 w-8 p-0 shrink-0"
-            title="Close panel"
+            disabled={disableClose}
+            className={cn("h-8 w-8 p-0 shrink-0", disableClose && "opacity-40")}
+            title={isPhone ? "Hide panel" : (isLastPanel ? "Cannot close last panel" : "Close panel")}
           >
             <X className="h-4 w-4" />
           </Button>
@@ -506,9 +515,14 @@ export function PanelToolbar({
             )}
 
             {/* Close */}
-            <DropdownMenuItem onClick={onClose}>
+            <DropdownMenuItem 
+              onClick={disableClose ? undefined : onClose}
+              disabled={disableClose}
+              className={cn(disableClose && "opacity-40 cursor-not-allowed")}
+            >
               <X className="h-4 w-4 mr-2" />
-              Close panel
+              {isPhone ? "Hide panel" : "Close panel"}
+              {isLastPanel && !isPhone && <span className="text-xs text-muted-foreground ml-auto">(last panel)</span>}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
