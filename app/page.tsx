@@ -1,12 +1,12 @@
 import { getServerSession } from "next-auth";
-import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth/auth";
 import Link from "next/link";
 import { SignInButton } from "@/components/auth/SignInButton";
 import { AccessRequestDialog } from "@/components/landing/AccessRequestDialog";
+import { AuthPageLayout } from "@/components/auth/AuthPageLayout";
+import { AuthMessage } from "@/components/auth/AuthMessage";
+import { DevModeNotice } from "@/components/auth/DevModeNotice";
 import { AppLogo } from "@/components/ui/app-logo";
-import { AppFooter } from "@/components/ui/app-footer";
-import { LogOut } from "lucide-react";
 import { 
   Columns, 
   GripVertical, 
@@ -27,29 +27,23 @@ type Props = {
 
 /**
  * Root page - Landing page shown to all users (authenticated or not).
- * Authenticated users are automatically redirected to playlists (or 'next' param).
- * Unauthenticated users see the landing page with sign-in options.
+ * Shows the landing page with features and sign-in options.
  * 
  * This page handles its own layout since AppShell passes through for '/'.
- * Also serves as the login page when accessed with query params (reason/next).
  */
 export default async function Home({ searchParams }: Props) {
   const session = await getServerSession(authOptions);
   const { next, reason } = await searchParams;
 
-  // Default return path if none specified
-  const returnTo = next && next.startsWith("/") ? next : "/playlists";
-
   // Check for session error (e.g., revoked refresh token)
   const sessionError = (session as { error?: string } | null)?.error;
   const hasValidSession = session && !sessionError;
 
-  // If authenticated with valid session, redirect to intended destination
-  if (hasValidSession) {
-    redirect(returnTo);
-  }
+  // Default return path for sign-in button
+  const returnTo = next && next.startsWith("/") ? next : "/playlists";
 
   // Determine message based on reason or session error
+  const showMessage = reason === "expired" || sessionError || reason === "unauthenticated";
   const message =
     reason === "expired" || sessionError
       ? "Your session has expired. Please sign in again."
@@ -57,7 +51,7 @@ export default async function Home({ searchParams }: Props) {
       ? "Sign in to access this page."
       : null;
 
-  const isAuthenticated = false; // Always false here since we redirect if authenticated above
+  const isAuthenticated = hasValidSession;
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -74,26 +68,12 @@ export default async function Home({ searchParams }: Props) {
   };
 
   return (
-    <div className="min-h-dvh flex flex-col bg-gradient-to-b from-background to-background/95">
+    <AuthPageLayout showLogoutLink>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
       
-      {/* Header */}
-      <header className="sticky top-0 z-40 h-12 flex items-center justify-between px-4 border-b border-border bg-background">
-        <AppLogo size="sm" />
-        <nav className="flex items-center gap-1 text-sm">
-          <Link
-            href="/logout"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <LogOut className="h-3.5 w-3.5" />
-            Logout
-          </Link>
-        </nav>
-      </header>
-
       {/* Main Content - scrolls naturally with browser */}
       <main className="flex-1">
         {/* Hero Section */}
@@ -104,9 +84,9 @@ export default async function Home({ searchParams }: Props) {
             </div>
             
             {/* Show message if present (session expired, unauthenticated, etc.) */}
-            {message && (
-              <div className="p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/30 max-w-xl mx-auto">
-                <p className="text-sm text-muted-foreground">{message}</p>
+            {showMessage && message && (
+              <div className="max-w-xl mx-auto">
+                <AuthMessage>{message}</AuthMessage>
               </div>
             )}
             
@@ -128,13 +108,8 @@ export default async function Home({ searchParams }: Props) {
             </p>
             
             {/* Development Mode Notice */}
-            <div className="mt-6 p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/30 max-w-xl mx-auto">
-              <div className="flex items-start gap-3">
-                  <p className="text-sm text-muted-foreground">
-                    * This app is currently in Spotify development mode and can only be used by approved users. 
-                    If you&apos;d like to try it out, click "Request Access" above.
-                  </p>
-              </div>
+            <div className="mt-6 max-w-xl mx-auto">
+              <DevModeNotice showRequestAccessHint />
             </div>
           </div>
         </div>
@@ -270,14 +245,7 @@ export default async function Home({ searchParams }: Props) {
         </div>
       </div>
       </main>
-
-      {/* Footer */}
-      <footer className="sticky bottom-0 z-40 px-4 py-2 border-t border-border bg-background">
-        <div className="container mx-auto">
-          <AppFooter />
-        </div>
-      </footer>
-    </div>
+    </AuthPageLayout>
   );
 }
 
