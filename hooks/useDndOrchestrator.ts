@@ -731,14 +731,10 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
     const isSamePanelSamePlaylist = sourcePanelIdFromData === targetPanelId && sourcePlaylistId === targetPlaylistId;
     
     // Determine effective mode:
-    // - Same panel, same playlist: 
-    //   - If source panel is in copy mode OR Ctrl is pressed (inverting from move to copy): copy (add duplicate)
-    //   - Otherwise: move (reorder)
-    // - Different panels: respect panel's dndMode setting with Ctrl inversion
+    // - Same panel, same playlist: ALWAYS move (reorder), regardless of dndMode or Ctrl
+    // - Different panels (cross-panel): respect panel's dndMode setting with Ctrl inversion
     const effectiveMode = isSamePanelSamePlaylist
-      ? (sourceDndMode === 'copy' || (isCtrlPressed && canInvertMode))
-        ? 'copy'  // Copy mode or Ctrl pressed: add duplicate
-        : 'move'  // Move mode: reorder
+      ? 'move'  // Intra-panel: always reorder
       : (isCtrlPressed && canInvertMode)
         ? (sourceDndMode === 'copy' ? 'move' : 'copy')  // Ctrl inverts mode
         : sourceDndMode;  // Cross-panel: use source panel setting

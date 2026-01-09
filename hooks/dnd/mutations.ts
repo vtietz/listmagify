@@ -101,7 +101,8 @@ export function handleLastfmDrop(
 }
 
 /**
- * Handle same panel, same playlist operations (reorder or copy duplicate)
+ * Handle same panel, same playlist operations (always reorder/move)
+ * Note: Intra-panel DND always moves items regardless of dndMode setting
  */
 export function handleSamePanelDrop(
   effectiveMode: 'copy' | 'move',
@@ -116,7 +117,7 @@ export function handleSamePanelDrop(
 ): boolean {
   const { mutations, selectedIndices, orderedTracks } = context;
 
-  // Copy mode: add duplicates
+  // Copy mode: add duplicates (should not happen for same panel, but keeping for safety)
   if (effectiveMode === 'copy') {
     logDebug('✅ COPY (add duplicate):', dragTrackUris.length, 'tracks →', targetIndex);
     mutations.addTracks.mutate({
