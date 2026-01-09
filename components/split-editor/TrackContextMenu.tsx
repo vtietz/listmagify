@@ -34,6 +34,7 @@ import {
   MoreHorizontal,
   ExternalLink,
   X,
+  Copy,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useDeviceType } from '@/hooks/useDeviceType';
@@ -75,6 +76,8 @@ export interface TrackActions {
   onOpenInSpotify?: () => void;
   /** Clear current selection */
   onClearSelection?: () => void;
+  /** Delete all duplicates of this specific track (keeps the selected one) */
+  onDeleteTrackDuplicates?: () => void;
   isPlaying?: boolean;
   isLiked?: boolean;
   canRemove?: boolean;
@@ -253,6 +256,15 @@ function PhoneMenuContent({
             disabled={!trackActions?.onPlay}
           />
         )}
+        {/* Delete Duplicates - only for single track in editable playlist */}
+        {!isMultiSelect && isEditable && trackActions?.onDeleteTrackDuplicates && (
+          <BottomSheetMenuItem
+            icon={Copy}
+            label="Delete duplicates"
+            onClick={withClose(trackActions.onDeleteTrackDuplicates)}
+            destructive
+          />
+        )}
         {/* Like/Unlike - for multi-select show both options, for single show toggle */}
         {isMultiSelect ? (
           <>
@@ -412,6 +424,15 @@ function TabletMenuContent({
           icon={trackActions?.isPlaying ? Pause : Play} 
           label={trackActions?.isPlaying ? 'Pause' : 'Play'} 
           onClick={withClose(trackActions?.isPlaying ? trackActions?.onPause : trackActions?.onPlay)} 
+        />
+      )}
+      {/* Delete Duplicates - only for single track in editable playlist */}
+      {!isMultiSelect && isEditable && trackActions?.onDeleteTrackDuplicates && (
+        <PopoverMenuItem 
+          icon={Copy} 
+          label="Delete duplicates" 
+          onClick={withClose(trackActions.onDeleteTrackDuplicates)}
+          destructive
         />
       )}
       {/* Like/Unlike - for multi-select show both options, for single show toggle */}

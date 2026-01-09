@@ -58,6 +58,10 @@ interface PanelToolbarProps {
   onClearSelection?: () => void;
   /** Total number of panels (to disable close button when last panel) */
   panelCount?: number;
+  /** Whether the playlist has tracks */
+  hasTracks?: boolean;
+  /** Whether duplicate removal is in progress */
+  isDeletingDuplicates?: boolean;
   onSearchChange: (query: string) => void;
   onSortChange?: (key: SortKey, direction: SortDirection) => void;
   onReload: () => void;
@@ -69,6 +73,8 @@ interface PanelToolbarProps {
   onLoadPlaylist: (playlistId: string) => void;
   onClearInsertionMarkers?: () => void;
   onSaveCurrentOrder?: () => void;
+  onPlayFirst?: () => void;
+  onDeleteDuplicates?: () => void;
 }
 
 export function PanelToolbar({
@@ -90,6 +96,8 @@ export function PanelToolbar({
   onOpenSelectionMenu,
   onClearSelection: _onClearSelection,
   panelCount = 1,
+  hasTracks = false,
+  isDeletingDuplicates = false,
   onSearchChange,
   onSortChange: _onSortChange,
   onReload,
@@ -101,6 +109,8 @@ export function PanelToolbar({
   onLoadPlaylist,
   onClearInsertionMarkers,
   onSaveCurrentOrder,
+  onPlayFirst,
+  onDeleteDuplicates,
 }: PanelToolbarProps) {
   const [localSearch, setLocalSearch] = useState(searchQuery);
   const [isCompact, setIsCompact] = useState(true);
@@ -218,6 +228,8 @@ export function PanelToolbar({
           isSorted={isSorted}
           isSavingOrder={isSavingOrder}
           insertionMarkerCount={insertionMarkerCount}
+          hasTracks={hasTracks}
+          isDeletingDuplicates={isDeletingDuplicates}
           canSplitHorizontal={canSplitHorizontal}
           disableClose={disableClose}
           isLastPanel={isLastPanel}
@@ -270,6 +282,8 @@ export function PanelToolbar({
               canEditPlaylistInfo={canEditPlaylistInfo}
               isUltraCompact={isUltraCompact}
               localSearch={localSearch}
+              hasTracks={hasTracks}
+              isDeletingDuplicates={isDeletingDuplicates}
               onReload={onReload}
               onDndModeToggle={onDndModeToggle}
               onLockToggle={onLockToggle}
@@ -283,6 +297,8 @@ export function PanelToolbar({
               onSearchChange={handleSearchChange}
               onLoadPlaylist={onLoadPlaylist}
               onOpenSelectionMenu={onOpenSelectionMenu}
+              onPlayFirst={onPlayFirst}
+              onDeleteDuplicates={onDeleteDuplicates}
             />
           </DropdownMenuContent>
         </DropdownMenu>

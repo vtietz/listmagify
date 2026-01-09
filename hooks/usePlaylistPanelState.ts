@@ -12,6 +12,7 @@ import { playlistMeta, playlistPermissions } from '@/lib/api/queryKeys';
 import { makeCompositeId, getTrackPosition } from '@/lib/dnd/id';
 import { matchesAllWords } from '@/lib/utils';
 import { eventBus } from '@/lib/sync/eventBus';
+import { toast } from '@/lib/ui/toast';
 import { useSplitGridStore } from '@/hooks/useSplitGridStore';
 import { useMobileOverlayStore } from '@/components/split-editor/MobileBottomNav';
 import { usePlaylistSort, type SortKey, type SortDirection } from '@/hooks/usePlaylistSort';
@@ -753,6 +754,99 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
     return null;
   }, [filteredTracks, selection]);
 
+  // Play first track in the playlist
+  const handlePlayFirst = useCallback(async () => {
+    if (!filteredTracks.length) return;
+    const firstTrack = filteredTracks[0];
+    if (firstTrack?.uri) {
+      await playTrack(firstTrack.uri);
+    }
+  }, [filteredTracks, playTrack]);
+
+  // State for duplicate deletion
+  const [isDeletingDuplicates, setIsDeletingDuplicates] = useState(false);
+
+  // Delete all duplicate tracks, keeping only first occurrence
+  const handleDeleteAllDuplicates = useCallback(async () => {
+    if (!playlistId || !isEditable || isDeletingDuplicates) return;
+    
+    setIsDeletingDuplicates(true);
+    try {
+      // Build a map of track URI -> list of positions
+      const uriPositions = new Map<string, number[]>();
+      filteredTracks.forEach((track, index) => {
+        // Use track.position if available, otherwise use index
+        const position = track.position ?? index;
+        const positions = uriPositions.get(track.uri) || [];
+        positions.push(position);
+        uriPositions.set(track.uri, positions);
+      });
+
+      // Find all positions to remove (keep first occurrence)
+      const positionsToRemove: Array<{ uri: string; position: number }> = [];
+      for (const [uri, positions] of uriPositions) {
+        if (positions.length > 1) {
+          // Keep first, remove the rest
+          for (let i = 1; i < positions.length; i++) {
+            positionsToRemove.push({ uri, position: positions[i]! });
+          }
+        }
+      }
+
+      if (positionsToRemove.length === 0) {
+        toast.success('No duplicates found');
+        return;
+      }
+
+      // Remove duplicates
+      await removeTracks.mutateAsync({
+        playlistId,
+        tracks: positionsToRemove,
+      });
+
+      toast.success(`Removed ${positionsToRemove.length} duplicate track${positionsToRemove.length > 1 ? 's' : ''}`);
+    } catch (error) {
+      console.error('[handleDeleteAllDuplicates] Failed:', error);
+      toast.error('Failed to delete duplicates');
+    } finally {
+      setIsDeletingDuplicates(false);
+    }
+  }, [playlistId, isEditable, isDeletingDuplicates, filteredTracks, removeTracks]);
+
+  // Delete duplicates of a specific track (keep the selected instance)
+  const handleDeleteTrackDuplicates = useCallback(async (track: Track, keepPosition: number) => {
+    if (!playlistId || !isEditable) return;
+
+    // Find all instances of this track
+    const duplicatePositions: number[] = [];
+    filteredTracks.forEach((t, index) => {
+      const position = t.position ?? index;
+      if (t.uri === track.uri && position !== keepPosition) {
+        duplicatePositions.push(position);
+      }
+    });
+
+    if (duplicatePositions.length === 0) {
+      toast.info('No other instances of this track found');
+      return;
+    }
+
+    try {
+      await removeTracks.mutateAsync({
+        playlistId,
+        tracks: duplicatePositions.map(position => ({
+          uri: track.uri,
+          position,
+        })),
+      });
+
+      toast.success(`Removed ${duplicatePositions.length} duplicate${duplicatePositions.length > 1 ? 's' : ''} of "${track.name}"`);
+    } catch (error) {
+      console.error('[handleDeleteTrackDuplicates] Failed:', error);
+      toast.error('Failed to delete duplicates');
+    }
+  }, [playlistId, isEditable, filteredTracks, removeTracks]);
+
   return {
     // Refs
     scrollRef,
@@ -858,5 +952,12 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
     // Selection actions
     clearSelection,
     getFirstSelectedTrack,
+
+    // New actions
+    handlePlayFirst,
+    handleDeleteAllDuplicates,
+    handleDeleteTrackDuplicates,
+    isDeletingDuplicates,
+    hasTracks: filteredTracks.length > 0,
   };
 }

@@ -10,7 +10,7 @@ import type { VirtualItem } from '@tanstack/react-virtual';
 import { DropIndicator } from './DropIndicator';
 import { InsertionMarkersOverlay } from './InsertionMarker';
 import { TrackRow } from './TrackRow';
-import { TrackContextMenu } from './TrackContextMenu';
+import { TrackContextMenu, type TrackActions } from './TrackContextMenu';
 import { useContextMenuStore } from '@/hooks/useContextMenuStore';
 import type { Track } from '@/lib/spotify/types';
 
@@ -79,6 +79,10 @@ interface VirtualizedTrackListContainerProps {
   playTrack: (trackUri: string) => void;
   /** Handler to pause playback */
   pausePlayback: () => void;
+  /** Optional handler to delete duplicates of a specific track */
+  onDeleteTrackDuplicates?: (track: Track, position: number) => void | Promise<void>;
+  /** Optional track actions for context menu (e.g., remove from playlist) */
+  contextTrackActions?: Partial<TrackActions>;
 }
 
 export function VirtualizedTrackListContainer({
@@ -114,6 +118,8 @@ export function VirtualizedTrackListContainer({
   handleToggleLiked,
   playTrack,
   pausePlayback,
+  onDeleteTrackDuplicates,
+  contextTrackActions,
 }: VirtualizedTrackListContainerProps) {
   // Get context menu state from global store
   const contextMenu = useContextMenuStore();
@@ -206,6 +212,10 @@ export function VirtualizedTrackListContainer({
                 compareColor={getCompareColorForTrack(track.uri)}
                 isMultiSelect={selection.size > 1}
                 selectedCount={selection.size}
+                {...(onDeleteTrackDuplicates || contextTrackActions ? { contextTrackActions: {
+                  ...contextTrackActions,
+                  ...(onDeleteTrackDuplicates ? { onDeleteTrackDuplicates: () => onDeleteTrackDuplicates(track, positionActual) } : {}),
+                } } : {})}
               />
             </div>
           );

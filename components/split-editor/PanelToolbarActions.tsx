@@ -5,7 +5,7 @@
 
 'use client';
 
-import { RefreshCw, Lock, LockOpen, X, SplitSquareHorizontal, SplitSquareVertical, Move, Copy, MapPinOff, Pencil, Loader2, Save, ListChecks, Search } from 'lucide-react';
+import { RefreshCw, Lock, LockOpen, X, SplitSquareHorizontal, SplitSquareVertical, Move, Copy, MapPinOff, Pencil, Loader2, Save, ListChecks, Search, Play, Copy as CopyIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
@@ -34,6 +34,8 @@ export interface ToolbarActionProps {
   isPhone: boolean;
   showSplitCommands: boolean;
   canEditPlaylistInfo: boolean;
+  hasTracks: boolean;
+  isDeletingDuplicates?: boolean;
   onReload: () => void;
   onDndModeToggle: () => void;
   onLockToggle: () => void;
@@ -44,6 +46,8 @@ export interface ToolbarActionProps {
   onSaveCurrentOrder?: (() => void) | undefined;
   onEditPlaylist: () => void;
   onSelectionMenuClick: (e: React.MouseEvent) => void;
+  onPlayFirst?: (() => void) | undefined;
+  onDeleteDuplicates?: (() => void) | undefined;
 }
 
 /** Inline toolbar buttons (for wide panels) */
@@ -231,6 +235,8 @@ export function DropdownToolbarActions({
   canEditPlaylistInfo,
   isUltraCompact,
   localSearch,
+  hasTracks,
+  isDeletingDuplicates,
   onReload,
   onDndModeToggle,
   onLockToggle,
@@ -244,6 +250,8 @@ export function DropdownToolbarActions({
   onSearchChange,
   onLoadPlaylist,
   onOpenSelectionMenu,
+  onPlayFirst,
+  onDeleteDuplicates,
 }: DropdownActionProps) {
   return (
     <>
@@ -293,6 +301,31 @@ export function DropdownToolbarActions({
           <DropdownMenuSeparator />
         </>
       )}
+
+      {/* Play First Track */}
+      {playlistId && hasTracks && onPlayFirst && (
+        <DropdownMenuItem onClick={onPlayFirst}>
+          <Play className="h-4 w-4 mr-2" />
+          Play playlist
+        </DropdownMenuItem>
+      )}
+
+      {/* Delete Duplicates */}
+      {playlistId && isEditable && !locked && hasTracks && onDeleteDuplicates && (
+        <DropdownMenuItem 
+          onClick={onDeleteDuplicates}
+          disabled={isDeletingDuplicates || false}
+        >
+          {isDeletingDuplicates ? (
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+          ) : (
+            <CopyIcon className="h-4 w-4 mr-2" />
+          )}
+          {isDeletingDuplicates ? 'Removing duplicates...' : 'Delete duplicates'}
+        </DropdownMenuItem>
+      )}
+
+      {(playlistId && (onPlayFirst || onDeleteDuplicates)) && <DropdownMenuSeparator />}
 
       {/* Reload */}
       {playlistId && (

@@ -76,12 +76,16 @@ export function PlaylistPanel({
       onRemoveFromPlaylist?: () => void; 
       canRemove?: boolean;
       onClearSelection?: () => void;
+      onDeleteTrackDuplicates?: () => void;
     } = {
       onClearSelection: state.clearSelection,
     };
     if (state.isEditable) {
       trackActions.onRemoveFromPlaylist = state.handleDeleteSelected;
       trackActions.canRemove = true;
+      // Use track.position (actual position in playlist) if available, otherwise use index
+      const keepPosition = selected.track.position ?? selected.index;
+      trackActions.onDeleteTrackDuplicates = () => state.handleDeleteTrackDuplicates(selected.track, keepPosition);
     }
     
     openContextMenu({
@@ -164,6 +168,8 @@ export function PlaylistPanel({
         isSavingOrder={state.isSavingOrder}
         selectionCount={state.selection.size}
         panelCount={state.panelCount}
+        hasTracks={state.hasTracks}
+        isDeletingDuplicates={state.isDeletingDuplicates}
         onOpenSelectionMenu={handleOpenSelectionMenu}
         onClearSelection={state.clearSelection}
         onSearchChange={state.handleSearchChange}
@@ -180,6 +186,8 @@ export function PlaylistPanel({
         onLoadPlaylist={state.handleLoadPlaylist}
         onClearInsertionMarkers={() => state.playlistId && state.clearInsertionMarkers(state.playlistId)}
         onSaveCurrentOrder={state.handleSaveCurrentOrder}
+        onPlayFirst={state.handlePlayFirst}
+        onDeleteDuplicates={state.handleDeleteAllDuplicates}
       />
 
       <div
@@ -309,6 +317,11 @@ export function PlaylistPanel({
                 handleToggleLiked={state.handleToggleLiked}
                 playTrack={state.playTrack}
                 pausePlayback={state.pausePlayback}
+                {...(state.isEditable && state.handleDeleteTrackDuplicates ? { onDeleteTrackDuplicates: state.handleDeleteTrackDuplicates } : {})}
+                {...(state.isEditable ? { contextTrackActions: {
+                  onRemoveFromPlaylist: state.handleDeleteSelected,
+                  canRemove: true,
+                } } : {})}
               />
             </div>
           </>
