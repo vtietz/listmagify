@@ -211,6 +211,7 @@ export interface DropdownActionProps extends ToolbarActionProps {
 }
 
 /** Dropdown menu items (for compact panels) */
+// eslint-disable-next-line complexity
 export function DropdownToolbarActions({
   playlistId,
   playlistName,

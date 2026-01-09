@@ -5,6 +5,7 @@
  * - Copy/move mode indication via cursor
  * - Target editability (not-allowed cursor when target is readonly)
  * - Multi-selection count badge
+ * - Renders up to 3 actual track rows for visual consistency
  * 
  * Extracted from SplitGrid for better separation of concerns.
  */
@@ -13,15 +14,11 @@
 
 import { DragOverlay } from '@dnd-kit/core';
 import type { Track } from '@/lib/spotify/types';
-import { TRACK_ROW_HEIGHT, TRACK_ROW_HEIGHT_COMPACT } from './constants';
+import { TrackRow } from './TrackRow';
 
 interface DndDragOverlayProps {
-  /** Currently dragged track (null when no drag active) */
-  activeTrack: Track | null;
-  /** Number of selected tracks being dragged */
-  activeSelectionCount: number;
-  /** Whether compact mode is enabled */
-  isCompact: boolean;
+  /** All tracks being dragged (up to 3 will be rendered) */
+  draggedTracks: Track[];
   /** Get the effective DnD mode ('copy' | 'move' | null) */
   getEffectiveDndMode: () => 'copy' | 'move' | null;
   /** Check if current target panel is editable */
@@ -29,19 +26,17 @@ interface DndDragOverlayProps {
 }
 
 export function DndDragOverlay({
-  activeTrack,
-  activeSelectionCount,
-  isCompact,
+  draggedTracks,
   getEffectiveDndMode,
   isTargetEditable,
 }: DndDragOverlayProps) {
+  const hasAnyTracks = draggedTracks.length > 0;
+  
   return (
     <DragOverlay dropAnimation={null}>
-      {activeTrack && (
+      {hasAnyTracks && (
         <DragOverlayContent
-          track={activeTrack}
-          selectionCount={activeSelectionCount}
-          isCompact={isCompact}
+          tracks={draggedTracks}
           effectiveMode={getEffectiveDndMode()}
           targetEditable={isTargetEditable()}
         />
@@ -51,17 +46,13 @@ export function DndDragOverlay({
 }
 
 interface DragOverlayContentProps {
-  track: Track;
-  selectionCount: number;
-  isCompact: boolean;
+  tracks: Track[];
   effectiveMode: 'copy' | 'move' | null;
   targetEditable: boolean;
 }
 
 function DragOverlayContent({
-  track,
-  selectionCount,
-  isCompact,
+  tracks,
   effectiveMode,
   targetEditable,
 }: DragOverlayContentProps) {
@@ -69,43 +60,41 @@ function DragOverlayContent({
     ? 'not-allowed' 
     : (effectiveMode === 'move' ? 'grabbing' : 'copy');
 
-  const extraCount = Math.max(0, (selectionCount || 1) - 1);
-  const rowHeight = isCompact ? TRACK_ROW_HEIGHT_COMPACT : TRACK_ROW_HEIGHT;
+  // Show up to 3 tracks, with a badge for additional tracks
+  const maxVisible = 3;
+  const visibleTracks = tracks.slice(0, maxVisible);
+  const remainingCount = Math.max(0, tracks.length - maxVisible);
   
   return (
     <div 
-      className={`flex items-center bg-card border-2 border-primary rounded shadow-2xl opacity-95 ${isCompact ? 'gap-1 px-1.5 text-xs' : 'gap-2 px-3 text-sm'}`}
-      style={{ cursor: cursorStyle, height: `${rowHeight}px`, minWidth: isCompact ? '400px' : '500px' }}
+      className="relative bg-card border-2 border-primary rounded shadow-2xl opacity-95"
+      style={{ cursor: cursorStyle }}
     >
-      {/* Track title */}
-      <div className={`flex-shrink-0 min-w-0 ${isCompact ? 'w-[140px]' : 'w-[180px]'}`}>
-        <div className="truncate">
-          {track.name}
-        </div>
+      {/* Render track rows */}
+      <div className="pointer-events-none">
+        {visibleTracks.map((track, idx) => (
+          <TrackRow
+            key={`${track.uri}-${idx}`}
+            track={track}
+            index={idx}
+            selectionKey={`drag-${idx}`}
+            isSelected={false}
+            isEditable={false}
+            onSelect={() => {}}
+            onClick={() => {}}
+            showLikedColumn={false}
+            showCumulativeTime={false}
+            hideAddToMarkedButton={true}
+          />
+        ))}
       </div>
-
-      {/* Artist */}
-      <div className={`flex-shrink-0 min-w-0 ${isCompact ? 'w-[100px]' : 'w-[140px]'}`}>
-        <div className="text-muted-foreground truncate">
-          {track.artistObjects && track.artistObjects.length > 0
-            ? track.artistObjects.map(a => a.name).join(', ')
-            : track.artists.join(', ')}
-        </div>
-      </div>
-
-      {/* Album */}
-      {track.album?.name && (
-        <div className={`flex-shrink-0 min-w-0 ${isCompact ? 'w-[100px]' : 'w-[140px]'}`}>
-          <div className="text-muted-foreground truncate">
-            {track.album.name}
+      
+      {/* Badge showing additional track count */}
+      {remainingCount > 0 && (
+        <div className="absolute top-2 right-2 z-20">
+          <div className="bg-primary text-primary-foreground px-2 py-1 rounded-md font-semibold shadow-lg text-sm">
+            +{remainingCount}
           </div>
-        </div>
-      )}
-
-      {/* Multi-selection count badge */}
-      {extraCount > 0 && (
-        <div className="flex-shrink-0 text-xs font-medium text-muted-foreground">
-          +{extraCount}
         </div>
       )}
     </div>

@@ -18,7 +18,6 @@ import { DndContext } from '@dnd-kit/core';
 import { LogIn, Loader2 } from 'lucide-react';
 import { useSplitGridStore } from '@/hooks/useSplitGridStore';
 import { useBrowsePanelStore } from '@/hooks/useBrowsePanelStore';
-import { useHydratedCompactMode } from '@/hooks/useCompactModeStore';
 import { useDndOrchestrator } from '@/hooks/useDndOrchestrator';
 import { useSplitUrlSync } from '@/hooks/useSplitUrlSync';
 import { useSessionUser } from '@/hooks/useSessionUser';
@@ -41,7 +40,6 @@ export function SplitGrid() {
   const panels = useSplitGridStore((state) => state.panels);
   const splitPanel = useSplitGridStore((state) => state.splitPanel);
   const isBrowsePanelOpen = useBrowsePanelStore((state) => state.isOpen);
-  const isCompact = useHydratedCompactMode();
   const { authenticated, loading } = useSessionUser();
   
   // Device and orientation detection
@@ -82,12 +80,11 @@ export function SplitGrid() {
 
   // IMPORTANT: All hooks must be called before any conditional returns (Rules of Hooks)
   const {
-    activeTrack,
     sourcePanelId,
     activePanelId,
     dropIndicatorIndex,
     ephemeralInsertion,
-    activeSelectionCount,
+    activeDragTracks,
     sensors,
     collisionDetection,
     onDragStart,
@@ -250,9 +247,7 @@ export function SplitGrid() {
 
       {/* Drag overlay - visual feedback during drag */}
       <DndDragOverlay
-        activeTrack={activeTrack}
-        activeSelectionCount={activeSelectionCount}
-        isCompact={isCompact}
+        draggedTracks={activeDragTracks}
         getEffectiveDndMode={getEffectiveDndMode}
         isTargetEditable={isTargetEditable}
       />

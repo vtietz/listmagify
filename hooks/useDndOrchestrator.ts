@@ -63,6 +63,7 @@ interface UseDndOrchestratorReturn {
   dropIndicatorIndex: number | null;
   ephemeralInsertion: EphemeralInsertion | null;
   activeSelectionCount: number;
+  activeDragTracks: Track[];
   
   // DnD context props
   sensors: ReturnType<typeof useSensors>;
@@ -843,6 +844,7 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
     dropIndicatorIndex,
     ephemeralInsertion,
     activeSelectionCount,
+    activeDragTracks: activeDragTracksRef.current,
     
     // DnD context props
     sensors,
