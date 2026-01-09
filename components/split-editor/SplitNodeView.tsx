@@ -1,11 +1,11 @@
 /**
  * Recursive component for rendering split tree nodes.
- * - GroupNode: renders a grid container with children
+ * - GroupNode: renders a resizable container with children
  * - PanelNode: renders a PlaylistPanel
  * 
  * Includes responsive behavior for phones and tablets:
- * - Phone: max 2 panels, focus-based sizing (65%/35%)
- * - Tablet: user-configurable panels with orientation-aware layout
+ * - Phone: max 2 panels, focus-based sizing (65%/35%), no resizing
+ * - Tablet/Desktop: resizable panels with drag handles and localStorage persistence
  */
 
 'use client';
@@ -16,7 +16,9 @@ import type { Track } from '@/lib/spotify/types';
 import type { Virtualizer } from '@tanstack/react-virtual';
 import { useDeviceType } from '@/hooks/useDeviceType';
 import { usePanelFocusStore, getFocusedPanelSize, getUnfocusedPanelSize } from '@/hooks/usePanelFocusStore';
+import { Panel, Group as PanelGroup, Separator as PanelResizeHandle, useDefaultLayout } from 'react-resizable-panels';
 import { cn } from '@/lib/utils';
+import { Fragment } from 'react';
 
 interface SplitNodeViewProps {
   node: SplitNode;
@@ -61,6 +63,26 @@ export function SplitNodeView({
 }: SplitNodeViewProps) {
   const { isPhone, isTablet, orientation, deviceType } = useDeviceType();
   const { focusedPanelId, focusPanel } = usePanelFocusStore();
+
+  // Pre-compute values for useDefaultLayout hook (must be called unconditionally)
+  const isGroupNode = node.kind === 'group';
+  const storageKey = isGroupNode ? `split-${node.id}` : '';
+  const panelIds = isGroupNode 
+    ? (isPhone ? node.children.slice(0, 2) : node.children).map((child) => 
+        child.kind === 'panel' ? child.panel.id : child.id
+      )
+    : [];
+  
+  // Use localStorage to persist panel sizes (must be called unconditionally per Rules of Hooks)
+  const storageConfig = typeof window !== 'undefined' && isGroupNode && !isPhone
+    ? { storage: localStorage }
+    : {};
+  
+  const { defaultLayout, onLayoutChange } = useDefaultLayout({
+    id: storageKey || 'default',
+    panelIds,
+    ...storageConfig,
+  });
 
   if (node.kind === 'panel') {
     // Determine if this panel is focused (for phone layout)
@@ -160,39 +182,54 @@ export function SplitNodeView({
     );
   }
   
-  // Tablet and Desktop: use CSS Grid
+  // Tablet and Desktop: use react-resizable-panels for drag-to-resize functionality
+  // (panelIds and storage already computed at top for Rules of Hooks compliance)
+  
   return (
-    <div
+    <PanelGroup
+      id={storageKey}
+      orientation={isHorizontal ? 'horizontal' : 'vertical'}
+      defaultLayout={defaultLayout}
+      onLayoutChange={onLayoutChange}
       className={cn(
         'h-full w-full min-h-0 min-w-0 split-container',
         isRoot && `device-${deviceType} orientation-${orientation}`
       )}
-      style={{
-        display: 'grid',
-        // horizontal = side by side (columns), vertical = stacked (rows)
-        gridTemplateColumns: isHorizontal
-          ? `repeat(${visibleChildren.length}, 1fr)`
-          : '1fr',
-        gridTemplateRows: isHorizontal
-          ? '1fr'
-          : `repeat(${visibleChildren.length}, 1fr)`,
-        gap: '0.5rem',
-      }}
       data-device={deviceType}
       data-orientation={orientation}
     >
-      {visibleChildren.map((child) => (
-        <SplitNodeView
-          key={child.kind === 'panel' ? child.panel.id : child.id}
-          node={child}
-          onRegisterVirtualizer={onRegisterVirtualizer}
-          onUnregisterVirtualizer={onUnregisterVirtualizer}
-          activePanelId={activePanelId}
-          sourcePanelId={sourcePanelId}
-          dropIndicatorIndex={dropIndicatorIndex}
-          ephemeralInsertion={ephemeralInsertion}
-        />
+      {visibleChildren.map((child, index) => (
+        <Fragment key={child.kind === 'panel' ? child.panel.id : child.id}>
+          <Panel
+            id={child.kind === 'panel' ? child.panel.id : child.id}
+            defaultSize={100 / visibleChildren.length}
+            minSize={10}
+            className="min-h-0 min-w-0"
+          >
+            <SplitNodeView
+              node={child}
+              onRegisterVirtualizer={onRegisterVirtualizer}
+              onUnregisterVirtualizer={onUnregisterVirtualizer}
+              activePanelId={activePanelId}
+              sourcePanelId={sourcePanelId}
+              dropIndicatorIndex={dropIndicatorIndex}
+              ephemeralInsertion={ephemeralInsertion}
+            />
+          </Panel>
+          {index < visibleChildren.length - 1 && (
+            <PanelResizeHandle className={cn(
+              'group/handle relative flex items-center justify-center',
+              'bg-border hover:bg-primary/20 active:bg-primary/30 transition-colors',
+              isHorizontal ? 'w-1.5 cursor-col-resize' : 'h-1.5 cursor-row-resize'
+            )}>
+              <div className={cn(
+                'absolute bg-primary/0 group-hover/handle:bg-primary/50 transition-colors rounded-full',
+                isHorizontal ? 'w-1 h-10' : 'h-1 w-10'
+              )} />
+            </PanelResizeHandle>
+          )}
+        </Fragment>
       ))}
-    </div>
+    </PanelGroup>
   );
 }
