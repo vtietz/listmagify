@@ -8,6 +8,32 @@ import type { Track } from '@/lib/spotify/types';
 import type { TrackWithPositions } from './types';
 
 /**
+ * Get tracks to drag from browse panel drag data.
+ * Consolidates logic for extracting multi-select tracks from Search, Recommendations, and Last.fm panels.
+ * 
+ * @param sourceData - The drag source data from active.data.current
+ * @param fallbackTrack - The single track to use if no selection exists
+ * @returns Array of track URIs to add to playlist
+ */
+export function getBrowsePanelDragUris(
+  sourceData: Record<string, unknown> | undefined,
+  fallbackTrack: Track | undefined
+): string[] {
+  // First check for selectedTracks (Search/Recommendations panels)
+  const selectedTracks = sourceData?.selectedTracks as Track[] | undefined;
+  if (selectedTracks && selectedTracks.length > 0) {
+    return selectedTracks.map(t => t.uri).filter(Boolean);
+  }
+  
+  // Fall back to single track
+  if (fallbackTrack?.uri) {
+    return [fallbackTrack.uri];
+  }
+  
+  return [];
+}
+
+/**
  * Builds tracks array with positions for precise removal (handles duplicate tracks).
  * Groups tracks by URI and collects their positions.
  */

@@ -43,6 +43,7 @@ import {
   handleLastfmDrop,
   handleSamePanelDrop,
   handleCrossPanelDrop,
+  getBrowsePanelDragUris,
   type PanelConfig,
   type PanelVirtualizerData,
   type EphemeralInsertion,
@@ -623,20 +624,26 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
       return;
     }
 
-    // Handle drop onto player - play the track instead of adding to playlist
+    // Handle drop onto player - play the track(s) instead of adding to playlist
     if (targetData?.type === 'player') {
-      const sourceTrack: Track = sourceData.track;
-      if (sourceTrack?.uri) {
-        // Call the player control API directly to play the track
+      // Get all selected track URIs (supports multi-select)
+      const trackUris = getBrowsePanelDragUris(sourceData, sourceData?.track as Track);
+      
+      if (trackUris.length > 0) {
+        // Call the player control API directly to play the track(s)
         apiFetch<{ success?: boolean }>('/api/player/control', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             action: 'play',
-            uris: [sourceTrack.uri],
+            uris: trackUris,
           }),
         }).then(() => {
-          toast.success(`Playing "${sourceTrack.name}"`);
+          const trackName = sourceData?.track?.name ?? 'tracks';
+          const message = trackUris.length > 1 
+            ? `Playing ${trackUris.length} tracks`
+            : `Playing "${trackName}"`;
+          toast.success(message);
         }).catch((error) => {
           console.error('[DND] Failed to play track:', error);
           // Error toast already shown by apiFetch error handler
@@ -704,11 +711,19 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
       }
 
       const targetIndex = finalDropPosition ?? (targetData.position ?? 0);
-      const trackUris = [sourceTrack.uri];
       
-      console.debug('[DND] Adding track from search/player to playlist:', {
+      // Use helper to get all selected track URIs (supports multi-select)
+      const trackUris = getBrowsePanelDragUris(sourceData, sourceTrack);
+      
+      if (trackUris.length === 0) {
+        console.error('[DND] No track URIs to add');
+        return;
+      }
+      
+      console.debug('[DND] Adding tracks from search/player to playlist:', {
         playlistId: targetPlaylistId,
         trackUris,
+        trackCount: trackUris.length,
         targetIndex
       });
       
