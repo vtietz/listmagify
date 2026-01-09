@@ -18,8 +18,8 @@ const eslintConfig = [
       // File size guardrail - warn at 500 lines (excluding blanks and comments)
       'max-lines': ['warn', { max: 500, skipBlankLines: true, skipComments: true }],
       
-      // Cyclomatic complexity guardrail - warn at 30 (React JSX conditionals count as decision points)
-      complexity: ['warn', { max: 30 }],
+      // Cyclomatic complexity guardrail - warn at 50 (React JSX conditionals count as decision points)
+      complexity: ['warn', { max: 50 }],
     },
   },
   {

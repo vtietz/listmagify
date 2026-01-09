@@ -1,6 +1,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/auth";
 import Link from "next/link";
+import Image from "next/image";
 import { SignInButton } from "@/components/auth/SignInButton";
 import { AccessRequestDialog } from "@/components/landing/AccessRequestDialog";
 import { AuthPageLayout } from "@/components/auth/AuthPageLayout";
@@ -119,10 +120,13 @@ export default async function Home({ searchParams }: Props) {
         <div className="max-w-6xl mx-auto space-y-8">
           {/* Split Editor Screenshot */}
           <div className="rounded-xl overflow-hidden border border-border shadow-2xl">
-            <img
+            <Image
               src="/screenshot-split-editor.png"
               alt="Split Editor - Edit multiple playlists side by side with drag and drop"
+              width={1920}
+              height={1080}
               className="w-full h-auto"
+              priority
             />
           </div>
           <p className="text-center text-sm text-muted-foreground">
