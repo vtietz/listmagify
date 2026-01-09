@@ -102,7 +102,7 @@ export function LastfmBrowseTab({ isActive = true }: LastfmBrowseTabProps) {
     clearLastfmSelection,
   } = useBrowsePanelStore();
   
-  const { matchTrack, matchTracks, getCachedMatch, isPending } = useLastfmMatch();
+  const { matchTrack, matchTracks, getCachedMatch } = useLastfmMatch();
   const { isLiked, toggleLiked } = useSavedTracksIndex();
   const isCompact = useHydratedCompactMode();
   
@@ -213,10 +213,7 @@ export function LastfmBrowseTab({ isActive = true }: LastfmBrowseTabProps) {
     return allLastfmTracks.map((dto) => {
       const cached = getCachedMatch(dto);
       return lastfmToTrack(dto, cached);
-    });
-  }, [allLastfmTracks, getCachedMatch]);
-  
-  const totalResults = data?.pages[0]?.pagination?.totalItems ?? allTracks.length;
+    });  }, [allLastfmTracks, getCachedMatch]);
   
   // Create composite IDs for sortable context
   const sortableIds = useMemo(() => {
@@ -311,7 +308,7 @@ export function LastfmBrowseTab({ isActive = true }: LastfmBrowseTabProps) {
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
   
   // Handle track selection (triggers matching)
-  const handleSelect = useCallback((selectionKey: string, index: number, event: React.MouseEvent) => {
+  const handleSelect = useCallback((_selectionKey: string, index: number, event: React.MouseEvent) => {
     const track = allTracks[index];
     if (!track) return;
     
@@ -357,7 +354,7 @@ export function LastfmBrowseTab({ isActive = true }: LastfmBrowseTabProps) {
   }, [allTracks, lastfmAnchorIndex, toggleLastfmSelection, selectLastfmRange, clearLastfmSelection, getCachedMatch, matchTrack, matchTracks]);
   
   // Handle click (single select)
-  const handleClick = useCallback((selectionKey: string, index: number) => {
+  const handleClick = useCallback((_selectionKey: string, index: number) => {
     const track = allTracks[index];
     if (!track) return;
     

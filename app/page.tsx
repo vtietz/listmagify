@@ -14,7 +14,6 @@ import {
   ArrowUpDown, 
   Copy, 
   Trash2,
-  Heart,
   Play,
   Minimize2,
   Sparkles,

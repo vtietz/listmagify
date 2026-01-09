@@ -7,7 +7,6 @@ import {
   type RecommendationContext 
 } from '@/lib/recs';
 import { fetchTracks } from '@/lib/spotify/catalog';
-import type { Track } from '@/lib/spotify/types';
 
 /**
  * POST /api/recs/seed

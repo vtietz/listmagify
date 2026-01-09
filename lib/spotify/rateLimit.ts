@@ -40,7 +40,6 @@ export class RateLimitError extends Error {
 function formatRetryTime(seconds: number): string {
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
-  const secs = seconds % 60;
   
   if (hours > 0) {
     if (minutes > 0) return `${hours} hour${hours > 1 ? 's' : ''} ${minutes} min`;

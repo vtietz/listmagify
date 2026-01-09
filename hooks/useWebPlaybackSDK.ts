@@ -43,7 +43,6 @@ export function useWebPlaybackSDK(): UseWebPlaybackSDKResult {
   const { 
     setSelectedDevice, 
     setDevices, 
-    devices,
     setWebPlayerDeviceId,
     setWebPlayerReady,
     webPlayerDeviceId,

@@ -7,7 +7,6 @@ import {
   decodeLayoutWithFallback,
 } from '@/hooks/useSplitUrlSync';
 import {
-  SplitNode,
   PanelNode,
   GroupNode,
   createPanelConfig,

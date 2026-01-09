@@ -109,11 +109,6 @@ export function PlaylistSelector({ selectedPlaylistId, selectedPlaylistName, onS
       a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
     );
 
-    // Check if "Liked Songs" matches the query (or no query = show all)
-    const showLikedSongs = !q || 
-      LIKED_SONGS_METADATA.name.toLowerCase().includes(q) ||
-      'liked'.includes(q);
-
     return sorted;
   }, [allPlaylists, query]);
 

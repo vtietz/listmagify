@@ -28,7 +28,6 @@ import {
   ChevronsDown,
   Bookmark,
   BookmarkMinus,
-  Copy,
   Disc,
   User,
   Sparkles,
@@ -128,7 +127,7 @@ interface MenuContentProps {
  * PhoneMenuContent - Bottom sheet content for phone devices.
  */
 function PhoneMenuContent({
-  title,
+  title: _title,
   withClose,
   reorderActions,
   markerActions,

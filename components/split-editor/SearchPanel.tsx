@@ -158,8 +158,6 @@ export function SearchPanel({ isActive = true, inputRef: externalInputRef }: Sea
     }
   }, [sortKey]);
   
-  const totalResults = data?.pages[0]?.total ?? 0;
-  
   // Create composite IDs for sortable context
   const sortableIds = useMemo(() => {
     return sortedTracks.map((track, idx) =>
@@ -235,7 +233,7 @@ export function SearchPanel({ isActive = true, inputRef: externalInputRef }: Sea
   }, [toggleLiked]);
   
   // Handle track selection with modifier keys
-  const handleSelect = useCallback((selectionKey: string, index: number, event: React.MouseEvent) => {
+  const handleSelect = useCallback((_selectionKey: string, index: number, event: React.MouseEvent) => {
     // Toggle selection based on modifier keys
     if (event.shiftKey || event.ctrlKey || event.metaKey) {
       toggleSpotifySelection(index);
@@ -246,7 +244,7 @@ export function SearchPanel({ isActive = true, inputRef: externalInputRef }: Sea
   }, [toggleSpotifySelection, clearSpotifySelection]);
   
   // Handle click (single select)
-  const handleClick = useCallback((selectionKey: string, index: number) => {
+  const handleClick = useCallback((_selectionKey: string, index: number) => {
     clearSpotifySelection();
     toggleSpotifySelection(index);
   }, [clearSpotifySelection, toggleSpotifySelection]);

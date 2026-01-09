@@ -131,9 +131,6 @@ export function SplitNodeView({
     visibleChildren = [visibleChildren[1]!];
   }
   
-  // When showing only one panel, pass the flag down for proper sizing
-  const isSinglePanelMode = mobileShowOnlyFirst || mobileShowOnlySecond;
-
   // Use flexbox for phone (for focus-based sizing), grid for others
   if (isPhone) {
     return (

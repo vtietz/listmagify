@@ -2,7 +2,6 @@
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCompactModeStore } from "@/hooks/useCompactModeStore";
-import { cn } from "@/lib/utils";
 
 export default function PlaylistsLoading() {
   const { isCompact } = useCompactModeStore();

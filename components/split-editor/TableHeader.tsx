@@ -107,7 +107,7 @@ export const TRACK_GRID_STYLE_WITH_ALBUM = {
 };
 
 export function TableHeader({ 
-  isEditable, 
+  isEditable: _isEditable, 
   sortKey, 
   sortDirection, 
   onSort, 

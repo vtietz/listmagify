@@ -66,7 +66,7 @@ export function useLongPress({
   );
 
   const onTouchEnd = useCallback(
-    (e: React.TouchEvent) => {
+    (_e: React.TouchEvent) => {
       if (disabled) return;
       
       clear();

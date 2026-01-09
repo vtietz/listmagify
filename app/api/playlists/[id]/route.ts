@@ -11,7 +11,7 @@ import { spotifyFetchWithToken } from '@/lib/spotify/client';
  * Returns: { id, name, owner, collaborative, tracksTotal }
  */
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {

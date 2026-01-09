@@ -8,19 +8,6 @@ import { apiFetch } from '@/lib/api/client';
 import type { Track } from '@/lib/spotify/types';
 import type { Recommendation } from '@/lib/recs';
 
-interface SeedRecommendationsParams {
-  seedTrackIds: string[];
-  excludeTrackIds?: string[];
-  playlistId?: string;
-  topN?: number;
-}
-
-interface PlaylistAppendixParams {
-  playlistId: string;
-  trackIds?: string[];
-  topN?: number;
-}
-
 interface RecommendationsResponse {
   recommendations: Array<Recommendation & { track?: Track }>;
   enabled: boolean;

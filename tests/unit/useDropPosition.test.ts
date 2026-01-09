@@ -2,7 +2,7 @@
  * Unit tests for useDropPosition hook and calculateDropPosition utility
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { calculateDropPosition } from '@/hooks/useDropPosition';
 import type { Track } from '@/lib/spotify/types';
 

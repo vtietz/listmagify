@@ -6,7 +6,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { ListMusic, Search, Sparkles } from 'lucide-react';
+import { ListMusic, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { usePanelFocusStore } from '@/hooks/usePanelFocusStore';
 import { useDeviceType } from '@/hooks/useDeviceType';

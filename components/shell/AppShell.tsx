@@ -19,7 +19,6 @@ import {
   LoginButton,
   type MarkerStats,
 } from "./HeaderComponents";
-import Link from "next/link";
 
 type AppShellProps = {
   headerTitle?: string;
@@ -122,7 +121,7 @@ export function AppShell({ headerTitle = "Listmagify", children }: AppShellProps
   );
 }
 
-function Header({ title }: { title: string }) {
+function Header({ title: _title }: { title: string }) {
   const pathname = usePathname();
   const { isCompact, toggle: toggleCompact } = useCompactModeStore();
   const { isEnabled: isCompareEnabled, toggle: toggleCompare } = useCompareModeStore();
@@ -148,7 +147,6 @@ function Header({ title }: { title: string }) {
   
   const isPlaylistsActive = pathname === '/playlists' || pathname.startsWith('/playlists/');
   const isSplitEditorActive = pathname === '/split-editor';
-  const isStatsActive = pathname === '/stats' || pathname.startsWith('/stats/');
   
   // Pages that support player and compare mode
   const supportsPlayerAndCompare = isSplitEditorActive || isPlaylistsActive;

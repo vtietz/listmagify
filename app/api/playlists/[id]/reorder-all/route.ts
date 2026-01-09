@@ -22,7 +22,7 @@ async function processBatchedReorder(
   });
 
   if (!clearRes.ok) {
-    const text = await clearRes.text().catch(() => "");
+    void await clearRes.text().catch(() => "");
     console.error(`[api/playlists/reorder-all] Failed to clear playlist: ${clearRes.status}`);
     throw new Error(`Failed to clear playlist: ${clearRes.status}`);
   }
@@ -42,7 +42,7 @@ async function processBatchedReorder(
     });
 
     if (!addRes.ok) {
-      const text = await addRes.text().catch(() => "");
+      void await addRes.text().catch(() => "");
       console.error(`[api/playlists/reorder-all] Failed to add batch ${i / 100 + 1}: ${addRes.status}`);
       throw new Error(`Failed to add batch ${i / 100 + 1}: ${addRes.status}`);
     }

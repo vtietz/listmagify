@@ -65,7 +65,7 @@ function NavButton({ icon: Icon, label, isActive, onClick, disabled }: NavButton
 }
 
 export function MobileBottomNav({ 
-  panels, 
+  panels: _panels, 
   activeOverlay, 
   setActiveOverlay,
   hasPanel2,

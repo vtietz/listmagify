@@ -8,7 +8,7 @@
  */
 
 import type { Track } from "@/lib/spotify/types";
-import { getRecsDb, unixNow, withTransaction } from "./db";
+import { unixNow, withTransaction } from "./db";
 import { updateAdjacencyEdgesFromPlaylist, updateCooccurrenceEdgesFromPlaylist } from "./edges";
 
 /**

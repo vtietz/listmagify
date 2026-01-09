@@ -5,8 +5,8 @@
  * Extracted from useSplitGridStore for better testability and modularity.
  */
 
-import type { SplitNode, PanelNode, GroupNode, PanelConfig } from './types';
-import { generatePanelId, generateGroupId, createPanelConfig, createPanelNode } from './types';
+import type { SplitNode, GroupNode, PanelConfig } from './types';
+import { generatePanelId, generateGroupId, createPanelNode } from './types';
 
 /**
  * Flatten the tree to get all panel configs.

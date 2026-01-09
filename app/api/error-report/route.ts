@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/auth";
-import { getContactInfo, isContactConfigured } from "@/lib/contact";
+import { isContactConfigured } from "@/lib/contact";
 import type { ErrorReport, ErrorReportResponse } from "@/lib/errors/types";
 
 export const dynamic = "force-dynamic";
@@ -49,13 +49,8 @@ export async function POST(request: Request): Promise<Response> {
       );
     }
 
-    // Build email content
-    const contact = getContactInfo();
+    // Build report metadata
     const reportId = `ERR-${Date.now().toString(36).toUpperCase()}`;
-    
-    const emailSubject = `[Listmagify Error Report] ${body.error.category}: ${body.error.message.slice(0, 50)}`;
-    
-    const emailBody = formatErrorReport(body, reportId, session.user.name || "Anonymous");
 
     // For now, log the report (email sending can be added later)
     // In a production system, you'd integrate with an email service like:
@@ -80,6 +75,9 @@ export async function POST(request: Request): Promise<Response> {
     console.log(`[error-report] FULL_REPORT: ${JSON.stringify(logEntry)}`);
 
     // If you want to enable email sending, uncomment and configure:
+    // const contact = getContactInfo();
+    // const emailSubject = `[Listmagify Error Report] ${body.error.category}: ${body.error.message.slice(0, 50)}`;
+    // const emailBody = formatErrorReport(body, reportId, session.user.name || "Anonymous");
     // await sendEmail({
     //   to: contact.email,
     //   subject: emailSubject,
@@ -104,7 +102,9 @@ export async function POST(request: Request): Promise<Response> {
 
 /**
  * Format the error report as a readable email body
+ * (Currently unused - will be used when email sending is enabled)
  */
+/*
 function formatErrorReport(report: ErrorReport, reportId: string, userName: string): string {
   const { error, userDescription, environment, appVersion } = report;
   
@@ -187,3 +187,4 @@ function formatErrorReport(report: ErrorReport, reportId: string, userName: stri
 
   return sections.join('\n');
 }
+*/

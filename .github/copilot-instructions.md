@@ -77,11 +77,13 @@ This ensures you have accurate, current API documentation rather than relying on
 
 **After every code change:**
 
-1. **Run the test suite** via `.\run.bat test` (Windows PowerShell), `run.bat test` (Windows cmd.exe), or `./run.sh test` (macOS/Linux)
-2. **Verify the build** if applicable
+1. **Run TypeScript type check** via `.\run.bat dev pnpm typecheck` (Windows), or `./run.sh exec pnpm typecheck` (macOS/Linux) - this catches unused imports and type errors quickly
+2. **Run the test suite** via `.\run.bat test` (Windows PowerShell), `run.bat test` (Windows cmd.exe), or `./run.sh test` (macOS/Linux)
 3. **Run linting/formatting** checks if configured
 4. **Do not skip validation steps** — automated testing prevents regressions
-5. **Prvode a one-line commit message** summarizing all changes made using Commit Message Guidelines (se e below)
+5. **Provide a one-line commit message** summarizing all changes made using Commit Message Guidelines (see below)
+
+**Note**: Use `pnpm typecheck` instead of full production builds for faster feedback. Production builds are only needed for deployment verification.
 
 If tests fail after your changes:
 - Analyze the failure

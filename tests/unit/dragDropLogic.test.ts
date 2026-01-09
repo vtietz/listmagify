@@ -15,7 +15,7 @@ function computeDropPositionFromY(
   scrollTop: number,
   virtualItems: Array<{ index: number; start: number; end: number; size: number }>,
   filteredTracks: Array<{ position: number; name: string }>,
-  rowHeight: number
+  _rowHeight: number
 ): { filteredIndex: number; globalPosition: number } | null {
   if (filteredTracks.length === 0) {
     return { filteredIndex: 0, globalPosition: 0 };

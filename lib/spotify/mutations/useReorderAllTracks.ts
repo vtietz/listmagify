@@ -40,7 +40,7 @@ export function useReorderAllTracks() {
       
       toast.success('Playlist order saved');
     },
-    onError: (error: Error) => {
+    onError: (_error: Error) => {
       // Global error interceptor in apiFetch will show the error dialog
       // Just show a brief toast for immediate feedback
       toast.error('Failed to save playlist order');

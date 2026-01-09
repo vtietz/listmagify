@@ -10,7 +10,6 @@ import type {
   ImportPaginationMeta,
   ImportResponse,
   ImportSource,
-  LastfmPeriod,
   LastfmFetchParams,
 } from './types';
 

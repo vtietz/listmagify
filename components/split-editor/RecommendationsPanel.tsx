@@ -51,7 +51,7 @@ export function RecommendationsPanel({
   playlistId,
   isExpanded,
   onToggleExpand,
-  height = 300,
+  height: _height = 300,
 }: RecommendationsPanelProps) {
   const isCompact = useHydratedCompactMode();
   const { isPhone } = useDeviceType();
@@ -101,7 +101,7 @@ export function RecommendationsPanel({
     data,
     isLoading,
     isError,
-    refetch,
+    refetch: _refetch,
   } = useSeedRecommendations(
     selectedTrackIds,
     excludeTrackIds,

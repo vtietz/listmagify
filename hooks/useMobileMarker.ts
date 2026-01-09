@@ -31,11 +31,10 @@ export interface MobileMarkerActions {
  * Hook for mobile-friendly marker management.
  * Enforces single marker per panel on phones/tablets.
  */
-export function useMobileMarker(playlistId: string | undefined): MobileMarkerActions {
-  const { isPhone, isTablet } = useDeviceType();
+export function useMobileMarker(_playlistId: string | undefined): MobileMarkerActions {
+  const { isPhone, isTablet: _isTablet } = useDeviceType();
   const { 
     markPoint, 
-    unmarkPoint, 
     clearPlaylist, 
     clearAll, 
     hasMarkerAt, 
@@ -108,7 +107,7 @@ export function useMarkerContextActions(
   trackPosition: number,
   isEditable: boolean
 ): MarkerContextActions | null {
-  const { setMarker, removeMarker, hasMarkerAt, isSingleMarkerMode } = useMobileMarker(playlistId);
+  const { setMarker, removeMarker: _removeMarker, hasMarkerAt, isSingleMarkerMode: _isSingleMarkerMode } = useMobileMarker(playlistId);
 
   if (!playlistId || !isEditable) {
     return null;

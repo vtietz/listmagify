@@ -75,7 +75,7 @@ export function SpotifyPlayer({ forceShow = false }: SpotifyPlayerProps) {
   } = useSpotifyPlayer();
 
   const [localProgress, setLocalProgress] = useState(0);
-  const [isSeekDragging, setIsSeekDragging] = useState(false);
+  const [isSeekDragging, _setIsSeekDragging] = useState(false);
   const [isVolumePopoverOpen, setIsVolumePopoverOpen] = useState(false);
   const progressRef = useRef<HTMLDivElement>(null);
   const lastUpdateRef = useRef<number>(0);

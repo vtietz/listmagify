@@ -19,11 +19,11 @@ import { usePlaylistTracksInfinite } from '@/hooks/usePlaylistTracksInfinite';
 import { useSavedTracksIndex, usePrefetchSavedTracks } from '@/hooks/useSavedTracksIndex';
 import { useLikedVirtualPlaylist, isLikedSongsPlaylist, LIKED_SONGS_METADATA } from '@/hooks/useLikedVirtualPlaylist';
 import { useCapturePlaylist } from '@/hooks/useRecommendations';
-import { useRemoveTracks, useAddTracks, useReorderAllTracks } from '@/lib/spotify/playlistMutations';
+import { useRemoveTracks, useReorderAllTracks } from '@/lib/spotify/playlistMutations';
 import { useTrackPlayback } from '@/hooks/useTrackPlayback';
 import { getTrackSelectionKey } from '@/lib/dnd/selection';
 import { useHydratedCompactMode } from '@/hooks/useCompactModeStore';
-import { useCompareModeStore, getTrackCompareColor, type TrackDistribution } from '@/hooks/useCompareModeStore';
+import { useCompareModeStore, getTrackCompareColor } from '@/hooks/useCompareModeStore';
 import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
 import { usePrefetchContributorProfiles, useUserProfilesCache } from '@/hooks/useUserProfiles';
 import { TRACK_ROW_HEIGHT, TRACK_ROW_HEIGHT_COMPACT, VIRTUALIZATION_OVERSCAN } from '@/components/split-editor/constants';
@@ -202,7 +202,6 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
 
   // Mutations
   const removeTracks = useRemoveTracks();
-  const addTracks = useAddTracks();
   const reorderAllTracks = useReorderAllTracks();
 
   // Last.fm config - use dedicated status endpoint (no API calls to Last.fm)

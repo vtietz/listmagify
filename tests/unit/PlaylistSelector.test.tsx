@@ -2,7 +2,6 @@
  * Unit tests for PlaylistSelector component
  */
 
-import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -205,7 +204,7 @@ describe('PlaylistSelector', () => {
     await user.click(button);
     
     // Wait for playlists to load
-    const searchInput = await screen.findByPlaceholderText('Search playlists...');
+    await screen.findByPlaceholderText('Search playlists...');
     
     // Press ArrowDown - moves from index 0 (Liked Songs) to index 1 (Another Playlist)
     await user.keyboard('{ArrowDown}');

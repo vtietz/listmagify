@@ -12,9 +12,6 @@
 import { getDb, getMetricsMigrationStatus, closeDb } from '@/lib/metrics/db';
 import { getMetricsConfig } from '@/lib/metrics/env';
 import { recsEnv, isRecsAvailable, getRecsMigrationStatus, closeRecsDb, getRecsDb } from '@/lib/recs';
-import { runMigrations } from '@/lib/db';
-import { metricsMigrations } from '@/lib/db/metrics-migrations';
-import { recsMigrations } from '@/lib/db/recs-migrations';
 
 const showStatus = process.argv.includes('--status');
 
@@ -40,8 +37,6 @@ function printStatus(name: string, status: ReturnType<typeof getMetricsMigration
 
 async function main() {
   console.log('=== Database Migration Runner ===\n');
-  
-  let totalApplied = 0;
   
   // Metrics database
   const metricsConfig = getMetricsConfig();

@@ -10,7 +10,7 @@ import { spotifyFetch } from '@/lib/spotify/client';
  * Returns: { id, displayName, imageUrl }
  */
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {

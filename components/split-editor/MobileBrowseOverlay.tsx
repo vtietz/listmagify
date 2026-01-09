@@ -10,7 +10,7 @@
 
 import * as React from 'react';
 import { useState, useCallback } from 'react';
-import { Search, Sparkles, X, ChevronDown } from 'lucide-react';
+import { Search, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useDeviceType } from '@/hooks/useDeviceType';
 import { useBrowsePanelStore } from '@/hooks/useBrowsePanelStore';

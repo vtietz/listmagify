@@ -3,7 +3,6 @@
  * Used for displaying user avatars in compact spaces.
  */
 
-import * as React from 'react';
 import { cn } from '@/lib/utils';
 
 interface AvatarProps {

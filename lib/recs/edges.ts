@@ -311,7 +311,6 @@ export function updateEdgesForReorder(
     // Also update the gap left at the old position
     // The tracks at fromPosition-1 and fromPosition are now adjacent (after shift)
     const minAffected = Math.min(fromPosition, toPosition);
-    const maxAffected = Math.max(fromPosition, toPosition);
     
     if (minAffected > 0 && minAffected < playlistTrackIds.length - 1) {
       const prevTrack = playlistTrackIds[minAffected - 1];

@@ -121,10 +121,7 @@ describe('Selection Utilities', () => {
     });
 
     it('should clear previous selections', () => {
-      const selection: SelectionState = {
-        selectedIds: new Set(['track-1', 'track-2']),
-        lastSelectedId: 'track-2',
-      };
+      // Previous selection state (will be cleared)
       
       const newSelection = selectSingleTrack('track-3');
       

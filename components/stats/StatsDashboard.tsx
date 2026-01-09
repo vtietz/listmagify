@@ -20,7 +20,6 @@ import {
   BarChart3,
   Calendar,
   HelpCircle,
-  MousePointerClick,
   Sparkles,
   Database,
   GitBranch,
@@ -186,7 +185,7 @@ function KPICard({
   value,
   subtitle,
   icon: Icon,
-  trend,
+  trend: _trend,
   description,
 }: {
   title: string;
@@ -246,7 +245,7 @@ function SimpleBarChart({ data, label }: { data: DailySummary[]; label: string }
     <div className="space-y-2">
       <div className="text-sm font-medium">{label}</div>
       <div className="flex items-end gap-1 h-32">
-        {data.map((d, i) => (
+        {data.map((d, _i) => (
           <Tooltip key={d.date}>
             <TooltipTrigger asChild>
               <div

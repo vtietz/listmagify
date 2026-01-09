@@ -13,7 +13,7 @@
 'use client';
 
 import { useEffect, useRef, useCallback, useMemo } from 'react';
-import { useInfiniteQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
+import { useInfiniteQuery, type InfiniteData } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api/client';
 import { playlistTracksInfinite } from '@/lib/api/queryKeys';
 import type { Track } from '@/lib/spotify/types';
@@ -76,7 +76,6 @@ export function usePlaylistTracksInfinite({
   playlistId,
   enabled = true,
 }: UsePlaylistTracksInfiniteOptions): UsePlaylistTracksInfiniteResult {
-  const queryClient = useQueryClient();
   const prefetchedRef = useRef<string | null>(null);
 
   const queryResult = useInfiniteQuery<

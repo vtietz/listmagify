@@ -47,7 +47,7 @@ export function SlideOverPanel({
   showOverlay = true,
 }: SlideOverPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
-  const { isTablet, isPhone } = useDeviceType();
+  const { isTablet: _isTablet, isPhone } = useDeviceType();
 
   // Close on escape key
   useEffect(() => {

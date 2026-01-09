@@ -14,7 +14,7 @@
  * - Sensors configuration
  */
 
-import { useState, useRef, useCallback, useMemo } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { usePointerTracker } from './usePointerTracker';
 import { useContinuousAutoScroll } from './useAutoScrollEdge';
 import { calculateDropPosition } from './useDropPosition';
@@ -45,7 +45,6 @@ import {
   type PanelConfig,
   type PanelVirtualizerData,
   type EphemeralInsertion,
-  type MutationHandlers,
   type DropContext,
 } from './dnd';
 import { toast } from '@/lib/ui/toast';

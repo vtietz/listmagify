@@ -1,5 +1,3 @@
-import type { MetadataRoute } from 'next';
-
 export default function manifest() {
   return {
     name: 'Listmagify - Playlist Magic for Spotify',
