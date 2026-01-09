@@ -18,6 +18,7 @@ Commands:
   prod-down       Stop production deployment
   prod-logs       View production logs (use -f to follow)
   prod-update     Pull latest code, rebuild, and restart (git pull + prod-build + prod-up)
+  prod-clean      Clean up Docker images, containers, and build cache (use --volumes to also remove volumes)
 
 Examples:
   ./run.sh up
@@ -30,6 +31,8 @@ Examples:
   ./run.sh prod-build --no-cache
   ./run.sh prod-logs -f
   ./run.sh prod-update
+  ./run.sh prod-clean
+  ./run.sh prod-clean --volumes
 EOF
 }
 
@@ -135,6 +138,43 @@ case "${1:-}" in
     else
       docker compose --env-file .env -f docker/docker-compose.prod.yml logs -f
     fi
+    ;;
+  prod-clean)
+    shift
+    echo "🧹 Cleaning up Docker artifacts for this app..."
+    echo ""
+    
+    # Stop and remove production containers
+    echo "→ Stopping and removing production containers..."
+    if [ -f docker/docker-compose.prod.override.yml ]; then
+      docker compose --env-file .env -f docker/docker-compose.prod.yml -f docker/docker-compose.prod.override.yml down 2>/dev/null || true
+    else
+      docker compose --env-file .env -f docker/docker-compose.prod.yml down 2>/dev/null || true
+    fi
+    docker compose --env-file .env -f docker/docker-compose.yml down 2>/dev/null || true
+    
+    # Remove images
+    echo "→ Removing Docker images (sbs-web:prod, sbs-web:dev)..."
+    docker rmi sbs-web:prod 2>/dev/null || echo "  (no sbs-web:prod image found)"
+    docker rmi sbs-web:dev 2>/dev/null || echo "  (no sbs-web:dev image found)"
+    
+    # Remove build cache
+    echo "→ Pruning build cache..."
+    docker builder prune -f --filter "label=com.docker.compose.project=$(basename $(pwd))" 2>/dev/null || docker builder prune -f
+    
+    # Handle volumes if --volumes flag is present
+    if [ "${1:-}" = "--volumes" ]; then
+      echo "→ Removing volumes..."
+      if [ -f docker/docker-compose.prod.override.yml ]; then
+        docker compose --env-file .env -f docker/docker-compose.prod.yml -f docker/docker-compose.prod.override.yml down -v 2>/dev/null || true
+      else
+        docker compose --env-file .env -f docker/docker-compose.prod.yml down -v 2>/dev/null || true
+      fi
+      docker compose --env-file .env -f docker/docker-compose.yml down -v 2>/dev/null || true
+    fi
+    
+    echo ""
+    echo "✓ Cleanup complete!"
     ;;
   *)
     usage; exit 1;;

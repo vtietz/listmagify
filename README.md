@@ -122,6 +122,27 @@ The production setup includes:
 - No test/mock services
 - Automatic container restart
 
+### Cleanup Docker Artifacts
+
+Remove Docker images, containers, and build cache for this app:
+
+```bash
+# Windows
+run.bat prod-clean
+
+# macOS/Linux
+./run.sh prod-clean
+
+# Also remove volumes (deletes database)
+./run.sh prod-clean --volumes
+```
+
+This cleans up:
+- Stopped containers (development and production)
+- Docker images (`sbs-web:prod`, `sbs-web:dev`)
+- Build cache
+- Volumes (when `--volumes` flag is used)
+
 ### Server-Specific Configuration (nginx-proxy, Let's Encrypt, etc.)
 
 For production deployments requiring custom networks, SSL certificates, or reverse proxy integration:

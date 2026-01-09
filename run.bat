@@ -97,6 +97,43 @@ if "%1"=="prod-update" (
   echo Production update complete. Use 'run.bat compose logs -f' to view logs.
   goto :eof
 )
+if "%1"=="prod-clean" (
+  echo Cleaning up Docker artifacts for this app...
+  echo.
+  
+  rem Stop and remove production containers
+  echo ^>^> Stopping and removing production containers...
+  if exist "docker\docker-compose.prod.override.yml" (
+    docker compose -f docker\docker-compose.prod.yml -f docker\docker-compose.prod.override.yml down 2>nul
+  ) else (
+    docker compose -f docker\docker-compose.prod.yml down 2>nul
+  )
+  docker compose -f docker\docker-compose.yml down 2>nul
+  
+  rem Remove images
+  echo ^>^> Removing Docker images ^(sbs-web:prod, sbs-web:dev^)...
+  docker rmi sbs-web:prod 2>nul || echo   ^(no sbs-web:prod image found^)
+  docker rmi sbs-web:dev 2>nul || echo   ^(no sbs-web:dev image found^)
+  
+  rem Remove build cache
+  echo ^>^> Pruning build cache...
+  docker builder prune -f 2>nul
+  
+  rem Handle volumes if --volumes flag is present
+  if /I "%2"=="--volumes" (
+    echo ^>^> Removing volumes...
+    if exist "docker\docker-compose.prod.override.yml" (
+      docker compose -f docker\docker-compose.prod.yml -f docker\docker-compose.prod.override.yml down -v 2>nul
+    ) else (
+      docker compose -f docker\docker-compose.prod.yml down -v 2>nul
+    )
+    docker compose -f docker\docker-compose.yml down -v 2>nul
+  )
+  
+  echo.
+  echo Cleanup complete!
+  goto :eof
+)
 if "%1"=="test" (
   rem Unit tests by default (non-watch). Use: test ui | test -w | test --watch
   if /I "%2"=="ui" (
@@ -150,7 +187,7 @@ echo   run.bat up/down         - Start/stop dev services
  echo   run.bat start-prod      - Start the production server (dev compose)
  echo   run.bat prod-build      - Build production image (use --no-cache to force rebuild)
  echo   run.bat prod-up         - Start production deployment (prod compose)
- echo   run.bat prod-down       - Stop production deploymentecho   run.bat prod-update     - Pull latest code, rebuild, and restart productionecho   run.bat dev ^<cmd^>      - Execute a command in a temporary dev container (e.g., run pnpm lint)
+ echo   run.bat prod-down       - Stop production deploymentecho   run.bat prod-update     - Pull latest code, rebuild, and restart production echo   run.bat prod-clean      - Clean up Docker images, containers, and build cache (use --volumes to also remove volumes)echo   run.bat dev ^<cmd^>      - Execute a command in a temporary dev container (e.g., run pnpm lint)
 echo   run.bat prod ^<cmd^>     - Execute a command in a temporary prod container
 echo   run.bat test [args]     - Run tests (default: unit, args: --watch, ui, e2e, e2e:ui, e2e:ci)
 echo   run.bat test stack:up   - Start E2E test stack (web-test + spotify-mock)
