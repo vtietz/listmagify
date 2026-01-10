@@ -4,10 +4,10 @@ import Link from "next/link";
 import Image from "next/image";
 import { SignInButton } from "@/components/auth/SignInButton";
 import { AccessRequestDialog } from "@/components/landing/AccessRequestDialog";
+import { ByokSignInButton } from "@/components/landing/ByokSignInButton";
 import { AuthPageLayout } from "@/components/auth/AuthPageLayout";
 import { AuthMessage } from "@/components/auth/AuthMessage";
 import { DevModeNotice } from "@/components/auth/DevModeNotice";
-import { AppLogo } from "@/components/ui/app-logo";
 import { 
   Columns, 
   GripVertical, 
@@ -92,7 +92,7 @@ export default async function Home({ searchParams }: Props) {
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
               Professional playlist management for Spotify. Edit multiple playlists side-by-side with drag-and-drop.
             </p>
-            <div className="flex justify-center gap-4 pt-4">
+            <div className="flex flex-wrap justify-center gap-4 pt-4">
               <SignInButton callbackUrl={returnTo} />
               <AccessRequestDialog
                 trigger={
@@ -101,6 +101,7 @@ export default async function Home({ searchParams }: Props) {
                   </button>
                 }
               />
+              <ByokSignInButton callbackUrl={returnTo} />
             </div>
             <p className="text-sm text-muted-foreground">
               Free to use • Requires Spotify account • Your data stays with Spotify

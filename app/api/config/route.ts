@@ -11,5 +11,7 @@ export async function GET() {
   return NextResponse.json({
     // Polling interval in seconds for auto-reloading playlists (undefined = disabled)
     playlistPollIntervalSeconds: serverEnv.PLAYLIST_POLL_INTERVAL_SECONDS ?? null,
+    // Whether BYOK (Bring Your Own Key) is enabled
+    byokEnabled: serverEnv.BYOK_ENABLED ?? false,
   });
 }

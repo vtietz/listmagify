@@ -26,6 +26,11 @@ const serverSchema = z.object({
       const num = parseInt(val, 10);
       return isNaN(num) || num <= 0 ? undefined : num;
     }),
+  // Optional: allow users to bring their own Spotify API keys
+  BYOK_ENABLED: z
+    .string()
+    .optional()
+    .transform((val) => val === 'true'),
 });
 
 type ServerEnv = z.infer<typeof serverSchema>;
@@ -52,6 +57,7 @@ export const serverEnv: ServerEnv = (() => {
       SPOTIFY_CLIENT_ID: 'missing-client-id',
       SPOTIFY_CLIENT_SECRET: 'missing-client-secret',
       PLAYLIST_POLL_INTERVAL_SECONDS: undefined,
+      BYOK_ENABLED: false,
     };
   }
   return serverSchema.parse({
@@ -60,6 +66,7 @@ export const serverEnv: ServerEnv = (() => {
     SPOTIFY_CLIENT_ID: process.env.SPOTIFY_CLIENT_ID,
     SPOTIFY_CLIENT_SECRET: process.env.SPOTIFY_CLIENT_SECRET,
     PLAYLIST_POLL_INTERVAL_SECONDS: process.env.PLAYLIST_POLL_INTERVAL_SECONDS,
+    BYOK_ENABLED: process.env.BYOK_ENABLED,
   });
 })();
 

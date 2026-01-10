@@ -179,6 +179,41 @@ For production deployments requiring custom networks, SSL certificates, or rever
 - Tailwind CSS, shadcn/ui
 - better-sqlite3 for metrics
 
+## Bring Your Own Key (BYOK)
+
+BYOK allows users to use their own Spotify API credentials for full control over their API access. When enabled, a "Use Your Own API Key" button appears on the landing page.
+
+### Enable BYOK
+
+```env
+# .env
+BYOK_ENABLED=true
+```
+
+### How It Works
+
+1. User clicks "Use Your Own API Key" on the landing page
+2. A dialog appears with step-by-step instructions to create a Spotify app
+3. User enters their Client ID and Client Secret
+4. Credentials are stored in browser localStorage (never sent to server)
+5. User clicks "Sign in with Your API Key" to authenticate
+6. The app uses their credentials for OAuth and API calls
+
+### User Instructions
+
+Users need to:
+1. Go to the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
+2. Create a new app with these settings:
+   - **Redirect URI**: `http://127.0.0.1:3000/api/auth/byok/callback` (or your production URL)
+   - **APIs**: Check "Web API"
+3. Copy the Client ID and Client Secret into Listmagify
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `BYOK_ENABLED` | Enable/disable BYOK feature | `false` |
+
+**Privacy Note:** User credentials are stored only in their browser's localStorage. They are never transmitted to or stored on the server.
+
 ## Usage Analytics (Optional)
 
 Listmagify includes privacy-first usage analytics, disabled by default. When enabled:

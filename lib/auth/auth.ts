@@ -11,6 +11,7 @@ console.log(
 );
 /**
  * Refresh Spotify access token using the stored refresh token.
+ * Supports both default credentials and BYOK (Bring Your Own Key) credentials.
  * Spotify docs: https://developer.spotify.com/documentation/web-api/tutorials/refreshing-tokens
  */
 async function refreshAccessToken(token: Record<string, any>) {
@@ -19,11 +20,15 @@ async function refreshAccessToken(token: Record<string, any>) {
       throw new Error("Missing refresh token");
     }
 
+    // Use BYOK credentials if present, otherwise use default server credentials
+    const clientId = token.byok?.clientId || serverEnv.SPOTIFY_CLIENT_ID;
+    const clientSecret = token.byok?.clientSecret || serverEnv.SPOTIFY_CLIENT_SECRET;
+
     const params = new URLSearchParams({
       grant_type: "refresh_token",
       refresh_token: token.refreshToken as string,
-      client_id: serverEnv.SPOTIFY_CLIENT_ID,
-      client_secret: serverEnv.SPOTIFY_CLIENT_SECRET,
+      client_id: clientId,
+      client_secret: clientSecret,
     });
 
     const res = await fetch("https://accounts.spotify.com/api/token", {
