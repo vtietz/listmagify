@@ -15,10 +15,7 @@ import { cn } from '@/lib/utils';
 import { useCompactModeStore } from '@/hooks/useCompactModeStore';
 import { useBrowsePanelStore } from '@/hooks/useBrowsePanelStore';
 import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
-import { usePlayerStore } from '@/hooks/usePlayerStore';
 import { useContextMenuStore } from '@/hooks/useContextMenuStore';
-import { useDeviceType } from '@/hooks/useDeviceType';
-import { useMobileOverlayStore } from './MobileBottomNav';
 import { useInsertionMarkerToggle } from '@/hooks/useInsertionMarkerToggle';
 import { useRowSortable } from '@/hooks/useRowSortable';
 import { useLongPress } from '@/hooks/useLongPress';
@@ -200,12 +197,9 @@ export function TrackRow({
   const { open: openBrowsePanel, setSearchQuery } = useBrowsePanelStore();
   const togglePoint = useInsertionPointsStore((s) => s.togglePoint);
   const allPlaylists = useInsertionPointsStore((s) => s.playlists);
-  const isPlayerVisible = usePlayerStore((s) => s.isPlayerVisible);
-  const { isPhone } = useDeviceType();
-  const mobileOverlay = useMobileOverlayStore((s) => s.activeOverlay);
   
-  // On mobile, show play button when player overlay is active
-  const shouldShowPlayButton = isPlayerVisible || (isPhone && mobileOverlay === 'player');
+  // Always show play button regardless of player visibility
+  const shouldShowPlayButton = true;
   
   // Global context menu store
   const openContextMenu = useContextMenuStore((s) => s.openMenu);

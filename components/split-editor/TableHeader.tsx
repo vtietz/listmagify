@@ -8,10 +8,7 @@
 import { ArrowUp, ArrowDown, Heart, Play, Plus, TrendingUp, Calendar, Users, Timer, Radio, GripVertical } from 'lucide-react';
 import { useCompactModeStore } from '@/hooks/useCompactModeStore';
 import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
-import { usePlayerStore } from '@/hooks/usePlayerStore';
-import { useDeviceType } from '@/hooks/useDeviceType';
 import { useDragHandle } from './DragHandle';
-import { useMobileOverlayStore } from './MobileBottomNav';
 import type { SortKey, SortDirection } from '@/hooks/usePlaylistSort';
 
 interface TableHeaderProps {
@@ -124,14 +121,11 @@ export function TableHeader({
   const { isCompact } = useCompactModeStore();
   
   // Get visibility states from stores
-  const isPlayerVisible = usePlayerStore((s) => s.isPlayerVisible);
-  const { isPhone } = useDeviceType();
-  const mobileOverlay = useMobileOverlayStore((s) => s.activeOverlay);
   const playlists = useInsertionPointsStore((s) => s.playlists);
   const hasAnyMarkers = Object.values(playlists).some((p) => p.markers.length > 0);
   
-  // On mobile, show play button when player overlay is active
-  const shouldShowPlayButton = isPlayerVisible || (isPhone && mobileOverlay === 'player');
+  // Always show play button regardless of player visibility
+  const shouldShowPlayButton = true;
   
   // Mobile drag handle visibility (matches TrackRow)
   const { showHandle: showDragHandle } = useDragHandle();

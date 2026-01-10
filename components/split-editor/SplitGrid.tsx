@@ -23,11 +23,13 @@ import { useSplitUrlSync } from '@/hooks/useSplitUrlSync';
 import { useSessionUser } from '@/hooks/useSessionUser';
 import { useDeviceType, getOrientationClasses, TABLET_PERFORMANCE_WARNING_THRESHOLD } from '@/hooks/useDeviceType';
 import { usePanelFocusStore } from '@/hooks/usePanelFocusStore';
+import { usePlayerStore } from '@/hooks/usePlayerStore';
+import { useSmallViewportHeight } from '@/hooks/useSmallViewportHeight';
 import { SplitNodeView } from './SplitNodeView';
 import { BrowsePanel } from './BrowsePanel';
 import { useMobileOverlayStore, MobileBottomNav } from './MobileBottomNav';
 import { DndDragOverlay } from './DndDragOverlay';
-import { SpotifyPlayer } from '@/components/player';
+import { SpotifyPlayer, MiniPlayer } from '@/components/player';
 import { SignInButton } from '@/components/auth/SignInButton';
 import { toast } from '@/lib/ui/toast';
 import { cn } from '@/lib/utils';
@@ -53,6 +55,23 @@ export function SplitGrid() {
   // Mobile overlay state (for phones only)
   const activeOverlay = useMobileOverlayStore((s) => s.activeOverlay);
   const setActiveOverlay = useMobileOverlayStore((s) => s.setActiveOverlay);
+  
+  // Player state for mini player
+  const playbackState = usePlayerStore((s) => s.playbackState);
+  const isMiniPlayerHidden = usePlayerStore((s) => s.isMiniPlayerHidden);
+  const setMiniPlayerHidden = usePlayerStore((s) => s.setMiniPlayerHidden);
+  const isPlaying = playbackState?.isPlaying ?? false;
+  const hasTrack = !!playbackState?.track;
+  
+  // Small viewport height detection (for desktop mini player)
+  const isSmallHeight = useSmallViewportHeight();
+  
+  // Auto-show mini player when playback starts (after user dismissed it)
+  useEffect(() => {
+    if (isPlaying && isMiniPlayerHidden) {
+      setMiniPlayerHidden(false);
+    }
+  }, [isPlaying, isMiniPlayerHidden, setMiniPlayerHidden]);
   
   // Auto-focus first panel on phones when panels change
   useEffect(() => {
@@ -228,10 +247,33 @@ export function SplitGrid() {
           )}
         </div>
 
-        {/* Player - always inline for proper DnD support */}
-        {/* Phone: only show when player overlay is active */}
-        {/* Desktop/Tablet: always visible */}
-        {(showMobilePlayer || !isPhone) && <SpotifyPlayer forceShow={isPhone} />}
+        {/* Player section */}
+        {/* Phone: Use MiniPlayer when playing (not in player overlay mode) */}
+        {/* Desktop with small height: Use MiniPlayer */}
+        {/* Otherwise: Use full SpotifyPlayer */}
+        {isPhone ? (
+          // Phone layout: MiniPlayer when playing, full player when overlay is open
+          showMobilePlayer ? (
+            <SpotifyPlayer forceShow={true} />
+          ) : hasTrack && !isMiniPlayerHidden ? (
+            <MiniPlayer 
+              isVisible={true} 
+              onHide={() => setMiniPlayerHidden(true)} 
+            />
+          ) : null
+        ) : (
+          // Desktop/Tablet layout: MiniPlayer for small heights, full player otherwise
+          isSmallHeight ? (
+            hasTrack && !isMiniPlayerHidden ? (
+              <MiniPlayer 
+                isVisible={true} 
+                onHide={() => setMiniPlayerHidden(true)} 
+              />
+            ) : null
+          ) : (
+            <SpotifyPlayer />
+          )
+        )}
 
         {/* Phone: Bottom navigation */}
         {isPhone && (

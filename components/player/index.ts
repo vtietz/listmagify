@@ -3,4 +3,5 @@
  */
 
 export { SpotifyPlayer } from './SpotifyPlayer';
+export { MiniPlayer } from './MiniPlayer';
 export { DeviceSelector } from './DeviceSelector';

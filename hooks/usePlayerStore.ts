@@ -37,6 +37,8 @@ interface PlayerStore {
   
   // UI state
   isPlayerVisible: boolean;
+  /** User has manually hidden the mini player (resets when playback starts) */
+  isMiniPlayerHidden: boolean;
   
   // Actions
   setPlaybackState: (state: PlaybackState | null) => void;
@@ -50,6 +52,7 @@ interface PlayerStore {
   setError: (error: string | null) => void;
   setPlayerVisible: (visible: boolean) => void;
   togglePlayerVisible: () => void;
+  setMiniPlayerHidden: (hidden: boolean) => void;
   
   // Computed: currently playing track ID
   currentTrackId: () => string | null;
@@ -67,6 +70,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
   isWebPlayerReady: false,
   playbackContext: null,
   isPlayerVisible: false, // Hidden by default
+  isMiniPlayerHidden: false, // Mini player visible by default when playing
 
   // Actions
   setPlaybackState: (playbackState) => set({ playbackState }),
@@ -94,6 +98,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
   setError: (error) => set({ error }),
   setPlayerVisible: (isPlayerVisible) => set({ isPlayerVisible }),
   togglePlayerVisible: () => set((state) => ({ isPlayerVisible: !state.isPlayerVisible })),
+  setMiniPlayerHidden: (isMiniPlayerHidden) => set({ isMiniPlayerHidden }),
 
   // Computed
   currentTrackId: () => {
