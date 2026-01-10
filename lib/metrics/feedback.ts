@@ -8,16 +8,20 @@ import { hashUserId } from './logger';
 
 export interface FeedbackParams {
   userId: string | null;
-  npsScore: number;
+  npsScore: number | null;
   comment: string | null;
+  name: string | null;
+  email: string | null;
 }
 
 export interface FeedbackEntry {
   id: number;
   ts: string;
   userHash: string | null;
-  npsScore: number;
+  npsScore: number | null;
   comment: string | null;
+  name: string | null;
+  email: string | null;
 }
 
 export interface FeedbackStats {
@@ -49,11 +53,11 @@ export function saveFeedback(params: FeedbackParams): number | null {
     const userHash = params.userId ? hashUserId(params.userId) : null;
     
     const stmt = db.prepare(`
-      INSERT INTO feedback (user_hash, nps_score, comment)
-      VALUES (?, ?, ?)
+      INSERT INTO feedback (user_hash, nps_score, comment, name, email)
+      VALUES (?, ?, ?, ?, ?)
     `);
     
-    const result = stmt.run(userHash, params.npsScore, params.comment);
+    const result = stmt.run(userHash, params.npsScore, params.comment, params.name, params.email);
     return result.lastInsertRowid as number;
   } catch (error) {
     console.error('[metrics/feedback] Failed to save feedback:', error);
@@ -82,7 +86,7 @@ export function getFeedbackStats(range: { from: string; to: string }): FeedbackS
   try {
     // Get all feedback in range
     const feedbackStmt = db.prepare(`
-      SELECT id, ts, user_hash as userHash, nps_score as npsScore, comment
+      SELECT id, ts, user_hash as userHash, nps_score as npsScore, comment, name, email
       FROM feedback
       WHERE DATE(ts) >= ? AND DATE(ts) <= ?
       ORDER BY ts DESC
@@ -92,13 +96,24 @@ export function getFeedbackStats(range: { from: string; to: string }): FeedbackS
     
     if (feedback.length === 0) return defaultStats;
 
+    const scored = feedback.filter((f) => typeof f.npsScore === 'number') as Array<
+      Omit<FeedbackEntry, 'npsScore'> & { npsScore: number }
+    >;
+
+    if (scored.length === 0) {
+      return {
+        ...defaultStats,
+        recentFeedback: feedback.slice(0, 20),
+      };
+    }
+
     // Calculate NPS components
-    const promoters = feedback.filter(f => f.npsScore >= 9).length;
-    const passives = feedback.filter(f => f.npsScore >= 7 && f.npsScore <= 8).length;
-    const detractors = feedback.filter(f => f.npsScore <= 6).length;
+    const promoters = scored.filter((f) => f.npsScore >= 9).length;
+    const passives = scored.filter((f) => f.npsScore >= 7 && f.npsScore <= 8).length;
+    const detractors = scored.filter((f) => f.npsScore <= 6).length;
     
-    const totalResponses = feedback.length;
-    const averageScore = feedback.reduce((sum, f) => sum + f.npsScore, 0) / totalResponses;
+    const totalResponses = scored.length;
+    const averageScore = scored.reduce((sum, f) => sum + f.npsScore, 0) / totalResponses;
     
     // NPS = % promoters - % detractors (ranges from -100 to +100)
     const nps = Math.round(((promoters - detractors) / totalResponses) * 100);

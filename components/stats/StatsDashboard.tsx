@@ -126,8 +126,10 @@ interface FeedbackEntry {
   id: number;
   ts: string;
   userHash: string | null;
-  npsScore: number;
+  npsScore: number | null;
   comment: string | null;
+  name?: string | null;
+  email?: string | null;
 }
 
 interface FeedbackStats {
@@ -969,13 +971,17 @@ function FeedbackStatsCard({
                         className="p-3 bg-muted/50 rounded-lg text-sm"
                       >
                         <div className="flex items-center gap-2 mb-1">
-                          <span className={`font-medium ${
-                            feedback.npsScore >= 9 ? 'text-green-500' :
-                            feedback.npsScore >= 7 ? 'text-yellow-500' :
-                            'text-red-500'
-                          }`}>
-                            {feedback.npsScore}/10
-                          </span>
+                          {typeof feedback.npsScore === 'number' ? (
+                            <span className={`font-medium ${
+                              feedback.npsScore >= 9 ? 'text-green-500' :
+                              feedback.npsScore >= 7 ? 'text-yellow-500' :
+                              'text-red-500'
+                            }`}>
+                              {feedback.npsScore}/10
+                            </span>
+                          ) : (
+                            <span className="font-medium text-muted-foreground">No score</span>
+                          )}
                           <span className="text-xs text-muted-foreground">
                             {new Date(feedback.ts).toLocaleDateString()}
                           </span>

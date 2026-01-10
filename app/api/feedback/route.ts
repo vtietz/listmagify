@@ -2,7 +2,7 @@
  * Feedback API - Submit user feedback with NPS score.
  * 
  * POST /api/feedback
- * Body: { npsScore: number (0-10), comment?: string }
+ * Body: { npsScore?: number (0-10), comment?: string, name?: string, email?: string }
  * 
  * Stores feedback in metrics database and optionally sends email notification.
  */
@@ -19,14 +19,16 @@ import { sendFeedbackEmail } from '@/lib/email';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { npsScore, comment } = body;
+    const { npsScore, comment, name, email } = body;
 
-    // Validate NPS score
-    if (typeof npsScore !== 'number' || npsScore < 0 || npsScore > 10) {
-      return NextResponse.json(
-        { success: false, error: 'NPS score must be a number between 0 and 10' },
-        { status: 400 }
-      );
+    // Validate NPS score (optional)
+    if (npsScore !== undefined && npsScore !== null) {
+      if (typeof npsScore !== 'number' || npsScore < 0 || npsScore > 10) {
+        return NextResponse.json(
+          { success: false, error: 'NPS score must be a number between 0 and 10' },
+          { status: 400 }
+        );
+      }
     }
 
     // Validate comment (optional)
@@ -37,6 +39,48 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate name/email (optional)
+    if (name !== undefined && typeof name !== 'string') {
+      return NextResponse.json(
+        { success: false, error: 'Name must be a string' },
+        { status: 400 }
+      );
+    }
+    if (email !== undefined && typeof email !== 'string') {
+      return NextResponse.json(
+        { success: false, error: 'Email must be a string' },
+        { status: 400 }
+      );
+    }
+
+    const normalizedComment = typeof comment === 'string' ? comment.trim() : '';
+    const normalizedName = typeof name === 'string' ? name.trim() : '';
+    const normalizedEmail = typeof email === 'string' ? email.trim() : '';
+
+    // Require at least some content (avoid empty submissions)
+    const hasAnyInput =
+      (typeof npsScore === 'number') ||
+      normalizedComment.length > 0 ||
+      normalizedName.length > 0 ||
+      normalizedEmail.length > 0;
+
+    if (!hasAnyInput) {
+      return NextResponse.json(
+        { success: false, error: 'Please provide a score, a comment, or contact info' },
+        { status: 400 }
+      );
+    }
+
+    if (normalizedEmail.length > 0) {
+      const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail);
+      if (!isEmailValid) {
+        return NextResponse.json(
+          { success: false, error: 'Email address is invalid' },
+          { status: 400 }
+        );
+      }
+    }
+
     // Get user ID from token if available (optional - feedback can be anonymous)
     const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET! });
     const userId = (token as { sub?: string })?.sub ?? null;
@@ -44,8 +88,10 @@ export async function POST(request: NextRequest) {
     // Save to database
     const feedbackId = saveFeedback({
       userId,
-      npsScore,
-      comment: comment?.trim() || null,
+      npsScore: typeof npsScore === 'number' ? npsScore : null,
+      comment: normalizedComment || null,
+      name: normalizedName || null,
+      email: normalizedEmail || null,
     });
 
     // Send email notification (best effort, don't fail on email errors)
@@ -54,8 +100,10 @@ export async function POST(request: NextRequest) {
       try {
         await sendFeedbackEmail({
           to: contactInfo.email,
-          npsScore,
-          comment: comment?.trim() || null,
+          npsScore: typeof npsScore === 'number' ? npsScore : null,
+          comment: normalizedComment || null,
+          name: normalizedName || null,
+          email: normalizedEmail || null,
           userId,
         });
       } catch (emailError) {

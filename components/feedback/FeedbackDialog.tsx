@@ -12,12 +12,13 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 
 interface FeedbackDialogProps {
   /** Custom trigger element (optional - default floating button) */
-  trigger?: React.ReactNode;
+  trigger?: React.ReactNode | null;
   /** Controlled open state (optional) */
   open?: boolean;
   /** Callback when dialog open state changes */
@@ -48,7 +49,7 @@ function NpsButton({
       type="button"
       onClick={onClick}
       className={cn(
-        'w-7 h-7 sm:w-8 sm:h-8 rounded-md text-xs sm:text-sm font-medium transition-all',
+        'w-7 h-7 rounded-md text-xs sm:text-sm font-medium transition-all',
         'focus:outline-none focus:ring-1 sm:focus:ring-2 focus:ring-ring',
         getColor(score, selected)
       )}
@@ -69,6 +70,8 @@ function NpsButton({
 export function FeedbackDialog({ trigger, open: controlledOpen, onOpenChange }: FeedbackDialogProps) {
   const [internalOpen, setInternalOpen] = useState(false);
   const [npsScore, setNpsScore] = useState<number | null>(null);
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
   const [comment, setComment] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -88,6 +91,8 @@ export function FeedbackDialog({ trigger, open: controlledOpen, onOpenChange }: 
     if (!newOpen) {
       setTimeout(() => {
         setNpsScore(null);
+        setName('');
+        setEmail('');
         setComment('');
         setSubmitted(false);
         setError(null);
@@ -95,8 +100,28 @@ export function FeedbackDialog({ trigger, open: controlledOpen, onOpenChange }: 
     }
   };
 
+  const normalizedName = name.trim();
+  const normalizedEmail = email.trim();
+  const normalizedComment = comment.trim();
+
+  const hasAnyInput =
+    npsScore !== null ||
+    normalizedComment.length > 0 ||
+    normalizedName.length > 0 ||
+    normalizedEmail.length > 0;
+
+  const isValidEmail = (value: string) => {
+    if (value.length === 0) return true;
+    // Simple validation: enough to prevent obvious typos without being overly strict.
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+  };
+
   const handleSubmit = async () => {
-    if (npsScore === null) return;
+    if (!hasAnyInput) return;
+    if (!isValidEmail(normalizedEmail)) {
+      setError('Please enter a valid email address (or leave it blank).');
+      return;
+    }
 
     setIsSubmitting(true);
     setError(null);
@@ -107,7 +132,9 @@ export function FeedbackDialog({ trigger, open: controlledOpen, onOpenChange }: 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           npsScore,
-          comment: comment.trim() || undefined,
+          comment: normalizedComment || undefined,
+          name: normalizedName || undefined,
+          email: normalizedEmail || undefined,
         }),
       });
 
@@ -140,19 +167,17 @@ export function FeedbackDialog({ trigger, open: controlledOpen, onOpenChange }: 
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        {trigger || (
-          <Button
-            variant="secondary"
-            size="sm"
-            className="gap-1.5"
-          >
-            <MessageSquarePlus className="h-4 w-4" />
-            Feedback
-          </Button>
-        )}
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
+      {trigger !== null && (
+        <DialogTrigger asChild>
+          {trigger || (
+            <Button variant="secondary" size="sm" className="gap-1.5">
+              <MessageSquarePlus className="h-4 w-4" />
+              Feedback
+            </Button>
+          )}
+        </DialogTrigger>
+      )}
+      <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto overflow-x-hidden">
         {submitted ? (
           <div className="py-6 text-center">
             <div className="text-4xl mb-4">🙏</div>
@@ -173,13 +198,13 @@ export function FeedbackDialog({ trigger, open: controlledOpen, onOpenChange }: 
             <div className="space-y-3 sm:space-y-4 py-2 sm:py-4">
               {/* NPS Scale */}
               <div className="space-y-2 sm:space-y-3">
-                <div className="flex justify-between gap-0.5 sm:gap-1">
+                <div className="flex justify-between gap-0.5">
                   {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((score) => (
                     <NpsButton
                       key={score}
                       score={score}
                       selected={npsScore === score}
-                      onClick={() => setNpsScore(score)}
+                      onClick={() => setNpsScore((prev) => (prev === score ? null : score))}
                     />
                   ))}
                 </div>
@@ -192,6 +217,45 @@ export function FeedbackDialog({ trigger, open: controlledOpen, onOpenChange }: 
                     {label.text}
                   </p>
                 )}
+              </div>
+
+              {/* Contact fields */}
+              <div className="space-y-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <label htmlFor="feedback-name" className="text-sm font-medium">
+                      Name (optional)
+                    </label>
+                    <Input
+                      id="feedback-name"
+                      placeholder="Your name"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      maxLength={200}
+                      className="text-sm"
+                      autoComplete="name"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label htmlFor="feedback-email" className="text-sm font-medium">
+                      Email (optional)
+                    </label>
+                    <Input
+                      id="feedback-email"
+                      placeholder="you@example.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      maxLength={320}
+                      className="text-sm"
+                      autoComplete="email"
+                      inputMode="email"
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Leave your email if you want a reply.
+                </p>
               </div>
 
               {/* Comment field */}
@@ -221,7 +285,7 @@ export function FeedbackDialog({ trigger, open: controlledOpen, onOpenChange }: 
             <DialogFooter>
               <Button
                 onClick={handleSubmit}
-                disabled={npsScore === null || isSubmitting}
+                disabled={!hasAnyInput || isSubmitting || !isValidEmail(normalizedEmail)}
                 className="w-full sm:w-auto"
               >
                 {isSubmitting ? (

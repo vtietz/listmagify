@@ -9,8 +9,10 @@ import nodemailer from 'nodemailer';
 
 interface FeedbackEmailParams {
   to: string;
-  npsScore: number;
+  npsScore: number | null;
   comment: string | null;
+  name: string | null;
+  email: string | null;
   userId: string | null;
 }
 
@@ -38,7 +40,7 @@ function getNpsEmoji(score: number): string {
  * If SMTP is not configured, logs to console instead.
  */
 export async function sendFeedbackEmail(params: FeedbackEmailParams): Promise<void> {
-  const { to, npsScore, comment, userId } = params;
+  const { to, npsScore, comment, userId, name, email } = params;
   
   const smtpHost = process.env.SMTP_HOST;
   const smtpPort = parseInt(process.env.SMTP_PORT || '587', 10);
@@ -46,12 +48,20 @@ export async function sendFeedbackEmail(params: FeedbackEmailParams): Promise<vo
   const smtpPass = process.env.SMTP_PASS;
   const smtpFrom = process.env.SMTP_FROM || 'noreply@listmagify.com';
 
-  const subject = `[Listmagify Feedback] NPS ${npsScore}/10 - ${getNpsCategory(npsScore)}`;
+  const subject =
+    typeof npsScore === 'number'
+      ? `[Listmagify Feedback] NPS ${npsScore}/10 - ${getNpsCategory(npsScore)}`
+      : `[Listmagify Feedback] New message`;
   
   const textBody = [
     `New feedback received for Listmagify`,
     '',
-    `NPS Score: ${npsScore}/10 (${getNpsCategory(npsScore)}) ${getNpsEmoji(npsScore)}`,
+    typeof npsScore === 'number'
+      ? `NPS Score: ${npsScore}/10 (${getNpsCategory(npsScore)}) ${getNpsEmoji(npsScore)}`
+      : 'NPS Score: (not provided)',
+    '',
+    name ? `Name: ${name}` : 'Name: (not provided)',
+    email ? `Email: ${email}` : 'Email: (not provided)',
     '',
     comment ? `Comment:\n${comment}` : 'No comment provided.',
     '',
@@ -62,15 +72,27 @@ export async function sendFeedbackEmail(params: FeedbackEmailParams): Promise<vo
 
   const htmlBody = `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2 style="color: #1DB954;">New Feedback Received ${getNpsEmoji(npsScore)}</h2>
+      <h2 style="color: #1DB954;">New Feedback Received ${typeof npsScore === 'number' ? getNpsEmoji(npsScore) : ''}</h2>
       
-      <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
-        <div style="font-size: 48px; text-align: center; margin-bottom: 10px;">
-          ${npsScore}/10
+      ${typeof npsScore === 'number' ? `
+        <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <div style="font-size: 48px; text-align: center; margin-bottom: 10px;">
+            ${npsScore}/10
+          </div>
+          <div style="text-align: center; color: ${npsScore >= 9 ? '#22c55e' : npsScore >= 7 ? '#f59e0b' : '#ef4444'}; font-weight: bold;">
+            ${getNpsCategory(npsScore)}
+          </div>
         </div>
-        <div style="text-align: center; color: ${npsScore >= 9 ? '#22c55e' : npsScore >= 7 ? '#f59e0b' : '#ef4444'}; font-weight: bold;">
-          ${getNpsCategory(npsScore)}
-        </div>
+      ` : `
+        <p style="color: #888;">No NPS score provided.</p>
+      `}
+
+      <div style="background: #fafafa; padding: 15px; border-left: 4px solid #1DB954; margin: 20px 0;">
+        <strong>Contact:</strong>
+        <p style="margin: 10px 0 0 0; white-space: pre-wrap;">
+          ${name ? `Name: ${name.replace(/</g, '&lt;').replace(/>/g, '&gt;')}` : 'Name: (not provided)'}<br>
+          ${email ? `Email: ${email.replace(/</g, '&lt;').replace(/>/g, '&gt;')}` : 'Email: (not provided)'}
+        </p>
       </div>
       
       ${comment ? `

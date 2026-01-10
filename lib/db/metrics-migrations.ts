@@ -95,4 +95,37 @@ export const metricsMigrations: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_feedback_nps ON feedback(nps_score);
     `,
   },
+  {
+    version: 4,
+    name: 'feedback_optional_score_and_contact_fields',
+    sql: `
+      -- Make nps_score optional and add optional contact fields (name/email)
+      -- SQLite can't change column constraints in-place, so we recreate the table.
+      PRAGMA foreign_keys=OFF;
+      BEGIN TRANSACTION;
+
+      CREATE TABLE IF NOT EXISTS feedback_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ts DATETIME DEFAULT CURRENT_TIMESTAMP,
+        user_hash TEXT,
+        nps_score INTEGER CHECK (nps_score IS NULL OR (nps_score >= 0 AND nps_score <= 10)),
+        comment TEXT,
+        name TEXT,
+        email TEXT
+      );
+
+      INSERT INTO feedback_new (id, ts, user_hash, nps_score, comment)
+      SELECT id, ts, user_hash, nps_score, comment
+      FROM feedback;
+
+      DROP TABLE feedback;
+      ALTER TABLE feedback_new RENAME TO feedback;
+
+      CREATE INDEX IF NOT EXISTS idx_feedback_ts ON feedback(ts);
+      CREATE INDEX IF NOT EXISTS idx_feedback_nps ON feedback(nps_score);
+
+      COMMIT;
+      PRAGMA foreign_keys=ON;
+    `,
+  },
 ];

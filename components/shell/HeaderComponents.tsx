@@ -191,14 +191,13 @@ export function AdaptiveNav({
       group: 'user',
     },
     // Group 5: Footer items (only visible on phone in burger menu)
-    {
+    ...(isPhone ? [{
       id: 'feedback',
       icon: <MessageSquarePlus className="h-3.5 w-3.5" />,
       label: 'Feedback',
       onClick: () => setFeedbackOpen(true),
       group: 'footer',
-      visible: isPhone,
-      separator: 'before',
+      separator: 'before' as const,
     },
     {
       id: 'github',
@@ -206,7 +205,6 @@ export function AdaptiveNav({
       label: 'GitHub',
       href: 'https://github.com/vtietz/listmagify',
       group: 'footer',
-      visible: isPhone,
     },
     {
       id: 'privacy',
@@ -214,7 +212,6 @@ export function AdaptiveNav({
       label: 'Privacy',
       href: '/privacy',
       group: 'footer',
-      visible: isPhone,
     },
     {
       id: 'imprint',
@@ -222,8 +219,7 @@ export function AdaptiveNav({
       label: 'Imprint',
       href: '/imprint',
       group: 'footer',
-      visible: isPhone,
-    },
+    }] : []),
   ], [
     isPhone,
     isPlaylistsActive, isSplitEditorActive, isStatsActive, hasStatsAccess,
@@ -239,7 +235,7 @@ export function AdaptiveNav({
         layoutMode={isPhone ? 'burger' : 'horizontal'}
         burgerIcon={<Menu className="h-4 w-4" />}
       />
-      <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
+      <FeedbackDialog trigger={null} open={feedbackOpen} onOpenChange={setFeedbackOpen} />
     </>
   );
 }
