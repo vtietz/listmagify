@@ -9,7 +9,7 @@ type Props = {
 };
 
 export function SignInButton({ 
-  label = "Sign in with Spotify *", 
+  label = "Sign in with Spotify", 
   className,
   callbackUrl = "/playlists"
 }: Props) {

@@ -40,6 +40,15 @@ async function refreshAccessToken(token: Record<string, any>) {
     const data = await res.json();
 
     if (!res.ok) {
+      // Check if it's a revoked token error (expected - user revoked permissions)
+      if (data.error === 'invalid_grant' && data.error_description?.includes('revoked')) {
+        console.log('[auth] Refresh token revoked by user (expected) - session will expire');
+      } else {
+        console.error(
+          `[auth] Failed to refresh token: ${res.status} ${res.statusText}`,
+          data
+        );
+      }
       throw new Error(
         `Failed to refresh token: ${res.status} ${res.statusText} ${JSON.stringify(data)}`
       );
@@ -56,6 +65,14 @@ async function refreshAccessToken(token: Record<string, any>) {
       error: undefined,
     };
   } catch (error) {
+    // Don't log full error for revoked tokens (expected user action)
+    if (error instanceof Error && error.message.includes('revoked')) {
+      return {
+        ...token,
+        error: "RefreshAccessTokenError",
+      };
+    }
+    
     console.warn("[auth] refreshAccessToken error", error);
     return {
       ...token,

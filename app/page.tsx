@@ -100,7 +100,7 @@ export default async function Home({ searchParams }: Props) {
               Open source • Free to use • Your data stays with Spotify
             </p>
             <div className="flex flex-wrap justify-center gap-4 pt-4">
-              <SignInButton callbackUrl={returnTo} />
+              <SignInButton callbackUrl={returnTo} label="Sign in with Spotify" />
               <AccessRequestDialog
                 trigger={
                   <button className="inline-flex items-center justify-center gap-2 rounded-md border border-border bg-background px-6 py-3 text-sm font-medium hover:bg-accent transition-colors">
