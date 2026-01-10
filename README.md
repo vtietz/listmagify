@@ -8,15 +8,16 @@ Playlist magic for Spotify. Edit multiple playlists side-by-side with drag-and-d
 
 - **Multi-Panel Editor** – Work with multiple playlists simultaneously in split views
 - **Drag & Drop** – Move or copy tracks between playlists with visual feedback
-- **Smart Search** – Filter tracks instantly by title, artist, or album
 - **Bulk Operations** – Select and move/copy/delete multiple tracks at once
+- **Smart Search** – Filter tracks instantly by title, artist, or album
 - **Compare Mode** – Color-coded visualization showing track distribution across playlists (green = in all, red = unique, yellow = in some)
-- **Liked Songs Browser** – Access your entire library and copy favorites into playlists
-- **Last.fm Import** – Import tracks from your Last.fm listening history (loved tracks, top tracks, weekly charts)
-- **Track Recommendations** – Get AI-powered suggestions based on your playlist patterns
+- **Mobile Optimized** – Fully responsive with touch-friendly controls. Install as PWA for native app experience on phones and tablets
 - **Integrated Player** – Preview tracks without leaving the app
+- **Last.fm Import** – Import tracks from your Last.fm listening history (loved tracks, top tracks, weekly charts)
+- **Liked Songs Browser** – Access your entire library and copy favorites into playlists
+- **Track Recommendations** – Get AI-powered suggestions based on your playlist patterns
+- **Flexible Sorting** – Sort by position, title, artist, album, duration, or date added
 - **Compact Mode** – Dense view to see more tracks on screen
-- **PWA Support** – Install on mobile devices and use as a native app
 
 ## Mobile Installation
 

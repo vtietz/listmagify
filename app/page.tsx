@@ -20,6 +20,7 @@ import {
   Sparkles,
   Music2,
   GitCompare,
+  Smartphone,
   // Github brand icon is deprecated in lucide-react but still functional
   // TODO: Consider migrating to SimpleIcons in the future
   Github
@@ -154,19 +155,24 @@ export default async function Home({ searchParams }: Props) {
             description="Effortlessly move tracks between playlists or reorder within a playlist. Copy or move mode with visual feedback."
           />
           <FeatureCard
+            icon={<Copy className="h-6 w-6" />}
+            title="Bulk Operations"
+            description="Select multiple tracks and move, copy, or delete them at once. Perfect for large playlist reorganization."
+          />
+          <FeatureCard
             icon={<Search className="h-6 w-6" />}
             title="Smart Search"
             description="Instantly filter tracks by title, artist, or album. Find what you're looking for across thousands of tracks."
           />
           <FeatureCard
-            icon={<ArrowUpDown className="h-6 w-6" />}
-            title="Flexible Sorting"
-            description="Sort by position, title, artist, album, duration, or date added. Ascending or descending with one click."
+            icon={<GitCompare className="h-6 w-6" />}
+            title="Compare Mode"
+            description="Visualize track distribution across playlists with intelligent color coding. Green shows tracks in all playlists, red shows unique tracks, and yellow indicates partial presence."
           />
           <FeatureCard
-            icon={<Copy className="h-6 w-6" />}
-            title="Bulk Operations"
-            description="Select multiple tracks and move, copy, or delete them at once. Perfect for large playlist reorganization."
+            icon={<Smartphone className="h-6 w-6" />}
+            title="Mobile Optimized"
+            description="Fully responsive design with touch-friendly controls. Install as a PWA for native app experience on phones and tablets."
           />
           <FeatureCard
             icon={<Play className="h-6 w-6" />}
@@ -179,9 +185,9 @@ export default async function Home({ searchParams }: Props) {
             description="Import tracks from your Last.fm listening history. Browse loved tracks, top tracks, and weekly charts with automatic Spotify matching."
           />
           <FeatureCard
-            icon={<GitCompare className="h-6 w-6" />}
-            title="Compare Mode"
-            description="Visualize track distribution across playlists with intelligent color coding. Green shows tracks in all playlists, red shows unique tracks, and yellow indicates partial presence."
+            icon={<ArrowUpDown className="h-6 w-6" />}
+            title="Flexible Sorting"
+            description="Sort by position, title, artist, album, duration, or date added. Ascending or descending with one click."
           />
           <FeatureCard
             icon={<Minimize2 className="h-6 w-6" />}
@@ -189,14 +195,14 @@ export default async function Home({ searchParams }: Props) {
             description="Toggle compact view to see more tracks at once. Perfect for large playlists and smaller screens."
           />
           <FeatureCard
-            icon={<Trash2 className="h-6 w-6" />}
-            title="Safe Editing"
-            description="Lock panels to prevent accidental changes. All edits sync directly with Spotify in real-time."
-          />
-          <FeatureCard
             icon={<Sparkles className="h-6 w-6" />}
             title="Smart Recommendations"
             description="Get AI-powered track suggestions based on your playlist patterns. The more you use it, the smarter it gets."
+          />
+          <FeatureCard
+            icon={<Trash2 className="h-6 w-6" />}
+            title="Safe Editing"
+            description="Lock panels to prevent accidental changes. All edits sync directly with Spotify in real-time."
           />
         </div>
       </div>
