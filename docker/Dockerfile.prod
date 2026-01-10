@@ -12,6 +12,9 @@ RUN corepack enable && corepack install -g pnpm@10.26.2
 FROM base AS builder
 WORKDIR /usr/src/app
 
+# Install Python and build tools for native module compilation (better-sqlite3)
+RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
+
 # Contact info for Imprint/Privacy pages (public info, rendered server-side)
 ARG CONTACT_NAME
 ARG CONTACT_STREET
@@ -22,6 +25,8 @@ ARG CONTACT_EMAIL
 
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
+# Install tsx for running TypeScript migration scripts
+RUN pnpm add -D tsx
 COPY . .
 RUN pnpm build
 
@@ -36,8 +41,6 @@ COPY --from=builder /usr/src/app/public ./public
 COPY --from=builder /usr/src/app/scripts ./scripts
 COPY --from=builder /usr/src/app/lib ./lib
 COPY --from=builder /usr/src/app/tsconfig.json ./tsconfig.json
-# Install tsx for running TypeScript scripts with path alias support
-RUN pnpm add -D tsx
 EXPOSE 3000
 # Run migrations before starting the server (tsx handles @/ path aliases)
 CMD ["sh", "-c", "pnpm exec tsx scripts/migrate.ts && pnpm start"]

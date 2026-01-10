@@ -3,7 +3,7 @@ import type { AuthOptions } from "next-auth";
 import { serverEnv, summarizeEnv } from "@/lib/env";
 import { logAuthEvent, startSession } from "@/lib/metrics";
 
-console.log(
+console.debug(
   `[auth] env=${summarizeEnv()} | CALLBACK=${new URL(
     "/api/auth/callback/spotify",
     serverEnv.NEXTAUTH_URL
@@ -42,7 +42,7 @@ async function refreshAccessToken(token: Record<string, any>) {
     if (!res.ok) {
       // Check if it's a revoked token error (expected - user revoked permissions)
       if (data.error === 'invalid_grant' && data.error_description?.includes('revoked')) {
-        console.log('[auth] Refresh token revoked by user (expected) - session will expire');
+        console.debug('[auth] Refresh token revoked by user (expected) - session will expire');
       } else {
         console.error(
           `[auth] Failed to refresh token: ${res.status} ${res.statusText}`,
@@ -205,7 +205,7 @@ export const authOptions: AuthOptions = {
       }
 
       // Token expired or expiring soon, attempt refresh
-      console.log("[auth] Token expiring soon or expired, refreshing...");
+      console.debug("[auth] Token expiring soon or expired, refreshing...");
       return await refreshAccessToken(token as Record<string, any>);
     },
 
@@ -253,7 +253,7 @@ export const authOptions: AuthOptions = {
           }
         }
         
-        console.log("[auth] NextAuth signIn", {
+        console.debug("[auth] NextAuth signIn", {
           provider: message?.account?.provider,
           providerAccountId,
           spotifyUserId,
@@ -270,7 +270,7 @@ export const authOptions: AuthOptions = {
       }
     },
     signOut(_message: any) {
-      console.log("[auth] NextAuth signOut");
+      console.debug("[auth] NextAuth signOut");
       // Note: We don't have easy access to user ID on signOut
       // Session tracking is handled by session duration calculation
     },
