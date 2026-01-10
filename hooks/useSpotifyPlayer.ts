@@ -8,8 +8,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api/client';
 import { usePlayerStore, type PlaybackContext } from './usePlayerStore';
 import { useSessionUser } from './useSessionUser';
+import { useDeviceType } from './useDeviceType';
 import type { SpotifyDevice, PlaybackState } from '@/lib/spotify/playerTypes';
 import { toast } from '@/lib/ui/toast';
+import { useMobileOverlayStore } from '@/components/split-editor/MobileBottomNav';
 
 const POLL_INTERVAL = 5000; // Poll playback state every 5 seconds
 
@@ -30,6 +32,8 @@ interface ControlResponse {
 export function useSpotifyPlayer() {
   const queryClient = useQueryClient();
   const { authenticated } = useSessionUser();
+  const { isPhone } = useDeviceType();
+  const setMobileOverlay = useMobileOverlayStore((s) => s.setActiveOverlay);
   const {
     playbackState,
     devices,
@@ -213,6 +217,10 @@ export function useSpotifyPlayer() {
       if (message.includes('no_active_device')) {
         toast.error('No active Spotify device. Open Spotify on a device or select one.');
         setDeviceSelectorOpen(true);
+        // In mobile mode, also activate the player tab to show device selector
+        if (isPhone) {
+          setMobileOverlay('player');
+        }
         // Refresh devices list
         queryClient.invalidateQueries({ queryKey: ['spotify-devices'] });
       } else if (message.includes('premium_required')) {
