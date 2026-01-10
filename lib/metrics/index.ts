@@ -49,3 +49,10 @@ export {
   type DailyActions,
   type TopUser,
 } from './aggregations';
+export {
+  saveFeedback,
+  getFeedbackStats,
+  type FeedbackParams,
+  type FeedbackEntry,
+  type FeedbackStats,
+} from './feedback';

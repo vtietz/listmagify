@@ -78,4 +78,21 @@ export const metricsMigrations: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
     `,
   },
+  {
+    version: 3,
+    name: 'add_feedback_table',
+    sql: `
+      -- Feedback table for NPS scores and comments
+      CREATE TABLE IF NOT EXISTS feedback (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ts DATETIME DEFAULT CURRENT_TIMESTAMP,
+        user_hash TEXT,
+        nps_score INTEGER NOT NULL CHECK (nps_score >= 0 AND nps_score <= 10),
+        comment TEXT
+      );
+      
+      CREATE INDEX IF NOT EXISTS idx_feedback_ts ON feedback(ts);
+      CREATE INDEX IF NOT EXISTS idx_feedback_nps ON feedback(nps_score);
+    `,
+  },
 ];

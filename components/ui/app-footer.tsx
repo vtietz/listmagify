@@ -3,7 +3,8 @@
 import Link from "next/link";
 // Github brand icon is deprecated in lucide-react but still functional
 // TODO: Consider migrating to SimpleIcons in the future
-import { Github } from "lucide-react";
+import { Github, MessageSquarePlus } from "lucide-react";
+import { FeedbackDialog } from "@/components/feedback";
 
 /**
  * Application footer with Spotify attribution and legal links.
@@ -45,6 +46,14 @@ export function AppFooter() {
 
       {/* Links - Right side */}
       <div className="flex gap-4 text-[10px]">
+        <FeedbackDialog
+          trigger={
+            <button className="hover:text-foreground transition-colors flex items-center gap-1 cursor-pointer">
+              <MessageSquarePlus className="h-3 w-3" />
+              Feedback
+            </button>
+          }
+        />
         <Link
           href="https://github.com/vtietz/listmagify"
           target="_blank"
