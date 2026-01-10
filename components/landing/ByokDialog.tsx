@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -33,15 +33,15 @@ export function ByokDialog({ trigger, onCredentialsSaved }: ByokDialogProps) {
   const [showClientSecret, setShowClientSecret] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
-  const [redirectUri, setRedirectUri] = useState('');
 
   const { credentials, hasCredentials, saveCredentials, clearCredentials } = useByokCredentials();
 
-  // Set redirect URI based on current origin
-  useEffect(() => {
+  // Calculate redirect URI based on current origin
+  const redirectUri = useMemo(() => {
     if (typeof window !== 'undefined') {
-      setRedirectUri(`${window.location.origin}/api/auth/byok/callback`);
+      return `${window.location.origin}/api/auth/byok/callback`;
     }
+    return '';
   }, []);
 
   // Load existing credentials when dialog opens
@@ -116,7 +116,7 @@ export function ByokDialog({ trigger, onCredentialsSaved }: ByokDialogProps) {
           </button>
         )}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         {isSuccess ? (
           <>
             <DialogHeader>
@@ -147,9 +147,9 @@ export function ByokDialog({ trigger, onCredentialsSaved }: ByokDialogProps) {
 
             {/* Tutorial Section */}
             <div className="space-y-3 py-2">
-              <div className="rounded-lg bg-muted/50 p-4 space-y-3 text-sm">
+              <div className="rounded-lg bg-muted/50 p-3 sm:p-4 space-y-2 sm:space-y-3 text-sm">
                 <p className="font-medium">How to get your Spotify API credentials:</p>
-                <ol className="list-decimal list-inside space-y-2 text-muted-foreground">
+                <ol className="list-decimal list-inside space-y-1.5 sm:space-y-2 text-muted-foreground text-xs sm:text-sm">
                   <li>
                     Go to the{' '}
                     <a
@@ -166,11 +166,11 @@ export function ByokDialog({ trigger, onCredentialsSaved }: ByokDialogProps) {
                   <li>Click &quot;Create App&quot;</li>
                   <li>
                     Fill in app details:
-                    <ul className="list-disc list-inside ml-4 mt-1 space-y-1">
+                    <ul className="list-disc list-inside ml-3 sm:ml-4 mt-1 space-y-1 text-xs sm:text-sm">
                       <li>App name: anything (e.g., &quot;My Listmagify&quot;)</li>
                       <li>App description: anything</li>
-                      <li>
-                        Redirect URI: <code className="text-xs bg-background px-1 py-0.5 rounded">{redirectUri || 'Loading...'}</code>
+                      <li className="break-all">
+                        Redirect URI: <code className="text-xs bg-background px-1 py-0.5 rounded break-all">{redirectUri || 'Loading...'}</code>
                       </li>
                       <li>Check &quot;Web API&quot;</li>
                     </ul>
@@ -179,9 +179,9 @@ export function ByokDialog({ trigger, onCredentialsSaved }: ByokDialogProps) {
                 </ol>
               </div>
 
-              <div className="flex items-start gap-2 text-xs text-muted-foreground bg-amber-500/10 border border-amber-500/20 rounded-lg p-3">
-                <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
-                <div>
+              <div className="flex items-start gap-2 text-xs text-muted-foreground bg-amber-500/10 border border-amber-500/20 rounded-lg p-2 sm:p-3">
+                <AlertTriangle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-amber-500 shrink-0 mt-0.5" />
+                <div className="text-xs">
                   <span className="font-medium text-foreground">Privacy Note:</span>{' '}
                   Your credentials are stored only in this browser&apos;s localStorage on this machine. 
                   They are never sent to our servers and are only used to authenticate directly with Spotify.

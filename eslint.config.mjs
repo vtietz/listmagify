@@ -7,6 +7,9 @@ const eslintConfig = [
       // Console usage - allow warn, error, and debug
       'no-console': ['warn', { allow: ['warn', 'error', 'debug'] }],
       
+      // React hooks - allow setState in effects for external state sync (e.g., localStorage)
+      'react-hooks/set-state-in-effect': 'off',
+      
       // Unused imports and variables - ERROR to prevent builds
       '@typescript-eslint/no-unused-vars': ['error', { 
         argsIgnorePattern: '^_',

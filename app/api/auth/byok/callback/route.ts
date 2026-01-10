@@ -127,7 +127,7 @@ export async function GET(request: NextRequest) {
       maxAge: 30 * 24 * 60 * 60, // 30 days
     });
 
-    console.log('[byok] Successfully authenticated user:', profile.id);
+    console.debug('[byok] Successfully authenticated user:', profile.id);
 
     // Redirect to the callback URL
     return NextResponse.redirect(new URL(callbackUrl || '/playlists', serverEnv.NEXTAUTH_URL));
