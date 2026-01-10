@@ -8,6 +8,7 @@ import { ByokSignInButton } from "@/components/landing/ByokSignInButton";
 import { AuthPageLayout } from "@/components/auth/AuthPageLayout";
 import { AuthMessage } from "@/components/auth/AuthMessage";
 import { DevModeNotice } from "@/components/auth/DevModeNotice";
+import { AppLogo } from "@/components/ui/app-logo";
 import { 
   Columns, 
   GripVertical, 
@@ -18,11 +19,11 @@ import {
   Play,
   Minimize2,
   Sparkles,
-  Music2,
   GitCompare,
   Smartphone,
   // Github brand icon is deprecated in lucide-react but still functional
   // TODO: Consider migrating to SimpleIcons in the future
+  Music2,
   Github
 } from "lucide-react";
 
@@ -80,11 +81,13 @@ export default async function Home({ searchParams }: Props) {
       />
       
       {/* Main Content - scrolls naturally with browser */}
-      <main className="flex-1">
+      <main className="flex-1 bg-gradient-to-b from-background to-background/95">
         {/* Hero Section */}
         <div className="container mx-auto px-4 pt-16 pb-12">
           <div className="text-center space-y-6 max-w-3xl mx-auto">
-            <h1 className="text-5xl font-bold tracking-tight">Listmagify</h1>
+            <div className="flex justify-center">
+              <AppLogo size="lg" asLink={false} />
+            </div>
             
             {/* Show message if present (session expired, unauthenticated, etc.) */}
             {showMessage && message && (

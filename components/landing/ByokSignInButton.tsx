@@ -54,14 +54,21 @@ export function ByokSignInButton({ callbackUrl = '/playlists' }: ByokSignInButto
     }
   };
 
-  // Don't render until we know if BYOK is enabled
-  if (byokEnabled === null || !isLoaded) {
+  // Don't show if BYOK is disabled on the server
+  if (byokEnabled === false) {
     return null;
   }
-
-  // Don't show if BYOK is disabled on the server
-  if (!byokEnabled) {
-    return null;
+  
+  // Show loading state while checking
+  if (byokEnabled === null || !isLoaded) {
+    return (
+      <button
+        disabled
+        className="inline-flex items-center justify-center gap-2 rounded-md border border-border bg-background px-6 py-3 text-sm font-medium opacity-50"
+      >
+        <Loader2 className="h-4 w-4 animate-spin" />
+      </button>
+    );
   }
 
   if (hasCredentials) {
