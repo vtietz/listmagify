@@ -1,8 +1,8 @@
 "use client";
 
-import { Input } from "@/components/ui/input";
+import { AdaptiveSearch } from "@/components/ui/adaptive-search";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, Search, Plus } from "lucide-react";
+import { RefreshCw, Plus } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { PlaylistDialog } from "@/components/playlist/PlaylistDialog";
 import { useCreatePlaylist } from "@/lib/spotify/playlistMutations";
@@ -51,10 +51,6 @@ export function PlaylistsToolbar({
     return () => clearTimeout(timer);
   }, [inputValue, onSearchChange]);
 
-  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setInputValue(e.target.value);
-  }, []);
-
   const handleRefresh = useCallback(() => {
     if (!isRefreshing) {
       onRefresh();
@@ -82,18 +78,14 @@ export function PlaylistsToolbar({
 
   return (
     <div className="flex items-center gap-3">
-      <div className="relative flex-1 max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-        <Input
-          type="search"
-          placeholder="Search playlists..."
-          value={inputValue}
-          onChange={handleInputChange}
-          disabled={isRefreshing}
-          className="pl-9"
-          aria-label="Search playlists"
-        />
-      </div>
+      <AdaptiveSearch
+        value={inputValue}
+        onChange={setInputValue}
+        placeholder="Search playlists..."
+        disabled={isRefreshing}
+        ariaLabel="Search playlists"
+        breakpoint={200}
+      />
 
       <Button
         variant="default"
