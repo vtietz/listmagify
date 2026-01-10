@@ -26,6 +26,9 @@ import {
   Search,
   Music2,
   MoreHorizontal,
+  // Github brand icon is deprecated in lucide-react but still functional
+  // TODO: Consider migrating to SimpleIcons in the future
+  Github,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -300,6 +303,12 @@ export function AdaptiveNav({
             </Link>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
+          <DropdownMenuItem asChild>
+            <Link href="https://github.com/vtietz/listmagify" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 cursor-pointer text-muted-foreground">
+              <Github className="h-4 w-4" />
+              GitHub
+            </Link>
+          </DropdownMenuItem>
           <DropdownMenuItem asChild>
             <Link href="/privacy" className="flex items-center gap-2 cursor-pointer text-muted-foreground">
               <Shield className="h-4 w-4" />

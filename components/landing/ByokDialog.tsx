@@ -190,7 +190,13 @@ export function ByokDialog({ trigger, onCredentialsSaved }: ByokDialogProps) {
             </div>
 
             {/* Credentials Form */}
-            <div className="space-y-4">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSave();
+              }}
+              className="space-y-4"
+            >
               <div className="space-y-2">
                 <Label htmlFor="clientId">Client ID</Label>
                 <div className="relative">
@@ -236,27 +242,27 @@ export function ByokDialog({ trigger, onCredentialsSaved }: ByokDialogProps) {
               </div>
 
               {error && <p className="text-sm text-destructive">{error}</p>}
-            </div>
 
-            <DialogFooter className="flex-col sm:flex-row gap-2">
-              {hasCredentials && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleClear}
-                  className="text-destructive hover:text-destructive sm:mr-auto"
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Clear Credentials
+              <DialogFooter className="flex-col sm:flex-row gap-2">
+                {hasCredentials && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleClear}
+                    className="text-destructive hover:text-destructive sm:mr-auto"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Clear Credentials
+                  </Button>
+                )}
+                <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+                  Cancel
                 </Button>
-              )}
-              <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleSave} disabled={!clientId || !clientSecret}>
-                Save Credentials
-              </Button>
-            </DialogFooter>
+                <Button type="submit" disabled={!clientId || !clientSecret}>
+                  Save Credentials
+                </Button>
+              </DialogFooter>
+            </form>
           </>
         )}
       </DialogContent>

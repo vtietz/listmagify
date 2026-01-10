@@ -19,7 +19,10 @@ import {
   Minimize2,
   Sparkles,
   Music2,
-  GitCompare
+  GitCompare,
+  // Github brand icon is deprecated in lucide-react but still functional
+  // TODO: Consider migrating to SimpleIcons in the future
+  Github
 } from "lucide-react";
 
 type Props = {
@@ -92,6 +95,9 @@ export default async function Home({ searchParams }: Props) {
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
               Professional playlist management for Spotify. Edit multiple playlists side-by-side with drag-and-drop.
             </p>
+            <p className="text-sm text-muted-foreground">
+              Open source • Free to use • Your data stays with Spotify
+            </p>
             <div className="flex flex-wrap justify-center gap-4 pt-4">
               <SignInButton callbackUrl={returnTo} />
               <AccessRequestDialog
@@ -103,9 +109,6 @@ export default async function Home({ searchParams }: Props) {
               />
               <ByokSignInButton callbackUrl={returnTo} />
             </div>
-            <p className="text-sm text-muted-foreground">
-              Free to use • Requires Spotify account • Your data stays with Spotify
-            </p>
             
             {/* Development Mode Notice */}
             <div className="mt-6 max-w-xl mx-auto">
@@ -220,6 +223,28 @@ export default async function Home({ searchParams }: Props) {
             title="📚 Mood & Activity Playlists"
             description="Create playlists for work, study, relaxation, or travel. Drag tracks from your Liked Songs into themed collections."
           />
+        </div>
+      </div>
+
+      {/* Open Source Section */}
+      <div className="container mx-auto px-4 py-12 border-t border-border">
+        <div className="text-center space-y-4 max-w-2xl mx-auto">
+          <div className="inline-flex items-center justify-center gap-2 text-muted-foreground">
+            <Github className="h-5 w-5" />
+            <span className="text-sm font-medium">Open Source Project</span>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Listmagify is free and open source. Check out the code, report issues, or contribute on GitHub.
+          </p>
+          <a
+            href="https://github.com/vtietz/listmagify"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center justify-center gap-2 rounded-md border border-border bg-background px-4 py-2 text-sm font-medium hover:bg-accent transition-colors"
+          >
+            <Github className="h-4 w-4" />
+            View on GitHub
+          </a>
         </div>
       </div>
 

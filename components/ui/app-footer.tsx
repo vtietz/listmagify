@@ -1,6 +1,9 @@
 "use client";
 
 import Link from "next/link";
+// Github brand icon is deprecated in lucide-react but still functional
+// TODO: Consider migrating to SimpleIcons in the future
+import { Github } from "lucide-react";
 
 /**
  * Application footer with Spotify attribution and legal links.
@@ -40,8 +43,17 @@ export function AppFooter() {
         </span>
       </div>
 
-      {/* Legal Links - Right side */}
+      {/* Links - Right side */}
       <div className="flex gap-4 text-[10px]">
+        <Link
+          href="https://github.com/vtietz/listmagify"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hover:text-foreground transition-colors flex items-center gap-1"
+        >
+          <Github className="h-3 w-3" />
+          GitHub
+        </Link>
         <Link
           href="/privacy"
           className="hover:text-foreground transition-colors"
