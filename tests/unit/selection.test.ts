@@ -180,6 +180,7 @@ describe('Selection Utilities', () => {
     it('getTrackSelectionKey differentiates duplicates by position', () => {
       const track = { id: 't', uri: 't', position: 5 } as any;
       expect(getTrackSelectionKey(track, 0)).toBe('t::5');
+      expect(getTrackSelectionKey({ ...track, originalPosition: 42 }, 0)).toBe('t::42');
       expect(getTrackSelectionKey({ ...track, position: undefined }, 3)).toBe('t::3');
       expect(getTrackSelectionKey({ id: undefined, uri: 'uri' } as any, 2)).toBe('uri::2');
     });

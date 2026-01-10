@@ -35,9 +35,9 @@ export function markerAfterLabel(hasMarkerAfter: boolean | undefined, useSelecti
 
 export function buildReorderItems(reorderActions: ReorderActions | undefined): MenuItemDef[] {
   return [
+    { key: 'move-top', icon: ChevronsUp, label: 'Move to top', action: reorderActions?.onMoveToTop },
     { key: 'move-up', icon: ChevronUp, label: 'Move up', action: reorderActions?.onMoveUp },
     { key: 'move-down', icon: ChevronDown, label: 'Move down', action: reorderActions?.onMoveDown },
-    { key: 'move-top', icon: ChevronsUp, label: 'Move to top', action: reorderActions?.onMoveToTop },
     { key: 'move-bottom', icon: ChevronsDown, label: 'Move to bottom', action: reorderActions?.onMoveToBottom },
   ];
 }

@@ -2,12 +2,13 @@ import type { Track } from '@/lib/spotify/types';
 
 /**
  * Builds a stable selection key for a track instance, distinguishing duplicates.
- * Uses playlist position when available, otherwise falls back to the current index.
+ * Uses originalPosition when available (stable across reorder operations),
+ * otherwise falls back to the current playlist position or index.
  * Format: `trackId::position` (double colon separator)
  */
 export function getTrackSelectionKey(track: Track, index: number): string {
   const baseId = track.id || track.uri || 'unknown';
-  const position = track.position ?? index;
+  const position = track.originalPosition ?? track.position ?? index;
   return `${baseId}::${position}`;
 }
 

@@ -336,6 +336,28 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
     );
   }, [sortedTracks, searchQuery]);
 
+  // Keep selection in sync with the currently rendered track set.
+  // Reorders can change track.position; we key selections by getTrackSelectionKey(),
+  // so we prune any keys that no longer resolve to a track.
+  useEffect(() => {
+    if (selection.size === 0) return;
+
+    const validKeys = new Set<string>();
+    for (let i = 0; i < filteredTracks.length; i++) {
+      const track = filteredTracks[i];
+      if (!track) continue;
+      validKeys.add(getTrackSelectionKey(track, i));
+    }
+
+    const currentSelection = Array.from(selection).filter(
+      (key): key is string => typeof key === 'string' && key.length > 0
+    );
+    const nextSelection = currentSelection.filter((key) => validKeys.has(key));
+    if (nextSelection.length !== currentSelection.length) {
+      setSelection(panelId, nextSelection);
+    }
+  }, [filteredTracks, panelId, selection, setSelection]);
+
   // Detect duplicate URIs in the track list (same song appearing multiple times)
   const duplicateUris = useMemo(() => {
     const uriCounts = new Map<string, number>();
