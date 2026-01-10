@@ -41,14 +41,53 @@ import { useDeviceType } from '@/hooks/useDeviceType';
 import { BottomSheet, BottomSheetMenuItem, BottomSheetSection, BottomSheetDivider } from '@/components/ui/BottomSheet';
 import type { Track } from '@/lib/spotify/types';
 
+type MenuItemDef = {
+  key: string;
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  action?: (() => void) | undefined;
+  destructive?: boolean;
+};
+
+function pluralizeTrack(count: number) {
+  return count === 1 ? 'track' : 'tracks';
+}
+
+function removeSelectedLabel(selectedCount: number) {
+  return `Remove ${selectedCount} ${pluralizeTrack(selectedCount)}`;
+}
+
+function markerBeforeLabel(hasMarkerBefore: boolean | undefined, useSelectionWording: boolean) {
+  if (hasMarkerBefore) return useSelectionWording ? 'Remove marker above selection' : 'Remove marker before';
+  return useSelectionWording ? 'Add marker above selection' : 'Add marker before';
+}
+
+function markerAfterLabel(hasMarkerAfter: boolean | undefined, useSelectionWording: boolean) {
+  if (hasMarkerAfter) return useSelectionWording ? 'Remove marker below selection' : 'Remove marker after';
+  return useSelectionWording ? 'Add marker below selection' : 'Add marker after';
+}
+
+function buildReorderItems(reorderActions: ReorderActions | undefined): MenuItemDef[] {
+  return [
+    { key: 'move-up', icon: ChevronUp, label: 'Move up', action: reorderActions?.onMoveUp },
+    { key: 'move-down', icon: ChevronDown, label: 'Move down', action: reorderActions?.onMoveDown },
+    { key: 'move-top', icon: ChevronsUp, label: 'Move to top', action: reorderActions?.onMoveToTop },
+    { key: 'move-bottom', icon: ChevronsDown, label: 'Move to bottom', action: reorderActions?.onMoveToBottom },
+  ];
+}
+
+function hasAnyAction(items: MenuItemDef[]) {
+  return items.some((i) => !!i.action);
+}
+
 // Action group types
 export interface ReorderActions {
-  onMoveUp?: () => void;
-  onMoveDown?: () => void;
-  onMoveToTop?: () => void;
-  onMoveToBottom?: () => void;
-  onPlaceBeforeMarker?: () => void;
-  onPlaceAfterMarker?: () => void;
+  onMoveUp?: (() => void) | undefined;
+  onMoveDown?: (() => void) | undefined;
+  onMoveToTop?: (() => void) | undefined;
+  onMoveToBottom?: (() => void) | undefined;
+  onPlaceBeforeMarker?: (() => void) | undefined;
+  onPlaceAfterMarker?: (() => void) | undefined;
 }
 
 export interface MarkerActions {
@@ -140,6 +179,10 @@ function PhoneMenuContent({
   selectedCount,
   isEditable,
 }: MenuContentProps) {
+  const useSelectionWording = isMultiSelect && selectedCount > 1;
+  const removeLabel = removeSelectedLabel(selectedCount);
+  const reorderItems = buildReorderItems(reorderActions);
+
   return (
     <>
       {/* Bulk actions for multi-select */}
@@ -163,7 +206,7 @@ function PhoneMenuContent({
             {trackActions?.onRemoveFromPlaylist && trackActions.canRemove && (
               <BottomSheetMenuItem
                 icon={Trash2}
-                label={`Remove ${selectedCount} tracks`}
+                label={removeLabel}
                 onClick={withClose(trackActions.onRemoveFromPlaylist)}
                 destructive
               />
@@ -173,34 +216,19 @@ function PhoneMenuContent({
         </>
       )}
 
-      {/* Reorder actions */}
-      {isEditable && !isMultiSelect && (
+      {/* Reorder actions - available for both single and multi-select */}
+      {isEditable && hasAnyAction(reorderItems) && (
         <>
           <BottomSheetSection title="Reorder">
-            <BottomSheetMenuItem
-              icon={ChevronUp}
-              label="Move up"
-              onClick={withClose(reorderActions?.onMoveUp)}
-              disabled={!reorderActions?.onMoveUp}
-            />
-            <BottomSheetMenuItem
-              icon={ChevronDown}
-              label="Move down"
-              onClick={withClose(reorderActions?.onMoveDown)}
-              disabled={!reorderActions?.onMoveDown}
-            />
-            <BottomSheetMenuItem
-              icon={ChevronsUp}
-              label="Move to top"
-              onClick={withClose(reorderActions?.onMoveToTop)}
-              disabled={!reorderActions?.onMoveToTop}
-            />
-            <BottomSheetMenuItem
-              icon={ChevronsDown}
-              label="Move to bottom"
-              onClick={withClose(reorderActions?.onMoveToBottom)}
-              disabled={!reorderActions?.onMoveToBottom}
-            />
+            {reorderItems.map((item) => (
+              <BottomSheetMenuItem
+                key={item.key}
+                icon={item.icon}
+                label={item.label}
+                onClick={withClose(item.action)}
+                disabled={!item.action}
+              />
+            ))}
           </BottomSheetSection>
           <BottomSheetDivider />
         </>
@@ -212,17 +240,13 @@ function PhoneMenuContent({
           <BottomSheetSection title="Marker">
             <BottomSheetMenuItem
               icon={markerActions?.hasMarkerBefore ? BookmarkMinus : Bookmark}
-              label={markerActions?.hasMarkerBefore 
-                ? (isMultiSelect ? 'Remove marker above selection' : 'Remove marker before')
-                : (isMultiSelect ? 'Add marker above selection' : 'Add marker before')}
+              label={markerBeforeLabel(markerActions?.hasMarkerBefore, useSelectionWording)}
               onClick={withClose(markerActions?.onAddMarkerBefore)}
               {...(markerActions?.hasMarkerBefore && { destructive: true })}
             />
             <BottomSheetMenuItem
               icon={markerActions?.hasMarkerAfter ? BookmarkMinus : Bookmark}
-              label={markerActions?.hasMarkerAfter 
-                ? (isMultiSelect ? 'Remove marker below selection' : 'Remove marker after')
-                : (isMultiSelect ? 'Add marker below selection' : 'Add marker after')}
+              label={markerAfterLabel(markerActions?.hasMarkerAfter, useSelectionWording)}
               onClick={withClose(markerActions?.onAddMarkerAfter)}
               {...(markerActions?.hasMarkerAfter && { destructive: true })}
             />
@@ -237,7 +261,7 @@ function PhoneMenuContent({
           <BottomSheetSection title="Insert">
             <BottomSheetMenuItem
               icon={Plus}
-              label={isMultiSelect ? `Add ${selectedCount} tracks to all markers` : 'Add to all markers'}
+              label={isMultiSelect ? `Add ${selectedCount} to markers` : 'Add to markers'}
               onClick={withClose(markerActions.onAddToAllMarkers)}
             />
           </BottomSheetSection>
@@ -246,7 +270,7 @@ function PhoneMenuContent({
       )}
 
       {/* Track actions */}
-      <BottomSheetSection title={isMultiSelect ? `${selectedCount} Tracks` : 'Track'}>
+      <BottomSheetSection title={isMultiSelect && selectedCount > 1 ? `${selectedCount} Tracks` : 'Track'}>
         {/* Play - only for single track */}
         {!isMultiSelect && (
           <BottomSheetMenuItem
@@ -256,8 +280,8 @@ function PhoneMenuContent({
             disabled={!trackActions?.onPlay}
           />
         )}
-        {/* Delete Duplicates - only for single track in editable playlist */}
-        {!isMultiSelect && isEditable && trackActions?.onDeleteTrackDuplicates && (
+        {/* Delete Duplicates - available when handler is provided (caller decides if applicable) */}
+        {isEditable && trackActions?.onDeleteTrackDuplicates && (
           <BottomSheetMenuItem
             icon={Copy}
             label="Delete duplicates"
@@ -299,7 +323,7 @@ function PhoneMenuContent({
         {isEditable && trackActions?.onRemoveFromPlaylist && trackActions.canRemove && (
           <BottomSheetMenuItem
             icon={Trash2}
-            label={isMultiSelect ? `Remove ${selectedCount} tracks` : 'Remove from playlist'}
+            label={isMultiSelect ? removeLabel : 'Remove from playlist'}
             onClick={withClose(trackActions.onRemoveFromPlaylist)}
             destructive
           />
@@ -364,6 +388,10 @@ function TabletMenuContent({
   selectedCount,
   isEditable,
 }: MenuContentProps) {
+  const useSelectionWording = isMultiSelect && selectedCount > 1;
+  const removeLabel = removeSelectedLabel(selectedCount);
+  const reorderItems = buildReorderItems(reorderActions);
+
   return (
     <div className="py-2">
       <div className="px-3 py-1.5 text-sm font-semibold text-muted-foreground truncate max-w-[200px]">
@@ -371,13 +399,18 @@ function TabletMenuContent({
       </div>
       <div className="h-px bg-border my-1" />
       
-      {/* Reorder */}
-      {isEditable && !isMultiSelect && (
+      {/* Reorder - available for both single and multi-select */}
+      {isEditable && hasAnyAction(reorderItems) && (
         <>
-          <PopoverMenuItem icon={ChevronUp} label="Move up" onClick={withClose(reorderActions?.onMoveUp)} />
-          <PopoverMenuItem icon={ChevronDown} label="Move down" onClick={withClose(reorderActions?.onMoveDown)} />
-          <PopoverMenuItem icon={ChevronsUp} label="Move to top" onClick={withClose(reorderActions?.onMoveToTop)} />
-          <PopoverMenuItem icon={ChevronsDown} label="Move to bottom" onClick={withClose(reorderActions?.onMoveToBottom)} />
+          {reorderItems.map((item) => (
+            <PopoverMenuItem
+              key={item.key}
+              icon={item.icon}
+              label={item.label}
+              onClick={withClose(item.action)}
+              disabled={!item.action}
+            />
+          ))}
           <div className="h-px bg-border my-1" />
         </>
       )}
@@ -388,16 +421,16 @@ function TabletMenuContent({
           <PopoverMenuItem 
             icon={markerActions?.hasMarkerBefore ? BookmarkMinus : Bookmark} 
             label={markerActions?.hasMarkerBefore 
-              ? (isMultiSelect ? 'Remove marker above selection' : 'Remove marker before')
-              : (isMultiSelect ? 'Add marker above selection' : 'Add marker before')}
+              ? markerBeforeLabel(true, useSelectionWording)
+              : markerBeforeLabel(false, useSelectionWording)}
             onClick={withClose(markerActions?.onAddMarkerBefore)}
             {...(markerActions?.hasMarkerBefore && { destructive: true })}
           />
           <PopoverMenuItem 
             icon={markerActions?.hasMarkerAfter ? BookmarkMinus : Bookmark} 
             label={markerActions?.hasMarkerAfter 
-              ? (isMultiSelect ? 'Remove marker below selection' : 'Remove marker after')
-              : (isMultiSelect ? 'Add marker below selection' : 'Add marker after')}
+              ? markerAfterLabel(true, useSelectionWording)
+              : markerAfterLabel(false, useSelectionWording)}
             onClick={withClose(markerActions?.onAddMarkerAfter)}
             {...(markerActions?.hasMarkerAfter && { destructive: true })}
           />
@@ -410,7 +443,7 @@ function TabletMenuContent({
         <>
           <PopoverMenuItem 
             icon={Plus} 
-            label={isMultiSelect ? `Add ${selectedCount} to markers` : 'Add to all markers'} 
+            label={isMultiSelect ? `Add ${selectedCount} to markers` : 'Add to markers'} 
             onClick={withClose(markerActions.onAddToAllMarkers)}
           />
           <div className="h-px bg-border my-1" />
@@ -426,8 +459,8 @@ function TabletMenuContent({
           onClick={withClose(trackActions?.isPlaying ? trackActions?.onPause : trackActions?.onPlay)} 
         />
       )}
-      {/* Delete Duplicates - only for single track in editable playlist */}
-      {!isMultiSelect && isEditable && trackActions?.onDeleteTrackDuplicates && (
+      {/* Delete Duplicates - available when handler is provided */}
+      {isEditable && trackActions?.onDeleteTrackDuplicates && (
         <PopoverMenuItem 
           icon={Copy} 
           label="Delete duplicates" 
@@ -460,6 +493,7 @@ function TabletMenuContent({
       {/* Navigation - only for single track */}
       {!isMultiSelect && (
         <>
+          <div className="h-px bg-border my-1" />
           <PopoverMenuItem 
             icon={User} 
             label="Go to artist" 
@@ -487,7 +521,7 @@ function TabletMenuContent({
           <div className="h-px bg-border my-1" />
           <PopoverMenuItem 
             icon={Trash2} 
-            label={isMultiSelect ? `Remove ${selectedCount} tracks` : 'Remove from playlist'}
+            label={isMultiSelect ? removeLabel : 'Remove from playlist'}
             onClick={withClose(trackActions?.onRemoveFromPlaylist)}
             destructive
           />

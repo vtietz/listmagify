@@ -24,11 +24,14 @@ import {
 } from '@/components/ui/alert-dialog';
 import { usePlaylistPanelState } from '@/hooks/usePlaylistPanelState';
 import { useContextMenuStore } from '@/hooks/useContextMenuStore';
+import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
+import { useAddToMarkers } from '@/hooks/useAddToMarkers';
 import { PanelToolbar } from './PanelToolbar';
 import { TableHeader } from './TableHeader';
 import { VirtualizedTrackListContainer } from './VirtualizedTrackListContainer';
 import { TRACK_ROW_HEIGHT } from './constants';
 import type { Track } from '@/lib/spotify/types';
+import type { MarkerActions } from './TrackContextMenu';
 
 interface PlaylistPanelProps {
   panelId: string;
@@ -66,27 +69,68 @@ export function PlaylistPanel({
 }: PlaylistPanelProps) {
   const state = usePlaylistPanelState({ panelId, isDragSource });
   const openContextMenu = useContextMenuStore((s) => s.openMenu);
+  
+  // Get togglePoint from insertion points store (for marker actions)
+  const togglePoint = useInsertionPointsStore((s) => s.togglePoint);
+  
+  // Hook to add tracks to all markers
+  const { hasActiveMarkers, addToMarkers } = useAddToMarkers({ 
+    excludePlaylistId: state.playlistId ?? undefined 
+  });
+  
+  // Handler to add selected tracks to all markers (used in context menu)
+  const handleAddToAllMarkers = useCallback(() => {
+    const uris = state.getSelectedTrackUris();
+    if (uris.length > 0) {
+      addToMarkers(uris);
+    }
+  }, [state, addToMarkers]);
 
-  // Handler to open selection menu from toolbar
+  // Handler to open selection menu from toolbar - uses same context menu as individual tracks
   const handleOpenSelectionMenu = useCallback((position: { x: number; y: number }) => {
     const selected = state.getFirstSelectedTrack();
-    if (!selected) return;
+    const bounds = state.getSelectionBounds();
+    if (!selected || !bounds) return;
     
+    // Build track actions
     const trackActions: { 
       onRemoveFromPlaylist?: () => void; 
       canRemove?: boolean;
       onClearSelection?: () => void;
       onDeleteTrackDuplicates?: () => void;
+      onLikeAll?: () => void;
+      onUnlikeAll?: () => void;
     } = {
       onClearSelection: state.clearSelection,
     };
     if (state.isEditable) {
       trackActions.onRemoveFromPlaylist = state.handleDeleteSelected;
       trackActions.canRemove = true;
-      // Use track.position (actual position in playlist) if available, otherwise use index
-      const keepPosition = selected.track.position ?? selected.index;
-      trackActions.onDeleteTrackDuplicates = () => state.handleDeleteTrackDuplicates(selected.track, keepPosition);
     }
+    
+    // Build marker actions - same as TrackRow builds them
+    const markerActions: MarkerActions = {
+      hasAnyMarkers: hasActiveMarkers,
+    };
+    
+    // Add marker before/after selection (like TrackRow does)
+    if (state.playlistId && state.isEditable) {
+      // Check if markers already exist at these positions
+      const markers = state.activeMarkerIndices;
+      markerActions.hasMarkerBefore = markers.has(bounds.firstPosition);
+      markerActions.hasMarkerAfter = markers.has(bounds.lastPosition + 1);
+      
+      markerActions.onAddMarkerBefore = () => togglePoint(state.playlistId!, bounds.firstPosition);
+      markerActions.onAddMarkerAfter = () => togglePoint(state.playlistId!, bounds.lastPosition + 1);
+    }
+    
+    // Add to all markers action
+    if (hasActiveMarkers) {
+      markerActions.onAddToAllMarkers = handleAddToAllMarkers;
+    }
+    
+    // Build reorder actions from the first selected track position
+    const reorderActions = state.buildReorderActions(bounds.firstPosition);
     
     openContextMenu({
       track: selected.track,
@@ -95,10 +139,11 @@ export function PlaylistPanel({
       selectedCount: state.selection.size,
       isEditable: state.isEditable,
       panelId,
-      markerActions: {},
+      markerActions,
       trackActions,
+      reorderActions,
     });
-  }, [state, panelId, openContextMenu]);
+  }, [state, panelId, openContextMenu, hasActiveMarkers, handleAddToAllMarkers, togglePoint]);
 
   // Register virtualizer with parent for drop position calculation
   useEffect(() => {
@@ -317,6 +362,8 @@ export function PlaylistPanel({
                 handleToggleLiked={state.handleToggleLiked}
                 playTrack={state.playTrack}
                 pausePlayback={state.pausePlayback}
+                {...(hasActiveMarkers ? { hasAnyMarkers: hasActiveMarkers, onAddToAllMarkers: handleAddToAllMarkers } : {})}
+                {...(state.isEditable ? { buildReorderActions: state.buildReorderActions } : {})}
                 {...(state.isEditable && state.handleDeleteTrackDuplicates ? { onDeleteTrackDuplicates: state.handleDeleteTrackDuplicates } : {})}
                 {...(state.isEditable ? { contextTrackActions: {
                   onRemoveFromPlaylist: state.handleDeleteSelected,

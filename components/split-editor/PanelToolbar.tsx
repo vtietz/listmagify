@@ -1,36 +1,46 @@
 /**
  * PanelToolbar component for individual playlist panels.
  * Includes search, reload, lock indicator, close, and playlist selector.
- * Shows inline buttons when panel is wide (≥600px), collapses to dropdown menu when narrow.
+ * Uses AdaptiveNav for action buttons with automatic overflow handling.
  * 
  * Note: Track-level actions (delete, add to markers) are now in the TrackContextMenu.
  */
 
 'use client';
 
-import { useState, useRef, useEffect, ChangeEvent, useCallback } from 'react';
-import { Search, MoreHorizontal } from 'lucide-react';
+import { useState, useRef, useEffect, ChangeEvent, useCallback, useMemo } from 'react';
+import { 
+  Search, 
+  RefreshCw, 
+  Lock, 
+  LockOpen, 
+  X, 
+  SplitSquareHorizontal, 
+  SplitSquareVertical, 
+  Move, 
+  Copy, 
+  MapPinOff, 
+  Pencil, 
+  Loader2, 
+  Save, 
+  Play,
+  Eraser,
+  ListChecks,
+} from 'lucide-react';
 import { PlaylistSelector } from './PlaylistSelector';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { PlaylistDialog } from '@/components/playlist/PlaylistDialog';
-import { InlineToolbarActions, DropdownToolbarActions, SelectionButton } from './PanelToolbarActions';
+import { AdaptiveNav, type NavItem } from '@/components/ui/adaptive-nav';
 import { useUpdatePlaylist } from '@/lib/spotify/playlistMutations';
 import { useDeviceType } from '@/hooks/useDeviceType';
 import { isLikedSongsPlaylist } from '@/hooks/useLikedVirtualPlaylist';
 import { cn } from '@/lib/utils';
 import type { SortKey, SortDirection } from '@/hooks/usePlaylistSort';
 
-/** Minimum width (in px) to show inline buttons instead of dropdown menu */
-const COMPACT_BREAKPOINT = 600;
 /** Minimum width (in px) to show full toolbar - below this, use ultra-compact mode */
 const ULTRA_COMPACT_BREAKPOINT = 280;
-/** Minimum width to allow horizontal split (need at least ULTRA_COMPACT_BREAKPOINT) */
+/** Minimum width to allow horizontal split */
 const MIN_SPLIT_WIDTH = ULTRA_COMPACT_BREAKPOINT;
 
 interface PanelToolbarProps {
@@ -113,7 +123,6 @@ export function PanelToolbar({
   onDeleteDuplicates,
 }: PanelToolbarProps) {
   const [localSearch, setLocalSearch] = useState(searchQuery);
-  const [isCompact, setIsCompact] = useState(true);
   const [isUltraCompact, setIsUltraCompact] = useState(false);
   const [canSplitHorizontal, setCanSplitHorizontal] = useState(true);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -133,7 +142,7 @@ export function PanelToolbar({
   const isLastPanel = panelCount <= 1;
   const disableClose = !isPhone && isLastPanel;
 
-  // Track toolbar width to toggle between compact (dropdown) and expanded (inline buttons) mode
+  // Track toolbar width for ultra-compact mode and split constraints
   useEffect(() => {
     const el = toolbarRef.current;
     if (!el) return;
@@ -141,7 +150,6 @@ export function PanelToolbar({
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const width = entry.contentRect.width;
-        setIsCompact(width < COMPACT_BREAKPOINT);
         setIsUltraCompact(width < ULTRA_COMPACT_BREAKPOINT);
         setCanSplitHorizontal(width >= MIN_SPLIT_WIDTH);
       }
@@ -165,28 +173,251 @@ export function PanelToolbar({
     });
   }, [playlistId, updatePlaylist]);
 
-  const handleSelectionMenuClick = useCallback((e: React.MouseEvent) => {
-    if (!onOpenSelectionMenu) return;
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    onOpenSelectionMenu({ x: rect.right, y: rect.bottom });
-  }, [onOpenSelectionMenu]);
+  // Ultra-compact dropdown header with search only
+  const ultraCompactHeader = useMemo(() => {
+    if (!isUltraCompact || !playlistId) return undefined;
+    
+    return (
+      <>
+        {/* Search */}
+        <div className="px-2 py-1.5">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+            <Input
+              type="text"
+              placeholder="Search..."
+              value={localSearch}
+              onChange={(e: ChangeEvent<HTMLInputElement>) => handleSearchChange(e.target.value)}
+              className="pl-9 h-8 text-sm"
+            />
+          </div>
+        </div>
+      </>
+    );
+  }, [isUltraCompact, playlistId, localSearch, handleSearchChange]);
+
+  // Build toolbar actions array using NavItem format
+  const navItems: NavItem[] = useMemo(() => {
+    const items: NavItem[] = [];
+
+    // Selection actions (first, so it appears leftmost in the right-aligned group)
+    // Always visible with neverOverflow - this is the most important action
+    if (playlistId && onOpenSelectionMenu) {
+      items.push({
+        id: 'selection',
+        icon: <ListChecks className="h-4 w-4" />,
+        label: selectionCount > 0 ? `${selectionCount} selected` : 'No selection',
+        title: selectionCount > 0 ? `${selectionCount} track${selectionCount !== 1 ? 's' : ''} selected - click for actions` : 'No tracks selected',
+        group: 'selection',
+        disabled: selectionCount === 0,
+        neverOverflow: true,
+        customRender: () => (
+          <Button
+            ref={selectionButtonRef as React.RefObject<HTMLButtonElement>}
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              const rect = selectionButtonRef.current?.getBoundingClientRect();
+              if (rect) {
+                onOpenSelectionMenu({ x: rect.left, y: rect.bottom + 4 });
+              }
+            }}
+            disabled={selectionCount === 0}
+            className={cn(
+              "h-7 px-1.5 shrink-0 gap-1",
+              selectionCount > 0 ? "text-foreground hover:text-foreground" : "text-muted-foreground"
+            )}
+            title={selectionCount > 0 
+              ? `${selectionCount} track${selectionCount !== 1 ? 's' : ''} selected - click for actions`
+              : 'No tracks selected'
+            }
+          >
+            <ListChecks className="h-4 w-4" />
+            {selectionCount > 0 && (
+              <span className="text-sm font-semibold text-orange-500 tabular-nums">
+                {selectionCount}
+              </span>
+            )}
+          </Button>
+        ),
+      });
+    }
+
+    // === PLAYLIST OPTIONS GROUP ===
+    
+    // Play playlist
+    if (playlistId && hasTracks && onPlayFirst) {
+      items.push({
+        id: 'play',
+        icon: <Play className="h-4 w-4" />,
+        label: 'Play',
+        onClick: onPlayFirst,
+        title: 'Play playlist',
+        group: 'playlist',
+      });
+    }
+
+    // Edit Playlist Info
+    if (canEditPlaylistInfo) {
+      items.push({
+        id: 'edit',
+        icon: <Pencil className="h-4 w-4" />,
+        label: 'Edit playlist',
+        onClick: () => setEditDialogOpen(true),
+        title: 'Edit playlist info',
+        group: 'playlist',
+      });
+    }
+
+    // Reload
+    if (playlistId) {
+      items.push({
+        id: 'reload',
+        icon: <RefreshCw className="h-4 w-4" />,
+        label: isReloading ? 'Reloading…' : 'Reload playlist',
+        onClick: onReload,
+        disabled: isReloading,
+        loading: isReloading,
+        title: isReloading ? 'Reloading…' : 'Reload playlist',
+        group: 'playlist',
+      });
+    }
+
+    // === TRACK OPTIONS GROUP ===
+
+    // DnD Mode Toggle (Copy mode)
+    if (playlistId && isEditable && !locked) {
+      items.push({
+        id: 'dnd-mode',
+        icon: dndMode === 'move' ? <Move className="h-4 w-4" /> : <Copy className="h-4 w-4" />,
+        label: dndMode === 'move' ? 'Move mode' : 'Copy mode',
+        onClick: onDndModeToggle,
+        title: dndMode === 'move' ? 'Mode: Move (click to switch to Copy)' : 'Mode: Copy (click to switch to Move)',
+        group: 'tracks',
+      });
+    }
+
+    // Delete duplicates
+    if (playlistId && isEditable && !locked && hasTracks && onDeleteDuplicates) {
+      items.push({
+        id: 'delete-duplicates',
+        icon: isDeletingDuplicates 
+          ? <Loader2 className="h-4 w-4" /> 
+          : <Eraser className="h-4 w-4" />,
+        label: isDeletingDuplicates ? 'Removing duplicates...' : 'Delete duplicates',
+        onClick: onDeleteDuplicates,
+        disabled: isDeletingDuplicates,
+        loading: isDeletingDuplicates,
+        title: 'Delete duplicates',
+        group: 'tracks',
+      });
+    }
+
+    // Save Current Order
+    if (playlistId && isEditable && !locked && isSorted && onSaveCurrentOrder) {
+      items.push({
+        id: 'save-order',
+        icon: isSavingOrder ? <Loader2 className="h-4 w-4" /> : <Save className="h-4 w-4" />,
+        label: 'Save current order',
+        onClick: onSaveCurrentOrder,
+        disabled: isSavingOrder,
+        loading: isSavingOrder,
+        title: 'Save current order',
+        group: 'tracks',
+      });
+    }
+
+    // Clear Insertion Markers
+    if (playlistId && isEditable && !locked && insertionMarkerCount > 0 && onClearInsertionMarkers) {
+      items.push({
+        id: 'clear-markers',
+        icon: <MapPinOff className="h-4 w-4" />,
+        label: `Clear ${insertionMarkerCount} marker${insertionMarkerCount > 1 ? 's' : ''}`,
+        onClick: onClearInsertionMarkers,
+        variant: 'warning',
+        badge: (
+          <span className="text-xs bg-orange-500 text-white px-1.5 py-0.5 rounded-full">
+            {insertionMarkerCount}
+          </span>
+        ),
+        title: `Clear ${insertionMarkerCount} insertion marker${insertionMarkerCount > 1 ? 's' : ''}`,
+        group: 'tracks',
+      });
+    }
+
+    // === PANEL ACTIONS GROUP ===
+
+    // Lock Toggle
+    if (playlistId) {
+      items.push({
+        id: 'lock',
+        icon: locked ? <Lock className="h-4 w-4" /> : <LockOpen className="h-4 w-4" />,
+        label: locked ? 'Unlock panel' : 'Lock panel',
+        onClick: onLockToggle,
+        disabled: !isEditable,
+        title: locked ? 'Unlock panel' : 'Lock panel',
+        group: 'panel',
+      });
+    }
+
+    // Split commands (desktop only)
+    if (showSplitCommands) {
+      items.push({
+        id: 'split-horizontal',
+        icon: <SplitSquareHorizontal className="h-4 w-4" />,
+        label: canSplitHorizontal ? 'Split horizontal' : 'Split horizontal (too narrow)',
+        onClick: onSplitHorizontal,
+        disabled: !canSplitHorizontal,
+        title: canSplitHorizontal ? 'Split horizontal' : 'Panel too narrow to split',
+        group: 'panel',
+      });
+
+      items.push({
+        id: 'split-vertical',
+        icon: <SplitSquareVertical className="h-4 w-4" />,
+        label: 'Split vertical',
+        onClick: onSplitVertical,
+        title: 'Split vertical',
+        group: 'panel',
+      });
+    }
+
+    // === CLOSE GROUP (separate) ===
+    
+    // Close - always last, in its own group
+    items.push({
+      id: 'close',
+      icon: <X className="h-4 w-4" />,
+      label: isPhone ? 'Hide panel' : (isLastPanel ? 'Close panel (last)' : 'Close panel'),
+      onClick: onClose,
+      disabled: disableClose,
+      title: isPhone ? 'Hide panel' : (isLastPanel ? 'Cannot close last panel' : 'Close panel'),
+      group: 'close',
+    });
+
+    return items;
+  }, [
+    playlistId, hasTracks, onPlayFirst, isEditable, locked, onDeleteDuplicates, isDeletingDuplicates,
+    isReloading, onReload, dndMode, onDndModeToggle, onLockToggle, canEditPlaylistInfo,
+    isSorted, onSaveCurrentOrder, isSavingOrder, insertionMarkerCount, onClearInsertionMarkers,
+    showSplitCommands, canSplitHorizontal, onSplitHorizontal, onSplitVertical,
+    isPhone, isLastPanel, onClose, disableClose, selectionCount, onOpenSelectionMenu, isUltraCompact
+  ]);
 
   return (
     <div ref={toolbarRef} className="flex items-center gap-1.5 p-1.5 border-b border-border bg-card relative z-30">
-      {/* Playlist selector - hidden in ultra-compact mode (moved to dropdown) */}
-      {!isUltraCompact && (
-        <div className="shrink-0 max-w-[50%]">
-          <PlaylistSelector
-            selectedPlaylistId={playlistId}
-            selectedPlaylistName={playlistName ?? ''}
-            onSelectPlaylist={onLoadPlaylist}
-          />
-        </div>
-      )}
+      {/* Playlist selector - always visible */}
+      <div className="flex-1 min-w-0 max-w-[280px]">
+        <PlaylistSelector
+          selectedPlaylistId={playlistId}
+          selectedPlaylistName={playlistName ?? ''}
+          onSelectPlaylist={onLoadPlaylist}
+        />
+      </div>
 
-      {/* Search - hidden in ultra-compact mode (moved to dropdown) */}
+      {/* Search - only in normal mode */}
       {playlistId && !isUltraCompact && (
-        <div className={cn("relative flex-1", isPhone ? "min-w-[40px]" : "min-w-[60px]")}>
+        <div className="relative flex-1 min-w-0 max-w-[280px]">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
           <Input
             type="text"
@@ -198,111 +429,14 @@ export function PanelToolbar({
         </div>
       )}
 
-      {/* Ultra-compact mode: Show playlist name as text + expand button */}
-      {isUltraCompact && (
-        <div className="flex-1 min-w-0 flex items-center gap-1">
-          <span className="text-sm font-medium truncate">
-            {playlistName || '(Select)'}
-          </span>
-        </div>
-      )}
-
-      {/* Selection Actions Button - always visible when playlist loaded, disabled when no selection */}
-      {playlistId && onOpenSelectionMenu && !isUltraCompact && (
-        <SelectionButton
-          selectionCount={selectionCount}
-          onClick={handleSelectionMenuClick}
-          buttonRef={selectionButtonRef}
-        />
-      )}
-
-      {/* Inline buttons when panel is wide enough */}
-      {!isCompact && (
-        <InlineToolbarActions
-          playlistId={playlistId}
-          playlistName={playlistName}
-          isEditable={isEditable}
-          locked={locked}
-          dndMode={dndMode}
-          isReloading={isReloading}
-          isSorted={isSorted}
-          isSavingOrder={isSavingOrder}
-          insertionMarkerCount={insertionMarkerCount}
-          hasTracks={hasTracks}
-          isDeletingDuplicates={isDeletingDuplicates}
-          canSplitHorizontal={canSplitHorizontal}
-          disableClose={disableClose}
-          isLastPanel={isLastPanel}
-          isPhone={isPhone}
-          showSplitCommands={showSplitCommands}
-          canEditPlaylistInfo={canEditPlaylistInfo}
-          onReload={onReload}
-          onDndModeToggle={onDndModeToggle}
-          onLockToggle={onLockToggle}
-          onSplitHorizontal={onSplitHorizontal}
-          onSplitVertical={onSplitVertical}
-          onClose={onClose}
-          onClearInsertionMarkers={onClearInsertionMarkers}
-          onSaveCurrentOrder={onSaveCurrentOrder}
-          onEditPlaylist={() => setEditDialogOpen(true)}
-        />
-      )}
-
-      {/* Compact: Dropdown menu with all actions */}
-      {isCompact && (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 w-8 p-0 shrink-0"
-              title="More actions"
-            >
-              <MoreHorizontal className="h-4 w-4" />
-              <span className="sr-only">More actions</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56 max-h-[70vh] overflow-y-auto">
-            <DropdownToolbarActions
-              playlistId={playlistId}
-              playlistName={playlistName}
-              isEditable={isEditable}
-              locked={locked}
-              dndMode={dndMode}
-              isReloading={isReloading}
-              isSorted={isSorted}
-              isSavingOrder={isSavingOrder}
-              insertionMarkerCount={insertionMarkerCount}
-              selectionCount={selectionCount}
-              canSplitHorizontal={canSplitHorizontal}
-              disableClose={disableClose}
-              isLastPanel={isLastPanel}
-              isPhone={isPhone}
-              showSplitCommands={showSplitCommands}
-              canEditPlaylistInfo={canEditPlaylistInfo}
-              isUltraCompact={isUltraCompact}
-              localSearch={localSearch}
-              hasTracks={hasTracks}
-              isDeletingDuplicates={isDeletingDuplicates}
-              onReload={onReload}
-              onDndModeToggle={onDndModeToggle}
-              onLockToggle={onLockToggle}
-              onSplitHorizontal={onSplitHorizontal}
-              onSplitVertical={onSplitVertical}
-              onClose={onClose}
-              onClearInsertionMarkers={onClearInsertionMarkers}
-              onSaveCurrentOrder={onSaveCurrentOrder}
-              onEditPlaylist={() => setEditDialogOpen(true)}
-              onSelectionMenuClick={handleSelectionMenuClick}
-              onSearchChange={handleSearchChange}
-              onLoadPlaylist={onLoadPlaylist}
-              onOpenSelectionMenu={onOpenSelectionMenu}
-              onPlayFirst={onPlayFirst}
-              onDeleteDuplicates={onDeleteDuplicates}
-            />
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )}
+      {/* AdaptiveNav handles all actions with automatic overflow - aligned right */}
+      <AdaptiveNav
+        items={navItems}
+        displayMode="icon-only"
+        layoutMode="horizontal"
+        dropdownHeader={ultraCompactHeader}
+        className="flex-1 min-w-0 justify-end"
+      />
 
       {/* Edit playlist dialog */}
       {canEditPlaylistInfo && (

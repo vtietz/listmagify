@@ -374,7 +374,8 @@ export function TrackRow({
       hasMarkerBefore: hasInsertionMarker,
       hasMarkerAfter: hasInsertionMarkerAfter,
     };
-    if (playlistId && isEditable && allowInsertionMarkerToggle) {
+    // Always allow marker actions in context menu (regardless of inline toggle setting)
+    if (playlistId && isEditable) {
       actions.onAddMarkerBefore = () => togglePoint(playlistId, trackPosition);
       actions.onAddMarkerAfter = () => togglePoint(playlistId, trackPosition + 1);
     }
@@ -385,7 +386,7 @@ export function TrackRow({
       };
     }
     return actions;
-  }, [markerActions, hasAnyMarkers, hasInsertionMarker, hasInsertionMarkerAfter, playlistId, isEditable, allowInsertionMarkerToggle, trackPosition, togglePoint]);
+  }, [markerActions, hasAnyMarkers, hasInsertionMarker, hasInsertionMarkerAfter, playlistId, isEditable, trackPosition, togglePoint]);
 
   // Context menu handlers - use global store (desktop only)
   const handleContextMenu = useCallback((e: React.MouseEvent) => {

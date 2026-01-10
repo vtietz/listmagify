@@ -83,6 +83,12 @@ interface VirtualizedTrackListContainerProps {
   onDeleteTrackDuplicates?: (track: Track, position: number) => void | Promise<void>;
   /** Optional track actions for context menu (e.g., remove from playlist) */
   contextTrackActions?: Partial<TrackActions>;
+  /** Optional handler to add selected tracks to all markers */
+  onAddToAllMarkers?: () => void;
+  /** Whether there are any active insertion markers */
+  hasAnyMarkers?: boolean;
+  /** Build reorder actions for a track at given position */
+  buildReorderActions?: (trackPosition: number) => Record<string, (() => void) | undefined>;
 }
 
 export function VirtualizedTrackListContainer({
@@ -120,6 +126,9 @@ export function VirtualizedTrackListContainer({
   pausePlayback,
   onDeleteTrackDuplicates,
   contextTrackActions,
+  onAddToAllMarkers,
+  hasAnyMarkers,
+  buildReorderActions,
 }: VirtualizedTrackListContainerProps) {
   // Get context menu state from global store
   const contextMenu = useContextMenuStore();
@@ -212,6 +221,11 @@ export function VirtualizedTrackListContainer({
                 compareColor={getCompareColorForTrack(track.uri)}
                 isMultiSelect={selection.size > 1}
                 selectedCount={selection.size}
+                markerActions={{
+                  ...(hasAnyMarkers ? { hasAnyMarkers } : {}),
+                  ...(onAddToAllMarkers ? { onAddToAllMarkers } : {}),
+                }}
+                {...(buildReorderActions ? { reorderActions: buildReorderActions(positionActual) } : {})}
                 {...(onDeleteTrackDuplicates || contextTrackActions ? { contextTrackActions: {
                   ...contextTrackActions,
                   ...(onDeleteTrackDuplicates ? { onDeleteTrackDuplicates: () => onDeleteTrackDuplicates(track, positionActual) } : {}),

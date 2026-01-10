@@ -23,7 +23,7 @@ import { usePlaylistTracksInfinite } from '@/hooks/usePlaylistTracksInfinite';
 import { useSavedTracksIndex, usePrefetchSavedTracks } from '@/hooks/useSavedTracksIndex';
 import { useLikedVirtualPlaylist, isLikedSongsPlaylist, LIKED_SONGS_METADATA } from '@/hooks/useLikedVirtualPlaylist';
 import { useCapturePlaylist } from '@/hooks/useRecommendations';
-import { useRemoveTracks, useReorderAllTracks } from '@/lib/spotify/playlistMutations';
+import { useRemoveTracks, useReorderAllTracks, useReorderTracks } from '@/lib/spotify/playlistMutations';
 import { useTrackPlayback } from '@/hooks/useTrackPlayback';
 import { getTrackSelectionKey } from '@/lib/dnd/selection';
 import { useHydratedCompactMode } from '@/hooks/useCompactModeStore';
@@ -214,6 +214,7 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
   // Mutations
   const removeTracks = useRemoveTracks();
   const reorderAllTracks = useReorderAllTracks();
+  const reorderTracks = useReorderTracks();
 
   // Last.fm config - use dedicated status endpoint (no API calls to Last.fm)
   const { data: lastfmConfig } = useQuery({
@@ -756,6 +757,87 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
     return null;
   }, [filteredTracks, selection]);
 
+  // Get selection bounds (first and last selected track positions)
+  const getSelectionBounds = useCallback((): { firstIndex: number; lastIndex: number; firstPosition: number; lastPosition: number } | null => {
+    let firstIndex = -1;
+    let lastIndex = -1;
+    
+    for (let i = 0; i < filteredTracks.length; i++) {
+      const track = filteredTracks[i];
+      if (!track) continue;
+      const key = getTrackSelectionKey(track, i);
+      if (selection.has(key)) {
+        if (firstIndex === -1) firstIndex = i;
+        lastIndex = i;
+      }
+    }
+    
+    if (firstIndex === -1) return null;
+    
+    const firstTrack = filteredTracks[firstIndex];
+    const lastTrack = filteredTracks[lastIndex];
+    
+    return {
+      firstIndex,
+      lastIndex,
+      firstPosition: firstTrack?.position ?? firstIndex,
+      lastPosition: lastTrack?.position ?? lastIndex,
+    };
+  }, [filteredTracks, selection]);
+
+  // Reorder actions for context menu - works for single or multi-select
+  const buildReorderActions = useCallback((trackPosition: number) => {
+    if (!playlistId || !isEditable) return {};
+    
+    const bounds = getSelectionBounds();
+    const isMulti = bounds && selection.size > 1;
+    
+    // Determine the range to move
+    const fromIndex = isMulti ? bounds.firstPosition : trackPosition;
+    const rangeLength = isMulti ? (bounds.lastPosition - bounds.firstPosition + 1) : 1;
+    const lastIndex = fromIndex + rangeLength - 1;
+    
+    // When tracks have stable `position` values, those are in the index-space of the full playlist.
+    // Otherwise, we fall back to filtered index positions.
+    const hasStablePositions = filteredTracks.some((t) => typeof t?.position === 'number');
+    const totalTracks = hasStablePositions ? tracks.length : filteredTracks.length;
+    
+    return {
+      onMoveUp: fromIndex > 0 ? () => {
+        reorderTracks.mutate({
+          playlistId,
+          fromIndex,
+          toIndex: fromIndex - 1,
+          rangeLength,
+        });
+      } : undefined,
+      onMoveDown: lastIndex < totalTracks - 1 ? () => {
+        reorderTracks.mutate({
+          playlistId,
+          fromIndex,
+          toIndex: fromIndex + rangeLength + 1,
+          rangeLength,
+        });
+      } : undefined,
+      onMoveToTop: fromIndex > 0 ? () => {
+        reorderTracks.mutate({
+          playlistId,
+          fromIndex,
+          toIndex: 0,
+          rangeLength,
+        });
+      } : undefined,
+      onMoveToBottom: lastIndex < totalTracks - 1 ? () => {
+        reorderTracks.mutate({
+          playlistId,
+          fromIndex,
+          toIndex: totalTracks,
+          rangeLength,
+        });
+      } : undefined,
+    };
+  }, [playlistId, isEditable, selection, getSelectionBounds, filteredTracks, tracks.length, reorderTracks]);
+
   // Play first track in the playlist
   const handlePlayFirst = useCallback(async () => {
     if (!filteredTracks.length) return;
@@ -954,6 +1036,10 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
     // Selection actions
     clearSelection,
     getFirstSelectedTrack,
+    getSelectionBounds,
+
+    // Reorder actions
+    buildReorderActions,
 
     // New actions
     handlePlayFirst,

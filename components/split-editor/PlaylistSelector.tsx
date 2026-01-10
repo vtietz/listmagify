@@ -243,9 +243,11 @@ export function PlaylistSelector({ selectedPlaylistId, selectedPlaylistName, onS
             top: `${dropdownPosition.top}px`,
             left: `${dropdownPosition.left}px`,
             width: `${Math.max(dropdownPosition.width, 300)}px`,
-            zIndex: 9999,
+            zIndex: 99999,
           }}
-          className="rounded-md border border-border bg-card p-2 shadow-md"
+          className="rounded-md border border-border bg-card p-2 shadow-md pointer-events-auto"
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
         >
           <Input
             autoFocus

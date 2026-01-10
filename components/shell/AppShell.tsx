@@ -155,7 +155,7 @@ function Header({ title: _title }: { title: string }) {
     <header className="h-12 flex items-center justify-between px-4 border-b">
       <AppLogo size="sm" />
 
-      <nav className="flex items-center gap-1 text-sm">
+      <nav className="flex flex-1 items-center justify-end gap-1 text-sm min-w-0">
         {/* Only show nav items when authenticated */}
         {authenticated && (
           <AdaptiveNav

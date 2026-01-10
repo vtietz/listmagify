@@ -5,13 +5,16 @@
 
 'use client';
 
-import { RefreshCw, Lock, LockOpen, X, SplitSquareHorizontal, SplitSquareVertical, Move, Copy, MapPinOff, Pencil, Loader2, Save, ListChecks, Search, Play, Copy as CopyIcon } from 'lucide-react';
+import { RefreshCw, Lock, LockOpen, X, SplitSquareHorizontal, SplitSquareVertical, Move, Copy, MapPinOff, Pencil, Loader2, Save, ListChecks, Search, Play, Copy as CopyIcon, MoreHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { PlaylistSelector } from './PlaylistSelector';
 import { cn } from '@/lib/utils';
@@ -66,6 +69,8 @@ export function InlineToolbarActions({
   isPhone,
   showSplitCommands,
   canEditPlaylistInfo,
+  hasTracks,
+  isDeletingDuplicates,
   onReload,
   onDndModeToggle,
   onLockToggle,
@@ -75,7 +80,10 @@ export function InlineToolbarActions({
   onClearInsertionMarkers,
   onSaveCurrentOrder,
   onEditPlaylist,
+  onPlayFirst,
+  onDeleteDuplicates,
 }: Omit<ToolbarActionProps, 'selectionCount' | 'onSelectionMenuClick'>) {
+  const hasMoreActions = (hasTracks && onPlayFirst) || (isEditable && !locked && hasTracks && onDeleteDuplicates);
   return (
     <>
       {/* Reload */}
@@ -161,6 +169,45 @@ export function InlineToolbarActions({
         >
           <MapPinOff className="h-4 w-4" />
         </Button>
+      )}
+
+      {/* More Actions Dropdown (Play, Delete Duplicates) */}
+      {playlistId && hasMoreActions && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0 shrink-0"
+              title="More actions"
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            {/* Play First Track */}
+            {hasTracks && onPlayFirst && (
+              <DropdownMenuItem onClick={onPlayFirst}>
+                <Play className="h-4 w-4 mr-2" />
+                Play playlist
+              </DropdownMenuItem>
+            )}
+            {/* Delete Duplicates */}
+            {isEditable && !locked && hasTracks && onDeleteDuplicates && (
+              <DropdownMenuItem 
+                onClick={onDeleteDuplicates}
+                disabled={isDeletingDuplicates || false}
+              >
+                {isDeletingDuplicates ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <CopyIcon className="h-4 w-4 mr-2" />
+                )}
+                {isDeletingDuplicates ? 'Removing duplicates...' : 'Delete duplicates'}
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
       )}
 
       {/* Split commands */}
