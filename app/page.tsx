@@ -80,9 +80,7 @@ export default async function Home({ searchParams }: Props) {
         {/* Hero Section */}
         <div className="container mx-auto px-4 pt-16 pb-12">
           <div className="text-center space-y-6 max-w-3xl mx-auto">
-            <div className="flex justify-center">
-              <AppLogo size="lg" asLink={false} />
-            </div>
+            <h1 className="text-5xl font-bold tracking-tight">Listmagify</h1>
             
             {/* Show message if present (session expired, unauthenticated, etc.) */}
             {showMessage && message && (
