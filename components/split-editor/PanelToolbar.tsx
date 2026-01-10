@@ -245,18 +245,6 @@ export function PanelToolbar({
 
     // === PLAYLIST OPTIONS GROUP ===
     
-    // Play playlist
-    if (playlistId && hasTracks && onPlayFirst) {
-      items.push({
-        id: 'play',
-        icon: <Play className="h-4 w-4" />,
-        label: 'Play',
-        onClick: onPlayFirst,
-        title: 'Play playlist',
-        group: 'playlist',
-      });
-    }
-
     // Edit Playlist Info
     if (canEditPlaylistInfo) {
       items.push({
@@ -279,6 +267,18 @@ export function PanelToolbar({
         disabled: isReloading,
         loading: isReloading,
         title: isReloading ? 'Reloading…' : 'Reload playlist',
+        group: 'playlist',
+      });
+    }
+
+    // Play playlist
+    if (playlistId && hasTracks && onPlayFirst) {
+      items.push({
+        id: 'play',
+        icon: <Play className="h-4 w-4" />,
+        label: 'Play',
+        onClick: onPlayFirst,
+        title: 'Play playlist',
         group: 'playlist',
       });
     }
@@ -405,7 +405,7 @@ export function PanelToolbar({
   ]);
 
   return (
-    <div ref={toolbarRef} className="flex items-center gap-1.5 p-1.5 border-b border-border bg-card relative z-30">
+    <div ref={toolbarRef} className="flex items-center gap-1 p-1 border-b border-border bg-card relative z-30">
       {/* Playlist selector - always visible */}
       <div className="flex-1 min-w-0 max-w-[280px]">
         <PlaylistSelector
@@ -417,7 +417,7 @@ export function PanelToolbar({
 
       {/* Search - only in normal mode */}
       {playlistId && !isUltraCompact && (
-        <div className="relative flex-1 min-w-0 max-w-[280px]">
+        <div className="relative min-w-0 w-[200px]">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
           <Input
             type="text"
@@ -435,7 +435,7 @@ export function PanelToolbar({
         displayMode="icon-only"
         layoutMode="horizontal"
         dropdownHeader={ultraCompactHeader}
-        className="flex-1 min-w-0 justify-end"
+        className="shrink-0"
       />
 
       {/* Edit playlist dialog */}
