@@ -456,12 +456,12 @@ export function AdaptiveNav({
         const isHidden = index >= visibleCount && !item.neverOverflow;
         
         return (
-          <>
+          <Fragment key={item.id}>
             {showSeparator && !isHidden && (
-              <div className="h-5 w-px bg-border shrink-0" key={`sep-${item.id}`} />
+              <div className="h-5 w-px bg-border shrink-0" />
             )}
             {renderInlineButton(item, index)}
-          </>
+          </Fragment>
         );
       })}
 
@@ -485,10 +485,10 @@ export function AdaptiveNav({
               const prevItem = index > 0 ? menuOnlyItems[index - 1] : null;
               const showSeparator = prevItem && item.group && prevItem.group !== item.group;
               return (
-                <>
-                  {showSeparator && <DropdownMenuSeparator key={`sep-menu-${item.id}`} />}
+                <Fragment key={item.id}>
+                  {showSeparator && <DropdownMenuSeparator />}
                   {renderMenuItem(item)}
-                </>
+                </Fragment>
               );
             })}
             {menuOnlyItems.length > 0 && overflowItems.length > 0 && (
@@ -499,10 +499,10 @@ export function AdaptiveNav({
               const prevItem = index > 0 ? overflowItems[index - 1] : (menuOnlyItems.length > 0 ? menuOnlyItems[menuOnlyItems.length - 1] : null);
               const showSeparator = prevItem && item.group && prevItem.group !== item.group;
               return (
-                <>
-                  {showSeparator && <DropdownMenuSeparator key={`sep-overflow-${item.id}`} />}
+                <Fragment key={item.id}>
+                  {showSeparator && <DropdownMenuSeparator />}
                   {renderMenuItem(item)}
-                </>
+                </Fragment>
               );
             })}
           </DropdownMenuContent>

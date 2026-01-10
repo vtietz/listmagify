@@ -1,38 +1,36 @@
 /**
  * Custom hook that encapsulates all state and logic for PlaylistPanel.
- * Extracts ~400 lines of hooks/effects/callbacks from the component.
+ * 
+ * Refactored to compose smaller, focused hooks for better testability and maintainability.
+ * This orchestrator assembles outputs from subhooks while preserving the existing public API.
  */
 
 'use no memo';
 
-import { useEffect, useRef, useState, useMemo, useCallback, useDeferredValue } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useVirtualizer } from '@tanstack/react-virtual';
-import { useDroppable } from '@dnd-kit/core';
-import { apiFetch } from '@/lib/api/client';
-import { playlistMeta, playlistPermissions } from '@/lib/api/queryKeys';
-import { makeCompositeId, getTrackPosition } from '@/lib/dnd/id';
-import { matchesAllWords } from '@/lib/utils';
-import { eventBus } from '@/lib/sync/eventBus';
-import { toast } from '@/lib/ui/toast';
-import { useSplitGridStore } from '@/hooks/useSplitGridStore';
-import { useMobileOverlayStore } from '@/components/split-editor/MobileBottomNav';
-import { usePlaylistSort, type SortKey, type SortDirection } from '@/hooks/usePlaylistSort';
-import { useTrackListSelection } from '@/hooks/useTrackListSelection';
-import { usePlaylistTracksInfinite } from '@/hooks/usePlaylistTracksInfinite';
-import { useSavedTracksIndex, usePrefetchSavedTracks } from '@/hooks/useSavedTracksIndex';
-import { useLikedVirtualPlaylist, isLikedSongsPlaylist, LIKED_SONGS_METADATA } from '@/hooks/useLikedVirtualPlaylist';
-import { useCapturePlaylist } from '@/hooks/useRecommendations';
-import { useRemoveTracks, useReorderAllTracks, useReorderTracks } from '@/lib/spotify/playlistMutations';
-import { useTrackPlayback } from '@/hooks/useTrackPlayback';
-import { getTrackSelectionKey } from '@/lib/dnd/selection';
-import { useHydratedCompactMode } from '@/hooks/useCompactModeStore';
-import { useCompareModeStore, getTrackCompareColor } from '@/hooks/useCompareModeStore';
-import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
-import { usePrefetchContributorProfiles, useUserProfilesCache } from '@/hooks/useUserProfiles';
-import { useDeviceType } from '@/hooks/useDeviceType';
-import { TRACK_ROW_HEIGHT, TRACK_ROW_HEIGHT_COMPACT, VIRTUALIZATION_OVERSCAN } from '@/components/split-editor/constants';
-import type { Track } from '@/lib/spotify/types';
+import { useEffect, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  usePanelStoreBindings,
+  usePlaylistDataSource,
+  usePlaylistMetaPermissions,
+  useLastfmConfig,
+  useDroppableScroll,
+  useDndModePreview,
+  useFilteringAndSorting,
+  useSelectionManagement,
+  useInsertionMarkers,
+  useDuplicates,
+  useCompareModeIntegration,
+  useContributorsPrefetch,
+  useCumulativeDurations,
+  usePlaybackControls,
+  useVirtualizerState,
+  usePlaylistEvents,
+  useAutoReload,
+  useScrollPersistence,
+  useScrollRestoration,
+  usePlaylistMutations,
+} from './panel';
 
 interface UsePlaylistPanelStateProps {
   panelId: string;
@@ -41,918 +39,240 @@ interface UsePlaylistPanelStateProps {
 
 export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPanelStateProps) {
   const queryClient = useQueryClient();
-  const scrollRef = useRef<HTMLDivElement>(null);
-  
-  // Track scroll element for virtualizer (use state to avoid flushSync during render)
-  const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null);
-  
-  // Track if mouse is over this panel for Ctrl+hover mode preview
-  const [isMouseOver, setIsMouseOver] = useState(false);
-  const [isCtrlPressed, setIsCtrlPressed] = useState(false);
-  
-  // Global Ctrl key tracking for mode preview
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Control') setIsCtrlPressed(true);
-    };
-    const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.key === 'Control') setIsCtrlPressed(false);
-    };
-    const handleBlur = () => setIsCtrlPressed(false);
-    
-    document.addEventListener('keydown', handleKeyDown);
-    document.addEventListener('keyup', handleKeyUp);
-    window.addEventListener('blur', handleBlur);
-    
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-      document.removeEventListener('keyup', handleKeyUp);
-      window.removeEventListener('blur', handleBlur);
-    };
-  }, []);
 
-  // Store selectors
-  const panel = useSplitGridStore((state: any) =>
-    state.panels.find((p: any) => p.id === panelId)
-  );
-  const panelCount = useSplitGridStore((state: any) => state.panels.length);
-  const setSearch = useSplitGridStore((state: any) => state.setSearch);
-  const setSelection = useSplitGridStore((state: any) => state.setSelection);
-  const toggleSelection = useSplitGridStore((state: any) => state.toggleSelection);
-  const setScroll = useSplitGridStore((state: any) => state.setScroll);
-  const closePanel = useSplitGridStore((state: any) => state.closePanel);
-  const splitPanel = useSplitGridStore((state: any) => state.splitPanel);
-  const setPanelDnDMode = useSplitGridStore((state: any) => state.setPanelDnDMode);
-  const togglePanelLock = useSplitGridStore((state: any) => state.togglePanelLock);
-  const loadPlaylist = useSplitGridStore((state: any) => state.loadPlaylist);
-  const selectPlaylist = useSplitGridStore((state: any) => state.selectPlaylist);
-  const setSort = useSplitGridStore((state: any) => state.setSort);
-
-  // Mobile overlay state for hide/show behavior
-  const { isPhone } = useDeviceType();
-  const activeOverlay = useMobileOverlayStore((s) => s.activeOverlay);
-  const setActiveOverlay = useMobileOverlayStore((s) => s.setActiveOverlay);
-
-  // Local state
-  const [playlistName, setPlaylistName] = useState<string>('');
-  const [playlistDescription, setPlaylistDescription] = useState<string>('');
-
-  // Sort state from store (persisted)
-  const sortKey: SortKey = panel?.sortKey || 'position';
-  const sortDirection: SortDirection = panel?.sortDirection || 'asc';
-  
-  const setSortKey = useCallback((key: SortKey) => {
-    setSort(panelId, key, sortDirection);
-  }, [panelId, setSort, sortDirection]);
-  
-  const setSortDirection = useCallback((dir: SortDirection) => {
-    setSort(panelId, sortKey, dir);
-  }, [panelId, setSort, sortKey]);
-
-  const playlistId = panel?.playlistId;
-  const searchQuery = panel?.searchQuery || '';
-  const selection = panel?.selection || new Set();
-  const locked = panel?.locked || false;
-
-  // Early canDrop calculation for droppable hook
-  const canDropBasic = !locked && sortKey === 'position' && sortDirection === 'asc';
-
-  // Panel-level droppable
-  const { setNodeRef: setDroppableRef } = useDroppable({
-    id: `panel-${panelId}`,
-    disabled: !canDropBasic,
-    data: { type: 'panel', panelId, playlistId },
-  });
-
-  // Combined ref callback
-  const scrollDroppableRef = useCallback(
-    (el: HTMLDivElement | null) => {
-      (scrollRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
-      setDroppableRef(el);
-      setScrollElement(el);
-    },
-    [setDroppableRef, setScrollElement]
-  );
-
-  // Insertion markers
-  const insertionMarkers = useInsertionPointsStore((s) => s.getMarkers(playlistId ?? ''));
-  const clearInsertionMarkers = useInsertionPointsStore((s) => s.clearPlaylist);
-  const activeMarkerIndices = useMemo(() => 
-    new Set(insertionMarkers.map(m => m.index)),
-    [insertionMarkers]
-  );
-
-  // Playlist data source selection
-  const isLikedPlaylist = isLikedSongsPlaylist(playlistId);
-  const likedPlaylistData = useLikedVirtualPlaylist();
-  const regularPlaylistData = usePlaylistTracksInfinite({
-    playlistId: isLikedPlaylist ? null : playlistId,
-    enabled: !!playlistId && !isLikedPlaylist,
-  });
-
+  // --- Store bindings and panel operations ---
+  // Note: We need dndMode early but it depends on canMove which depends on isEditable
+  // So we get storedDndMode first, then compute the preview later
+  const storeBindings = usePanelStoreBindings(panelId, 'copy'); // placeholder, will use actual dndMode below
   const {
-    allTracks: tracks,
+    panel: _panel,
+    panelCount,
+    playlistId,
+    searchQuery,
+    selection,
+    locked,
+    sortKey,
+    sortDirection,
+    storedDndMode,
+    scrollOffset,
+    setSelection,
+    toggleSelection,
+    setScroll,
+    setSort,
+    loadPlaylist,
+    setSortKey,
+    setSortDirection,
+    setPanelDnDMode,
+    handleSearchChange,
+    handleReload,
+    handleClose,
+    handleSplitHorizontal,
+    handleSplitVertical,
+    handleLockToggle,
+    handleLoadPlaylist,
+    handleSort,
+  } = storeBindings;
+
+  // --- Data source (tracks, loading, error) ---
+  const dataSource = usePlaylistDataSource(playlistId);
+  const {
+    tracks,
     snapshotId,
     isLoading,
-    isFetchingNextPage: isAutoLoading,
-    isRefetching,
-    hasLoadedAll,
+    isAutoLoading,
+    isReloading,
+    hasLoadedAll: _hasLoadedAll,
     error,
     dataUpdatedAt,
-  } = isLikedPlaylist
-    ? {
-        allTracks: likedPlaylistData.allTracks,
-        snapshotId: 'liked-songs',
-        isLoading: likedPlaylistData.isLoading,
-        isFetchingNextPage: likedPlaylistData.isFetchingNextPage,
-        isRefetching: false,
-        hasLoadedAll: likedPlaylistData.hasLoadedAll,
-        error: likedPlaylistData.error,
-        dataUpdatedAt: likedPlaylistData.dataUpdatedAt,
-      }
-    : {
-        allTracks: regularPlaylistData.allTracks,
-        snapshotId: regularPlaylistData.snapshotId,
-        isLoading: regularPlaylistData.isLoading,
-        isFetchingNextPage: regularPlaylistData.isFetchingNextPage,
-        isRefetching: regularPlaylistData.isRefetching,
-        hasLoadedAll: regularPlaylistData.hasLoadedAll,
-        error: regularPlaylistData.error,
-        dataUpdatedAt: regularPlaylistData.dataUpdatedAt,
-      };
+    isLikedPlaylist,
+    isLiked,
+    toggleLiked,
+  } = dataSource;
 
-  // Saved tracks index
-  usePrefetchSavedTracks();
-  const { isLiked, toggleLiked, ensureCoverage } = useSavedTracksIndex();
+  // --- Metadata and permissions ---
+  const metaPermissions = usePlaylistMetaPermissions(playlistId);
+  const {
+    playlistName,
+    playlistDescription,
+    isEditable,
+    permissionsData,
+  } = metaPermissions;
 
-  // Capture playlist for recommendations
-  const capturePlaylist = useCapturePlaylist();
-  const capturedRef = useRef<string | null>(null);
-  
-  useEffect(() => {
-    const captureKey = snapshotId ? `${playlistId}:${snapshotId}` : playlistId;
-    if (playlistId && hasLoadedAll && tracks.length > 0 && capturedRef.current !== captureKey) {
-      capturedRef.current = captureKey;
-      capturePlaylist.mutate(
-        { playlistId, tracks, cooccurrenceOnly: isLikedPlaylist },
-        { onError: () => {} }
-      );
-    }
-  }, [playlistId, isLikedPlaylist, hasLoadedAll, tracks, snapshotId, capturePlaylist]);
+  // --- Last.fm config ---
+  const { lastfmEnabled } = useLastfmConfig();
 
-  useEffect(() => {
-    if (tracks.length > 0 && hasLoadedAll) {
-      const trackIds = tracks.map(t => t.id).filter((id): id is string => id !== null);
-      ensureCoverage(trackIds);
-    }
-  }, [tracks, hasLoadedAll, ensureCoverage]);
-
-  const handleToggleLiked = useCallback((trackId: string, currentlyLiked: boolean) => {
-    toggleLiked(trackId, currentlyLiked);
-  }, [toggleLiked]);
-
-  // Mutations
-  const removeTracks = useRemoveTracks();
-  const reorderAllTracks = useReorderAllTracks();
-  const reorderTracks = useReorderTracks();
-
-  // Last.fm config - use dedicated status endpoint (no API calls to Last.fm)
-  const { data: lastfmConfig } = useQuery({
-    queryKey: ['lastfm-status'],
-    queryFn: async () => {
-      try {
-        const response = await fetch('/api/lastfm/status');
-        if (!response.ok) return { enabled: false };
-        const data = await response.json();
-        return { enabled: data.enabled === true };
-      } catch {
-        return { enabled: false };
-      }
-    },
-    staleTime: Infinity,
-    retry: false,
-  });
-  const lastfmEnabled = lastfmConfig?.enabled ?? false;
-
-  const isReloading = isAutoLoading || isRefetching;
-
-  // Playlist metadata
-  const { data: playlistMetaData } = useQuery({
-    queryKey: playlistId && !isLikedPlaylist ? playlistMeta(playlistId) : ['playlist', null],
-    queryFn: async () => {
-      if (!playlistId || isLikedPlaylist) throw new Error('No playlist ID');
-      return apiFetch<{
-        id: string;
-        name: string;
-        description: string;
-        owner: { id: string; displayName: string };
-        collaborative: boolean;
-        tracksTotal: number;
-      }>(`/api/playlists/${playlistId}`);
-    },
-    enabled: !!playlistId && !isLikedPlaylist,
-    staleTime: 60000,
-  });
-
-  useEffect(() => {
-    if (isLikedPlaylist) {
-      setPlaylistName(LIKED_SONGS_METADATA.name);
-      setPlaylistDescription(LIKED_SONGS_METADATA.description ?? '');
-    } else if (playlistMetaData?.name) {
-      setPlaylistName(playlistMetaData.name);
-      setPlaylistDescription(playlistMetaData.description ?? '');
-    }
-  }, [playlistMetaData, isLikedPlaylist]);
-
-  // Permissions
-  const { data: permissionsData } = useQuery({
-    queryKey: playlistId && !isLikedPlaylist ? playlistPermissions(playlistId) : ['playlist-permissions', null],
-    queryFn: async () => {
-      if (!playlistId || isLikedPlaylist) throw new Error('No playlist ID');
-      return apiFetch<{ isEditable: boolean }>(`/api/playlists/${playlistId}/permissions`);
-    },
-    enabled: !!playlistId && !isLikedPlaylist,
-    staleTime: 60000,
-  });
-
-  const isEditable = isLikedPlaylist ? false : (permissionsData?.isEditable || false);
+  // --- Compute permissions and DnD state ---
   const canDrag = true;
-  const canDrop = isEditable && !locked && sortKey === 'position' && sortDirection === 'asc';
+  const canDropBasic = !locked && sortKey === 'position' && sortDirection === 'asc';
+  const canDrop = isEditable && canDropBasic;
   const canMove = isEditable && !locked;
-  const storedDndMode = canMove ? (panel?.dndMode || 'copy') : 'copy';
+  const actualStoredDndMode = canMove ? storedDndMode : 'copy';
 
-  const isDragging = isDragSource !== undefined;
-  const showCtrlInvert = isCtrlPressed && canMove && (
-    (isDragging && isDragSource) || (!isDragging && isMouseOver)
+  // --- DnD mode preview ---
+  const { isMouseOver, setIsMouseOver, dndMode } = useDndModePreview(
+    canMove,
+    isDragSource,
+    actualStoredDndMode
   );
-  const dndMode = showCtrlInvert
-    ? (storedDndMode === 'copy' ? 'move' : 'copy')
-    : storedDndMode;
 
+  // --- Droppable scroll area ---
+  const { scrollRef, scrollElement, scrollDroppableRef } = useDroppableScroll(
+    panelId,
+    playlistId,
+    canDropBasic
+  );
+
+  // Re-bind handleDndModeToggle with actual dndMode
+  const handleDndModeToggle = useCallback(() => {
+    setPanelDnDMode(panelId, dndMode === 'move' ? 'copy' : 'move');
+  }, [panelId, dndMode, setPanelDnDMode]);
+
+  // Load playlist when permissions change
   useEffect(() => {
     if (playlistId && permissionsData) {
       loadPlaylist(panelId, playlistId, permissionsData.isEditable);
     }
   }, [playlistId, panelId, permissionsData, loadPlaylist]);
 
-  // Event subscriptions
-  useEffect(() => {
-    if (!playlistId) return;
+  // --- Insertion markers ---
+  const { activeMarkerIndices, clearInsertionMarkers } = useInsertionMarkers(playlistId);
 
-    const unsubscribeUpdate = eventBus.on('playlist:update', () => {});
-    const unsubscribeReload = eventBus.on('playlist:reload', ({ playlistId: id }) => {
-      if (id === playlistId) {
-        // Save current scroll position before invalidating
-        const scrollTop = scrollRef.current?.scrollTop || 0;
-        setScroll(panelId, scrollTop);
-        // Invalidate queries - scroll will be restored via the scroll restoration effect
-        // after dataUpdatedAt changes and triggers re-render
-        queryClient.invalidateQueries({ queryKey: ['playlist-tracks-infinite', playlistId] });
-        queryClient.invalidateQueries({ queryKey: playlistMeta(playlistId) });
-      }
-    });
+  // --- Filtering and sorting ---
+  const { sortedTracks, filteredTracks, isSorted } = useFilteringAndSorting(
+    tracks,
+    sortKey,
+    sortDirection,
+    searchQuery
+  );
 
-    return () => {
-      unsubscribeUpdate();
-      unsubscribeReload();
-    };
-  }, [playlistId, panelId, queryClient, setScroll]);
+  // --- Toggle liked handler ---
+  const handleToggleLiked = useCallback(
+    (trackId: string, currentlyLiked: boolean) => {
+      toggleLiked(trackId, currentlyLiked);
+    },
+    [toggleLiked]
+  );
 
-  // Sorting and filtering
-  const sortedTracks = usePlaylistSort({ tracks: tracks || [], sortKey, sortDirection });
-  
-  // Track if the playlist is sorted in a non-default order (can save current order)
-  const isSorted = sortKey !== 'position' || sortDirection !== 'asc';
+  // --- Virtualization ---
+  const {
+    virtualizer,
+    virtualizerRef,
+    items,
+    contextItems,
+    rowHeight,
+    isCompact,
+  } = useVirtualizerState(filteredTracks, scrollElement, panelId);
 
-  const filteredTracks = useMemo(() => {
-    if (sortedTracks.length === 0) return [];
-    const query = searchQuery.trim();
-    if (!query) return sortedTracks;
-    return sortedTracks.filter(
-      (track: Track) =>
-        matchesAllWords(track.name, query) ||
-        track.artists.some((artist: string) => matchesAllWords(artist, query)) ||
-        (track.album?.name ? matchesAllWords(track.album.name, query) : false)
-    );
-  }, [sortedTracks, searchQuery]);
-
-  // Keep selection in sync with the currently rendered track set.
-  // Reorders can change track.position; we key selections by getTrackSelectionKey(),
-  // so we prune any keys that no longer resolve to a track.
-  useEffect(() => {
-    if (selection.size === 0) return;
-
-    const validKeys = new Set<string>();
-    for (let i = 0; i < filteredTracks.length; i++) {
-      const track = filteredTracks[i];
-      if (!track) continue;
-      validKeys.add(getTrackSelectionKey(track, i));
-    }
-
-    const currentSelection = Array.from(selection).filter(
-      (key): key is string => typeof key === 'string' && key.length > 0
-    );
-    const nextSelection = currentSelection.filter((key) => validKeys.has(key));
-    if (nextSelection.length !== currentSelection.length) {
-      setSelection(panelId, nextSelection);
-    }
-  }, [filteredTracks, panelId, selection, setSelection]);
-
-  // Detect duplicate URIs in the track list (same song appearing multiple times)
-  const duplicateUris = useMemo(() => {
-    const uriCounts = new Map<string, number>();
-    for (const track of filteredTracks) {
-      const count = uriCounts.get(track.uri) || 0;
-      uriCounts.set(track.uri, count + 1);
-    }
-    // Return set of URIs that appear more than once
-    const duplicates = new Set<string>();
-    for (const [uri, count] of uriCounts) {
-      if (count > 1) {
-        duplicates.add(uri);
-      }
-    }
-    return duplicates;
-  }, [filteredTracks]);
-
-  // Compute which duplicate URIs are currently selected (for highlighting other instances)
-  const selectedDuplicateUris = useMemo(() => {
-    const uris = new Set<string>();
-    // Build a map from selection key to track for quick lookup
-    const keyToTrack = new Map<string, Track>();
-    filteredTracks.forEach((track, index) => {
-      const key = getTrackSelectionKey(track, index);
-      keyToTrack.set(key, track);
-    });
-    
-    selection.forEach((key: string) => {
-      const track = keyToTrack.get(key);
-      if (track && duplicateUris.has(track.uri)) {
-        uris.add(track.uri);
-      }
-    });
-    return uris;
-  }, [selection, duplicateUris, filteredTracks]);
-
-  // Compare mode: register panel tracks for cross-panel comparison
-  const isCompareEnabled = useCompareModeStore((s) => s.isEnabled);
-  const compareDistribution = useCompareModeStore((s) => s.distribution);
-  const registerPanelTracks = useCompareModeStore((s) => s.registerPanelTracks);
-  const unregisterPanel = useCompareModeStore((s) => s.unregisterPanel);
-  
-  // Register tracks when playlist loads or changes (only for playlist panels with a playlistId)
-  useEffect(() => {
-    if (!playlistId || !tracks || tracks.length === 0) {
-      unregisterPanel(panelId);
-      return;
-    }
-    // Register track URIs for comparison (use tracks, not filteredTracks, to get full picture)
-    const uris = tracks.map((t: Track) => t.uri);
-    registerPanelTracks(panelId, uris);
-    
-    // Cleanup on unmount or playlist change
-    return () => unregisterPanel(panelId);
-  }, [panelId, playlistId, tracks, registerPanelTracks, unregisterPanel]);
-  
-  // Helper to get compare color for a track
-  const getCompareColorForTrack = useCallback((trackUri: string) => {
-    return getTrackCompareColor(trackUri, compareDistribution, isCompareEnabled);
-  }, [compareDistribution, isCompareEnabled]);
-
-  // Contributors detection
-  const hasMultipleContributors = useMemo(() => {
-    if (!tracks || tracks.length === 0) return false;
-    const contributors = new Set<string>();
-    for (const track of tracks) {
-      if (track.addedBy?.id) {
-        contributors.add(track.addedBy.id);
-        if (contributors.size > 1) return true;
-      }
-    }
-    return false;
-  }, [tracks]);
-
-  usePrefetchContributorProfiles(hasMultipleContributors ? tracks : []);
-  const { getProfile } = useUserProfilesCache();
-
-  // Cumulative durations and hour boundaries
-  const { cumulativeDurations, hourBoundaries } = useMemo(() => {
-    const cumulative: number[] = [];
-    const boundaries: Map<number, number> = new Map();
-    let runningTotal = 0;
-    const ONE_HOUR_MS = 60 * 60 * 1000;
-    
-    for (let i = 0; i < filteredTracks.length; i++) {
-      const track = filteredTracks[i];
-      if (!track) continue;
-      const prevHours = Math.floor(runningTotal / ONE_HOUR_MS);
-      runningTotal += track.durationMs;
-      cumulative.push(runningTotal);
-      const newHours = Math.floor(runningTotal / ONE_HOUR_MS);
-      if (newHours > prevHours) boundaries.set(i, newHours);
-    }
-    return { cumulativeDurations: cumulative, hourBoundaries: boundaries };
-  }, [filteredTracks]);
-
-  // Playback
-  const trackUris = useMemo(() => filteredTracks.map((t: Track) => t.uri), [filteredTracks]);
-  const playlistUri = playlistId && !isLikedPlaylist ? `spotify:playlist:${playlistId}` : undefined;
-  const { isTrackPlaying, isTrackLoading, playTrack, pausePlayback } = useTrackPlayback({
-    trackUris,
+  // --- Playlist mutations ---
+  const mutations = usePlaylistMutations({
     playlistId,
-    playlistUri,
+    panelId,
+    isEditable,
+    snapshotId,
+    filteredTracks,
+    sortedTracks,
+    tracks,
+    selection,
+    setSelection,
+    setSort,
+    getSelectionBounds: () => null, // Will be overwritten after selection hook
   });
 
-  // Compact mode and virtualization
-  const isCompact = useHydratedCompactMode();
-  const rowHeight = isCompact ? TRACK_ROW_HEIGHT_COMPACT : TRACK_ROW_HEIGHT;
-  const deferredCount = useDeferredValue(filteredTracks.length);
-
-  const virtualizer = useVirtualizer({
-    count: deferredCount,
-    getScrollElement: () => scrollElement,
-    estimateSize: () => rowHeight,
-    overscan: VIRTUALIZATION_OVERSCAN,
-  });
-
-  const virtualizerRef = useRef(virtualizer);
-  virtualizerRef.current = virtualizer;
-  const prevCompactRef = useRef(isCompact);
-
-  useEffect(() => {
-    if (prevCompactRef.current !== isCompact) {
-      prevCompactRef.current = isCompact;
-      const timeoutId = setTimeout(() => virtualizerRef.current.measure(), 0);
-      return () => clearTimeout(timeoutId);
-    }
-  }, [isCompact]);
-
-  // Note: getVirtualItems() must be called during render (not memoized with stable deps)
-  // The flushSync warning is a known TanStack Virtual issue that doesn't affect functionality
-  const items = virtualizer.getVirtualItems();
-
-  const contextItems = useMemo(() => {
-    return filteredTracks.map((t: Track, index: number) => 
-      makeCompositeId(panelId, t.id || t.uri, getTrackPosition(t, index))
-    );
-  }, [filteredTracks, panelId]);
-
-  // Handlers
-  const handleSearchChange = useCallback((query: string) => setSearch(panelId, query), [panelId, setSearch]);
-  const handleReload = useCallback(() => {
-    if (playlistId) eventBus.emit('playlist:reload', { playlistId });
-  }, [playlistId]);
-  
-  const handleClose = useCallback(() => {
-    // On mobile: hide the panel (set overlay to 'none') instead of removing it
-    // On desktop: close the panel completely
-    if (isPhone && activeOverlay === 'panel2') {
-      setActiveOverlay('none');
-    } else {
-      closePanel(panelId);
-    }
-  }, [isPhone, activeOverlay, setActiveOverlay, closePanel, panelId]);
-  
-  const handleSplitHorizontal = useCallback(() => splitPanel(panelId, 'horizontal'), [panelId, splitPanel]);
-  const handleSplitVertical = useCallback(() => splitPanel(panelId, 'vertical'), [panelId, splitPanel]);
-  const handleDndModeToggle = useCallback(() => {
-    setPanelDnDMode(panelId, dndMode === 'move' ? 'copy' : 'move');
-  }, [panelId, dndMode, setPanelDnDMode]);
-  const handleLockToggle = useCallback(() => togglePanelLock(panelId), [panelId, togglePanelLock]);
-  const handleLoadPlaylist = useCallback((newPlaylistId: string) => {
-    selectPlaylist(panelId, newPlaylistId);
-  }, [panelId, selectPlaylist]);
-
-  const handleSort = useCallback((key: SortKey) => {
-    if (key === sortKey) {
-      // Toggle direction for same key
-      setSort(panelId, key, sortDirection === 'asc' ? 'desc' : 'asc');
-    } else {
-      // New key, reset to ascending
-      setSort(panelId, key, 'asc');
-    }
-  }, [panelId, sortKey, sortDirection, setSort]);
-
-  const handleDeleteSelected = useCallback(() => {
-    if (!playlistId || selection.size === 0) return;
-    const uriToPositions = new Map<string, number[]>();
-    filteredTracks.forEach((track: Track, index: number) => {
-      const key = getTrackSelectionKey(track, index);
-      if (selection.has(key)) {
-        const position = track.position ?? index;
-        const positions = uriToPositions.get(track.uri) || [];
-        positions.push(position);
-        uriToPositions.set(track.uri, positions);
-      }
-    });
-
-    const tracksToRemove: Array<{ uri: string; positions: number[] }> = [];
-    uriToPositions.forEach((positions, uri) => {
-      tracksToRemove.push({ uri, positions });
-    });
-
-    if (tracksToRemove.length === 0) return;
-    const mutationParams = snapshotId
-      ? { playlistId, tracks: tracksToRemove, snapshotId }
-      : { playlistId, tracks: tracksToRemove };
-
-    removeTracks.mutate(mutationParams, {
-      onSuccess: () => setSelection(panelId, []),
-    });
-  }, [playlistId, selection, filteredTracks, removeTracks, snapshotId, panelId, setSelection]);
-
-  // Delete handler that auto-selects next track after deletion
-  const handleDeleteWithAutoSelect = useCallback((nextIndexToSelect: number | null) => {
-    if (!playlistId || selection.size === 0) return;
-    const uriToPositions = new Map<string, number[]>();
-    filteredTracks.forEach((track: Track, index: number) => {
-      const key = getTrackSelectionKey(track, index);
-      if (selection.has(key)) {
-        const position = track.position ?? index;
-        const positions = uriToPositions.get(track.uri) || [];
-        positions.push(position);
-        uriToPositions.set(track.uri, positions);
-      }
-    });
-
-    const tracksToRemove: Array<{ uri: string; positions: number[] }> = [];
-    uriToPositions.forEach((positions, uri) => {
-      tracksToRemove.push({ uri, positions });
-    });
-
-    if (tracksToRemove.length === 0) return;
-    const mutationParams = snapshotId
-      ? { playlistId, tracks: tracksToRemove, snapshotId }
-      : { playlistId, tracks: tracksToRemove };
-
-    removeTracks.mutate(mutationParams, {
-      onSuccess: () => {
-        // Auto-select the next track after deletion
-        if (nextIndexToSelect !== null && nextIndexToSelect >= 0) {
-          // After tracks are removed, the new track at nextIndexToSelect will have a new index
-          // We'll select it using a small delay to let React Query update the cache
-          setTimeout(() => {
-            const newTracks = queryClient.getQueryData<{ pages: Array<{ items: Track[] }> }>(
-              ['playlist', playlistId, 'tracks']
-            );
-            const allTracks = newTracks?.pages?.flatMap(p => p.items) || [];
-            if (allTracks.length > 0 && nextIndexToSelect < allTracks.length) {
-              const trackToSelect = allTracks[nextIndexToSelect];
-              if (trackToSelect) {
-                const newKey = getTrackSelectionKey(trackToSelect, nextIndexToSelect);
-                setSelection(panelId, [newKey]);
-              }
-            } else if (allTracks.length > 0) {
-              // If the index is out of bounds, select the last track
-              const lastIndex = allTracks.length - 1;
-              const trackToSelect = allTracks[lastIndex];
-              if (trackToSelect) {
-                const newKey = getTrackSelectionKey(trackToSelect, lastIndex);
-                setSelection(panelId, [newKey]);
-              }
-            } else {
-              setSelection(panelId, []);
-            }
-          }, 100);
-        } else {
-          setSelection(panelId, []);
-        }
-      },
-    });
-  }, [playlistId, selection, filteredTracks, removeTracks, snapshotId, panelId, setSelection, queryClient]);
-
-  // Get URIs of selected tracks (for adding to markers)
-  const getSelectedTrackUris = useCallback((): string[] => {
-    const uris: string[] = [];
-    filteredTracks.forEach((track: Track, index: number) => {
-      const key = getTrackSelectionKey(track, index);
-      if (selection.has(key)) {
-        uris.push(track.uri);
-      }
-    });
-    return uris;
-  }, [filteredTracks, selection]);
-
-  // Get URIs of all tracks in current sorted order (for saving order)
-  // Extract valid Spotify track URIs from sorted tracks
-  // Filters out: local files (spotify:local:...), episodes (spotify:episode:...), and invalid URIs
-  // Note: Cannot detect unavailable/removed tracks at this stage - Spotify API will reject those
-  const getSortedTrackUris = useCallback((): string[] => {
-    return sortedTracks
-      .map((track: Track) => track.uri)
-      .filter((uri): uri is string => 
-        typeof uri === 'string' && 
-        uri.length > 0 && 
-        uri.startsWith('spotify:track:')
-      );
-  }, [sortedTracks]);
-
-  // Handler for saving the current sorted order as the new playlist order
-  const handleSaveCurrentOrder = useCallback(async () => {
-    if (!playlistId || !isEditable) return;
-    
-    const trackUris = getSortedTrackUris();
-    if (trackUris.length === 0) {
-      console.warn('[handleSaveCurrentOrder] No valid track URIs found to save');
-      return;
-    }
-
-    // Log warning if some tracks were filtered out (local files, episodes, or unavailable tracks)
-    const totalTracks = sortedTracks.length;
-    if (trackUris.length < totalTracks) {
-      console.warn(
-        `[handleSaveCurrentOrder] ${totalTracks - trackUris.length} track(s) filtered out ` +
-        `(local files, episodes, or tracks without valid URIs). Saving ${trackUris.length} valid tracks.`
-      );
-    }
-
-    try {
-      await reorderAllTracks.mutateAsync({ playlistId, trackUris });
-      // Reset sorting to default after saving
-      setSort(panelId, 'position', 'asc');
-    } catch (error) {
-      console.error('[handleSaveCurrentOrder] Failed to save playlist order:', error);
-      // Re-throw to let the mutation error handling show user feedback
-      throw error;
-    }
-  }, [panelId, playlistId, isEditable, getSortedTrackUris, sortedTracks, reorderAllTracks, setSort]);
-
-  const selectionKey = useCallback((track: Track, index: number) => getTrackSelectionKey(track, index), []);
-
-  // Handler for DEL key - single track deletes without confirmation, multiple with confirmation
-  const handleDeleteKeyPress = useCallback((selectionCount: number, nextIndexToSelect: number | null) => {
-    if (selectionCount === 1) {
-      // Single track: delete immediately without confirmation
-      handleDeleteWithAutoSelect(nextIndexToSelect);
-    } else {
-      // Multiple tracks: the PanelToolbar will show confirmation dialog
-      // We expose this via a ref so the toolbar can trigger it
-      pendingDeleteNextIndexRef.current = nextIndexToSelect;
-      setShowDeleteConfirmation(true);
-    }
-  }, [handleDeleteWithAutoSelect]);
-
-  // Ref for pending delete next index
-  const pendingDeleteNextIndexRef = useRef<number | null>(null);
-  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
-
-  // Handler for confirming multi-track delete (called from toolbar)
-  const handleConfirmMultiDelete = useCallback(() => {
-    setShowDeleteConfirmation(false);
-    handleDeleteWithAutoSelect(pendingDeleteNextIndexRef.current);
-    pendingDeleteNextIndexRef.current = null;
-  }, [handleDeleteWithAutoSelect]);
-
+  // --- Selection management ---
   const canDelete = isEditable && !locked && playlistId !== null;
-
-  const { handleTrackClick, handleTrackSelect, handleKeyDownNavigation, focusedIndex } = useTrackListSelection({
+  const selectionMgmt = useSelectionManagement({
     filteredTracks,
     selection,
     panelId,
     setSelection,
     toggleSelection,
     virtualizer,
-    selectionKey,
-    onDeleteKeyPress: handleDeleteKeyPress,
-    canDelete,
     isCompact,
+    canDelete,
+    onDeleteWithAutoSelect: mutations.handleDeleteWithAutoSelect,
   });
 
-  // Auto-reload config
-  const { data: configData } = useQuery({
-    queryKey: ['app-config'],
-    queryFn: async () => {
-      const res = await fetch('/api/config');
-      if (!res.ok) return { playlistPollIntervalSeconds: null };
-      return res.json() as Promise<{ playlistPollIntervalSeconds: number | null }>;
-    },
-    staleTime: Infinity,
+  // Re-create mutations with actual getSelectionBounds
+  const {
+    removeTracks,
+    handleDeleteSelected,
+    handleDeleteWithAutoSelect: _handleDeleteWithAutoSelect,
+    getSortedTrackUris,
+    handleSaveCurrentOrder,
+    buildReorderActions,
+    isSavingOrder,
+  } = usePlaylistMutations({
+    playlistId,
+    panelId,
+    isEditable,
+    snapshotId,
+    filteredTracks,
+    sortedTracks,
+    tracks,
+    selection,
+    setSelection,
+    setSort,
+    getSelectionBounds: selectionMgmt.getSelectionBounds,
   });
 
-  useEffect(() => {
-    const intervalSeconds = configData?.playlistPollIntervalSeconds;
-    if (!intervalSeconds || !playlistId || isLikedPlaylist) return;
-    const intervalId = setInterval(() => {
-      eventBus.emit('playlist:reload', { playlistId });
-    }, intervalSeconds * 1000);
-    return () => clearInterval(intervalId);
-  }, [configData?.playlistPollIntervalSeconds, playlistId, isLikedPlaylist]);
+  // --- Duplicates ---
+  const duplicates = useDuplicates({
+    playlistId,
+    isEditable,
+    filteredTracks,
+    selection,
+    removeTracks,
+  });
 
-  // Scroll persistence - save scroll position on scroll
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const handleScroll = () => setScroll(panelId, el.scrollTop);
-    el.addEventListener('scroll', handleScroll, { passive: true });
-    return () => el.removeEventListener('scroll', handleScroll);
-  }, [panelId, setScroll]);
+  // --- Compare mode ---
+  const { isCompareEnabled, getCompareColorForTrack } = useCompareModeIntegration(
+    panelId,
+    playlistId,
+    tracks
+  );
 
-  // Scroll restoration - restore after data updates (use RAF to wait for DOM render)
-  useEffect(() => {
-    const targetScroll = panel?.scrollOffset;
-    if (scrollRef.current && typeof targetScroll === 'number' && targetScroll > 0) {
-      // Use requestAnimationFrame to ensure DOM has updated after data change
-      const rafId = requestAnimationFrame(() => {
-        if (scrollRef.current) {
-          scrollRef.current.scrollTop = targetScroll;
-        }
-      });
-      return () => cancelAnimationFrame(rafId);
-    }
-  }, [dataUpdatedAt, panel?.scrollOffset]);
+  // --- Contributors ---
+  const { hasMultipleContributors, getProfile } = useContributorsPrefetch(tracks);
 
-  // Clear selection
-  const clearSelection = useCallback(() => {
-    setSelection(panelId, []);
-  }, [panelId, setSelection]);
+  // --- Cumulative durations ---
+  const { cumulativeDurations, hourBoundaries } = useCumulativeDurations(filteredTracks);
 
-  // Get first selected track and its index
-  const getFirstSelectedTrack = useCallback((): { track: Track; index: number } | null => {
-    for (let i = 0; i < filteredTracks.length; i++) {
-      const track = filteredTracks[i];
-      if (!track) continue;
-      const key = getTrackSelectionKey(track, i);
-      if (selection.has(key)) {
-        return { track, index: i };
-      }
-    }
-    return null;
-  }, [filteredTracks, selection]);
+  // --- Playback ---
+  const {
+    isTrackPlaying,
+    isTrackLoading,
+    playTrack,
+    pausePlayback,
+    handlePlayFirst,
+  } = usePlaybackControls(filteredTracks, playlistId, isLikedPlaylist);
 
-  // Get selection bounds (first and last selected track positions)
-  const getSelectionBounds = useCallback((): { firstIndex: number; lastIndex: number; firstPosition: number; lastPosition: number } | null => {
-    let firstIndex = -1;
-    let lastIndex = -1;
-    
-    for (let i = 0; i < filteredTracks.length; i++) {
-      const track = filteredTracks[i];
-      if (!track) continue;
-      const key = getTrackSelectionKey(track, i);
-      if (selection.has(key)) {
-        if (firstIndex === -1) firstIndex = i;
-        lastIndex = i;
-      }
-    }
-    
-    if (firstIndex === -1) return null;
-    
-    const firstTrack = filteredTracks[firstIndex];
-    const lastTrack = filteredTracks[lastIndex];
-    
-    return {
-      firstIndex,
-      lastIndex,
-      firstPosition: firstTrack?.position ?? firstIndex,
-      lastPosition: lastTrack?.position ?? lastIndex,
-    };
-  }, [filteredTracks, selection]);
+  // --- Event subscriptions ---
+  usePlaylistEvents({
+    panelId,
+    playlistId,
+    scrollRef,
+    setScroll,
+    queryClient,
+  });
 
-  // Reorder actions for context menu - works for single or multi-select
-  const buildReorderActions = useCallback((trackPosition: number) => {
-    if (!playlistId || !isEditable) return {};
-    
-    const bounds = getSelectionBounds();
-    const isMulti = bounds && selection.size > 1;
-    
-    // Determine the range to move
-    const fromIndex = isMulti ? bounds.firstPosition : trackPosition;
-    const rangeLength = isMulti ? (bounds.lastPosition - bounds.firstPosition + 1) : 1;
-    const lastIndex = fromIndex + rangeLength - 1;
-    
-    // When tracks have stable `position` values, those are in the index-space of the full playlist.
-    // Otherwise, we fall back to filtered index positions.
-    const hasStablePositions = filteredTracks.some((t) => typeof t?.position === 'number');
-    const totalTracks = hasStablePositions ? tracks.length : filteredTracks.length;
-    
-    return {
-      onMoveUp: fromIndex > 0 ? () => {
-        reorderTracks.mutate({
-          playlistId,
-          fromIndex,
-          toIndex: fromIndex - 1,
-          rangeLength,
-        });
-      } : undefined,
-      onMoveDown: lastIndex < totalTracks - 1 ? () => {
-        reorderTracks.mutate({
-          playlistId,
-          fromIndex,
-          toIndex: fromIndex + rangeLength + 1,
-          rangeLength,
-        });
-      } : undefined,
-      onMoveToTop: fromIndex > 0 ? () => {
-        reorderTracks.mutate({
-          playlistId,
-          fromIndex,
-          toIndex: 0,
-          rangeLength,
-        });
-      } : undefined,
-      onMoveToBottom: lastIndex < totalTracks - 1 ? () => {
-        reorderTracks.mutate({
-          playlistId,
-          fromIndex,
-          toIndex: totalTracks,
-          rangeLength,
-        });
-      } : undefined,
-    };
-  }, [playlistId, isEditable, selection, getSelectionBounds, filteredTracks, tracks.length, reorderTracks]);
+  // --- Auto reload ---
+  useAutoReload(playlistId, isLikedPlaylist);
 
-  // Play first track in the playlist
-  const handlePlayFirst = useCallback(async () => {
-    if (!filteredTracks.length) return;
-    const firstTrack = filteredTracks[0];
-    if (firstTrack?.uri) {
-      await playTrack(firstTrack.uri);
-    }
-  }, [filteredTracks, playTrack]);
+  // --- Scroll persistence ---
+  useScrollPersistence({
+    panelId,
+    scrollRef,
+    setScroll,
+  });
 
-  // State for duplicate deletion
-  const [isDeletingDuplicates, setIsDeletingDuplicates] = useState(false);
+  // --- Scroll restoration ---
+  useScrollRestoration({
+    scrollRef,
+    targetScrollOffset: scrollOffset,
+    dataUpdatedAt,
+  });
 
-  // Delete all duplicate tracks, keeping only first occurrence
-  const handleDeleteAllDuplicates = useCallback(async () => {
-    if (!playlistId || !isEditable || isDeletingDuplicates) return;
-    
-    setIsDeletingDuplicates(true);
-    try {
-      // Build a map of track URI -> list of positions
-      const uriPositions = new Map<string, number[]>();
-      filteredTracks.forEach((track, index) => {
-        // Use track.position if available, otherwise use index
-        const position = track.position ?? index;
-        const positions = uriPositions.get(track.uri) || [];
-        positions.push(position);
-        uriPositions.set(track.uri, positions);
-      });
-
-      // Find all positions to remove (keep first occurrence)
-      const positionsToRemove: Array<{ uri: string; position: number }> = [];
-      for (const [uri, positions] of uriPositions) {
-        if (positions.length > 1) {
-          // Keep first, remove the rest
-          for (let i = 1; i < positions.length; i++) {
-            positionsToRemove.push({ uri, position: positions[i]! });
-          }
-        }
-      }
-
-      if (positionsToRemove.length === 0) {
-        toast.success('No duplicates found');
-        return;
-      }
-
-      // Remove duplicates
-      await removeTracks.mutateAsync({
-        playlistId,
-        tracks: positionsToRemove,
-      });
-
-      toast.success(`Removed ${positionsToRemove.length} duplicate track${positionsToRemove.length > 1 ? 's' : ''}`);
-    } catch (error) {
-      console.error('[handleDeleteAllDuplicates] Failed:', error);
-      toast.error('Failed to delete duplicates');
-    } finally {
-      setIsDeletingDuplicates(false);
-    }
-  }, [playlistId, isEditable, isDeletingDuplicates, filteredTracks, removeTracks]);
-
-  // Delete duplicates of a specific track (keep the selected instance)
-  const handleDeleteTrackDuplicates = useCallback(async (track: Track, keepPosition: number) => {
-    if (!playlistId || !isEditable) return;
-
-    // Find all instances of this track
-    const duplicatePositions: number[] = [];
-    filteredTracks.forEach((t, index) => {
-      const position = t.position ?? index;
-      if (t.uri === track.uri && position !== keepPosition) {
-        duplicatePositions.push(position);
-      }
-    });
-
-    if (duplicatePositions.length === 0) {
-      toast.info('No other instances of this track found');
-      return;
-    }
-
-    try {
-      await removeTracks.mutateAsync({
-        playlistId,
-        tracks: duplicatePositions.map(position => ({
-          uri: track.uri,
-          position,
-        })),
-      });
-
-      toast.success(`Removed ${duplicatePositions.length} duplicate${duplicatePositions.length > 1 ? 's' : ''} of "${track.name}"`);
-    } catch (error) {
-      console.error('[handleDeleteTrackDuplicates] Failed:', error);
-      toast.error('Failed to delete duplicates');
-    }
-  }, [playlistId, isEditable, filteredTracks, removeTracks]);
-
+  // --- Return the same shape as before for API compatibility ---
   return {
     // Refs
     scrollRef,
@@ -983,10 +303,10 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
     hasMultipleContributors,
     cumulativeDurations,
     hourBoundaries,
-    duplicateUris,
-    selectedDuplicateUris,
-    isDuplicate: (uri: string) => duplicateUris.has(uri),
-    isOtherInstanceSelected: (uri: string) => selectedDuplicateUris.has(uri),
+    duplicateUris: duplicates.duplicateUris,
+    selectedDuplicateUris: duplicates.selectedDuplicateUris,
+    isDuplicate: duplicates.isDuplicate,
+    isOtherInstanceSelected: duplicates.isOtherInstanceSelected,
 
     // Compare mode
     isCompareEnabled,
@@ -1029,45 +349,45 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
     handleLoadPlaylist,
     handleDeleteSelected,
     handleSort,
-    handleTrackClick,
-    handleTrackSelect,
-    handleKeyDownNavigation,
-    selectionKey,
+    handleTrackClick: selectionMgmt.handleTrackClick,
+    handleTrackSelect: selectionMgmt.handleTrackSelect,
+    handleKeyDownNavigation: selectionMgmt.handleKeyDownNavigation,
+    selectionKey: selectionMgmt.selectionKey,
     clearInsertionMarkers,
-    focusedIndex,
-    getSelectedTrackUris,
+    focusedIndex: selectionMgmt.focusedIndex,
+    getSelectedTrackUris: selectionMgmt.getSelectedTrackUris,
 
     // Panel info
     panelCount,
 
     // Save current order
     isSorted,
-    isSavingOrder: reorderAllTracks.isPending,
+    isSavingOrder,
     getSortedTrackUris,
     handleSaveCurrentOrder,
 
     // Delete with confirmation for multi-track (keyboard DEL)
-    showDeleteConfirmation,
-    setShowDeleteConfirmation,
-    handleConfirmMultiDelete,
+    showDeleteConfirmation: selectionMgmt.showDeleteConfirmation,
+    setShowDeleteConfirmation: selectionMgmt.setShowDeleteConfirmation,
+    handleConfirmMultiDelete: selectionMgmt.handleConfirmMultiDelete,
 
     // Mouse/keyboard state
     isMouseOver,
     setIsMouseOver,
 
     // Selection actions
-    clearSelection,
-    getFirstSelectedTrack,
-    getSelectionBounds,
+    clearSelection: selectionMgmt.clearSelection,
+    getFirstSelectedTrack: selectionMgmt.getFirstSelectedTrack,
+    getSelectionBounds: selectionMgmt.getSelectionBounds,
 
     // Reorder actions
     buildReorderActions,
 
     // New actions
     handlePlayFirst,
-    handleDeleteAllDuplicates,
-    handleDeleteTrackDuplicates,
-    isDeletingDuplicates,
+    handleDeleteAllDuplicates: duplicates.handleDeleteAllDuplicates,
+    handleDeleteTrackDuplicates: duplicates.handleDeleteTrackDuplicates,
+    isDeletingDuplicates: duplicates.isDeletingDuplicates,
     hasTracks: filteredTracks.length > 0,
   };
 }

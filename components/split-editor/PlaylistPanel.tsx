@@ -1,27 +1,14 @@
 /**
  * PlaylistPanel component with virtualized track list, search, and DnD support.
  * Each panel can load a playlist independently and sync with other panels showing the same playlist.
- * 
+ *
  * Refactored to use VirtualizedTrackListContainer for cleaner separation of concerns.
+ * UI state subcomponents (Loading, Error, Empty, ConfirmDialog) are extracted into panel/.
  */
 
 'use client';
 
 import { useCallback } from 'react';
-import { AlertCircle } from 'lucide-react';
-import { ApiError, AccessTokenExpiredError } from '@/lib/api/client';
-import { SignInButton } from '@/components/auth/SignInButton';
-import { Skeleton } from '@/components/ui/skeleton';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
 import { usePlaylistPanelState } from '@/hooks/usePlaylistPanelState';
 import { useContextMenuStore } from '@/hooks/useContextMenuStore';
 import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
@@ -32,6 +19,13 @@ import { PanelToolbar } from './PanelToolbar';
 import { TableHeader } from './TableHeader';
 import { VirtualizedTrackListContainer } from './VirtualizedTrackListContainer';
 import { TRACK_ROW_HEIGHT } from './constants';
+import {
+  LoadingSkeletonList,
+  ErrorPanel,
+  EmptyPanel,
+  EmptyTrackList,
+  ConfirmDeleteDialog,
+} from './panel';
 import type { Track } from '@/lib/spotify/types';
 
 interface PlaylistPanelProps {
@@ -111,29 +105,14 @@ export function PlaylistPanel({
   // Empty panel state
   if (!state.playlistId) {
     return (
-      <div className="flex flex-col h-full border border-border rounded-lg overflow-hidden bg-card">
-        <PanelToolbar
-          panelId={panelId}
-          playlistId={null}
-          isEditable={false}
-          dndMode="copy"
-          locked={false}
-          searchQuery=""
-          isReloading={false}
-          panelCount={state.panelCount}
-          onSearchChange={() => {}}
-          onReload={() => {}}
-          onClose={state.handleClose}
-          onSplitHorizontal={state.handleSplitHorizontal}
-          onSplitVertical={state.handleSplitVertical}
-          onDndModeToggle={() => {}}
-          onLockToggle={() => {}}
-          onLoadPlaylist={state.handleLoadPlaylist}
-        />
-        <div className="flex-1 flex items-center justify-center text-muted-foreground">
-          <p>Select a playlist to load</p>
-        </div>
-      </div>
+      <EmptyPanel
+        panelId={panelId}
+        panelCount={state.panelCount}
+        onLoadPlaylist={state.handleLoadPlaylist}
+        onClose={state.handleClose}
+        onSplitHorizontal={state.handleSplitHorizontal}
+        onSplitVertical={state.handleSplitVertical}
+      />
     );
   }
 
@@ -198,74 +177,14 @@ export function PlaylistPanel({
         onKeyDown={state.handleKeyDownNavigation}
       >
         {/* Loading state */}
-        {state.isLoading && (
-          <div className="p-2 space-y-1">
-            {Array.from({ length: 12 }).map((_, i) => (
-              <div 
-                key={i} 
-                className="grid items-center gap-2 px-2 py-1"
-                style={{ 
-                  gridTemplateColumns: '20px 20px 28px minmax(100px, 3fr) minmax(60px, 1.5fr) minmax(60px, 1fr) 36px 36px 44px 52px'
-                }}
-              >
-                {/* Heart */}
-                <Skeleton className="h-4 w-4 rounded" />
-                {/* Play/Add */}
-                <Skeleton className="h-4 w-4 rounded" />
-                {/* Position */}
-                <Skeleton className="h-3 w-6" />
-                {/* Title */}
-                <Skeleton className="h-4 w-full" />
-                {/* Artist */}
-                <Skeleton className="h-3 w-3/4" />
-                {/* Album */}
-                <Skeleton className="h-3 w-2/3" />
-                {/* Date */}
-                <Skeleton className="h-3 w-8" />
-                {/* Popularity */}
-                <Skeleton className="h-2 w-full rounded-full" />
-                {/* Duration */}
-                <Skeleton className="h-3 w-10" />
-                {/* Cumulative */}
-                <Skeleton className="h-3 w-10" />
-              </div>
-            ))}
-          </div>
-        )}
+        {state.isLoading && <LoadingSkeletonList />}
 
         {/* Error state */}
-        {state.error && (
-          <div className="p-4 flex flex-col items-center justify-center text-center gap-3">
-            <AlertCircle className="h-8 w-8 text-red-500" />
-            {state.error instanceof AccessTokenExpiredError || 
-             (state.error instanceof ApiError && (state.error.isUnauthorized || state.error.isForbidden)) ? (
-              <>
-                <p className="text-red-500 font-medium">Session expired</p>
-                <p className="text-sm text-muted-foreground">
-                  Please sign in again to access your playlists.
-                </p>
-                <SignInButton callbackUrl="/split-editor" className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-3 py-1.5 text-sm font-medium hover:bg-primary/90 transition-colors" />
-              </>
-            ) : state.error instanceof ApiError && state.error.isNotFound ? (
-              <>
-                <p className="text-red-500 font-medium">Playlist not found</p>
-                <p className="text-sm text-muted-foreground">
-                  This playlist may have been deleted or you don&apos;t have access to it.
-                </p>
-              </>
-            ) : (
-              <p className="text-red-500">
-                Failed to load playlist: {state.error instanceof Error ? state.error.message : 'Unknown error'}
-              </p>
-            )}
-          </div>
-        )}
+        {state.error && <ErrorPanel error={state.error} />}
 
         {/* Empty state */}
         {!state.isLoading && !state.error && state.filteredTracks.length === 0 && (
-          <div className="p-4 text-center text-muted-foreground">
-            {state.searchQuery ? 'No tracks match your search' : 'This playlist is empty'}
-          </div>
+          <EmptyTrackList searchQuery={state.searchQuery} />
         )}
 
         {/* Track list */}
@@ -334,25 +253,12 @@ export function PlaylistPanel({
       </div>
 
       {/* Delete confirmation dialog for keyboard-triggered multi-track delete */}
-      <AlertDialog open={state.showDeleteConfirmation} onOpenChange={state.setShowDeleteConfirmation}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete {state.selection.size} tracks?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will remove {state.selection.size} tracks from the playlist. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={state.handleConfirmMultiDelete}
-              className="bg-destructive text-white hover:bg-destructive/90"
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDeleteDialog
+        open={state.showDeleteConfirmation}
+        count={state.selection.size}
+        onOpenChange={state.setShowDeleteConfirmation}
+        onConfirm={state.handleConfirmMultiDelete}
+      />
     </div>
   );
 }

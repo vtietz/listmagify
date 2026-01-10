@@ -48,7 +48,10 @@ export function AppFooter() {
       <div className="flex gap-4 text-[10px]">
         <FeedbackDialog
           trigger={
-            <button className="hover:text-foreground transition-colors flex items-center gap-1 cursor-pointer">
+            <button
+              className="hover:text-foreground transition-colors flex items-center gap-1 cursor-pointer"
+              suppressHydrationWarning
+            >
               <MessageSquarePlus className="h-3 w-3" />
               Feedback
             </button>
