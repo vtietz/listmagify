@@ -82,7 +82,6 @@ export function LastfmAddToMarkedButton({
       }
 
       const trackUri = match.spotifyTrack.uri;
-      let insertedCount = 0;
 
       // Step 2: Insert at each playlist's markers
       for (const [playlistId, data] of playlistsWithMarkers) {
@@ -94,7 +93,6 @@ export function LastfmAddToMarkedButton({
             trackUris: [trackUri],
             position: pos.effectiveIndex,
           });
-          insertedCount++;
         }
 
         // Shift markers after multi-insert

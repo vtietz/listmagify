@@ -239,6 +239,7 @@ export function AdaptiveNav({
         layoutMode={isPhone ? 'burger' : 'horizontal'}
         burgerIcon={<Menu className="h-4 w-4" />}
       />
+      <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
     </>
   );
 }

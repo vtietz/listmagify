@@ -61,7 +61,7 @@ app.get('/v1/playlists/:id', (req, res) => {
   try {
     const playlist = loadFixture(`playlist-${req.params.id}`);
     res.json(playlist);
-  } catch (err) {
+  } catch (_err) {
     res.status(404).json({ error: { status: 404, message: 'Playlist not found' } });
   }
 });
@@ -88,7 +88,7 @@ app.get('/v1/playlists/:id/tracks', (req, res) => {
       total: allTracks.items.length,
       snapshot_id: allTracks.snapshot_id || 'mock-snapshot-id'
     });
-  } catch (err) {
+  } catch (_err) {
     res.status(404).json({ error: { status: 404, message: 'Playlist not found' } });
   }
 });

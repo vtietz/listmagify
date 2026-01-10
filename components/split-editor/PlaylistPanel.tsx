@@ -67,7 +67,8 @@ export function PlaylistPanel({
   isDragSource,
   dropIndicatorIndex,
 }: PlaylistPanelProps) {
-  const state = usePlaylistPanelState({ panelId, isDragSource });
+  const panelState = usePlaylistPanelState({ panelId, isDragSource });
+  const { scrollRef, scrollDroppableRef, virtualizerRef: _virtualizerRef, ...state } = panelState;
   const openContextMenu = useContextMenuStore((s) => s.openMenu);
   
   // Get togglePoint from insertion points store (for marker actions)
@@ -148,14 +149,14 @@ export function PlaylistPanel({
   // Register virtualizer with parent for drop position calculation
   useEffect(() => {
     if (onRegisterVirtualizer && state.playlistId) {
-      onRegisterVirtualizer(panelId, state.virtualizer, state.scrollRef, state.filteredTracks, state.canDrop);
+      onRegisterVirtualizer(panelId, state.virtualizer, scrollRef, state.filteredTracks, state.canDrop);
     }
     return () => {
       if (onUnregisterVirtualizer) {
         onUnregisterVirtualizer(panelId);
       }
     };
-  }, [panelId, state.virtualizer, state.filteredTracks, state.playlistId, state.canDrop, onRegisterVirtualizer, onUnregisterVirtualizer, state.scrollRef]);
+  }, [panelId, state.virtualizer, state.filteredTracks, state.playlistId, state.canDrop, onRegisterVirtualizer, onUnregisterVirtualizer, scrollRef]);
 
   // Empty panel state
   if (!state.playlistId) {
@@ -236,7 +237,7 @@ export function PlaylistPanel({
       />
 
       <div
-        ref={state.scrollDroppableRef}
+        ref={scrollDroppableRef}
         data-testid="track-list-scroll"
         className="flex-1 overflow-auto focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
         style={{ paddingBottom: TRACK_ROW_HEIGHT * 2, overscrollBehaviorX: 'none', overscrollBehaviorY: 'contain' }}

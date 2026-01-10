@@ -144,13 +144,15 @@ export function usePlaylistTracksInfinite({
 
   // Flatten all pages into a single tracks array with stable reference
   // Include dataUpdatedAt in deps to trigger re-memoization when cache is updated via setQueryData
+  const pages = data?.pages;
   const allTracks = useMemo(() => {
-    if (!data?.pages) return [];
+    void dataUpdatedAt;
+    if (!pages) return [];
     
     const tracks: Track[] = [];
     const seenKeys = new Set<string>();
     
-    for (const page of data.pages) {
+    for (const page of pages) {
       for (const track of page.tracks) {
         // De-duplicate based on URI + position (same track at same position = page boundary duplicate)
         // But same track at different positions = intentional playlist duplicates (keep them!)
@@ -162,7 +164,7 @@ export function usePlaylistTracksInfinite({
     }
     
     return tracks;
-  }, [data?.pages, dataUpdatedAt]);
+  }, [pages, dataUpdatedAt]);
 
   // Get latest snapshot ID from most recent page
   const snapshotId = data?.pages[data.pages.length - 1]?.snapshotId;

@@ -66,16 +66,17 @@ export function MiniPlayer({ isVisible, onHide }: MiniPlayerProps) {
   const device = playbackState?.device;
   const progressMs = playbackState?.progressMs ?? 0;
   const durationMs = track?.durationMs ?? 0;
+  const trackId = track?.id;
 
   // Query liked status for current track
   const { data: likedData } = useQuery({
-    queryKey: ['track-liked', track?.id],
+    queryKey: ['track-liked', trackId],
     queryFn: async () => {
-      if (!track?.id) return false;
-      const result = await apiFetch<boolean[]>(`/api/tracks/contains?ids=${track.id}`);
+      if (!trackId) return false;
+      const result = await apiFetch<boolean[]>(`/api/tracks/contains?ids=${trackId}`);
       return result[0] ?? false;
     },
-    enabled: !!track?.id,
+    enabled: !!trackId,
     staleTime: 30 * 1000,
   });
 
@@ -83,16 +84,16 @@ export function MiniPlayer({ isVisible, onHide }: MiniPlayerProps) {
 
   const toggleSaved = useToggleSavedTrack({
     playlistId: 'player',
-    snapshotId: track?.id ?? 'none',
+    snapshotId: trackId ?? 'none',
   });
 
   const handleToggleLike = useCallback(() => {
-    if (!track?.id) return;
+    if (!trackId) return;
     toggleSaved.mutate({
-      trackId: track.id,
+      trackId,
       currentlyLiked: isLiked,
     });
-  }, [track?.id, isLiked, toggleSaved]);
+  }, [trackId, isLiked, toggleSaved]);
 
   const handleDeviceClick = useCallback(() => {
     refreshDevices();

@@ -99,12 +99,12 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
   const [activeId, setActiveId] = useState<string | null>(null); // Composite ID
   const [sourcePanelId, setSourcePanelId] = useState<string | null>(null); // Panel where drag originated
   const [activeSelectionCount, setActiveSelectionCount] = useState<number>(0);
+  const [activeDragTracks, setActiveDragTracks] = useState<Track[]>([]);
   const [computedDropPosition, setComputedDropPosition] = useState<number | null>(null);
   const [dropIndicatorIndex, setDropIndicatorIndex] = useState<number | null>(null); // Filtered index for drop indicator
   const [activePanelId, setActivePanelId] = useState<string | null>(null); // Track which panel is being dragged over
   const [ephemeralInsertion, setEphemeralInsertion] = useState<EphemeralInsertion | null>(null);
 
-  const activeDragTracksRef = useRef<Track[]>([]);
   const selectedIndicesRef = useRef<number[]>([]);
   const orderedTracksSnapshotRef = useRef<Track[]>([]);
   
@@ -335,7 +335,7 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
           };
       
       // Store drag tracks for the overlay
-      activeDragTracksRef.current = dragTracks ?? [overlayTrack];
+      setActiveDragTracks(dragTracks ?? [overlayTrack]);
       
       setActiveTrack(overlayTrack);
       setActiveSelectionCount(selectionCount);
@@ -370,7 +370,7 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
       // Check if selectedTracks is provided (from browse panels)
       if (selectedTracksFromData && selectedTracksFromData.length > 0) {
         // Browse panel with selection - use provided tracks
-        activeDragTracksRef.current = selectedTracksFromData;
+        setActiveDragTracks(selectedTracksFromData);
         selectedIndicesRef.current = selectedTracksFromData.map((_, idx) => idx);
         orderedTracksSnapshotRef.current = selectedTracksFromData;
         
@@ -414,7 +414,7 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
           dragTracks = [track];
         }
 
-        activeDragTracksRef.current = dragTracks;
+        setActiveDragTracks(dragTracks);
         // Always show the track that was actually clicked/dragged in the overlay
         // (not the first selected track which may be different)
         setActiveTrack(track);
@@ -604,6 +604,7 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
     setActiveId(null);
     setActiveTrack(null);
     setActiveSelectionCount(0);
+    setActiveDragTracks([]);
     setSourcePanelId(null);
     const finalDropPosition = computedDropPosition;
     setComputedDropPosition(null);
@@ -873,7 +874,7 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
     return (isCtrlPressed && canInvertMode)
       ? (sourceDndMode === 'copy' ? 'move' : 'copy')
       : sourceDndMode;
-  }, [sourcePanelId, panels, pointerTracker]);
+  }, [activePanelId, sourcePanelId, panels, pointerTracker]);
 
   /**
    * Handle drag cancel (ESC key pressed)
@@ -883,6 +884,7 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
     setActiveId(null);
     setActiveTrack(null);
     setActiveSelectionCount(0);
+    setActiveDragTracks([]);
     setSourcePanelId(null);
     setComputedDropPosition(null);
     setDropIndicatorIndex(null);
@@ -911,7 +913,7 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
     dropIndicatorIndex,
     ephemeralInsertion,
     activeSelectionCount,
-    activeDragTracks: activeDragTracksRef.current,
+    activeDragTracks,
     
     // DnD context props
     sensors,

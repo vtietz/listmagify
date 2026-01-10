@@ -214,7 +214,7 @@ export function useContinuousAutoScroll(config: AutoScrollConfig = {}) {
   const controllerRef = useRef<ReturnType<typeof createAutoScrollLoop> | null>(null);
 
   // Lazily create controller
-  if (!controllerRef.current) {
+  if (controllerRef.current == null) {
     controllerRef.current = createAutoScrollLoop(config);
   }
 

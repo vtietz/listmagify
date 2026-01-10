@@ -214,7 +214,7 @@ declare module '@tanstack/react-query' {
   export function useInfiniteQuery<
     TQueryFnData = unknown,
     TError = unknown,
-    TData = TQueryFnData,
+    _TData = TQueryFnData,
     TQueryKey extends readonly unknown[] = readonly unknown[],
     TPageParam = unknown
   >(options: {
@@ -236,8 +236,8 @@ declare module '@tanstack/react-query' {
     refetch: () => Promise<any>;
     [key: string]: any;
   };
-  export function useQuery<TData = unknown, TError = unknown>(options: any): any;
-  export function useMutation<TData = unknown, TError = unknown>(options: any): any;
+  export function useQuery<_TData = unknown, _TError = unknown>(options: any): any;
+  export function useMutation<_TData = unknown, _TError = unknown>(options: any): any;
   export function useQueryClient(): QueryClient;
   export class QueryClient {
     constructor(config?: any);

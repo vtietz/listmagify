@@ -400,7 +400,9 @@ export function useSplitUrlSync(): void {
   
   // Use ref for pathname to avoid stale closures in subscription callback
   const pathnameRef = useRef(pathname);
-  pathnameRef.current = pathname;
+  useEffect(() => {
+    pathnameRef.current = pathname;
+  }, [pathname]);
 
   // Check if we're on a supported path
   const isSyncEnabled = isLayoutSyncPath(pathname);

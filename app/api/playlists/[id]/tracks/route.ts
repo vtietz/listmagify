@@ -52,7 +52,7 @@ export async function GET(
         // Rebuild with our fields to ensure added_by is included
         path = `/playlists/${encodeURIComponent(playlistId)}/tracks?offset=${offset}&limit=${limit}&fields=${encodeURIComponent(fields)}`;
         console.log("[api/playlists/tracks] Parsed cursor to path with fields:", path);
-      } catch (err) {
+      } catch (_err) {
         // If not a full URL, assume it's already a path but add fields
         console.log("[api/playlists/tracks] Not a URL, using as-is with fields");
         path = nextCursorParam.includes('fields=') 

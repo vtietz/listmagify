@@ -126,6 +126,12 @@ importers:
       '@types/sql.js':
         specifier: ^1.4.9
         version: 1.4.9
+      '@typescript-eslint/eslint-plugin':
+        specifier: ^8.52.0
+        version: 8.52.0(@typescript-eslint/parser@8.52.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
+      '@typescript-eslint/parser':
+        specifier: ^8.52.0
+        version: 8.52.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
       better-sqlite3:
         specifier: ^12.5.0
         version: 12.5.0

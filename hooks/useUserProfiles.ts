@@ -64,7 +64,7 @@ export function useUserProfilesCache() {
           try {
             const profile = await fetchUserProfile(userId);
             queryClient.setQueryData(userProfileKey(userId), profile);
-          } catch (err) {
+          } catch (_err) {
             // Silent fail - we'll just show fallback
             console.debug('[useUserProfilesCache] Failed to fetch profile:', userId);
           }
