@@ -162,9 +162,8 @@ export function MenuContent({
         {isEditable && trackActions?.onDeleteTrackDuplicates && (
           <Item
             icon={Copy}
-            label="Delete duplicates"
+            label="Remove duplicates"
             onClick={withClose(trackActions.onDeleteTrackDuplicates)}
-            destructive
           />
         )}
 

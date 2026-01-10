@@ -228,7 +228,9 @@ export function VirtualizedTrackListContainer({
                 {...(buildReorderActions ? { reorderActions: buildReorderActions(positionActual) } : {})}
                 {...(onDeleteTrackDuplicates || contextTrackActions ? { contextTrackActions: {
                   ...contextTrackActions,
-                  ...(onDeleteTrackDuplicates ? { onDeleteTrackDuplicates: () => onDeleteTrackDuplicates(track, positionActual) } : {}),
+                  ...(onDeleteTrackDuplicates && isDuplicate(track.uri)
+                    ? { onDeleteTrackDuplicates: () => onDeleteTrackDuplicates(track, positionActual) }
+                    : {}),
                 } } : {})}
               />
             </div>

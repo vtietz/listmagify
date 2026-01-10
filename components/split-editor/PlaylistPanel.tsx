@@ -7,7 +7,7 @@
 
 'use client';
 
-import { useEffect, useCallback } from 'react';
+import { useCallback } from 'react';
 import { AlertCircle } from 'lucide-react';
 import { ApiError, AccessTokenExpiredError } from '@/lib/api/client';
 import { SignInButton } from '@/components/auth/SignInButton';
@@ -26,12 +26,13 @@ import { usePlaylistPanelState } from '@/hooks/usePlaylistPanelState';
 import { useContextMenuStore } from '@/hooks/useContextMenuStore';
 import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
 import { useAddToMarkers } from '@/hooks/useAddToMarkers';
+import { usePlaylistSelectionMenu } from '@/hooks/usePlaylistSelectionMenu';
+import { useVirtualizerRegistration } from '@/hooks/useVirtualizerRegistration';
 import { PanelToolbar } from './PanelToolbar';
 import { TableHeader } from './TableHeader';
 import { VirtualizedTrackListContainer } from './VirtualizedTrackListContainer';
 import { TRACK_ROW_HEIGHT } from './constants';
 import type { Track } from '@/lib/spotify/types';
-import type { MarkerActions } from './TrackContextMenu';
 
 interface PlaylistPanelProps {
   panelId: string;
@@ -87,76 +88,25 @@ export function PlaylistPanel({
     }
   }, [state, addToMarkers]);
 
-  // Handler to open selection menu from toolbar - uses same context menu as individual tracks
-  const handleOpenSelectionMenu = useCallback((position: { x: number; y: number }) => {
-    const selected = state.getFirstSelectedTrack();
-    const bounds = state.getSelectionBounds();
-    if (!selected || !bounds) return;
-    
-    // Build track actions
-    const trackActions: { 
-      onRemoveFromPlaylist?: () => void; 
-      canRemove?: boolean;
-      onClearSelection?: () => void;
-      onDeleteTrackDuplicates?: () => void;
-      onLikeAll?: () => void;
-      onUnlikeAll?: () => void;
-    } = {
-      onClearSelection: state.clearSelection,
-    };
-    if (state.isEditable) {
-      trackActions.onRemoveFromPlaylist = state.handleDeleteSelected;
-      trackActions.canRemove = true;
-    }
-    
-    // Build marker actions - same as TrackRow builds them
-    const markerActions: MarkerActions = {
-      hasAnyMarkers: hasActiveMarkers,
-    };
-    
-    // Add marker before/after selection (like TrackRow does)
-    if (state.playlistId && state.isEditable) {
-      // Check if markers already exist at these positions
-      const markers = state.activeMarkerIndices;
-      markerActions.hasMarkerBefore = markers.has(bounds.firstPosition);
-      markerActions.hasMarkerAfter = markers.has(bounds.lastPosition + 1);
-      
-      markerActions.onAddMarkerBefore = () => togglePoint(state.playlistId!, bounds.firstPosition);
-      markerActions.onAddMarkerAfter = () => togglePoint(state.playlistId!, bounds.lastPosition + 1);
-    }
-    
-    // Add to all markers action
-    if (hasActiveMarkers) {
-      markerActions.onAddToAllMarkers = handleAddToAllMarkers;
-    }
-    
-    // Build reorder actions from the first selected track position
-    const reorderActions = state.buildReorderActions(bounds.firstPosition);
-    
-    openContextMenu({
-      track: selected.track,
-      position,
-      isMultiSelect: true,
-      selectedCount: state.selection.size,
-      isEditable: state.isEditable,
-      panelId,
-      markerActions,
-      trackActions,
-      reorderActions,
-    });
-  }, [state, panelId, openContextMenu, hasActiveMarkers, handleAddToAllMarkers, togglePoint]);
+  const handleOpenSelectionMenu = usePlaylistSelectionMenu({
+    panelId,
+    state,
+    openContextMenu,
+    togglePoint,
+    hasActiveMarkers,
+    handleAddToAllMarkers,
+  });
 
-  // Register virtualizer with parent for drop position calculation
-  useEffect(() => {
-    if (onRegisterVirtualizer && state.playlistId) {
-      onRegisterVirtualizer(panelId, state.virtualizer, scrollRef, state.filteredTracks, state.canDrop);
-    }
-    return () => {
-      if (onUnregisterVirtualizer) {
-        onUnregisterVirtualizer(panelId);
-      }
-    };
-  }, [panelId, state.virtualizer, state.filteredTracks, state.playlistId, state.canDrop, onRegisterVirtualizer, onUnregisterVirtualizer, scrollRef]);
+  useVirtualizerRegistration({
+    panelId,
+    playlistId: state.playlistId,
+    virtualizer: state.virtualizer,
+    scrollRef,
+    filteredTracks: state.filteredTracks,
+    canDrop: state.canDrop,
+    onRegisterVirtualizer,
+    onUnregisterVirtualizer,
+  });
 
   // Empty panel state
   if (!state.playlistId) {
