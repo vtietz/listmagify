@@ -10,7 +10,7 @@ import nodemailer from 'nodemailer';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, email } = body;
+    const { name, email, motivation } = body;
 
     // Validate input
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
@@ -51,12 +51,12 @@ export async function POST(request: NextRequest) {
     const mailOptions = {
       from: smtpUser || `noreply@${smtpHost}`,
       to: contactEmail,
-      subject: `[Listmagify] Access Request from ${name.trim()}`,
+      subject: `[Listmagify] Access Request from ${name.trim()}${motivation && motivation.trim() ? ' ⭐' : ''}`,
       text: `New access request for Listmagify:
 
 Name: ${name.trim()}
 Spotify Email: ${email.trim()}
-
+${motivation && motivation.trim() ? `\nMotivation:\n${motivation.trim()}\n` : ''}
 To approve this user:
 1. Go to https://developer.spotify.com/dashboard
 2. Select your app
@@ -77,6 +77,12 @@ This is an automated message from Listmagify.
     <td style="padding: 8px; font-weight: bold;">Spotify Email:</td>
     <td style="padding: 8px;">${escapeHtml(email.trim())}</td>
   </tr>
+  ${motivation && motivation.trim() ? `
+  <tr>
+    <td style="padding: 8px; font-weight: bold; vertical-align: top;">Motivation:</td>
+    <td style="padding: 8px; background-color: #f0f9ff; border-left: 3px solid #0ea5e9;">${escapeHtml(motivation.trim()).replace(/\n/g, '<br>')}</td>
+  </tr>
+  ` : ''}
 </table>
 
 <h3>To approve this user:</h3>

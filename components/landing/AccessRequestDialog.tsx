@@ -13,6 +13,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { UserPlus, Loader2, CheckCircle } from 'lucide-react';
 
 interface AccessRequestDialogProps {
@@ -27,6 +28,7 @@ export function AccessRequestDialog({ trigger }: AccessRequestDialogProps) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [motivation, setMotivation] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,7 +42,7 @@ export function AccessRequestDialog({ trigger }: AccessRequestDialogProps) {
       const response = await fetch('/api/access-request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email }),
+        body: JSON.stringify({ name, email, motivation }),
       });
 
       if (!response.ok) {
@@ -63,6 +65,7 @@ export function AccessRequestDialog({ trigger }: AccessRequestDialogProps) {
       setTimeout(() => {
         setName('');
         setEmail('');
+        setMotivation('');
         setIsSuccess(false);
         setError(null);
       }, 200);
@@ -101,23 +104,26 @@ export function AccessRequestDialog({ trigger }: AccessRequestDialogProps) {
               <DialogTitle>Request Access</DialogTitle>
               <DialogDescription>
                 This app is currently in development mode with limited user slots. 
-                Enter your details below to request access.
+                Enter your details below to request access. Filling out the motivation field increases your chances of approval.
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Name</Label>
+                <Label htmlFor="name">Full Name *</Label>
                 <Input
                   id="name"
-                  placeholder="Your name"
+                  placeholder="Your real full name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   required
                   disabled={isSubmitting}
                 />
+                <p className="text-xs text-muted-foreground">
+                  Required: Your real name is needed for approval.
+                </p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="email">Spotify Email</Label>
+                <Label htmlFor="email">Spotify Email *</Label>
                 <Input
                   id="email"
                   type="email"
@@ -129,6 +135,21 @@ export function AccessRequestDialog({ trigger }: AccessRequestDialogProps) {
                 />
                 <p className="text-xs text-muted-foreground">
                   Use the email address associated with your Spotify account.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="motivation">Motivation (Optional)</Label>
+                <Textarea
+                  id="motivation"
+                  placeholder="Why would you like to use Listmagify? What features interest you? Filled requests are more likely to be approved."
+                  value={motivation}
+                  onChange={(e) => setMotivation(e.target.value)}
+                  disabled={isSubmitting}
+                  rows={4}
+                  className="resize-none"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Tell us why you&apos;d like to use the app. This helps us prioritize requests.
                 </p>
               </div>
               {error && (
