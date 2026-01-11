@@ -26,11 +26,15 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}));
     const { userIds } = body;
 
+    const config = getMetricsConfig();
+
+    // Allow empty array for config check (just return showUserDetails setting)
     if (!Array.isArray(userIds) || userIds.length === 0) {
-      return NextResponse.json(
-        { error: 'userIds must be a non-empty array' },
-        { status: 400 }
-      );
+      return NextResponse.json({
+        success: true,
+        data: [],
+        showUserDetails: config.showUserDetails,
+      });
     }
 
     // Limit to 50 user IDs per request
@@ -41,7 +45,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const config = getMetricsConfig();
     const profiles: UserProfile[] = [];
 
     // Fetch each user profile from Spotify API
