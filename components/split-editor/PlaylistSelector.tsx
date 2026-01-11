@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import { ChevronsUpDown, Check, Heart } from 'lucide-react';
 import { apiFetch } from '@/lib/api/client';
 import { userPlaylists } from '@/lib/api/queryKeys';
-import { cn } from '@/lib/utils';
+import { cn, matchesAllWords } from '@/lib/utils';
 import { LIKED_SONGS_PLAYLIST_ID, LIKED_SONGS_METADATA, isLikedSongsPlaylist } from '@/hooks/useLikedVirtualPlaylist';
 import type { Playlist } from '@/lib/spotify/types';
 
@@ -94,13 +94,13 @@ export function PlaylistSelector({ selectedPlaylistId, selectedPlaylistName, onS
   }, [data]);
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = query.trim();
 
     const base = q
       ? allPlaylists.filter(
           (p: Playlist) =>
-            p.name.toLowerCase().includes(q) ||
-            (p.owner?.displayName?.toLowerCase().includes(q))
+            matchesAllWords(p.name, q) ||
+            (p.owner?.displayName && matchesAllWords(p.owner.displayName, q))
         )
       : allPlaylists;
 
@@ -114,11 +114,11 @@ export function PlaylistSelector({ selectedPlaylistId, selectedPlaylistName, onS
 
   // Determine if "Liked Songs" should be shown based on search query
   const showLikedSongs = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = query.trim();
     return !q || 
-      LIKED_SONGS_METADATA.name.toLowerCase().includes(q) ||
-      'liked'.includes(q) ||
-      'saved'.includes(q);
+      matchesAllWords(LIKED_SONGS_METADATA.name, q) ||
+      matchesAllWords('liked', q) ||
+      matchesAllWords('saved', q);
   }, [query]);
 
   const selected = useMemo(
