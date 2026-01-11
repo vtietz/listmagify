@@ -3,13 +3,25 @@
  * 
  * GET /api/stats/overview?from=YYYY-MM-DD&to=YYYY-MM-DD
  * 
- * Protected by middleware (STATS_ALLOWED_USER_IDS).
+ * Protected by STATS_ALLOWED_USER_IDS check.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth/auth';
+import { isUserAllowedForStats } from '@/lib/metrics/env';
 import { getOverviewKPIs } from '@/lib/metrics';
 
 export async function GET(request: NextRequest) {
+  // Check authentication and authorization
+  const session = await getServerSession(authOptions);
+  if (!session || !isUserAllowedForStats(session.user?.id)) {
+    return NextResponse.json(
+      { success: false, error: 'Unauthorized' },
+      { status: 403 }
+    );
+  }
+
   const searchParams = request.nextUrl.searchParams;
   
   // Default to last 7 days if no range specified

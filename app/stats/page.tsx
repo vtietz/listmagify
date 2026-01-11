@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { authOptions } from '@/lib/auth/auth';
 import { StatsDashboard } from '@/components/stats';
 import { BarChart3 } from 'lucide-react';
+import { isUserAllowedForStats } from '@/lib/metrics/env';
 
 export const metadata = {
   title: 'Stats',
@@ -11,14 +12,20 @@ export const metadata = {
 /**
  * Stats Dashboard Page
  * 
- * Protected by middleware (STATS_ALLOWED_USER_IDS).
- * Shows usage analytics for admin users.
+ * Protected by STATS_ALLOWED_USER_IDS check.
+ * Shows usage analytics for admin users only.
  */
 export default async function StatsPage() {
   const session = await getServerSession(authOptions);
 
   if (!session) {
     redirect('/login');
+  }
+
+  // Check if user is in the allowlist
+  const userId = session.user?.id;
+  if (!isUserAllowedForStats(userId)) {
+    redirect('/playlists?reason=unauthorized');
   }
 
   return (
