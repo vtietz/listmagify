@@ -62,9 +62,9 @@ COPY --from=builder /usr/src/app/scripts ./scripts
 COPY --from=builder /usr/src/app/lib ./lib
 COPY --from=builder /usr/src/app/tsconfig.json ./tsconfig.json
 
-# Copy tsx from builder (needed for migrations)
-COPY --from=builder /usr/src/app/node_modules/tsx ./node_modules/tsx
+# Copy tsx and its pnpm dependencies from builder (needed for migrations)
 COPY --from=builder /usr/src/app/node_modules/.bin/tsx ./node_modules/.bin/tsx
+COPY --from=builder /usr/src/app/node_modules/.pnpm ./node_modules/.pnpm
 
 EXPOSE 3000
 
