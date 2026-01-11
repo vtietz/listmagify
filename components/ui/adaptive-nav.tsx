@@ -184,8 +184,18 @@ export function AdaptiveNav({
     if (!measureLayer) return;
 
     const containerWidth = Math.floor(container.getBoundingClientRect().width);
-    const overflowButtonWidth = 36;
-    const gapWidth = 4;
+    const computedGap = parseFloat(getComputedStyle(container).gap || '') || 0;
+    const gapWidth = Number.isFinite(computedGap) ? computedGap : 0;
+    const overflowMeasureEl = measureLayer.querySelector(
+      '[data-measure-overflow-button="true"]'
+    ) as HTMLElement | null;
+    let overflowButtonWidth = overflowMeasureEl
+      ? Math.ceil(overflowMeasureEl.getBoundingClientRect().width)
+      : 36;
+    
+    // Safety cap: overflow button shouldn't be huge. If it is, something's wrong with measurement layout.
+    if (overflowButtonWidth > 60) overflowButtonWidth = 36;
+      
     const epsilon = 1; // Tolerance for rounding errors
 
     // For responsive mode, decide whether labels fit by measuring both layers
@@ -202,7 +212,8 @@ export function AdaptiveNav({
         for (const el of elements) {
           total += Math.ceil(el.getBoundingClientRect().width) + gapWidth;
         }
-        return total;
+        // Flex gap applies between items, not after the last one.
+        return elements.length > 0 ? total - gapWidth : 0;
       };
 
       const totalLabels = measureTotal(labelButtons);
@@ -237,6 +248,11 @@ export function AdaptiveNav({
       totalWidth += width + gapWidth;
     }
 
+    // Flex gap applies between items, not after the last one.
+    if (itemButtons.length > 0) {
+      totalWidth -= gapWidth;
+    }
+
     // If all items fit without overflow button, show everything
     if (totalWidth <= containerWidth + epsilon) {
       setVisibleCount((prev) => (prev === itemButtons.length ? prev : itemButtons.length));
@@ -256,6 +272,11 @@ export function AdaptiveNav({
       }
     }
 
+    // Remove the trailing gap overcount for reserved widths.
+    if (neverOverflowIndices.length > 0) {
+      reservedWidth -= gapWidth;
+    }
+
     const availableWidth = containerWidth - overflowButtonWidth - gapWidth - reservedWidth;
     let usedWidth = 0;
     let count = 0;
@@ -267,10 +288,31 @@ export function AdaptiveNav({
         continue;
       }
       const width = itemWidths[i] ?? 0;
-      const itemWidth = width + gapWidth;
+      const needsGap = usedWidth > 0 || reservedWidth > 0;
+      
+      // Account for group separator if this item starts a new group
+      // (Simplified check: if we're not the first actual item effectively)
+      // Note: We don't have perfect access to 'prevItem' logic here easily without re-iterating.
+      // But we can approximate or just ignore (since separators are 1px). 
+      // Actually, ignoring 1px separator usually helps fit MORE items, which is what we want.
+      // The issue is over-estimation. So we do NOT add separator width here.
+      
+      const itemWidth = width + (needsGap ? gapWidth : 0);
       if (usedWidth + itemWidth > availableWidth && count > 0) break;
       usedWidth += itemWidth;
       count++;
+    }
+
+    // Add one more button if there are still items to show (since we're being conservative)
+    if (count < itemWidths.length && count > 0) {
+      count++;
+    }
+
+    // If we would only hide 1-2 items in overflow, just show them all inline instead
+    // (no point showing overflow menu for just 1-2 items)
+    const overflowItemCount = inlineItems.length - count;
+    if (overflowItemCount > 0 && overflowItemCount <= 2) {
+      count = inlineItems.length;
     }
 
     setVisibleCount((prev) => (prev === count ? prev : count));
@@ -410,14 +452,28 @@ export function AdaptiveNav({
   return (
     <div
       ref={containerRef}
-      className={`relative flex flex-1 items-center justify-end gap-0.5 overflow-hidden min-w-0 ${className}`}
+      className={cn(
+        'relative flex flex-1 items-center justify-end gap-0.5 overflow-hidden min-w-0',
+        className
+      )}
     >
       {/* Hidden measuring layer - renders both icon-only and with-labels versions */}
       <div
-        className="absolute invisible pointer-events-none flex items-center gap-0.5"
+        className="absolute invisible pointer-events-none flex items-center gap-0.5 w-max top-0 left-0"
         aria-hidden="true"
         data-measure-layer="true"
       >
+        {/* Overflow trigger measurement */}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 px-1.5 shrink-0"
+          data-measure-overflow-button="true"
+          tabIndex={-1}
+        >
+          <MoreHorizontal className="h-4 w-4" />
+        </Button>
+
         {/* Icon-only measurements */}
         {inlineItems.map((item) => (
           <Button

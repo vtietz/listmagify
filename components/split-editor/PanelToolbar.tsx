@@ -405,39 +405,47 @@ export function PanelToolbar({
   ]);
 
   return (
-    <div ref={toolbarRef} className="flex items-center gap-1 border-b border-border bg-card relative z-30">
+    <div
+      ref={toolbarRef}
+      className="flex items-center gap-1 border-b border-border bg-card relative z-30"
+    >
       
-      {/* Playlist selector - always visible */}
-      <div className="flex-1 min-w-0 max-w-[280px]">
-        <PlaylistSelector
-          selectedPlaylistId={playlistId}
-          selectedPlaylistName={playlistName ?? ''}
-          onSelectPlaylist={onLoadPlaylist}
-        />
-      </div>
-
-      {/* Search - only in normal mode */}
-      {playlistId && !isUltraCompact && (
-        <div className="relative min-w-0 w-[100px]">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-          <Input
-            type="text"
-            placeholder="Search..."
-            value={localSearch}
-            onChange={(e: ChangeEvent<HTMLInputElement>) => handleSearchChange(e.target.value)}
-            className={cn("pl-9 h-9 text-sm", isPhone && "h-8")}
+      {/* Playlist selector + search share available width - approx 50% */}
+      <div className="flex flex-1 min-w-0 basis-0 items-center gap-1">
+        {/* Playlist selector - always visible */}
+        <div className="flex-1 min-w-0 basis-0">
+          <PlaylistSelector
+            selectedPlaylistId={playlistId}
+            selectedPlaylistName={playlistName ?? ''}
+            onSelectPlaylist={onLoadPlaylist}
           />
         </div>
-      )}
 
-      {/* AdaptiveNav handles all actions with automatic overflow - aligned right */}
-      <AdaptiveNav
-        items={navItems}
-        displayMode="icon-only"
-        layoutMode="horizontal"
-        dropdownHeader={ultraCompactHeader}
-        className="shrink-0"
-      />
+        {/* Search - only in normal mode */}
+        {playlistId && !isUltraCompact && (
+          <div className="relative flex-1 min-w-0 basis-0">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+            <Input
+              type="text"
+              placeholder="Search..."
+              value={localSearch}
+              onChange={(e: ChangeEvent<HTMLInputElement>) => handleSearchChange(e.target.value)}
+              className={cn("pl-9 h-9 text-sm", isPhone && "h-8")}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* AdaptiveNav handles all actions with automatic overflow - aligned right, takes remaining ~50% */}
+      <div className="flex flex-1 min-w-0 basis-0 justify-end">
+        <AdaptiveNav
+          items={navItems}
+          displayMode="icon-only"
+          layoutMode="horizontal"
+          dropdownHeader={ultraCompactHeader}
+          className="w-full"
+        />
+      </div>
 
       {/* Edit playlist dialog */}
       {canEditPlaylistInfo && (
