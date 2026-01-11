@@ -63,6 +63,10 @@ COPY --from=builder /usr/src/app/public ./public
 COPY --from=builder /usr/src/app/dist/scripts/migrate.js ./scripts/migrate.js
 COPY --from=builder /usr/src/app/node_modules/better-sqlite3 ./node_modules/better-sqlite3
 
+# Set hostname to bind to all interfaces (required for Docker networking)
+ENV HOSTNAME=0.0.0.0
+ENV PORT=3000
+
 EXPOSE 3000
 
 # Run migrations before starting the server
