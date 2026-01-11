@@ -98,11 +98,11 @@ export const metricsMigrations: Migration[] = [
   {
     version: 4,
     name: 'feedback_optional_score_and_contact_fields',
+    // Note: Migration runner already wraps in transaction, so no BEGIN/COMMIT needed
     sql: `
       -- Make nps_score optional and add optional contact fields (name/email)
       -- SQLite can't change column constraints in-place, so we recreate the table.
       PRAGMA foreign_keys=OFF;
-      BEGIN TRANSACTION;
 
       CREATE TABLE IF NOT EXISTS feedback_new (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -124,7 +124,6 @@ export const metricsMigrations: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_feedback_ts ON feedback(ts);
       CREATE INDEX IF NOT EXISTS idx_feedback_nps ON feedback(nps_score);
 
-      COMMIT;
       PRAGMA foreign_keys=ON;
     `,
   },
