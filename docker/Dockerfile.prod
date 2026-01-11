@@ -1,4 +1,10 @@
 # syntax=docker/dockerfile:1.7
+# 
+# Production Dockerfile with build optimizations:
+# - Uses pnpm fetch + cache mounts for faster dependency installation
+# - Next.js standalone output creates minimal production bundle
+# - Multi-stage build keeps final image small (~200MB vs 1GB+)
+# - SWC compiler (built into Next.js 16) handles TypeScript transpilation
 
 FROM node:22-bookworm-slim AS base
 ENV NEXT_TELEMETRY_DISABLED=1 \
@@ -23,24 +29,44 @@ ARG CONTACT_CITY
 ARG CONTACT_COUNTRY
 ARG CONTACT_EMAIL
 
+# Copy package files and fetch dependencies (better caching)
 COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
+    pnpm fetch --frozen-lockfile
+
+# Install dependencies from cache
+RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile --offline --prefer-offline
+
 # Install tsx for running TypeScript migration scripts
-RUN pnpm add -D tsx
+RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
+    pnpm add -D tsx
+
+# Copy source code
 COPY . .
+
+# Build Next.js app (SWC is already used by Next.js 16 by default)
 RUN pnpm build
 
 # --- Production Image ---
 FROM base AS prod
 WORKDIR /usr/src/app
-COPY --from=builder /usr/src/app/.next ./.next
-COPY --from=builder /usr/src/app/node_modules ./node_modules
-COPY --from=builder /usr/src/app/package.json .
+
+# Copy standalone output (minimal bundle with only required dependencies)
+COPY --from=builder /usr/src/app/.next/standalone ./
+COPY --from=builder /usr/src/app/.next/static ./.next/static
 COPY --from=builder /usr/src/app/public ./public
+
 # Copy migration scripts and lib for runtime migrations
 COPY --from=builder /usr/src/app/scripts ./scripts
 COPY --from=builder /usr/src/app/lib ./lib
 COPY --from=builder /usr/src/app/tsconfig.json ./tsconfig.json
+
+# Copy tsx from builder (needed for migrations)
+COPY --from=builder /usr/src/app/node_modules/tsx ./node_modules/tsx
+COPY --from=builder /usr/src/app/node_modules/.bin/tsx ./node_modules/.bin/tsx
+
 EXPOSE 3000
-# Run migrations before starting the server (tsx handles @/ path aliases)
-CMD ["sh", "-c", "pnpm exec tsx scripts/migrate.ts && pnpm start"]
+
+# Run migrations before starting the server
+CMD ["sh", "-c", "node_modules/.bin/tsx scripts/migrate.ts && node server.js"]

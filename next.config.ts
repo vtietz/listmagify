@@ -5,6 +5,8 @@ const nextConfig = {
     'localhost',
     '127.0.0.1',
   ],
+  // Standalone output: creates minimal production bundle with only needed dependencies
+  output: 'standalone',
 } as const;
 
 export default nextConfig;

@@ -21,6 +21,10 @@ apps/web/.turbo
 # OS/editor noise
 .DS_Store
 Thumbs.db
+.#*
+*~
+*.swp
+*.swo
 
 # Logs
 npm-debug.log*
