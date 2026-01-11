@@ -8,7 +8,7 @@ export interface MetricsConfig {
   dbPath: string;
   salt: string;
   allowedUserIds: string[];
-  showEmails: boolean; // Whether to show email addresses in stats UI (dev/admin only)
+  showUserDetails: boolean; // Whether to show user detail popup (fetches username/email from Spotify API on-click)
 }
 
 /**
@@ -23,14 +23,15 @@ export function getMetricsConfig(): MetricsConfig {
     .split(',')
     .map(id => id.trim())
     .filter(Boolean);
-  const showEmails = process.env.STATS_SHOW_EMAILS === 'true';
+
+  const showUserDetails = process.env.STATS_SHOW_USER_DETAILS === 'true';
 
   return {
     enabled,
     dbPath,
     salt,
     allowedUserIds,
-    showEmails,
+    showUserDetails,
   };
 }
 

@@ -278,26 +278,55 @@ export interface TopUser {
   tracksAdded: number;
   tracksRemoved: number;
   lastActive: string;
+  registeredAt: string | null; // When user first logged in
 }
 
+export type UserSortField = 'eventCount' | 'tracksAdded' | 'tracksRemoved' | 'lastActive' | 'registeredAt';
+export type SortDirection = 'asc' | 'desc';
+
 /**
- * Get top users by event count (paginated).
+ * Get top users by event count (paginated and sortable).
  */
-export function getTopUsers(range: DateRange, limit: number = 10, offset: number = 0): TopUser[] {
+export function getTopUsers(
+  range: DateRange, 
+  limit: number = 10, 
+  offset: number = 0,
+  sortBy: UserSortField = 'eventCount',
+  sortDirection: SortDirection = 'desc'
+): TopUser[] {
+  // Map sort fields to SQL columns
+  const sortFieldMap: Record<UserSortField, string> = {
+    eventCount: 'eventCount',
+    tracksAdded: 'tracksAdded',
+    tracksRemoved: 'tracksRemoved',
+    lastActive: 'lastActive',
+    registeredAt: 'registeredAt',
+  };
+  
+  const sortColumn = sortFieldMap[sortBy] || 'eventCount';
+  const sortDir = sortDirection === 'asc' ? 'ASC' : 'DESC';
+  
+  // For registration sort, nulls should go last
+  const orderClause = sortBy === 'registeredAt'
+    ? `${sortColumn} ${sortDir} NULLS LAST`
+    : `${sortColumn} ${sortDir}`;
+  
   return queryAll<TopUser>(
     `SELECT 
-      user_hash as userHash,
-      user_id as userId,
+      e.user_hash as userHash,
+      e.user_id as userId,
       COUNT(*) as eventCount,
-      SUM(CASE WHEN event = 'track_add' THEN COALESCE(count, 1) ELSE 0 END) as tracksAdded,
-      SUM(CASE WHEN event = 'track_remove' THEN COALESCE(count, 1) ELSE 0 END) as tracksRemoved,
-      MAX(ts) as lastActive
-    FROM events
+      SUM(CASE WHEN e.event = 'track_add' THEN COALESCE(e.count, 1) ELSE 0 END) as tracksAdded,
+      SUM(CASE WHEN e.event = 'track_remove' THEN COALESCE(e.count, 1) ELSE 0 END) as tracksRemoved,
+      MAX(e.ts) as lastActive,
+      r.registered_at as registeredAt
+    FROM events e
+    LEFT JOIN user_registrations r ON e.user_id = r.user_id
     WHERE 
-      date(ts) BETWEEN ? AND ?
-      AND user_hash IS NOT NULL
-    GROUP BY user_hash, user_id
-    ORDER BY eventCount DESC
+      date(e.ts) BETWEEN ? AND ?
+      AND e.user_hash IS NOT NULL
+    GROUP BY e.user_hash, e.user_id, r.registered_at
+    ORDER BY ${orderClause}
     LIMIT ? OFFSET ?`,
     [range.from, range.to, limit, offset]
   );
@@ -316,6 +345,29 @@ export function getTotalUserCount(range: DateRange): number {
     [range.from, range.to]
   );
   return result?.count ?? 0;
+}
+
+/**
+ * Get registered users over time (by day).
+ */
+export interface RegisteredUsersPerDay {
+  date: string;
+  newUsers: number;
+  cumulativeUsers: number;
+}
+
+export function getRegisteredUsersPerDay(range: DateRange): RegisteredUsersPerDay[] {
+  return queryAll<RegisteredUsersPerDay>(
+    `SELECT 
+      date(registered_at) as date,
+      COUNT(*) as newUsers,
+      (SELECT COUNT(*) FROM user_registrations WHERE date(registered_at) <= date(r.registered_at)) as cumulativeUsers
+    FROM user_registrations r
+    WHERE date(registered_at) BETWEEN ? AND ?
+    GROUP BY date(registered_at)
+    ORDER BY date ASC`,
+    [range.from, range.to]
+  );
 }
 
 /**

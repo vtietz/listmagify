@@ -63,8 +63,8 @@ export async function POST(request: NextRequest) {
             displayName: data.display_name || userId,
           };
 
-          // Only include email if STATS_SHOW_EMAILS is enabled
-          if (config.showEmails && data.email) {
+          // Only include email if STATS_SHOW_USER_DETAILS is enabled
+          if (config.showUserDetails && data.email) {
             profile.email = data.email;
           }
 
@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
           profiles.push({
             id: userId,
             displayName: userId,
-            ...(config.showEmails ? { email: null } : {}),
+            ...(config.showUserDetails ? { email: null } : {}),
           });
         }
       } catch (error) {
@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
         profiles.push({
           id: userId,
           displayName: userId,
-          ...(config.showEmails ? { email: null } : {}),
+          ...(config.showUserDetails ? { email: null } : {}),
         });
       }
     }
@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: profiles,
-      showEmails: config.showEmails,
+      showUserDetails: config.showUserDetails,
     });
   } catch (error) {
     console.error('[stats/user-profiles] Error:', error);

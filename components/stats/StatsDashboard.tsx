@@ -11,6 +11,13 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   Users,
   Activity,
   Plus,
@@ -29,10 +36,17 @@ import {
   MessageSquarePlus,
   ThumbsUp,
   ThumbsDown,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from 'lucide-react';
+import { UserDetailDialog } from './UserDetailDialog';
+import { cn } from '@/lib/utils';
 
 // Time range presets
 type TimeRange = 'today' | '7d' | '30d' | '90d' | 'ytd' | 'all' | 'custom';
+type UserSortField = 'eventCount' | 'tracksAdded' | 'tracksRemoved' | 'lastActive' | 'registeredAt';
+type SortDirection = 'asc' | 'desc';
 
 interface DateRange {
   from: string;
@@ -149,6 +163,7 @@ interface TopUser {
   tracksAdded: number;
   tracksRemoved: number;
   lastActive: string;
+  registeredAt: string | null;
 }
 
 interface TopUsersResponse {
@@ -482,51 +497,69 @@ function TopUsersCard({
   dateRange: { from: string; to: string } 
 }) {
   const [page, setPage] = useState(0);
+  const [sortBy, setSortBy] = useState<UserSortField>('eventCount');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const [selectedUser, setSelectedUser] = useState<TopUser | null>(null);
+  const [showUserDetails, setShowUserDetails] = useState(false);
   const pageSize = 10;
 
   const { data, isLoading } = useQuery<TopUsersResponse>({
-    queryKey: ['stats', 'users', dateRange, page],
+    queryKey: ['stats', 'users', dateRange, page, sortBy, sortDirection],
     queryFn: async () => {
       const res = await fetch(
-        `/api/stats/users?from=${dateRange.from}&to=${dateRange.to}&limit=${pageSize}&offset=${page * pageSize}`
+        `/api/stats/users?from=${dateRange.from}&to=${dateRange.to}&limit=${pageSize}&offset=${page * pageSize}&sortBy=${sortBy}&sortDirection=${sortDirection}`
       );
       if (!res.ok) throw new Error('Failed to fetch top users');
       return res.json();
     },
   });
 
+  // Check if user details are enabled (only needed on first load)
+  useQuery({
+    queryKey: ['stats', 'user-details-config'],
+    queryFn: async () => {
+      const res = await fetch('/api/stats/user-profiles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userIds: [] }),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        setShowUserDetails(json.showUserDetails ?? false);
+      }
+      return null;
+    },
+    staleTime: Infinity, // Only check once
+  });
+
   const users: TopUser[] = data?.data ?? [];
   const pagination = data?.pagination;
   const totalPages = pagination ? Math.ceil(pagination.total / pageSize) : 0;
 
-  // Fetch user profiles for current page
-  const userIds = users.filter(u => u.userId).map(u => u.userId!);
-  const { data: profilesData } = useQuery({
-    queryKey: ['stats', 'user-profiles', userIds],
-    queryFn: async () => {
-      if (userIds.length === 0) return null;
-      const res = await fetch('/api/stats/user-profiles', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userIds }),
-      });
-      if (!res.ok) return null;
-      return res.json();
-    },
-    enabled: userIds.length > 0,
-  });
-
-  const profilesMap = new Map<string, { displayName: string; email?: string | null }>();
-  if (profilesData?.data) {
-    for (const profile of profilesData.data) {
-      profilesMap.set(profile.id, {
-        displayName: profile.displayName,
-        email: profile.email,
-      });
+  const toggleSort = (field: UserSortField) => {
+    if (sortBy === field) {
+      setSortDirection(sortDirection === 'desc' ? 'asc' : 'desc');
+    } else {
+      setSortBy(field);
+      setSortDirection('desc');
     }
-  }
+    setPage(0); // Reset to first page on sort change
+  };
 
-  const showEmails = profilesData?.showEmails ?? false;
+  const getSortIcon = (field: UserSortField) => {
+    if (sortBy !== field) return <ArrowUpDown className="h-3 w-3" />;
+    return sortDirection === 'desc' 
+      ? <ArrowDown className="h-3 w-3" /> 
+      : <ArrowUp className="h-3 w-3" />;
+  };
+
+  const sortLabels: Record<UserSortField, string> = {
+    eventCount: 'Events',
+    tracksAdded: 'Added',
+    tracksRemoved: 'Removed',
+    lastActive: 'Last Active',
+    registeredAt: 'Registered',
+  };
 
   return (
     <Card>
@@ -536,7 +569,9 @@ function TopUsersCard({
           Top Users (by activity)
         </CardTitle>
         <CardDescription>
-          User activity ranking (hover for details)
+          {showUserDetails 
+            ? 'Click a user to see full details' 
+            : 'User details disabled (no personal data fetched)'}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -548,47 +583,81 @@ function TopUsersCard({
           </div>
         ) : (
           <>
+            {/* Sort Controls */}
+            <div className="mb-4 flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Sort by:</span>
+              <Select value={sortBy} onValueChange={(v: string) => { setSortBy(v as UserSortField); setPage(0); }}>
+                <SelectTrigger className="w-40 h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(sortLabels).map(([key, label]) => (
+                    <SelectItem key={key} value={key} className="text-xs">
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => { setSortDirection(sortDirection === 'desc' ? 'asc' : 'desc'); setPage(0); }}
+                className="h-8 px-2"
+              >
+                {sortDirection === 'desc' ? <ArrowDown className="h-4 w-4" /> : <ArrowUp className="h-4 w-4" />}
+              </Button>
+            </div>
+
             <div className="space-y-2">
               <div className="grid grid-cols-12 text-xs text-muted-foreground font-medium pb-2 border-b">
                 <div className="col-span-1">#</div>
-                <div className="col-span-4">User Hash</div>
-                <div className="col-span-2 text-right">Events</div>
-                <div className="col-span-2 text-right">Added</div>
-                <div className="col-span-3 text-right">Last Active</div>
+                <div className="col-span-4">User</div>
+                <div className="col-span-2 text-right">
+                  <button 
+                    onClick={() => toggleSort('eventCount')}
+                    className="hover:text-foreground flex items-center gap-1 ml-auto"
+                  >
+                    Events {getSortIcon('eventCount')}
+                  </button>
+                </div>
+                <div className="col-span-2 text-right">
+                  <button 
+                    onClick={() => toggleSort('tracksAdded')}
+                    className="hover:text-foreground flex items-center gap-1 ml-auto"
+                  >
+                    Added {getSortIcon('tracksAdded')}
+                  </button>
+                </div>
+                <div className="col-span-3 text-right">
+                  <button 
+                    onClick={() => toggleSort('lastActive')}
+                    className="hover:text-foreground flex items-center gap-1 ml-auto"
+                  >
+                    Last Active {getSortIcon('lastActive')}
+                  </button>
+                </div>
               </div>
-              {users.map((user, i) => {
-                const profile = user.userId ? profilesMap.get(user.userId) : null;
-                return (
-                  <Tooltip key={`user-${page * pageSize + i}`}>
-                    <TooltipTrigger asChild>
-                      <div className="grid grid-cols-12 text-sm items-center py-1.5 hover:bg-muted/50 rounded cursor-help">
-                        <div className="col-span-1 text-muted-foreground">{page * pageSize + i + 1}</div>
-                        <div className="col-span-4 font-mono text-xs truncate" title={user.userHash}>
-                          {user.userHash.slice(0, 12)}...
-                        </div>
-                        <div className="col-span-2 text-right font-medium">{user.eventCount}</div>
-                        <div className="col-span-2 text-right text-green-600">{user.tracksAdded}</div>
-                        <div className="col-span-3 text-right text-xs text-muted-foreground">
-                          {new Date(user.lastActive).toLocaleDateString()}
-                        </div>
-                      </div>
-                    </TooltipTrigger>
-                    {profile && (
-                      <TooltipContent side="right" className="max-w-xs">
-                        <div className="space-y-1">
-                          <div className="font-medium">{profile.displayName}</div>
-                          {showEmails && profile.email && (
-                            <div className="text-xs text-muted-foreground">{profile.email}</div>
-                          )}
-                          <div className="text-xs text-muted-foreground border-t pt-1 mt-1">
-                            {user.tracksRemoved} removed · {user.eventCount} total events
-                          </div>
-                        </div>
-                      </TooltipContent>
-                    )}
-                  </Tooltip>
-                );
-              })}
+              {users.map((user, i) => (
+                <div 
+                  key={`user-${page * pageSize + i}`}
+                  className={cn(
+                    "grid grid-cols-12 text-sm items-center py-1.5 hover:bg-muted/50 rounded",
+                    showUserDetails && "cursor-pointer"
+                  )}
+                  onClick={showUserDetails ? () => setSelectedUser(user) : undefined}
+                  title={showUserDetails ? "Click to view user details" : "User details disabled (set STATS_SHOW_USER_DETAILS=true to enable)"}
+                >
+                  <div className="col-span-1 text-muted-foreground">{page * pageSize + i + 1}</div>
+                  <div className="col-span-4 font-mono text-xs truncate" title={user.userHash}>
+                    {user.userHash.slice(0, 12)}...
+                  </div>
+                  <div className="col-span-2 text-right font-medium">{user.eventCount}</div>
+                  <div className="col-span-2 text-right text-green-600">{user.tracksAdded}</div>
+                  <div className="col-span-3 text-right text-xs text-muted-foreground">
+                    {new Date(user.lastActive).toLocaleDateString()}
+                  </div>
+                </div>
+              ))}
             </div>
             
             {/* Pagination */}
@@ -618,6 +687,21 @@ function TopUsersCard({
               </div>
             )}
           </>
+        )}
+
+        {/* User Detail Dialog - only shown if STATS_SHOW_USER_DETAILS=true */}
+        {showUserDetails && selectedUser && (
+          <UserDetailDialog
+            userId={selectedUser.userId}
+            userHash={selectedUser.userHash}
+            eventCount={selectedUser.eventCount}
+            tracksAdded={selectedUser.tracksAdded}
+            tracksRemoved={selectedUser.tracksRemoved}
+            lastActive={selectedUser.lastActive}
+            registeredAt={selectedUser.registeredAt}
+            open={!!selectedUser}
+            onOpenChange={(open) => !open && setSelectedUser(null)}
+          />
         )}
       </CardContent>
     </Card>

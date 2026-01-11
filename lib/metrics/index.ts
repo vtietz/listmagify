@@ -38,6 +38,7 @@ export {
   getDailyActions,
   getTopUsers,
   getTotalUserCount,
+  getRegisteredUsersPerDay,
   updateDailyAggregates,
   type DateRange,
   type EventCount,
@@ -48,6 +49,9 @@ export {
   type DailyUsers,
   type DailyActions,
   type TopUser,
+  type UserSortField,
+  type SortDirection,
+  type RegisteredUsersPerDay,
 } from './aggregations';
 export {
   saveFeedback,

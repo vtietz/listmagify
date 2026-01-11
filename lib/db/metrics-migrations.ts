@@ -128,4 +128,26 @@ export const metricsMigrations: Migration[] = [
       PRAGMA foreign_keys=ON;
     `,
   },
+  {
+    version: 5,
+    name: 'add_user_registrations_table',
+    sql: `
+      -- User registrations table - tracks first login time for registration stats
+      CREATE TABLE IF NOT EXISTS user_registrations (
+        user_id TEXT PRIMARY KEY,
+        user_hash TEXT NOT NULL,
+        registered_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      
+      CREATE INDEX IF NOT EXISTS idx_user_registrations_registered_at ON user_registrations(registered_at);
+      CREATE INDEX IF NOT EXISTS idx_user_registrations_user_hash ON user_registrations(user_hash);
+
+      -- Backfill existing users from sessions table (earliest session = registration)
+      INSERT OR IGNORE INTO user_registrations (user_id, user_hash, registered_at)
+      SELECT user_id, user_hash, MIN(started_at) as registered_at
+      FROM sessions
+      WHERE user_id IS NOT NULL
+      GROUP BY user_id, user_hash;
+    `,
+  },
 ];

@@ -89,6 +89,7 @@ export function insertEvent(params: EventParams): void {
 
 /**
  * Start a new session and return the session ID.
+ * Also records user registration on first login.
  */
 export function startSession(userId: string, userAgent?: string): string {
   const db = getDb();
@@ -98,6 +99,18 @@ export function startSession(userId: string, userAgent?: string): string {
     const sessionId = randomUUID();
     const userHash = hashUserId(userId);
     const truncatedUserAgent = userAgent?.substring(0, 256) || null;
+
+    // Record user registration if first time
+    try {
+      execute(
+        `INSERT OR IGNORE INTO user_registrations (user_id, user_hash)
+         VALUES (?, ?)`,
+        [userId, userHash]
+      );
+    } catch (regError) {
+      // Silently ignore registration errors (table might not exist in old DBs)
+      console.debug('[metrics] Could not record registration (table might not exist):', regError);
+    }
 
     execute(
       `INSERT INTO sessions (id, user_id, user_hash, user_agent)

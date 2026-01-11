@@ -1,13 +1,13 @@
 /**
  * Stats Users API - Returns top users ranking.
  * 
- * GET /api/stats/users?from=YYYY-MM-DD&to=YYYY-MM-DD&limit=10&offset=0
+ * GET /api/stats/users?from=YYYY-MM-DD&to=YYYY-MM-DD&limit=10&offset=0&sortBy=eventCount&sortDirection=desc
  * 
  * Protected by middleware (STATS_ALLOWED_USER_IDS).
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getTopUsers, getTotalUserCount } from '@/lib/metrics';
+import { getTopUsers, getTotalUserCount, type UserSortField, type SortDirection } from '@/lib/metrics';
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -20,9 +20,11 @@ export async function GET(request: NextRequest) {
   const to = searchParams.get('to') || today;
   const limit = parseInt(searchParams.get('limit') || '10', 10);
   const offset = parseInt(searchParams.get('offset') || '0', 10);
+  const sortBy = (searchParams.get('sortBy') || 'eventCount') as UserSortField;
+  const sortDirection = (searchParams.get('sortDirection') || 'desc') as SortDirection;
 
   try {
-    const users = getTopUsers({ from, to }, limit, offset);
+    const users = getTopUsers({ from, to }, limit, offset, sortBy, sortDirection);
     const totalUsers = getTotalUserCount({ from, to });
     
     return NextResponse.json({
@@ -35,6 +37,7 @@ export async function GET(request: NextRequest) {
         hasMore: offset + limit < totalUsers,
       },
       range: { from, to },
+      sort: { sortBy, sortDirection },
     });
   } catch (error) {
     console.error('[stats/users] Error:', error);
