@@ -278,10 +278,10 @@ export interface TopUser {
   tracksAdded: number;
   tracksRemoved: number;
   lastActive: string;
-  registeredAt: string | null; // When user first logged in
+  firstLoginAt: string | null; // When user first logged in
 }
 
-export type UserSortField = 'eventCount' | 'tracksAdded' | 'tracksRemoved' | 'lastActive' | 'registeredAt';
+export type UserSortField = 'eventCount' | 'tracksAdded' | 'tracksRemoved' | 'lastActive' | 'firstLoginAt';
 export type SortDirection = 'asc' | 'desc';
 
 /**
@@ -300,14 +300,14 @@ export function getTopUsers(
     tracksAdded: 'tracksAdded',
     tracksRemoved: 'tracksRemoved',
     lastActive: 'lastActive',
-    registeredAt: 'registeredAt',
+    firstLoginAt: 'firstLoginAt',
   };
   
   const sortColumn = sortFieldMap[sortBy] || 'eventCount';
   const sortDir = sortDirection === 'asc' ? 'ASC' : 'DESC';
   
-  // For registration sort, nulls should go last
-  const orderClause = sortBy === 'registeredAt'
+  // For first login sort, nulls should go last
+  const orderClause = sortBy === 'firstLoginAt'
     ? `${sortColumn} ${sortDir} NULLS LAST`
     : `${sortColumn} ${sortDir}`;
   
@@ -319,7 +319,7 @@ export function getTopUsers(
       SUM(CASE WHEN e.event = 'track_add' THEN COALESCE(e.count, 1) ELSE 0 END) as tracksAdded,
       SUM(CASE WHEN e.event = 'track_remove' THEN COALESCE(e.count, 1) ELSE 0 END) as tracksRemoved,
       MAX(e.ts) as lastActive,
-      r.registered_at as registeredAt
+      r.registered_at as firstLoginAt
     FROM events e
     LEFT JOIN user_registrations r ON e.user_id = r.user_id
     WHERE 

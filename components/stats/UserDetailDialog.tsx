@@ -18,7 +18,7 @@ interface UserDetailDialogProps {
   tracksAdded: number;
   tracksRemoved: number;
   lastActive: string;
-  registeredAt: string | null;
+  firstLoginAt: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -43,7 +43,7 @@ export function UserDetailDialog({
   tracksAdded,
   tracksRemoved,
   lastActive,
-  registeredAt,
+  firstLoginAt,
   open,
   onOpenChange,
 }: UserDetailDialogProps) {
@@ -182,15 +182,15 @@ export function UserDetailDialog({
               </div>
             </div>
 
-            {/* Registration Date */}
-            {registeredAt && (
+            {/* First Login Date */}
+            {firstLoginAt && (
               <div className="mt-3 p-3 bg-blue-500/10 rounded-lg">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
                   <Calendar className="h-3 w-3 text-blue-600" />
-                  Registered
+                  First Login
                 </div>
                 <div className="text-sm font-medium text-blue-600">
-                  {new Date(registeredAt).toLocaleDateString('en-US', {
+                  {new Date(firstLoginAt).toLocaleDateString('en-US', {
                     year: 'numeric',
                     month: 'long',
                     day: 'numeric',

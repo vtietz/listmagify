@@ -11,13 +11,6 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
   Users,
   Activity,
   Plus,
@@ -45,7 +38,7 @@ import { cn } from '@/lib/utils';
 
 // Time range presets
 type TimeRange = 'today' | '7d' | '30d' | '90d' | 'ytd' | 'all' | 'custom';
-type UserSortField = 'eventCount' | 'tracksAdded' | 'tracksRemoved' | 'lastActive' | 'registeredAt';
+type UserSortField = 'eventCount' | 'tracksAdded' | 'tracksRemoved' | 'lastActive' | 'firstLoginAt';
 type SortDirection = 'asc' | 'desc';
 
 interface DateRange {
@@ -163,7 +156,7 @@ interface TopUser {
   tracksAdded: number;
   tracksRemoved: number;
   lastActive: string;
-  registeredAt: string | null;
+  firstLoginAt: string | null;
 }
 
 interface TopUsersResponse {
@@ -208,6 +201,12 @@ interface DailyActions {
   adds: number;
   removes: number;
   reorders: number;
+}
+
+interface RegisteredUsersPerDay {
+  date: string;
+  newUsers: number;
+  cumulativeUsers: number;
 }
 
 interface EventsData {
@@ -553,14 +552,6 @@ function TopUsersCard({
       : <ArrowUp className="h-3 w-3" />;
   };
 
-  const sortLabels: Record<UserSortField, string> = {
-    eventCount: 'Events',
-    tracksAdded: 'Added',
-    tracksRemoved: 'Removed',
-    lastActive: 'Last Active',
-    registeredAt: 'Registered',
-  };
-
   return (
     <Card>
       <CardHeader>
@@ -570,8 +561,8 @@ function TopUsersCard({
         </CardTitle>
         <CardDescription>
           {showUserDetails 
-            ? 'Click a user to see full details' 
-            : 'User details disabled (no personal data fetched)'}
+            ? 'Click a user to see full details - Click column headers to sort' 
+            : 'User details disabled (no personal data fetched) - Click column headers to sort'}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -583,35 +574,10 @@ function TopUsersCard({
           </div>
         ) : (
           <>
-            {/* Sort Controls */}
-            <div className="mb-4 flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">Sort by:</span>
-              <Select value={sortBy} onValueChange={(v: string) => { setSortBy(v as UserSortField); setPage(0); }}>
-                <SelectTrigger className="w-40 h-8 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(sortLabels).map(([key, label]) => (
-                    <SelectItem key={key} value={key} className="text-xs">
-                      {label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => { setSortDirection(sortDirection === 'desc' ? 'asc' : 'desc'); setPage(0); }}
-                className="h-8 px-2"
-              >
-                {sortDirection === 'desc' ? <ArrowDown className="h-4 w-4" /> : <ArrowUp className="h-4 w-4" />}
-              </Button>
-            </div>
-
             <div className="space-y-2">
               <div className="grid grid-cols-12 text-xs text-muted-foreground font-medium pb-2 border-b">
                 <div className="col-span-1">#</div>
-                <div className="col-span-4">User</div>
+                <div className="col-span-3">User</div>
                 <div className="col-span-2 text-right">
                   <button 
                     onClick={() => toggleSort('eventCount')}
@@ -620,12 +586,20 @@ function TopUsersCard({
                     Events {getSortIcon('eventCount')}
                   </button>
                 </div>
-                <div className="col-span-2 text-right">
+                <div className="col-span-1 text-right">
                   <button 
                     onClick={() => toggleSort('tracksAdded')}
                     className="hover:text-foreground flex items-center gap-1 ml-auto"
                   >
                     Added {getSortIcon('tracksAdded')}
+                  </button>
+                </div>
+                <div className="col-span-2 text-right">
+                  <button 
+                    onClick={() => toggleSort('firstLoginAt')}
+                    className="hover:text-foreground flex items-center gap-1 ml-auto"
+                  >
+                    First Login {getSortIcon('firstLoginAt')}
                   </button>
                 </div>
                 <div className="col-span-3 text-right">
@@ -648,11 +622,14 @@ function TopUsersCard({
                   title={showUserDetails ? "Click to view user details" : "User details disabled (set STATS_SHOW_USER_DETAILS=true to enable)"}
                 >
                   <div className="col-span-1 text-muted-foreground">{page * pageSize + i + 1}</div>
-                  <div className="col-span-4 font-mono text-xs truncate" title={user.userHash}>
+                  <div className="col-span-3 font-mono text-xs truncate" title={user.userHash}>
                     {user.userHash.slice(0, 12)}...
                   </div>
                   <div className="col-span-2 text-right font-medium">{user.eventCount}</div>
-                  <div className="col-span-2 text-right text-green-600">{user.tracksAdded}</div>
+                  <div className="col-span-1 text-right text-green-600">{user.tracksAdded}</div>
+                  <div className="col-span-2 text-right text-xs text-muted-foreground">
+                    {user.firstLoginAt ? new Date(user.firstLoginAt).toLocaleDateString() : 'N/A'}
+                  </div>
                   <div className="col-span-3 text-right text-xs text-muted-foreground">
                     {new Date(user.lastActive).toLocaleDateString()}
                   </div>
@@ -698,7 +675,7 @@ function TopUsersCard({
             tracksAdded={selectedUser.tracksAdded}
             tracksRemoved={selectedUser.tracksRemoved}
             lastActive={selectedUser.lastActive}
-            registeredAt={selectedUser.registeredAt}
+            firstLoginAt={selectedUser.firstLoginAt}
             open={!!selectedUser}
             onOpenChange={(open) => !open && setSelectedUser(null)}
           />
@@ -1083,6 +1060,110 @@ function FeedbackStatsCard({
   );
 }
 
+function UserRegistrationChart({ 
+  dateRange 
+}: { 
+  dateRange: { from: string; to: string } 
+}) {
+  const { data, isLoading } = useQuery<{ data: RegisteredUsersPerDay[] }>({
+    queryKey: ['stats', 'registrations', dateRange],
+    queryFn: async () => {
+      const res = await fetch(`/api/stats/registrations?from=${dateRange.from}&to=${dateRange.to}`);
+      if (!res.ok) throw new Error('Failed to fetch registration stats');
+      return res.json();
+    },
+  });
+
+  const registrations = data?.data ?? [];
+  const maxNewUsers = Math.max(...registrations.map((d: RegisteredUsersPerDay) => d.newUsers), 1);
+  const maxCumulative = Math.max(...registrations.map((d: RegisteredUsersPerDay) => d.cumulativeUsers), 1);
+  const totalNewUsers = registrations.reduce((sum: number, d: RegisteredUsersPerDay) => sum + d.newUsers, 0);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Users className="h-4 w-4" />
+          First Logins
+        </CardTitle>
+        <CardDescription>
+          {totalNewUsers} new user{totalNewUsers !== 1 ? 's' : ''} logged in for the first time in this period
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="h-32 flex items-center justify-center text-muted-foreground">
+            Loading...
+          </div>
+        ) : registrations.length === 0 ? (
+          <div className="h-32 flex items-center justify-center text-muted-foreground">
+            No first logins in selected period
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {/* First logins per day */}
+            <div className="space-y-2">
+              <div className="text-sm font-medium">First Logins</div>
+              <div className="flex items-end gap-1 h-24">
+                {registrations.map((d: RegisteredUsersPerDay) => (
+                  <Tooltip key={d.date}>
+                    <TooltipTrigger asChild>
+                      <div
+                        className="flex-1 bg-green-500/80 rounded-t hover:bg-green-500 transition-colors cursor-default"
+                        style={{ height: `${(d.newUsers / maxNewUsers) * 100}%`, minHeight: d.newUsers > 0 ? '3px' : '0px' }}
+                      />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <div className="text-sm">
+                        <div className="font-medium">{formatDate(d.date)}</div>
+                        <div>{d.newUsers} new user{d.newUsers !== 1 ? 's' : ''}</div>
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                ))}
+              </div>
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>{registrations[0]?.date ? formatDate(registrations[0].date) : ''}</span>
+                <span>{registrations.at(-1)?.date ? formatDate(registrations.at(-1)!.date) : ''}</span>
+              </div>
+            </div>
+
+            {/* Cumulative users growth */}
+            <div className="space-y-2">
+              <div className="text-sm font-medium">Total Users Growth</div>
+              <div className="h-24 relative">
+                <svg className="w-full h-full" preserveAspectRatio="none">
+                  <polyline
+                    points={registrations.map((d: RegisteredUsersPerDay, i: number) => 
+                      `${(i / (registrations.length - 1)) * 100},${100 - (d.cumulativeUsers / maxCumulative) * 100}`
+                    ).join(' ')}
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    className="text-blue-500"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                  <polyline
+                    points={registrations.map((d: RegisteredUsersPerDay, i: number) => 
+                      `${(i / (registrations.length - 1)) * 100},${100 - (d.cumulativeUsers / maxCumulative) * 100}`
+                    ).join(' ') + ` 100,100 0,100`}
+                    fill="currentColor"
+                    className="text-blue-500/20"
+                  />
+                </svg>
+              </div>
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>{registrations[0]?.cumulativeUsers ?? 0} users</span>
+                <span>{registrations.at(-1)?.cumulativeUsers ?? 0} users</span>
+              </div>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export function StatsDashboard() {
   const [timeRange, setTimeRange] = useState<TimeRange>('7d');
   const dateRange = useMemo(() => getDateRange(timeRange), [timeRange]);
@@ -1242,14 +1323,17 @@ export function StatsDashboard() {
         </Card>
       </div>
 
-      {/* Charts Row 2: Users and Actions per Day */}
+      {/* Charts Row 2: Users per Day and User Registrations */}
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Users className="h-4 w-4" />
-              Users per Day
+              Active Users per Day
             </CardTitle>
+            <CardDescription>
+              Unique users active each day
+            </CardDescription>
           </CardHeader>
           <CardContent>
             {eventsLoading ? (
@@ -1262,24 +1346,30 @@ export function StatsDashboard() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Activity className="h-4 w-4" />
-              Actions per Day
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {eventsLoading ? (
-              <div className="h-32 flex items-center justify-center text-muted-foreground">
-                Loading...
-              </div>
-            ) : (
-              <ActionsBarChart data={events?.dailyActions ?? []} />
-            )}
-          </CardContent>
-        </Card>
+        <UserRegistrationChart dateRange={dateRange} />
       </div>
+
+      {/* Charts Row 3: Actions per Day */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Activity className="h-4 w-4" />
+            Actions per Day
+          </CardTitle>
+          <CardDescription>
+            Track additions, removals, and reorders
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {eventsLoading ? (
+            <div className="h-32 flex items-center justify-center text-muted-foreground">
+              Loading...
+            </div>
+          ) : (
+            <ActionsBarChart data={events?.dailyActions ?? []} />
+          )}
+        </CardContent>
+      </Card>
 
       {/* Rankings Row: Top Users and Top Playlists */}
       <div className="grid gap-4 md:grid-cols-2">
