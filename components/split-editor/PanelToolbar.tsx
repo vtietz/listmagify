@@ -405,7 +405,8 @@ export function PanelToolbar({
   ]);
 
   return (
-    <div ref={toolbarRef} className="flex items-center gap-1 p-1 border-b border-border bg-card relative z-30">
+    <div ref={toolbarRef} className="flex items-center gap-1 border-b border-border bg-card relative z-30">
+      
       {/* Playlist selector - always visible */}
       <div className="flex-1 min-w-0 max-w-[280px]">
         <PlaylistSelector
@@ -417,7 +418,7 @@ export function PanelToolbar({
 
       {/* Search - only in normal mode */}
       {playlistId && !isUltraCompact && (
-        <div className="relative min-w-0 w-[200px]">
+        <div className="relative min-w-0 w-[100px]">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
           <Input
             type="text"

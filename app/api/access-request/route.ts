@@ -9,6 +9,10 @@ import nodemailer from 'nodemailer';
  */
 export async function POST(request: NextRequest) {
   try {
+    if (process.env.NEXT_PUBLIC_ACCESS_REQUEST_ENABLED !== 'true') {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
+
     const body = await request.json();
     const { name, email, motivation } = body;
 

@@ -41,6 +41,9 @@ export function LandingPageContent({
   const router = useRouter();
   const panels = useSplitGridStore((state) => state.panels);
 
+  const isAccessRequestEnabled =
+    process.env.NEXT_PUBLIC_ACCESS_REQUEST_ENABLED === 'true';
+
   // Smart redirect for authenticated users clicking "Get Started"
   const handleGetStarted = () => {
     // Check if user has panels configured (has used split editor before)
@@ -86,13 +89,15 @@ export function LandingPageContent({
             ) : (
               <>
                 <SignInButton callbackUrl={returnTo} label="Sign in with Spotify" />
-                <AccessRequestDialog
-                  trigger={
-                    <button className="inline-flex items-center justify-center gap-2 rounded-md border border-border bg-background px-6 py-3 text-sm font-medium hover:bg-accent transition-colors">
-                      Request Access
-                    </button>
-                  }
-                />
+                {isAccessRequestEnabled && (
+                  <AccessRequestDialog
+                    trigger={
+                      <button className="inline-flex items-center justify-center gap-2 rounded-md border border-border bg-background px-6 py-3 text-sm font-medium hover:bg-accent transition-colors">
+                        Request Access
+                      </button>
+                    }
+                  />
+                )}
                 <ByokSignInButton callbackUrl={returnTo} />
               </>
             )}
@@ -101,7 +106,7 @@ export function LandingPageContent({
           {/* Development Mode Notice - only show when not authenticated */}
           {!isAuthenticated && (
             <div className="mt-6 max-w-xl mx-auto">
-              <DevModeNotice showRequestAccessHint />
+              <DevModeNotice showRequestAccessHint={isAccessRequestEnabled} />
             </div>
           )}
         </div>

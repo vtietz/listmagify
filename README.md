@@ -215,6 +215,18 @@ Users need to:
 
 **Privacy Note:** User credentials are stored only in their browser's localStorage. They are never transmitted to or stored on the server.
 
+## Access Requests (Optional)
+
+When Listmagify is running in Spotify development mode (limited users), the landing page can show a "Request Access" button that sends an email to the admin with approval instructions.
+
+To enable email delivery, configure SMTP and `CONTACT_EMAIL` in your `.env`.
+
+This feature is disabled by default. To enable it (UI + endpoint), set `NEXT_PUBLIC_ACCESS_REQUEST_ENABLED=true`.
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `NEXT_PUBLIC_ACCESS_REQUEST_ENABLED` | Show "Request Access" on landing and enable `POST /api/access-request` | `false` |
+
 ## Usage Analytics (Optional)
 
 Listmagify includes privacy-first usage analytics, disabled by default. When enabled:
