@@ -22,7 +22,8 @@ import {
   GitCompare,
   Smartphone,
   Music2,
-  Github
+  Github,
+  MapPin
 } from 'lucide-react';
 
 interface LandingPageContentProps {
@@ -179,8 +180,13 @@ export function LandingPageContent({
           />
           <FeatureCard
             icon={<ArrowUpDown className="h-6 w-6" />}
-            title="Flexible Sorting"
-            description="Sort by position, title, artist, album, duration, or date added. Ascending or descending with one click."
+            title="Flexible Sorting & Save Order"
+            description="Sort by position, title, artist, album, duration, or date added. Save any sorted view permanently as the new playlist order."
+          />
+          <FeatureCard
+            icon={<MapPin className="h-6 w-6" />}
+            title="Insert at Markers"
+            description="Mark multiple positions across playlists, then insert selected tracks at all marked locations simultaneously. Perfect for building DJ sets."
           />
           <FeatureCard
             icon={<Minimize2 className="h-6 w-6" />}

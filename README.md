@@ -2,6 +2,8 @@
 
 Playlist magic for Spotify. Edit multiple playlists side-by-side with drag-and-drop, bulk operations, and real-time sync.
 
+**🌐 Try it now: [listmagify.com](https://listmagify.com/)**
+
 ![Split Editor](public/screenshot-split-editor.png)
 
 ## Features
@@ -17,6 +19,8 @@ Playlist magic for Spotify. Edit multiple playlists side-by-side with drag-and-d
 - **Liked Songs Browser** – Access your entire library and copy favorites into playlists
 - **Track Recommendations** – Get AI-powered suggestions based on your playlist patterns
 - **Flexible Sorting** – Sort by position, title, artist, album, duration, or date added
+- **Save Sort as Order** – Apply any sort and save it permanently as the new playlist order
+- **Insert at Markers** – Mark multiple positions across playlists and insert tracks at all marked locations simultaneously
 - **Compact Mode** – Dense view to see more tracks on screen
 
 ## Mobile Installation
