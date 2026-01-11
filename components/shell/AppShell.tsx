@@ -40,14 +40,15 @@ export function AppShell({ headerTitle = "Listmagify", children }: AppShellProps
   const isBrowsePanelOpen = useBrowsePanelStore((state) => state.isOpen);
   const { authenticated } = useSessionUser();
   const { isPhone } = useDeviceType();
+
+  const isLandingPage = pathname === "/";
   
-  // Landing page doesn't use AppShell wrapper (has its own layout)
-  const isLandingPage = pathname === '/';
+  // Pages that handle their own complete layout (bypass AppShell)
+  const isStandalonePage = pathname === '/login' || (isLandingPage && !authenticated);
   
   // Content pages that don't need player or browse panel (static/legal pages)
   const isContentPage = pathname === '/privacy' || 
                         pathname === '/imprint' ||
-                        pathname === '/login' ||
                         pathname === '/logout';
   
   // Pages that need fixed viewport height (no global scrolling, internal scroll containers)
@@ -56,9 +57,23 @@ export function AppShell({ headerTitle = "Listmagify", children }: AppShellProps
   const isFixedHeightPage = pathname === '/split-editor' || 
                             pathname.startsWith('/playlists/');
   
-  // Landing page - render children directly (page handles its own layout)
-  if (isLandingPage) {
+  // Standalone pages - render children directly (pages handle their own layout)
+  if (isStandalonePage) {
     return <>{children}</>;
+  }
+
+  // Landing page when authenticated: keep content as-is, but show the normal header/nav.
+  // Avoid player/browse panel here to match the public landing layout.
+  if (isLandingPage && authenticated) {
+    return (
+      <div className="min-h-dvh flex flex-col bg-background text-foreground">
+        <Header title={headerTitle} />
+        <main className="flex-1 overflow-auto">{children}</main>
+        <div className="flex-shrink-0 px-4 py-2 border-t border-border">
+          <AppFooter />
+        </div>
+      </div>
+    );
   }
 
   // Content pages - simple scrollable layout without player or browse panel
@@ -147,6 +162,7 @@ function Header({ title: _title }: { title: string }) {
   
   const isPlaylistsActive = pathname === '/playlists' || pathname.startsWith('/playlists/');
   const isSplitEditorActive = pathname === '/split-editor';
+  const isLandingPage = pathname === '/';
   
   // Pages that support player and compare mode
   const supportsPlayerAndCompare = isSplitEditorActive || isPlaylistsActive;
@@ -164,9 +180,11 @@ function Header({ title: _title }: { title: string }) {
             hasStatsAccess={hasStatsAccess}
             isBrowseOpen={isBrowseOpen}
             toggleBrowse={toggleBrowse}
+            supportsBrowse={!isLandingPage}
             isPlayerVisible={isPlayerVisible}
             togglePlayerVisible={togglePlayerVisible}
             supportsPlayer={supportsPlayerAndCompare}
+            supportsCompact={!isLandingPage}
             isCompact={isCompact}
             toggleCompact={toggleCompact}
             isCompareEnabled={isCompareEnabled}

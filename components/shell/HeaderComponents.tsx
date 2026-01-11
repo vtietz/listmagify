@@ -50,6 +50,8 @@ interface AdaptiveNavProps {
   isPhone: boolean;
   /** Current pathname for active state */
   pathname: string;
+  /** Whether browse panel toggle should be shown */
+  supportsBrowse?: boolean;
   /** Whether stats access is available */
   hasStatsAccess: boolean;
   /** Whether browse panel is open */
@@ -62,6 +64,8 @@ interface AdaptiveNavProps {
   togglePlayerVisible: () => void;
   /** Whether player toggle should be shown (split-editor/playlists pages) */
   supportsPlayer: boolean;
+  /** Whether compact toggle should be shown */
+  supportsCompact?: boolean;
   /** Whether compact mode is enabled */
   isCompact: boolean;
   /** Toggle compact mode */
@@ -85,12 +89,14 @@ interface AdaptiveNavProps {
 export function AdaptiveNav({
   isPhone,
   pathname,
+  supportsBrowse = true,
   hasStatsAccess,
   isBrowseOpen,
   toggleBrowse,
   isPlayerVisible,
   togglePlayerVisible,
   supportsPlayer,
+  supportsCompact = true,
   isCompact,
   toggleCompact,
   isCompareEnabled,
@@ -115,6 +121,7 @@ export function AdaptiveNav({
       href: '/playlists',
       isActive: isPlaylistsActive,
       group: 'main',
+      neverOverflow: true,
     },
     {
       id: 'panels',
@@ -123,6 +130,7 @@ export function AdaptiveNav({
       href: '/split-editor',
       isActive: isSplitEditorActive,
       group: 'main',
+      neverOverflow: true,
     },
     ...(hasStatsAccess ? [{
       id: 'stats',
@@ -133,7 +141,7 @@ export function AdaptiveNav({
       group: 'main',
     }] : []),
     // Group 2: View controls (Browse and Player not shown on phone - handled by bottom nav)
-    ...(!isPhone ? [{
+    ...(!isPhone && supportsBrowse ? [{
       id: 'browse',
       icon: <Search className="h-3.5 w-3.5" />,
       label: 'Browse',
@@ -151,7 +159,7 @@ export function AdaptiveNav({
       showCheckmark: true,
       group: 'view',
     }] : []),
-    {
+    ...(supportsCompact ? [{
       id: 'compact',
       icon: <Minimize2 className="h-3.5 w-3.5" />,
       label: 'Compact',
@@ -159,7 +167,7 @@ export function AdaptiveNav({
       isActive: isCompact,
       showCheckmark: true,
       group: 'view',
-    },
+    }] : []),
     ...(supportsCompare ? [{
       id: 'compare',
       icon: <GitCompare className="h-3.5 w-3.5" />,
@@ -222,8 +230,10 @@ export function AdaptiveNav({
     }] : []),
   ], [
     isPhone,
+    supportsBrowse,
     isPlaylistsActive, isSplitEditorActive, isStatsActive, hasStatsAccess,
     isBrowseOpen, toggleBrowse, isPlayerVisible, togglePlayerVisible, supportsPlayer,
+    supportsCompact,
     isCompact, toggleCompact, isCompareEnabled, toggleCompare, supportsCompare,
     markerStats.totalMarkers, clearAllMarkers,
   ]);
