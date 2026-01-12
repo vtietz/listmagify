@@ -15,4 +15,4 @@ export const TABLE_HEADER_HEIGHT = 40;
 export const TABLE_HEADER_HEIGHT_COMPACT = 32;
 
 /** Number of rows to render outside the visible area (overscan) */
-export const VIRTUALIZATION_OVERSCAN = 40;
+export const VIRTUALIZATION_OVERSCAN = 15;

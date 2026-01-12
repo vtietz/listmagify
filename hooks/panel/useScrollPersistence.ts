@@ -42,7 +42,8 @@ export function useScrollPersistence({
           if (now - lastWriteRef.current < THROTTLE_MS) return;
           
           lastWriteRef.current = now;
-          setScroll(panelId, lastValueRef.current);
+          // DISABLED: Causes scroll jumps during heavy scrolling
+          // setScroll(panelId, lastValueRef.current);
         });
       }
     };
