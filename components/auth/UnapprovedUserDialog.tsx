@@ -11,7 +11,6 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle } from 'lucide-react';
-import { AccessRequestDialog } from '@/components/landing/AccessRequestDialog';
 
 interface UnapprovedUserDialogProps {
   /**
@@ -28,24 +27,28 @@ interface UnapprovedUserDialogProps {
  * Dialog shown when a user tries to log in but is not in the approved users list.
  * This happens when the app is in Spotify development mode.
  */
-export function UnapprovedUserDialog({ error, showRequestAccess = false }: UnapprovedUserDialogProps) {
+export function UnapprovedUserDialog({ error, showRequestAccess: _showRequestAccess = false }: UnapprovedUserDialogProps) {
   const [open, setOpen] = useState(false);
-  const [showAccessRequestDialog, setShowAccessRequestDialog] = useState(false);
 
-  // Show dialog when there's an access_denied error
-  // NextAuth uses 'AccessDenied' (PascalCase), Spotify returns 'access_denied'
+  // Show dialog when there's an OAuth error
+  // NextAuth error codes: OAuthCallback, Configuration, AccessDenied
+  // Spotify returns: access_denied
   useEffect(() => {
-    if (error === 'access_denied' || error === 'AccessDenied') {
+    if (error && (
+      error === 'access_denied' || 
+      error === 'AccessDenied' || 
+      error === 'OAuthCallback' ||
+      error === 'Configuration'
+    )) {
       setOpen(true);
     }
   }, [error]);
 
-  const handleRequestAccess = () => {
-    setOpen(false);
-    setTimeout(() => {
-      setShowAccessRequestDialog(true);
-    }, 200);
-  };
+  // Determine error message based on error type
+  const errorTitle = error === 'Configuration' ? 'Configuration Error' : 'Access Denied';
+  const errorDescription = error === 'Configuration' 
+    ? 'There is a configuration issue with the Spotify OAuth. Please contact the administrator.'
+    : 'Your Spotify account may not be in the approved users list for this app.';
 
   return (
     <>
@@ -54,18 +57,15 @@ export function UnapprovedUserDialog({ error, showRequestAccess = false }: Unapp
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-yellow-500" />
-              User Not Approved
+              {errorTitle}
             </DialogTitle>
             <DialogDescription className="space-y-3 pt-2">
               <p>
-                Your Spotify account is not in the approved users list for this app.
+                {errorDescription}
               </p>
-              <p>
-                This app is currently in Spotify development mode, which limits access to a specific list of approved users.
-              </p>
-              {showRequestAccess && (
-                <p className="font-medium text-foreground">
-                  You can request access, and the app administrator will add you to the approved list.
+              {error !== 'Configuration' && (
+                <p>
+                  This app is currently in Spotify development mode, which limits access to a specific list of approved users.
                 </p>
               )}
             </DialogDescription>
@@ -74,21 +74,9 @@ export function UnapprovedUserDialog({ error, showRequestAccess = false }: Unapp
             <Button variant="outline" onClick={() => setOpen(false)} className="w-full sm:w-auto">
               Close
             </Button>
-            {showRequestAccess && (
-              <Button onClick={handleRequestAccess} className="w-full sm:w-auto">
-                Request Access
-              </Button>
-            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {showAccessRequestDialog && (
-        <AccessRequestDialog
-          trigger={null}
-          defaultOpen={true}
-        />
-      )}
     </>
   );
 }

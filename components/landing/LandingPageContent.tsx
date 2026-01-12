@@ -110,7 +110,7 @@ export function LandingPageContent({
                     }
                   />
                 )}
-                <ByokSignInButton callbackUrl={returnTo} byokEnabled={byokEnabled} />
+                <ByokSignInButton callbackUrl={returnTo} />
               </>
             )}
           </div>

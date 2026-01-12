@@ -231,6 +231,16 @@ export const authOptions: AuthOptions = {
       
       return session;
     },
+
+    /**
+     * Control whether sign-in is allowed.
+     * Use this to track failed login attempts.
+     */
+    async signIn() {
+      // Always allow sign-in to proceed - NextAuth will handle OAuth errors
+      // We just use this callback to track the attempt
+      return true;
+    },
   },
   events: {
     async signIn(message: any) {
@@ -277,8 +287,26 @@ export const authOptions: AuthOptions = {
     },
   },
   logger: {
-    error(...args: any[]) {
-      console.error("[auth] NextAuth logger error", ...args);
+    error(code: any, ...args: any[]) {
+      console.error("[auth] NextAuth logger error", code, ...args);
+      
+      // Track failed login attempts (OAuth errors, access denied, etc.)
+      // Only track certain error codes that indicate failed user login attempts
+      if (code && typeof code === 'object') {
+        const errorCode = code.message || code.code || code.name || String(code);
+        const errorStr = String(errorCode).toLowerCase();
+        
+        // Track access denied (user not approved) and OAuth callback failures
+        if (
+          errorStr.includes('access') ||
+          errorStr.includes('denied') ||
+          errorStr.includes('oauth') ||
+          errorStr.includes('unauthorized')
+        ) {
+          // Log as failed login attempt without user ID (since they didn't successfully authenticate)
+          logAuthEvent('login_failure', undefined, errorStr.substring(0, 100));
+        }
+      }
     },
     warn(...args: any[]) {
       console.warn("[auth] NextAuth logger warn", ...args);
