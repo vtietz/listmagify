@@ -27,6 +27,8 @@ import { usePlayerStore } from '@/hooks/usePlayerStore';
 import { useSmallViewportHeight } from '@/hooks/useSmallViewportHeight';
 import { SplitNodeView } from './SplitNodeView';
 import { BrowsePanel } from './BrowsePanel';
+import { SearchPanel } from './SearchPanel';
+import { RecommendationsPanel } from './RecommendationsPanel';
 import { useMobileOverlayStore, MobileBottomNav } from './MobileBottomNav';
 import { DndDragOverlay } from './DndDragOverlay';
 import { SpotifyPlayer, MiniPlayer } from '@/components/player';
@@ -159,7 +161,6 @@ export function SplitGrid() {
   const showMobileOverlay = isPhone && activeOverlay !== 'none' && activeOverlay !== 'player';
   const isPanel2Mode = activeOverlay === 'panel2';
   const showMobilePlayer = isPhone && activeOverlay === 'player';
-  const showBrowseOverlay = isPhone && (activeOverlay === 'search' || activeOverlay === 'lastfm' || activeOverlay === 'recs');
 
   return (
     <DndContext
@@ -233,15 +234,29 @@ export function SplitGrid() {
                 </div>
               )}
               {/* Browse overlay */}
-              {showBrowseOverlay && (
-                <BrowsePanel 
-                  defaultTab={
-                    activeOverlay === 'search' ? 'spotify' :
-                    activeOverlay === 'lastfm' ? 'lastfm' :
-                    'recs'
-                  }
-                  isMobileOverlay={true}
-                />
+              {activeOverlay === 'search' && (
+                <div className="h-full flex flex-col bg-background">
+                  <SearchPanel isActive={true} />
+                </div>
+              )}
+              {activeOverlay === 'recs' && (
+                <div className="h-full flex flex-col bg-background">
+                  <RecommendationsPanel
+                    selectedTrackIds={panels.flatMap(p => 
+                      Array.from(p.selection instanceof Set ? p.selection : [])
+                        .map(key => key.split('::')[0])
+                        .filter((id): id is string => !!id)
+                    )}
+                    excludeTrackIds={[]}
+                    {...(panels.find(p => p.playlistId)?.playlistId ? { playlistId: panels.find(p => p.playlistId)!.playlistId! } : {})}
+                    isExpanded={true}
+                    onToggleExpand={() => {}}
+                    height={undefined}
+                  />
+                </div>
+              )}
+              {activeOverlay === 'lastfm' && (
+                <BrowsePanel defaultTab="lastfm" isMobileOverlay={true} />
               )}
             </div>
           )}

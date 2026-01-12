@@ -12,6 +12,7 @@ import { useStatsAccess } from "@/hooks/useStatsAccess";
 import { useDeviceType } from "@/hooks/useDeviceType";
 import { SpotifyPlayer } from "@/components/player";
 import { BrowsePanel } from "@/components/split-editor/BrowsePanel";
+import { SearchPanel } from "@/components/split-editor/SearchPanel";
 import { AppLogo } from "@/components/ui/app-logo";
 import { AppFooter } from "@/components/ui/app-footer";
 import { cn } from "@/lib/utils";
@@ -136,7 +137,13 @@ export function AppShell({ headerTitle = "Listmagify", children }: AppShellProps
               ? "absolute inset-0 z-50 bg-background" // Mobile: full-screen overlay
               : "relative" // Desktop: side panel
           )}>
-            <BrowsePanel isMobileOverlay={isPhone} />
+            {isPhone ? (
+              <div className="h-full flex flex-col bg-background">
+                <SearchPanel isActive={true} />
+              </div>
+            ) : (
+              <BrowsePanel />
+            )}
           </div>
         )}
       </div>

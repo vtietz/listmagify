@@ -20,6 +20,8 @@ import type { Track } from '@/lib/spotify/types';
 import type { MobileOverlay } from './MobileBottomNav';
 import { SplitNodeView } from './SplitNodeView';
 import { BrowsePanel } from './BrowsePanel';
+import { SearchPanel } from './SearchPanel';
+import { RecommendationsPanel } from './RecommendationsPanel';
 import { MobileBottomNav } from './MobileBottomNav';
 import { SpotifyPlayer } from '@/components/player';
 import { cn } from '@/lib/utils';
@@ -125,15 +127,29 @@ export function MobileLayout({
               </div>
             )}
             {/* Browse overlays */}
-            {(activeOverlay === 'search' || activeOverlay === 'lastfm' || activeOverlay === 'recs') && (
-              <BrowsePanel 
-                defaultTab={
-                  activeOverlay === 'search' ? 'spotify' :
-                  activeOverlay === 'lastfm' ? 'lastfm' :
-                  'recs'
-                }
-                isMobileOverlay={true}
-              />
+            {activeOverlay === 'search' && (
+              <div className="h-full flex flex-col bg-background">
+                <SearchPanel isActive={true} />
+              </div>
+            )}
+            {activeOverlay === 'recs' && (
+              <div className="h-full flex flex-col bg-background">
+                <RecommendationsPanel
+                  selectedTrackIds={panels.flatMap(p => 
+                    Array.from(p.selection instanceof Set ? p.selection : [])
+                      .map(key => key.split('::')[0])
+                      .filter((id): id is string => !!id)
+                  )}
+                  excludeTrackIds={[]}
+                  {...(panels.find(p => p.playlistId)?.playlistId ? { playlistId: panels.find(p => p.playlistId)!.playlistId! } : {})}
+                  isExpanded={true}
+                  onToggleExpand={() => {}}
+                  height={undefined}
+                />
+              </div>
+            )}
+            {activeOverlay === 'lastfm' && (
+              <BrowsePanel defaultTab="lastfm" isMobileOverlay={true} />
             )}
           </div>
         )}
