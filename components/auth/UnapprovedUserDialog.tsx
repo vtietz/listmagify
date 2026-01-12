@@ -33,8 +33,9 @@ export function UnapprovedUserDialog({ error, showRequestAccess = false }: Unapp
   const [showAccessRequestDialog, setShowAccessRequestDialog] = useState(false);
 
   // Show dialog when there's an access_denied error
+  // NextAuth uses 'AccessDenied' (PascalCase), Spotify returns 'access_denied'
   useEffect(() => {
-    if (error === 'access_denied') {
+    if (error === 'access_denied' || error === 'AccessDenied') {
       setOpen(true);
     }
   }, [error]);

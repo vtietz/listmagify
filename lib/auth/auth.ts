@@ -158,6 +158,7 @@ export const authOptions: AuthOptions = {
   // },
   pages: {
     signIn: "/",
+    error: "/",  // Redirect OAuth errors to landing page with ?error= param
   },
   providers: [
     SpotifyProvider({
