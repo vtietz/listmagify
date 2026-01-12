@@ -141,7 +141,7 @@ export function ByokDialog({ trigger, onCredentialsSaved }: ByokDialogProps) {
                 {hasCredentials ? 'Edit API Credentials' : 'Use Your Own Spotify API Key'}
               </DialogTitle>
               <DialogDescription>
-                Use your own Spotify Developer credentials for direct control over your API access.
+                Use your own Spotify Developer app credentials to sign in. This lets you use the app without being added as an approved user.
               </DialogDescription>
             </DialogHeader>
 

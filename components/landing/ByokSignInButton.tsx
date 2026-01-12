@@ -7,24 +7,31 @@ import { useByokCredentials } from '@/hooks/useByokCredentials';
 
 interface ByokSignInButtonProps {
   callbackUrl?: string;
+  byokEnabled?: boolean | null;
 }
 
 /**
  * Button component for signing in with BYOK credentials.
  * Shows different states: not configured, configured, or loading.
  */
-export function ByokSignInButton({ callbackUrl = '/split-editor' }: ByokSignInButtonProps) {
+export function ByokSignInButton({
+  callbackUrl = '/split-editor',
+  byokEnabled: byokEnabledProp,
+}: ByokSignInButtonProps) {
   const { credentials, hasCredentials, isLoaded } = useByokCredentials();
   const [isLoading, setIsLoading] = useState(false);
-  const [byokEnabled, setByokEnabled] = useState<boolean | null>(null);
+  const [byokEnabledState, setByokEnabledState] = useState<boolean | null>(byokEnabledProp ?? null);
+
+  const resolvedByokEnabled = byokEnabledProp !== undefined ? byokEnabledProp : byokEnabledState;
 
   // Fetch BYOK enabled status from server
   useEffect(() => {
+    if (byokEnabledProp !== undefined) return;
     fetch('/api/config')
       .then((res) => res.json())
-      .then((data) => setByokEnabled(data.byokEnabled ?? false))
-      .catch(() => setByokEnabled(false));
-  }, []);
+      .then((data) => setByokEnabledState(data.byokEnabled ?? false))
+      .catch(() => setByokEnabledState(false));
+  }, [byokEnabledProp]);
 
   const handleByokSignIn = async () => {
     if (!credentials) return;
@@ -55,12 +62,12 @@ export function ByokSignInButton({ callbackUrl = '/split-editor' }: ByokSignInBu
   };
 
   // Don't show if BYOK is disabled on the server
-  if (byokEnabled === false) {
+  if (resolvedByokEnabled === false) {
     return null;
   }
   
   // Show loading state while checking
-  if (byokEnabled === null || !isLoaded) {
+  if (resolvedByokEnabled === null || !isLoaded) {
     return (
       <button
         disabled

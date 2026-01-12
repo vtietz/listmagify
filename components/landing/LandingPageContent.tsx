@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSplitGridStore } from '@/hooks/useSplitGridStore';
 import Image from 'next/image';
@@ -46,6 +47,14 @@ export function LandingPageContent({
 }: LandingPageContentProps) {
   const router = useRouter();
   const panels = useSplitGridStore((state) => state.panels);
+  const [byokEnabled, setByokEnabled] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    fetch('/api/config')
+      .then((res) => res.json())
+      .then((json) => setByokEnabled(json.byokEnabled ?? false))
+      .catch(() => setByokEnabled(false));
+  }, []);
 
   // Smart redirect for authenticated users clicking "Get Started"
   const handleGetStarted = () => {
@@ -101,7 +110,7 @@ export function LandingPageContent({
                     }
                   />
                 )}
-                <ByokSignInButton callbackUrl={returnTo} />
+                <ByokSignInButton callbackUrl={returnTo} byokEnabled={byokEnabled} />
               </>
             )}
           </div>
@@ -109,7 +118,10 @@ export function LandingPageContent({
           {/* Development Mode Notice - only show when not authenticated */}
           {!isAuthenticated && (
             <div className="mt-6 max-w-xl mx-auto">
-              <DevModeNotice showRequestAccessHint={isAccessRequestEnabled} />
+              <DevModeNotice
+                showRequestAccessHint={isAccessRequestEnabled}
+                showByokHint={byokEnabled === true}
+              />
             </div>
           )}
         </div>
