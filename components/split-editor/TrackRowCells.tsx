@@ -9,6 +9,7 @@ import * as React from 'react';
 import { cn } from '@/lib/utils';
 import { formatDuration, formatReleaseDate, formatScrobbleDate } from '@/lib/utils/format';
 import type { Track } from '@/lib/spotify/types';
+import { useTapHandler } from '@/hooks/useTapHandler';
 
 // ============================================================================
 // Common Types
@@ -83,6 +84,40 @@ export function TitleCell({ isCompact, track, moreButton }: TitleCellProps) {
 // Artist Cell
 // ============================================================================
 
+interface ClickableArtistButtonProps {
+  artistName: string;
+  onArtistClick?: (e: React.MouseEvent, artistName: string) => void;
+}
+
+function ClickableArtistButton({ artistName, onArtistClick }: ClickableArtistButtonProps) {
+  const tapHandlers = useTapHandler({
+    onTap: () => {
+      if (onArtistClick) {
+        // Create a synthetic event for consistency with onClick handler
+        const syntheticEvent = { 
+          stopPropagation: () => {}, 
+          preventDefault: () => {} 
+        } as React.MouseEvent;
+        onArtistClick(syntheticEvent, artistName);
+      }
+    },
+  });
+
+  return (
+    <button
+      className="hover:underline hover:text-green-500 text-left cursor-pointer"
+      onClick={(e) => onArtistClick?.(e, artistName)}
+      onTouchStart={tapHandlers.onTouchStart}
+      onTouchMove={tapHandlers.onTouchMove}
+      onTouchEnd={tapHandlers.onTouchEnd}
+      onTouchCancel={tapHandlers.onTouchCancel}
+      title={`Search for tracks by "${artistName}"`}
+    >
+      {artistName}
+    </button>
+  );
+}
+
 interface ArtistCellProps extends CellProps {
   track: Track;
   /** Handler for clicking on an artist name to search */
@@ -96,36 +131,20 @@ export function ArtistCell({ isCompact, track, onArtistClick }: ArtistCellProps)
         {track.artistObjects && track.artistObjects.length > 0 ? (
           track.artistObjects.map((artist, idx) => (
             <span key={artist.id || artist.name}>
-              <button
-                className="hover:underline hover:text-green-500 text-left cursor-pointer"
-                onClick={(e) => onArtistClick?.(e, artist.name)}
-                onTouchEnd={(e) => {
-                  e.stopPropagation();
-                  e.preventDefault();
-                  onArtistClick?.(e as any, artist.name);
-                }}
-                title={`Search for tracks by "${artist.name}"`}
-              >
-                {artist.name}
-              </button>
+              <ClickableArtistButton 
+                artistName={artist.name}
+                {...(onArtistClick ? { onArtistClick } : {})}
+              />
               {idx < track.artistObjects!.length - 1 && ', '}
             </span>
           ))
         ) : (
           track.artists.map((artistName, idx) => (
             <span key={artistName}>
-              <button
-                className="hover:underline hover:text-green-500 text-left cursor-pointer"
-                onClick={(e) => onArtistClick?.(e, artistName)}
-                onTouchEnd={(e) => {
-                  e.stopPropagation();
-                  e.preventDefault();
-                  onArtistClick?.(e as any, artistName);
-                }}
-                title={`Search for tracks by "${artistName}"`}
-              >
-                {artistName}
-              </button>
+              <ClickableArtistButton 
+                artistName={artistName}
+                {...(onArtistClick ? { onArtistClick } : {})}
+              />
               {idx < track.artists.length - 1 && ', '}
             </span>
           ))
@@ -146,21 +165,35 @@ interface AlbumCellProps extends CellProps {
 }
 
 export function AlbumCell({ isCompact, track, onAlbumClick }: AlbumCellProps) {
+  const albumName = track.album?.name;
+  
+  const tapHandlers = useTapHandler({
+    onTap: () => {
+      if (albumName && onAlbumClick) {
+        // Create a synthetic event for consistency with onClick handler
+        const syntheticEvent = { 
+          stopPropagation: () => {}, 
+          preventDefault: () => {} 
+        } as React.MouseEvent;
+        onAlbumClick(syntheticEvent, albumName);
+      }
+    },
+  });
+
   return (
     <div className="min-w-0">
-      {track.album?.name && (
+      {albumName && (
         <div className={cn('text-muted-foreground truncate', isCompact ? 'text-xs' : 'text-sm')}>
           <button
             className="hover:underline hover:text-green-500 text-left cursor-pointer truncate max-w-full"
-            onClick={(e) => onAlbumClick?.(e, track.album!.name as string)}
-            onTouchEnd={(e) => {
-              e.stopPropagation();
-              e.preventDefault();
-              onAlbumClick?.(e as any, track.album!.name as string);
-            }}
-            title={`Search for tracks from "${track.album.name}"`}
+            onClick={(e) => onAlbumClick?.(e, albumName)}
+            onTouchStart={tapHandlers.onTouchStart}
+            onTouchMove={tapHandlers.onTouchMove}
+            onTouchEnd={tapHandlers.onTouchEnd}
+            onTouchCancel={tapHandlers.onTouchCancel}
+            title={`Search for tracks from "${albumName}"`}
           >
-            {track.album.name}
+            {albumName}
           </button>
         </div>
       )}
