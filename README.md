@@ -17,7 +17,7 @@ Playlist magic for Spotify. Edit multiple playlists side-by-side with drag-and-d
 - **Integrated Player** – Preview tracks without leaving the app
 - **Last.fm Import** – Import tracks from your Last.fm listening history (loved tracks, top tracks, weekly charts)
 - **Liked Songs Browser** – Access your entire library and copy favorites into playlists
-- **Track Recommendations** – Get AI-powered suggestions based on your playlist patterns
+- **Track Recommendations** – Get suggestions for your playlists
 - **Flexible Sorting** – Sort by position, title, artist, album, duration, or date added
 - **Save Sort as Order** – Apply any sort and save it permanently as the new playlist order
 - **Insert at Markers** – Mark multiple positions across playlists and insert tracks at all marked locations simultaneously

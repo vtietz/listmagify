@@ -26,9 +26,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { useSpotifyPlayer } from '@/hooks/useSpotifyPlayer';
-import { useToggleSavedTrack } from '@/hooks/useLikedTracks';
-import { useQuery } from '@tanstack/react-query';
-import { apiFetch } from '@/lib/api/client';
+import { useSavedTracksIndex } from '@/hooks/useSavedTracksIndex';
 import { DeviceSelector } from './DeviceSelector';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -69,31 +67,13 @@ export function MiniPlayer({ isVisible, onHide }: MiniPlayerProps) {
   const trackId = track?.id;
 
   // Query liked status for current track
-  const { data: likedData } = useQuery({
-    queryKey: ['track-liked', trackId],
-    queryFn: async () => {
-      if (!trackId) return false;
-      const result = await apiFetch<boolean[]>(`/api/tracks/contains?ids=${trackId}`);
-      return result[0] ?? false;
-    },
-    enabled: !!trackId,
-    staleTime: 30 * 1000,
-  });
-
-  const isLiked = likedData ?? false;
-
-  const toggleSaved = useToggleSavedTrack({
-    playlistId: 'player',
-    snapshotId: trackId ?? 'none',
-  });
+  const { isLiked: checkIsLiked, toggleLiked } = useSavedTracksIndex();
+  const isLiked = trackId ? checkIsLiked(trackId) : false;
 
   const handleToggleLike = useCallback(() => {
     if (!trackId) return;
-    toggleSaved.mutate({
-      trackId,
-      currentlyLiked: isLiked,
-    });
-  }, [trackId, isLiked, toggleSaved]);
+    toggleLiked(trackId, isLiked);
+  }, [trackId, isLiked, toggleLiked]);
 
   const handleDeviceClick = useCallback(() => {
     refreshDevices();

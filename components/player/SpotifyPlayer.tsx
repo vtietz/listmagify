@@ -11,11 +11,9 @@ import { useCallback, useState, useEffect, useRef } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import { useSpotifyPlayer } from '@/hooks/useSpotifyPlayer';
 import { useWebPlaybackSDK } from '@/hooks/useWebPlaybackSDK';
-import { useToggleSavedTrack } from '@/hooks/useLikedTracks';
+import { useSavedTracksIndex } from '@/hooks/useSavedTracksIndex';
 import { useInsertionPointsStore, computeInsertionPositions } from '@/hooks/useInsertionPointsStore';
 import { useAddTracks } from '@/lib/spotify/playlistMutations';
-import { useQuery } from '@tanstack/react-query';
-import { apiFetch } from '@/lib/api/client';
 import { DeviceSelector } from './DeviceSelector';
 import { TrackInfo } from './TrackInfo';
 import { PlaybackControls } from './PlaybackControls';
@@ -77,31 +75,13 @@ export function SpotifyPlayer({ forceShow = false }: SpotifyPlayerProps) {
   const hasActiveMarkers = playlistsWithMarkers.length > 0;
   const totalMarkers = playlistsWithMarkers.reduce((sum, [, data]) => sum + data.markers.length, 0);
 
-  const { data: likedData } = useQuery({
-    queryKey: ['track-liked', track?.id],
-    queryFn: async () => {
-      if (!track?.id) return false;
-      const result = await apiFetch<boolean[]>(`/api/tracks/contains?ids=${track.id}`);
-      return result[0] ?? false;
-    },
-    enabled: !!track?.id,
-    staleTime: 30 * 1000,
-  });
-
-  const isLiked = likedData ?? false;
-
-  const toggleSaved = useToggleSavedTrack({
-    playlistId: 'player',
-    snapshotId: track?.id ?? 'none',
-  });
+  const { isLiked, toggleLiked } = useSavedTracksIndex();
+  const trackIsLiked = track?.id ? isLiked(track.id) : false;
 
   const handleToggleLike = useCallback(() => {
     if (!track?.id) return;
-    toggleSaved.mutate({
-      trackId: track.id,
-      currentlyLiked: isLiked,
-    });
-  }, [track?.id, isLiked, toggleSaved]);
+    toggleLiked(track.id, trackIsLiked);
+  }, [track?.id, trackIsLiked, toggleLiked]);
 
   const handleAddToMarkers = useCallback(async () => {
     if (!track?.uri || isInserting) return;
@@ -244,7 +224,7 @@ export function SpotifyPlayer({ forceShow = false }: SpotifyPlayerProps) {
           <PlayerActions
             trackId={track.id}
             trackUri={track.uri}
-            isLiked={isLiked}
+            isLiked={trackIsLiked}
             hasActiveMarkers={hasActiveMarkers}
             totalMarkers={totalMarkers}
             isInserting={isInserting}
@@ -262,7 +242,7 @@ export function SpotifyPlayer({ forceShow = false }: SpotifyPlayerProps) {
           <PlayerActions
             trackId={track.id}
             trackUri={track.uri}
-            isLiked={isLiked}
+            isLiked={trackIsLiked}
             hasActiveMarkers={hasActiveMarkers}
             totalMarkers={totalMarkers}
             isInserting={isInserting}
