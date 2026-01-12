@@ -1,6 +1,7 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth/auth";
+import { serverEnv } from "@/lib/env";
 import { AuthPageLayout } from "@/components/auth/AuthPageLayout";
 import { LandingPageContent } from "@/components/landing/LandingPageContent";
 
@@ -18,6 +19,7 @@ type Props = {
 export default async function LoginPage({ searchParams }: Props) {
   const session = await getServerSession(authOptions);
   const { next, reason } = await searchParams;
+  const isAccessRequestEnabled = serverEnv.ACCESS_REQUEST_ENABLED ?? false;
 
   // Default return path if none specified
   const returnTo = next && next.startsWith("/") ? next : "/playlists";
@@ -47,6 +49,7 @@ export default async function LoginPage({ searchParams }: Props) {
         showMessage={showMessage}
         message={message}
         returnTo={returnTo}
+        isAccessRequestEnabled={isAccessRequestEnabled}
       />
     </AuthPageLayout>
   );

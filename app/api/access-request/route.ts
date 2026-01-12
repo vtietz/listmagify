@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { serverEnv } from '@/lib/env';
 import nodemailer from 'nodemailer';
 
 /**
@@ -9,7 +10,7 @@ import nodemailer from 'nodemailer';
  */
 export async function POST(request: NextRequest) {
   try {
-    if (process.env.NEXT_PUBLIC_ACCESS_REQUEST_ENABLED !== 'true') {
+    if (!serverEnv.ACCESS_REQUEST_ENABLED) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 

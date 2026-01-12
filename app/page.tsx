@@ -1,5 +1,6 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/auth";
+import { serverEnv } from "@/lib/env";
 import { AuthPageLayout } from "@/components/auth/AuthPageLayout";
 import { LandingPageContent } from "@/components/landing/LandingPageContent";
 
@@ -17,6 +18,7 @@ type Props = {
 export default async function Home({ searchParams }: Props) {
   const session = await getServerSession(authOptions);
   const { next, reason, error } = await searchParams;
+  const isAccessRequestEnabled = serverEnv.ACCESS_REQUEST_ENABLED ?? false;
 
   // Check for session error (e.g., revoked refresh token)
   const sessionError = (session as { error?: string } | null)?.error;
@@ -62,6 +64,7 @@ export default async function Home({ searchParams }: Props) {
         message={message}
         returnTo={returnTo}
         oauthError={error}
+        isAccessRequestEnabled={isAccessRequestEnabled}
       />
     </>
   );

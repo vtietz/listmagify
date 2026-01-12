@@ -31,6 +31,11 @@ const serverSchema = z.object({
     .string()
     .optional()
     .transform((val) => val === 'true'),
+  // Optional: enable access request feature
+  ACCESS_REQUEST_ENABLED: z
+    .string()
+    .optional()
+    .transform((val) => val === 'true'),
 });
 
 type ServerEnv = z.infer<typeof serverSchema>;
@@ -58,6 +63,7 @@ export const serverEnv: ServerEnv = (() => {
       SPOTIFY_CLIENT_SECRET: 'missing-client-secret',
       PLAYLIST_POLL_INTERVAL_SECONDS: undefined,
       BYOK_ENABLED: false,
+      ACCESS_REQUEST_ENABLED: false,
     };
   }
   return serverSchema.parse({
@@ -67,6 +73,7 @@ export const serverEnv: ServerEnv = (() => {
     SPOTIFY_CLIENT_SECRET: process.env.SPOTIFY_CLIENT_SECRET,
     PLAYLIST_POLL_INTERVAL_SECONDS: process.env.PLAYLIST_POLL_INTERVAL_SECONDS,
     BYOK_ENABLED: process.env.BYOK_ENABLED,
+    ACCESS_REQUEST_ENABLED: process.env.ACCESS_REQUEST_ENABLED,
   });
 })();
 

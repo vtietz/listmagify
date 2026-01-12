@@ -225,11 +225,11 @@ When Listmagify is running in Spotify development mode (limited users), the land
 
 To enable email delivery, configure SMTP and `CONTACT_EMAIL` in your `.env`.
 
-This feature is disabled by default. To enable it (UI + endpoint), set `NEXT_PUBLIC_ACCESS_REQUEST_ENABLED=true`.
+This feature is disabled by default. To enable it (UI + endpoint), set `ACCESS_REQUEST_ENABLED=true`.
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `NEXT_PUBLIC_ACCESS_REQUEST_ENABLED` | Show "Request Access" on landing and enable `POST /api/access-request` | `false` |
+| `ACCESS_REQUEST_ENABLED` | Show "Request Access" on landing and enable `POST /api/access-request` | `false` |
 
 ## Usage Analytics (Optional)
 

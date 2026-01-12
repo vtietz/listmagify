@@ -33,6 +33,7 @@ interface LandingPageContentProps {
   message: string | null;
   returnTo: string;
   oauthError?: string | undefined;
+  isAccessRequestEnabled: boolean;
 }
 
 export function LandingPageContent({
@@ -41,12 +42,10 @@ export function LandingPageContent({
   message,
   returnTo,
   oauthError,
+  isAccessRequestEnabled,
 }: LandingPageContentProps) {
   const router = useRouter();
   const panels = useSplitGridStore((state) => state.panels);
-
-  const isAccessRequestEnabled =
-    process.env.NEXT_PUBLIC_ACCESS_REQUEST_ENABLED === 'true';
 
   // Smart redirect for authenticated users clicking "Get Started"
   const handleGetStarted = () => {
@@ -77,7 +76,7 @@ export function LandingPageContent({
           )}
           
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            Professional playlist management for Spotify.<br />Edit multiple playlists side-by-side with drag-and-drop.
+            Professional playlist management for Spotify. Edit multiple playlists side-by-side with drag-and-drop.
           </p>
           <p className="text-sm text-muted-foreground">
             Open source • Free to use • Your data stays with Spotify
