@@ -285,15 +285,38 @@ export function PanelToolbar({
 
     // === TRACK OPTIONS GROUP ===
 
-    // DnD Mode Toggle (Copy mode)
-    if (playlistId && isEditable && !locked) {
+    // DnD Mode Options (Move/Copy mode) - only show if multiple panels exist
+    if (playlistId && isEditable && !locked && panelCount > 1) {
+      // Move mode option
       items.push({
-        id: 'dnd-mode',
-        icon: dndMode === 'move' ? <Move className="h-4 w-4" /> : <Copy className="h-4 w-4" />,
-        label: dndMode === 'move' ? 'Move mode' : 'Copy mode',
-        onClick: onDndModeToggle,
-        title: dndMode === 'move' ? 'Mode: Move (click to switch to Copy)' : 'Mode: Copy (click to switch to Move)',
+        id: 'move-mode',
+        icon: <Move className="h-4 w-4" />,
+        label: 'Move between panels',
+        onClick: () => {
+          if (dndMode !== 'move') {
+            onDndModeToggle();
+          }
+        },
+        title: 'When dragging tracks to another panel, move them (removes from source)',
         group: 'tracks',
+        showCheckmark: true,
+        isActive: dndMode === 'move',
+      });
+      
+      // Copy mode option
+      items.push({
+        id: 'copy-mode',
+        icon: <Copy className="h-4 w-4" />,
+        label: 'Copy between panels',
+        onClick: () => {
+          if (dndMode !== 'copy') {
+            onDndModeToggle();
+          }
+        },
+        title: 'When dragging tracks to another panel, duplicate them (keeps in source)',
+        group: 'tracks',
+        showCheckmark: true,
+        isActive: dndMode === 'copy',
       });
     }
 
