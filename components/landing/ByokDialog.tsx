@@ -257,11 +257,11 @@ export function ByokDialog({ trigger, onCredentialsSaved }: ByokDialogProps) {
                     Clear Credentials
                   </Button>
                 )}
-                <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-                  Cancel
-                </Button>
                 <Button type="submit" disabled={!clientId || !clientSecret}>
                   Save Credentials
+                </Button>
+                <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+                  Cancel
                 </Button>
               </DialogFooter>
             </form>
