@@ -1075,8 +1075,8 @@ function UserRegistrationChart({
   });
 
   const registrations = data?.data ?? [];
-  const maxNewUsers = Math.max(...registrations.map((d: RegisteredUsersPerDay) => d.newUsers), 1);
-  const maxCumulative = Math.max(...registrations.map((d: RegisteredUsersPerDay) => d.cumulativeUsers), 1);
+  const maxNewUsers = registrations.length > 0 ? Math.max(...registrations.map((d: RegisteredUsersPerDay) => d.newUsers), 1) : 1;
+  const maxCumulative = registrations.length > 0 ? Math.max(...registrations.map((d: RegisteredUsersPerDay) => d.cumulativeUsers), 1) : 1;
   const totalNewUsers = registrations.reduce((sum: number, d: RegisteredUsersPerDay) => sum + d.newUsers, 0);
 
   return (
@@ -1134,9 +1134,11 @@ function UserRegistrationChart({
               <div className="h-24 relative">
                 <svg className="w-full h-full" preserveAspectRatio="none">
                   <polyline
-                    points={registrations.map((d: RegisteredUsersPerDay, i: number) => 
-                      `${(i / (registrations.length - 1)) * 100},${100 - (d.cumulativeUsers / maxCumulative) * 100}`
-                    ).join(' ')}
+                    points={registrations.map((d: RegisteredUsersPerDay, i: number) => {
+                      const x = registrations.length > 1 ? (i / (registrations.length - 1)) * 100 : 50;
+                      const y = 100 - (d.cumulativeUsers / maxCumulative) * 100;
+                      return `${x},${y}`;
+                    }).join(' ')}
                     fill="none"
                     stroke="currentColor"
                     strokeWidth="2"
@@ -1144,9 +1146,11 @@ function UserRegistrationChart({
                     vectorEffect="non-scaling-stroke"
                   />
                   <polyline
-                    points={registrations.map((d: RegisteredUsersPerDay, i: number) => 
-                      `${(i / (registrations.length - 1)) * 100},${100 - (d.cumulativeUsers / maxCumulative) * 100}`
-                    ).join(' ') + ` 100,100 0,100`}
+                    points={registrations.map((d: RegisteredUsersPerDay, i: number) => {
+                      const x = registrations.length > 1 ? (i / (registrations.length - 1)) * 100 : 50;
+                      const y = 100 - (d.cumulativeUsers / maxCumulative) * 100;
+                      return `${x},${y}`;
+                    }).join(' ') + ` 100,100 0,100`}
                     fill="currentColor"
                     className="text-blue-500/20"
                   />
