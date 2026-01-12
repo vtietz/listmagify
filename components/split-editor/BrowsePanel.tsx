@@ -22,7 +22,7 @@ import { SearchPanel } from './SearchPanel';
 import { LastfmBrowseTab } from './LastfmBrowseTab';
 import { RecommendationsPanel } from './RecommendationsPanel';
 import { Button } from '@/components/ui/button';
-import { Search, Radio } from 'lucide-react';
+import { Search, Radio, X } from 'lucide-react';
 
 /** Re-export panel ID for backwards compatibility */
 export { SEARCH_PANEL_ID as BROWSE_PANEL_ID } from './SearchPanel';
@@ -182,6 +182,7 @@ export function BrowsePanel({ defaultTab, isMobileOverlay = false }: BrowsePanel
     toggleRecsExpanded,
     recsHeight,
     setRecsHeight,
+    close,
   } = useBrowsePanelStore();
   const panels = useSplitGridStore((state) => state.panels);
   

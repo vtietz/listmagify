@@ -99,6 +99,11 @@ export function ArtistCell({ isCompact, track, onArtistClick }: ArtistCellProps)
               <button
                 className="hover:underline hover:text-green-500 text-left cursor-pointer"
                 onClick={(e) => onArtistClick?.(e, artist.name)}
+                onTouchEnd={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  onArtistClick?.(e as any, artist.name);
+                }}
                 title={`Search for tracks by "${artist.name}"`}
               >
                 {artist.name}
@@ -112,6 +117,11 @@ export function ArtistCell({ isCompact, track, onArtistClick }: ArtistCellProps)
               <button
                 className="hover:underline hover:text-green-500 text-left cursor-pointer"
                 onClick={(e) => onArtistClick?.(e, artistName)}
+                onTouchEnd={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  onArtistClick?.(e as any, artistName);
+                }}
                 title={`Search for tracks by "${artistName}"`}
               >
                 {artistName}
@@ -137,12 +147,17 @@ interface AlbumCellProps extends CellProps {
 
 export function AlbumCell({ isCompact, track, onAlbumClick }: AlbumCellProps) {
   return (
-    <div className="hidden lg:block min-w-0">
+    <div className="min-w-0">
       {track.album?.name && (
         <div className={cn('text-muted-foreground truncate', isCompact ? 'text-xs' : 'text-sm')}>
           <button
             className="hover:underline hover:text-green-500 text-left cursor-pointer truncate max-w-full"
             onClick={(e) => onAlbumClick?.(e, track.album!.name as string)}
+            onTouchEnd={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              onAlbumClick?.(e as any, track.album!.name as string);
+            }}
             title={`Search for tracks from "${track.album.name}"`}
           >
             {track.album.name}

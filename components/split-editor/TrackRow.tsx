@@ -16,6 +16,8 @@ import { useCompactModeStore } from '@/hooks/useCompactModeStore';
 import { useBrowsePanelStore } from '@/hooks/useBrowsePanelStore';
 import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
 import { useContextMenuStore } from '@/hooks/useContextMenuStore';
+import { useDeviceType } from '@/hooks/useDeviceType';
+import { useMobileOverlayStore } from './MobileBottomNav';
 import { useInsertionMarkerToggle } from '@/hooks/useInsertionMarkerToggle';
 import { useRowSortable } from '@/hooks/useRowSortable';
 import { useLongPress } from '@/hooks/useLongPress';
@@ -194,6 +196,8 @@ export function TrackRow({
   const { open: openBrowsePanel, setSearchQuery } = useBrowsePanelStore();
   const togglePoint = useInsertionPointsStore((s) => s.togglePoint);
   const allPlaylists = useInsertionPointsStore((s) => s.playlists);
+  const { isPhone } = useDeviceType();
+  const setMobileOverlay = useMobileOverlayStore((s) => s.setActiveOverlay);
   
   // Always show play button regardless of player visibility
   const shouldShowPlayButton = true;
@@ -278,7 +282,11 @@ export function TrackRow({
     e.stopPropagation();
     e.preventDefault();
     setSearchQuery(`artist:"${artistName}"`);
-    openBrowsePanel();
+    if (isPhone) {
+      setMobileOverlay('search');
+    } else {
+      openBrowsePanel();
+    }
   };
   
   // Handler to search for album in browse panel
@@ -286,7 +294,11 @@ export function TrackRow({
     e.stopPropagation();
     e.preventDefault();
     setSearchQuery(`album:"${albumName}"`);
-    openBrowsePanel();
+    if (isPhone) {
+      setMobileOverlay('search');
+    } else {
+      openBrowsePanel();
+    }
   };
 
   const handleClick = (e: React.MouseEvent) => {

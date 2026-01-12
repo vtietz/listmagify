@@ -230,8 +230,8 @@ export function TableHeader({
       {/* Artist */}
       <div>{renderColumnHeader('Artist', 'artist')}</div>
 
-      {/* Album - hidden on small screens, but keep grid slot */}
-      <div className="hidden lg:block">{renderColumnHeader('Album', 'album')}</div>
+      {/* Album */}
+      <div>{renderColumnHeader('Album', 'album')}</div>
 
       {/* Year - sortable by release date */}
       <div className="flex items-center justify-center" title="Release Year">

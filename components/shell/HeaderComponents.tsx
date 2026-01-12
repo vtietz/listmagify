@@ -140,8 +140,8 @@ export function AdaptiveNav({
       isActive: isStatsActive,
       group: 'main',
     }] : []),
-    // Group 2: View controls (Browse and Player not shown on phone - handled by bottom nav)
-    ...(!isPhone && supportsBrowse ? [{
+    // Group 2: View controls (Player not shown on phone - handled by bottom nav)
+    ...(supportsBrowse ? [{
       id: 'browse',
       icon: <Search className="h-3.5 w-3.5" />,
       label: 'Browse',

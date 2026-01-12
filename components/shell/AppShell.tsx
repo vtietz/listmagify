@@ -14,6 +14,7 @@ import { SpotifyPlayer } from "@/components/player";
 import { BrowsePanel } from "@/components/split-editor/BrowsePanel";
 import { AppLogo } from "@/components/ui/app-logo";
 import { AppFooter } from "@/components/ui/app-footer";
+import { cn } from "@/lib/utils";
 import {
   AdaptiveNav,
   LoginButton,
@@ -119,9 +120,17 @@ export function AppShell({ headerTitle = "Listmagify", children }: AppShellProps
       <div className="flex-shrink-0 bg-background">
         <Header title={headerTitle} />
       </div>
-      <div className="flex-1 min-h-0 flex overflow-hidden">
+      <div className="flex-1 min-h-0 flex overflow-hidden relative">
         <main className="flex-1 min-w-0 overflow-auto">{children}</main>
-        {authenticated && isBrowsePanelOpen && !isPhone && <BrowsePanel />}
+        {authenticated && isBrowsePanelOpen && (
+          <div className={cn(
+            isPhone 
+              ? "absolute inset-0 z-50 bg-background" // Mobile: full-screen overlay
+              : "relative" // Desktop: side panel
+          )}>
+            <BrowsePanel isMobileOverlay={isPhone} />
+          </div>
+        )}
       </div>
       {/* On phone, player is handled by split-editor's bottom nav */}
       {!isPhone && (
