@@ -116,7 +116,7 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
   );
 
   // --- Droppable scroll area ---
-  const { scrollRef, scrollElement, scrollDroppableRef } = useDroppableScroll(
+  const { scrollRef, scrollDroppableRef } = useDroppableScroll(
     panelId,
     playlistId,
     canDropBasic
@@ -161,7 +161,7 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
     contextItems,
     rowHeight,
     isCompact,
-  } = useVirtualizerState(filteredTracks, scrollElement, panelId);
+  } = useVirtualizerState(filteredTracks, scrollRef, panelId);
 
   // --- Playlist mutations ---
   const mutations = usePlaylistMutations({

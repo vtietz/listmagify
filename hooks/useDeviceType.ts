@@ -10,7 +10,7 @@
 
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 
 export type DeviceType = 'phone' | 'tablet' | 'desktop';
 export type Orientation = 'portrait' | 'landscape';
@@ -52,6 +52,18 @@ export interface DeviceInfo {
   viewportHeight: number;
 }
 
+const DEFAULT_DEVICE_INFO: DeviceInfo = {
+  deviceType: 'desktop',
+  orientation: 'landscape',
+  hasTouch: false,
+  isPhone: false,
+  isTablet: false,
+  isDesktop: true,
+  maxPanels: MAX_PANELS_BY_DEVICE.desktop,
+  viewportWidth: 1920,
+  viewportHeight: 1080,
+};
+
 /**
  * Determine device type from viewport width.
  */
@@ -81,6 +93,93 @@ function checkTouchSupport(): boolean {
   );
 }
 
+function computeDeviceInfo(): DeviceInfo {
+  if (typeof window === 'undefined') return DEFAULT_DEVICE_INFO;
+
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+  const deviceType = getDeviceType(width);
+  const orientation = getOrientation(width, height);
+
+  // Landscape phones use desktop layout for better space utilization
+  // This makes isPhone=false so components render desktop mode
+  const isPhoneLandscape = deviceType === 'phone' && orientation === 'landscape';
+  const effectiveIsPhone = deviceType === 'phone' && !isPhoneLandscape;
+
+  return {
+    deviceType,
+    orientation,
+    hasTouch: checkTouchSupport(),
+    isPhone: effectiveIsPhone,
+    isTablet: deviceType === 'tablet',
+    isDesktop: deviceType === 'desktop' || isPhoneLandscape,
+    maxPanels: MAX_PANELS_BY_DEVICE[deviceType],
+    viewportWidth: width,
+    viewportHeight: height,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Shared store
+// ---------------------------------------------------------------------------
+
+let currentDeviceInfo: DeviceInfo = DEFAULT_DEVICE_INFO;
+let hasHydrated = false;
+let listenersAttached = false;
+const subscribers = new Set<() => void>();
+
+function emitChange() {
+  for (const callback of subscribers) callback();
+}
+
+function updateCurrentDeviceInfo(force: boolean = false) {
+  if (typeof window === 'undefined') return;
+  if (!hasHydrated && !force) return;
+
+  const next = computeDeviceInfo();
+
+  // Avoid spurious re-renders
+  if (
+    !force &&
+    next.deviceType === currentDeviceInfo.deviceType &&
+    next.orientation === currentDeviceInfo.orientation &&
+    next.hasTouch === currentDeviceInfo.hasTouch &&
+    next.viewportWidth === currentDeviceInfo.viewportWidth &&
+    next.viewportHeight === currentDeviceInfo.viewportHeight
+  ) {
+    return;
+  }
+
+  currentDeviceInfo = next;
+  emitChange();
+}
+
+function ensureWindowListeners() {
+  if (typeof window === 'undefined') return;
+  if (listenersAttached) return;
+  listenersAttached = true;
+
+  const handleChange = () => updateCurrentDeviceInfo();
+  window.addEventListener('resize', handleChange);
+  window.addEventListener('orientationchange', handleChange);
+}
+
+function subscribe(callback: () => void): () => void {
+  subscribers.add(callback);
+  ensureWindowListeners();
+  return () => {
+    subscribers.delete(callback);
+  };
+}
+
+function getSnapshot(): DeviceInfo {
+  return currentDeviceInfo;
+}
+
+function getServerSnapshot(): DeviceInfo {
+  return DEFAULT_DEVICE_INFO;
+}
+
 /**
  * Hook to detect device type, orientation, and touch support.
  * Re-evaluates on window resize and orientation change.
@@ -89,63 +188,16 @@ function checkTouchSupport(): boolean {
  * Actual device values are set after mount via useEffect.
  */
 export function useDeviceType(): DeviceInfo {
-  // Always start with desktop defaults for SSR/hydration consistency
-  // Actual device detection happens in useEffect after mount
-  const [deviceInfo, setDeviceInfo] = useState<DeviceInfo>({
-    deviceType: 'desktop',
-    orientation: 'landscape',
-    hasTouch: false,
-    isPhone: false,
-    isTablet: false,
-    isDesktop: true,
-    maxPanels: MAX_PANELS_BY_DEVICE.desktop,
-    viewportWidth: 1920,
-    viewportHeight: 1080,
-  });
+  // Shared store means device detection happens once per page load,
+  // instead of re-starting from defaults for each mounted component.
+  // We still keep SSR markup stable by only switching to real values after mount.
+  const deviceInfo = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
-  const updateDeviceInfo = useCallback(() => {
-    const width = window.innerWidth;
-    const height = window.innerHeight;
-    const deviceType = getDeviceType(width);
-    const orientation = getOrientation(width, height);
-    
-    // Landscape phones use desktop layout for better space utilization
-    // This makes isPhone=false so components render desktop mode
-    const isPhoneLandscape = deviceType === 'phone' && orientation === 'landscape';
-    const effectiveIsPhone = deviceType === 'phone' && !isPhoneLandscape;
-    
-    setDeviceInfo({
-      deviceType,
-      orientation,
-      hasTouch: checkTouchSupport(),
-      isPhone: effectiveIsPhone,
-      isTablet: deviceType === 'tablet',
-      isDesktop: deviceType === 'desktop' || isPhoneLandscape,
-      maxPanels: MAX_PANELS_BY_DEVICE[deviceType],
-      viewportWidth: width,
-      viewportHeight: height,
-    });
+  useEffect(() => {
+    hasHydrated = true;
+    ensureWindowListeners();
+    updateCurrentDeviceInfo(true);
   }, []);
-
-  useEffect(() => {
-    // Listen for resize events
-    window.addEventListener('resize', updateDeviceInfo);
-    
-    // Listen for orientation change (mobile browsers)
-    window.addEventListener('orientationchange', updateDeviceInfo);
-
-    // Cleanup
-    return () => {
-      window.removeEventListener('resize', updateDeviceInfo);
-      window.removeEventListener('orientationchange', updateDeviceInfo);
-    };
-  }, [updateDeviceInfo]);
-
-  // Sync with actual window dimensions on mount (after hydration)
-  useEffect(() => {
-    // Always update on mount to get actual device values
-    updateDeviceInfo();
-  }, [updateDeviceInfo]);
 
   return deviceInfo;
 }

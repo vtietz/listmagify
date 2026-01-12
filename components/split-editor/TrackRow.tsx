@@ -3,12 +3,13 @@
  * Renders a single track in a playlist panel.
  * 
  * Refactored to use extracted cell and action subcomponents for maintainability.
+ * Wrapped in React.memo to prevent unnecessary re-renders during scroll.
  */
 
 'use client';
 
 import * as React from 'react';
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, memo } from 'react';
 import { MoreHorizontal } from 'lucide-react';
 import type { Track } from '@/lib/spotify/types';
 import { cn } from '@/lib/utils';
@@ -142,7 +143,7 @@ interface TrackRowProps {
   selectedTracks?: Track[] | undefined;
 }
 
-export function TrackRow({
+function TrackRowComponent({
   track,
   index,
   selectionKey,
@@ -195,7 +196,7 @@ export function TrackRow({
   const { isCompact } = useCompactModeStore();
   const { open: openBrowsePanel, setSearchQuery } = useBrowsePanelStore();
   const togglePoint = useInsertionPointsStore((s) => s.togglePoint);
-  const allPlaylists = useInsertionPointsStore((s) => s.playlists);
+  const hasActiveMarkers = useInsertionPointsStore((s) => s.hasActiveMarkers);
   const { isPhone } = useDeviceType();
   const setMobileOverlay = useMobileOverlayStore((s) => s.setActiveOverlay);
   
@@ -205,8 +206,8 @@ export function TrackRow({
   // Global context menu store
   const openContextMenu = useContextMenuStore((s) => s.openMenu);
   
-  // Check if any markers exist across all playlists
-  const hasAnyMarkers = Object.values(allPlaylists).some((p) => p.markers.length > 0);
+  // Check if any markers exist across all playlists using the narrowed selector
+  const hasAnyMarkers = hasActiveMarkers();
   
   // Always show standard add column (unless using custom add column for Last.fm)
   const showStandardAddColumn = !showCustomAddColumn;
@@ -650,3 +651,6 @@ export function TrackRow({
     </div>
   );
 }
+
+/** Memoized TrackRow to prevent re-renders during scroll */
+export const TrackRow = memo(TrackRowComponent);

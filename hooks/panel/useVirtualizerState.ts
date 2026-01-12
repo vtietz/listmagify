@@ -1,5 +1,6 @@
 /**
  * Hook for virtualized track list state and management.
+ * Uses ref-based scroll element to avoid option churn.
  */
 
 'use client';
@@ -17,7 +18,7 @@ import type { Track } from '@/lib/spotify/types';
 
 export function useVirtualizerState(
   filteredTracks: Track[],
-  scrollElement: HTMLDivElement | null,
+  scrollRef: React.RefObject<HTMLDivElement | null>,
   panelId: string
 ) {
   const isCompact = useHydratedCompactMode();
@@ -26,7 +27,7 @@ export function useVirtualizerState(
 
   const virtualizer = useVirtualizer({
     count: deferredCount,
-    getScrollElement: () => scrollElement,
+    getScrollElement: () => scrollRef.current,
     estimateSize: () => rowHeight,
     overscan: VIRTUALIZATION_OVERSCAN,
   });

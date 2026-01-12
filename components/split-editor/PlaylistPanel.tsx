@@ -170,7 +170,13 @@ export function PlaylistPanel({
         ref={scrollDroppableRef}
         data-testid="track-list-scroll"
         className="flex-1 overflow-auto focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
-        style={{ paddingBottom: TRACK_ROW_HEIGHT * 2, overscrollBehaviorX: 'none', overscrollBehaviorY: 'contain' }}
+        style={{ 
+          paddingBottom: TRACK_ROW_HEIGHT * 2, 
+          overscrollBehaviorX: 'none', 
+          overscrollBehaviorY: 'contain',
+          willChange: 'scroll-position',
+          contain: 'strict',
+        }}
         role="listbox"
         aria-multiselectable="true"
         aria-activedescendant={state.focusedIndex !== null ? `option-${panelId}-${state.focusedIndex}` : undefined}

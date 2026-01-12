@@ -125,9 +125,6 @@ export function LastfmBrowseTab({ isActive = true }: LastfmBrowseTabProps) {
   const shouldShowContextMenu = contextMenu.isOpen && contextMenu.panelId === LASTFM_PANEL_ID;
   
   const scrollRef = useRef<HTMLDivElement>(null);
-  // Use state for scroll element to avoid flushSync during React render
-  // (virtualizer calls flushSync internally when scroll element changes)
-  const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   
   // Local input state for immediate feedback
@@ -290,10 +287,10 @@ export function LastfmBrowseTab({ isActive = true }: LastfmBrowseTabProps) {
   const deferredCount = useDeferredValue(allTracks.length);
   
   // Virtualizer for efficient rendering
-  // Uses scrollElement state instead of ref to avoid flushSync during render
+  // Uses ref-based scroll element to avoid option churn
   const virtualizer = useVirtualizer({
     count: deferredCount,
-    getScrollElement: () => scrollElement,
+    getScrollElement: () => scrollRef.current,
     estimateSize: () => rowHeight,
     overscan: VIRTUALIZATION_OVERSCAN,
   });
@@ -536,10 +533,7 @@ export function LastfmBrowseTab({ isActive = true }: LastfmBrowseTabProps) {
       {/* Results - scroll container is always rendered to keep virtualizer stable */}
       <div className="flex-1 min-h-0 overflow-hidden">
         <div
-          ref={(el) => {
-            (scrollRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
-            setScrollElement(el);
-          }}
+          ref={scrollRef}
           className="h-full overflow-auto"
         >
           {isLoading && debouncedUsername ? (

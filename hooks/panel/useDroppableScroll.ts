@@ -1,10 +1,11 @@
 /**
  * Hook for droppable scroll area with combined ref callback.
+ * Uses ref-only pattern to avoid state churn during scroll.
  */
 
 'use client';
 
-import { useRef, useCallback, useState } from 'react';
+import { useRef, useCallback } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 
 export function useDroppableScroll(
@@ -13,7 +14,6 @@ export function useDroppableScroll(
   canDropBasic: boolean
 ) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null);
 
   // Panel-level droppable
   const { setNodeRef: setDroppableRef } = useDroppable({
@@ -27,14 +27,12 @@ export function useDroppableScroll(
     (el: HTMLDivElement | null) => {
       (scrollRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
       setDroppableRef(el);
-      setScrollElement(el);
     },
     [setDroppableRef]
   );
 
   return {
     scrollRef,
-    scrollElement,
     scrollDroppableRef,
   };
 }

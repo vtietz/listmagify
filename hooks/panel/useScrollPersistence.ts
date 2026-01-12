@@ -1,10 +1,14 @@
 /**
  * Hook for persisting scroll position to store on scroll events.
+ * Uses RAF + time-based throttling to minimize store updates.
  */
 
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
+
+/** Minimum ms between store updates to avoid excessive writes */
+const THROTTLE_MS = 150;
 
 interface UseScrollPersistenceOptions {
   panelId: string;
@@ -17,11 +21,38 @@ export function useScrollPersistence({
   scrollRef,
   setScroll,
 }: UseScrollPersistenceOptions) {
+  const rafRef = useRef<number | null>(null);
+  const lastValueRef = useRef(0);
+  const lastWriteRef = useRef(0);
+
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    const handleScroll = () => setScroll(panelId, el.scrollTop);
+
+    const handleScroll = () => {
+      lastValueRef.current = el.scrollTop;
+      
+      // Schedule RAF-batched update if not already pending
+      if (rafRef.current === null) {
+        rafRef.current = requestAnimationFrame(() => {
+          rafRef.current = null;
+          
+          // Time-based throttle: skip if we wrote recently
+          const now = performance.now();
+          if (now - lastWriteRef.current < THROTTLE_MS) return;
+          
+          lastWriteRef.current = now;
+          setScroll(panelId, lastValueRef.current);
+        });
+      }
+    };
+
     el.addEventListener('scroll', handleScroll, { passive: true });
-    return () => el.removeEventListener('scroll', handleScroll);
+    return () => {
+      el.removeEventListener('scroll', handleScroll);
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+      }
+    };
   }, [panelId, setScroll, scrollRef]);
 }

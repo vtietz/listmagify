@@ -173,12 +173,11 @@ export function VirtualizedTrackListContainer({
           if (!track) return null;
           
           const selectionId = selectionKey(track, virtualRow.index);
-          const trackId = track.id || track.uri;
           const positionActual = track.position ?? virtualRow.index;
 
           return (
             <div
-              key={`${panelId}-${trackId}-${virtualRow.index}`}
+              key={`${panelId}-${selectionId}`}
               style={{
                 position: 'absolute',
                 top: 0,
@@ -186,6 +185,8 @@ export function VirtualizedTrackListContainer({
                 width: '100%',
                 height: `${virtualRow.size}px`,
                 transform: `translateY(${virtualRow.start}px)`,
+                contain: 'layout style paint',
+                contentVisibility: 'auto',
               }}
             >
               <TrackRow
