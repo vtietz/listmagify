@@ -4,7 +4,7 @@
 
 'use client';
 
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useMemo } from 'react';
 import { useCompareModeStore, getTrackCompareColor } from '@/hooks/useCompareModeStore';
 import type { Track } from '@/lib/spotify/types';
 
@@ -18,17 +18,27 @@ export function useCompareModeIntegration(
   const registerPanelTracks = useCompareModeStore((s) => s.registerPanelTracks);
   const unregisterPanel = useCompareModeStore((s) => s.unregisterPanel);
 
-  // Register tracks when playlist loads or changes
+  // Memoize track URIs to avoid re-registration when tracks array reference changes
+  // but actual URIs are the same (e.g., query re-fetches)
+  const trackUris = useMemo(() => {
+    if (!tracks || tracks.length === 0) return [];
+    return tracks.map((t: Track) => t.uri);
+  }, [tracks]);
+
+  // Serialize URIs for dependency comparison (only re-register if URIs actually changed)
+  const urisKey = useMemo(() => trackUris.join('|'), [trackUris]);
+
+  // Register tracks when playlist loads or URIs actually change
   useEffect(() => {
-    if (!playlistId || !tracks || tracks.length === 0) {
+    if (!playlistId || trackUris.length === 0) {
       unregisterPanel(panelId);
       return;
     }
-    const uris = tracks.map((t: Track) => t.uri);
-    registerPanelTracks(panelId, uris);
+    registerPanelTracks(panelId, trackUris);
 
     return () => unregisterPanel(panelId);
-  }, [panelId, playlistId, tracks, registerPanelTracks, unregisterPanel]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [panelId, playlistId, urisKey, registerPanelTracks, unregisterPanel]);
 
   const getCompareColorForTrack = useCallback(
     (trackUri: string) => {

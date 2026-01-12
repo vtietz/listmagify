@@ -79,6 +79,20 @@ export const useCompareModeStore = create<CompareModeState>()(
       
       registerPanelTracks: (panelId: string, trackUris: string[]) => {
         const current = get().panelTracks;
+        const existingUris = current.get(panelId);
+        
+        // Skip if URIs haven't changed (array equality check)
+        if (existingUris && existingUris.length === trackUris.length) {
+          let identical = true;
+          for (let i = 0; i < trackUris.length; i++) {
+            if (existingUris[i] !== trackUris[i]) {
+              identical = false;
+              break;
+            }
+          }
+          if (identical) return; // No change needed
+        }
+        
         const newMap = new Map(current);
         newMap.set(panelId, trackUris);
         set({
