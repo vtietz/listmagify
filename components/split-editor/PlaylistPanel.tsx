@@ -144,6 +144,7 @@ export function PlaylistPanel({
         selectionCount={state.selection.size}
         panelCount={state.panelCount}
         hasTracks={state.hasTracks}
+        hasDuplicates={state.hasDuplicates}
         isDeletingDuplicates={state.isDeletingDuplicates}
         onOpenSelectionMenu={handleOpenSelectionMenu}
         onClearSelection={state.clearSelection}

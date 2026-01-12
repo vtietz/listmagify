@@ -389,5 +389,6 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
     handleDeleteTrackDuplicates: duplicates.handleDeleteTrackDuplicates,
     isDeletingDuplicates: duplicates.isDeletingDuplicates,
     hasTracks: filteredTracks.length > 0,
+    hasDuplicates: duplicates.duplicateUris.size > 0,
   };
 }

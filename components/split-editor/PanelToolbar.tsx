@@ -70,6 +70,8 @@ interface PanelToolbarProps {
   panelCount?: number;
   /** Whether the playlist has tracks */
   hasTracks?: boolean;
+  /** Whether the playlist has duplicate tracks */
+  hasDuplicates?: boolean;
   /** Whether duplicate removal is in progress */
   isDeletingDuplicates?: boolean;
   onSearchChange: (query: string) => void;
@@ -107,6 +109,7 @@ export function PanelToolbar({
   onClearSelection: _onClearSelection,
   panelCount = 1,
   hasTracks = false,
+  hasDuplicates = false,
   isDeletingDuplicates = false,
   onSearchChange,
   onSortChange: _onSortChange,
@@ -159,10 +162,10 @@ export function PanelToolbar({
     return () => observer.disconnect();
   }, []);
 
-  const handleSearchChange = (value: string) => {
+  const handleSearchChange = useCallback((value: string) => {
     setLocalSearch(value);
     onSearchChange(value);
-  };
+  }, [onSearchChange]);
 
   const handleUpdatePlaylist = useCallback(async (values: { name: string; description: string }) => {
     if (!playlistId) return;
@@ -298,7 +301,7 @@ export function PanelToolbar({
           }
         },
         title: 'When dragging tracks to another panel, move them (removes from source)',
-        group: 'tracks',
+        group: 'drag-mode',
         showCheckmark: true,
         isActive: dndMode === 'move',
       });
@@ -314,14 +317,14 @@ export function PanelToolbar({
           }
         },
         title: 'When dragging tracks to another panel, duplicate them (keeps in source)',
-        group: 'tracks',
+        group: 'drag-mode',
         showCheckmark: true,
         isActive: dndMode === 'copy',
       });
     }
 
-    // Delete duplicates
-    if (playlistId && isEditable && !locked && hasTracks && onDeleteDuplicates) {
+    // Delete duplicates - only show when duplicates exist
+    if (playlistId && isEditable && !locked && hasDuplicates && onDeleteDuplicates) {
       items.push({
         id: 'delete-duplicates',
         icon: isDeletingDuplicates 
@@ -420,11 +423,11 @@ export function PanelToolbar({
 
     return items;
   }, [
-    playlistId, hasTracks, onPlayFirst, isEditable, locked, onDeleteDuplicates, isDeletingDuplicates,
+    playlistId, hasTracks, onPlayFirst, isEditable, locked, onDeleteDuplicates, hasDuplicates, isDeletingDuplicates,
     isReloading, onReload, dndMode, onDndModeToggle, onLockToggle, canEditPlaylistInfo,
     isSorted, onSaveCurrentOrder, isSavingOrder, insertionMarkerCount, onClearInsertionMarkers,
     showSplitCommands, canSplitHorizontal, onSplitHorizontal, onSplitVertical,
-    isPhone, isLastPanel, onClose, disableClose, selectionCount, onOpenSelectionMenu, isUltraCompact
+    isPhone, isLastPanel, onClose, disableClose, selectionCount, onOpenSelectionMenu, panelCount
   ]);
 
   return (
