@@ -98,8 +98,6 @@ interface TrackRowProps {
   hourNumber?: number;
   /** Whether to allow toggling insertion markers (disabled when search/filter is active) */
   allowInsertionMarkerToggle?: boolean;
-  /** Whether to hide the built-in AddToMarkedButton (for custom implementations) */
-  hideAddToMarkedButton?: boolean;
   /** Render function for prefix columns (e.g., match status indicator) - rendered as first grid cells */
   renderPrefixColumns?: () => React.ReactNode;
   /** Whether to show match status column (affects grid layout) */
@@ -170,7 +168,6 @@ export function TrackRow({
   crossesHourBoundary = false,
   hourNumber = 0,
   allowInsertionMarkerToggle = true,
-  hideAddToMarkedButton = false,
   renderPrefixColumns,
   showMatchStatusColumn = false,
   showCustomAddColumn = false,
@@ -207,8 +204,8 @@ export function TrackRow({
   // Check if any markers exist across all playlists
   const hasAnyMarkers = Object.values(allPlaylists).some((p) => p.markers.length > 0);
   
-  // Don't show standard add column if using custom add column
-  const showStandardAddColumn = hasAnyMarkers && !showCustomAddColumn && !hideAddToMarkedButton;
+  // Always show standard add column (unless using custom add column for Last.fm)
+  const showStandardAddColumn = !showCustomAddColumn;
   
   // Mobile drag handle visibility - must be called before getTrackGridStyle
   const { showHandle, handleOnlyDrag } = useDragHandle();

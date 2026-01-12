@@ -8,11 +8,13 @@ import { useState, useCallback } from 'react';
 import { Heart, Plus, Volume2, VolumeX, MonitorSpeaker, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { AddToPlaylistDialog } from '@/components/playlist/AddToPlaylistDialog';
 import { cn } from '@/lib/utils';
 
 interface PlayerActionsProps {
   trackId: string | null;
   trackUri: string | null;
+  trackName: string | null;
   isLiked: boolean;
   hasActiveMarkers: boolean;
   totalMarkers: number;
@@ -30,6 +32,7 @@ interface PlayerActionsProps {
 export function PlayerActions({
   trackId,
   trackUri,
+  trackName,
   isLiked,
   hasActiveMarkers,
   totalMarkers,
@@ -44,6 +47,7 @@ export function PlayerActions({
   onDeviceClick,
 }: PlayerActionsProps) {
   const [isVolumePopoverOpen, setIsVolumePopoverOpen] = useState(false);
+  const [showPlaylistDialog, setShowPlaylistDialog] = useState(false);
 
   const handleVolumeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const volume = parseInt(e.target.value, 10);
@@ -53,6 +57,14 @@ export function PlayerActions({
   const handleMuteToggle = useCallback(() => {
     onSetVolume(volumePercent ? 0 : 50);
   }, [volumePercent, onSetVolume]);
+
+  const handleAddClick = useCallback(() => {
+    if (hasActiveMarkers) {
+      onAddToMarkers();
+    } else {
+      setShowPlaylistDialog(true);
+    }
+  }, [hasActiveMarkers, onAddToMarkers]);
 
   if (isMobile) {
     return (
@@ -71,14 +83,21 @@ export function PlayerActions({
             </Button>
           )}
           
-          {trackUri && hasActiveMarkers && (
+          {trackUri && (
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 text-green-500"
-              onClick={onAddToMarkers}
+              className={cn(
+                'h-8 w-8',
+                hasActiveMarkers ? 'text-orange-500' : 'text-muted-foreground'
+              )}
+              onClick={handleAddClick}
               disabled={isInserting}
-              title={`Add to ${totalMarkers} marked position${totalMarkers > 1 ? 's' : ''}`}
+              title={
+                hasActiveMarkers
+                  ? `Add to ${totalMarkers} marked position${totalMarkers > 1 ? 's' : ''}`
+                  : 'Add to playlist'
+              }
             >
               {isInserting ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -169,14 +188,21 @@ export function PlayerActions({
         </Button>
       )}
       
-      {trackUri && hasActiveMarkers && (
+      {trackUri && (
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8 shrink-0 text-green-500"
-          onClick={onAddToMarkers}
+          className={cn(
+            'h-8 w-8 shrink-0',
+            hasActiveMarkers ? 'text-orange-500' : 'text-muted-foreground'
+          )}
+          onClick={handleAddClick}
           disabled={isInserting}
-          title={`Add to ${totalMarkers} marked position${totalMarkers > 1 ? 's' : ''}`}
+          title={
+            hasActiveMarkers
+              ? `Add to ${totalMarkers} marked position${totalMarkers > 1 ? 's' : ''}`
+              : 'Add to playlist'
+          }
         >
           {isInserting ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -222,6 +248,16 @@ export function PlayerActions({
       >
         <MonitorSpeaker className="h-4 w-4" />
       </Button>
+
+      {/* Playlist selector dialog (when no markers) */}
+      {trackUri && trackName && (
+        <AddToPlaylistDialog
+          isOpen={showPlaylistDialog}
+          onClose={() => setShowPlaylistDialog(false)}
+          trackUri={trackUri}
+          trackName={trackName}
+        />
+      )}
     </div>
   );
 }

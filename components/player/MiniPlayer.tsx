@@ -21,16 +21,21 @@ import {
   SkipBack,
   SkipForward,
   Heart,
+  Plus,
   MonitorSpeaker,
   X,
   Loader2,
 } from 'lucide-react';
 import { useSpotifyPlayer } from '@/hooks/useSpotifyPlayer';
 import { useSavedTracksIndex } from '@/hooks/useSavedTracksIndex';
+import { useInsertionPointsStore, computeInsertionPositions } from '@/hooks/useInsertionPointsStore';
+import { useAddTracks } from '@/lib/spotify/playlistMutations';
+import { AddToPlaylistDialog } from '@/components/playlist/AddToPlaylistDialog';
 import { DeviceSelector } from './DeviceSelector';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { formatDuration } from '@/lib/utils/format';
+import { toast } from '@/lib/ui/toast';
 
 interface MiniPlayerProps {
   /** Whether to show the mini player (controlled externally) */
@@ -70,10 +75,62 @@ export function MiniPlayer({ isVisible, onHide }: MiniPlayerProps) {
   const { isLiked: checkIsLiked, toggleLiked } = useSavedTracksIndex();
   const isLiked = trackId ? checkIsLiked(trackId) : false;
 
+  // Insertion markers state
+  const playlists = useInsertionPointsStore((s) => s.playlists);
+  const shiftAfterMultiInsert = useInsertionPointsStore((s) => s.shiftAfterMultiInsert);
+  const addTracksMutation = useAddTracks();
+  const [isInserting, setIsInserting] = useState(false);
+  const [showPlaylistDialog, setShowPlaylistDialog] = useState(false);
+
+  const playlistsWithMarkers = Object.entries(playlists).filter(
+    ([, data]) => data.markers.length > 0
+  );
+  const hasActiveMarkers = playlistsWithMarkers.length > 0;
+  const totalMarkers = playlistsWithMarkers.reduce((sum, [, data]) => sum + data.markers.length, 0);
+
   const handleToggleLike = useCallback(() => {
     if (!trackId) return;
     toggleLiked(trackId, isLiked);
   }, [trackId, isLiked, toggleLiked]);
+
+  const handleAddToMarkers = useCallback(async () => {
+    if (!track?.uri || isInserting) return;
+
+    setIsInserting(true);
+    try {
+      let insertedCount = 0;
+
+      for (const [playlistId, data] of playlistsWithMarkers) {
+        if (data.markers.length === 0) continue;
+
+        const positions = computeInsertionPositions(data.markers, 1);
+
+        await addTracksMutation.mutateAsync({
+          playlistId,
+          trackUris: [track.uri],
+          position: positions[0]!.effectiveIndex,
+        });
+
+        insertedCount++;
+        shiftAfterMultiInsert(playlistId);
+      }
+
+      toast.success(`Added "${track.name}" to ${insertedCount} playlist${insertedCount > 1 ? 's' : ''} (${totalMarkers} marker${totalMarkers > 1 ? 's' : ''})`);
+    } catch (error) {
+      console.error('[MiniPlayer] Failed to add to markers:', error);
+      toast.error('Failed to add track to markers');
+    } finally {
+      setIsInserting(false);
+    }
+  }, [track, isInserting, playlistsWithMarkers, totalMarkers, addTracksMutation, shiftAfterMultiInsert]);
+
+  const handleAddClick = useCallback(() => {
+    if (hasActiveMarkers) {
+      handleAddToMarkers();
+    } else {
+      setShowPlaylistDialog(true);
+    }
+  }, [hasActiveMarkers, handleAddToMarkers]);
 
   const handleDeviceClick = useCallback(() => {
     refreshDevices();
@@ -154,9 +211,10 @@ export function MiniPlayer({ isVisible, onHide }: MiniPlayerProps) {
             </div>
           </div>
 
-          {/* Time display */}
-          <div className="text-[10px] text-muted-foreground tabular-nums shrink-0">
-            {formatDuration(localProgress)} / {formatDuration(durationMs)}
+          {/* Time display - stacked vertically to save horizontal space */}
+          <div className="text-[10px] text-muted-foreground tabular-nums shrink-0 flex flex-col items-end leading-tight">
+            <div>{formatDuration(localProgress)}</div>
+            <div>{formatDuration(durationMs)}</div>
           </div>
 
           {/* Control buttons */}
@@ -215,6 +273,31 @@ export function MiniPlayer({ isVisible, onHide }: MiniPlayerProps) {
               </Button>
             )}
 
+            {/* Plus/Add button */}
+            {track.uri && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className={cn(
+                  'h-7 w-7',
+                  hasActiveMarkers ? 'text-orange-500' : 'text-muted-foreground'
+                )}
+                onClick={handleAddClick}
+                disabled={isInserting}
+                title={
+                  hasActiveMarkers
+                    ? `Add to ${totalMarkers} marked position${totalMarkers > 1 ? 's' : ''}`
+                    : 'Add to playlist'
+                }
+              >
+                {isInserting ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Plus className="h-3.5 w-3.5" />
+                )}
+              </Button>
+            )}
+
             {/* Device selector */}
             <Button
               variant="ghost"
@@ -237,6 +320,16 @@ export function MiniPlayer({ isVisible, onHide }: MiniPlayerProps) {
           </div>
         </div>
       </div>
+
+      {/* Playlist selector dialog (when no markers) */}
+      {track.uri && track.name && (
+        <AddToPlaylistDialog
+          isOpen={showPlaylistDialog}
+          onClose={() => setShowPlaylistDialog(false)}
+          trackUri={track.uri}
+          trackName={track.name}
+        />
+      )}
 
       <DeviceSelector
         isOpen={isDeviceSelectorOpen}

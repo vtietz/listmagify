@@ -84,7 +84,6 @@ function DragOverlayContent({
             onClick={() => {}}
             showLikedColumn={false}
             showCumulativeTime={false}
-            hideAddToMarkedButton={true}
           />
         ))}
       </div>

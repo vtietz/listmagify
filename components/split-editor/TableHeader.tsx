@@ -7,7 +7,6 @@
 
 import { ArrowUp, ArrowDown, Heart, Play, Plus, TrendingUp, Calendar, Users, Timer, Radio, GripVertical } from 'lucide-react';
 import { useCompactModeStore } from '@/hooks/useCompactModeStore';
-import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
 import { useDragHandle } from './DragHandle';
 import type { SortKey, SortDirection } from '@/hooks/usePlaylistSort';
 
@@ -120,18 +119,14 @@ export function TableHeader({
   const SortIcon = sortDirection === 'asc' ? ArrowUp : ArrowDown;
   const { isCompact } = useCompactModeStore();
   
-  // Get visibility states from stores
-  const playlists = useInsertionPointsStore((s) => s.playlists);
-  const hasAnyMarkers = Object.values(playlists).some((p) => p.markers.length > 0);
-  
   // Always show play button regardless of player visibility
   const shouldShowPlayButton = true;
   
   // Mobile drag handle visibility (matches TrackRow)
   const { showHandle: showDragHandle } = useDragHandle();
   
-  // Don't show standard add column if using custom add column
-  const showStandardAddColumn = hasAnyMarkers && !showCustomAddColumn;
+  // Always show standard add column (unless using custom add column for Last.fm)
+  const showStandardAddColumn = !showCustomAddColumn;
   
   // Dynamic grid style based on visible columns
   const gridStyle = getTrackGridStyle(

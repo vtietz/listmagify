@@ -13,6 +13,7 @@ import { useSplitGridStore, flattenPanels } from '@/hooks/useSplitGridStore';
 import { useAddTracks, useReorderTracks } from '@/lib/spotify/playlistMutations';
 import { useCompactModeStore } from '@/hooks/useCompactModeStore';
 import { usePlaylistTrackCheck, type DuplicateCheckResult } from '@/hooks/usePlaylistTrackCheck';
+import { AddToPlaylistDialog } from '@/components/playlist/AddToPlaylistDialog';
 import { cn } from '@/lib/utils';
 import { useState, useCallback } from 'react';
 import {
@@ -58,6 +59,7 @@ export function AddToMarkedButton({
   const [isInserting, setIsInserting] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
+  const [showPlaylistDialog, setShowPlaylistDialog] = useState(false);
   const [duplicateInfo, setDuplicateInfo] = useState<{
     results: DuplicateCheckResult[];
     playlistsWithDuplicates: string[];
@@ -156,7 +158,13 @@ export function AddToMarkedButton({
     e.stopPropagation();
     e.preventDefault();
 
-    if (!hasActiveMarkers || isInserting) return;
+    if (isInserting) return;
+
+    // If no markers, show playlist dialog
+    if (!hasActiveMarkers) {
+      setShowPlaylistDialog(true);
+      return;
+    }
 
     // Show confirmation dialog if there are markers in hidden playlists
     if (hiddenPlaylistCount > 0) {
@@ -258,23 +266,25 @@ export function AddToMarkedButton({
     <>
       <button
         onClick={handleClick}
-        disabled={!hasActiveMarkers || isInserting}
+        disabled={isInserting}
         className={cn(
           'flex items-center justify-center rounded transition-all',
           isCompact ? 'h-5 w-5' : 'h-6 w-6',
           hasActiveMarkers && !isInserting
             ? 'text-orange-500 hover:scale-110 hover:bg-orange-500 hover:text-white'
+            : !isInserting
+            ? 'text-muted-foreground hover:scale-110 hover:text-foreground'
             : 'text-muted-foreground/30 cursor-not-allowed',
         )}
         title={
           hasActiveMarkers
             ? `Add to ${totalMarkers} marked position${totalMarkers > 1 ? 's' : ''}`
-            : 'No insertion points marked'
+            : 'Add to playlist'
         }
         aria-label={
           hasActiveMarkers
             ? `Add ${trackName} to ${totalMarkers} marked insertion points`
-            : 'Add to marked insertion points (no markers set)'
+            : 'Add to playlist'
         }
       >
         {isInserting ? (
@@ -283,6 +293,14 @@ export function AddToMarkedButton({
           <Plus className={isCompact ? 'h-3 w-3' : 'h-4 w-4'} />
         )}
       </button>
+
+      {/* Playlist selector dialog (when no markers) */}
+      <AddToPlaylistDialog
+        isOpen={showPlaylistDialog}
+        onClose={() => setShowPlaylistDialog(false)}
+        trackUri={trackUri}
+        trackName={trackName}
+      />
 
       <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <AlertDialogContent>

@@ -224,6 +224,7 @@ export function SpotifyPlayer({ forceShow = false }: SpotifyPlayerProps) {
           <PlayerActions
             trackId={track.id}
             trackUri={track.uri}
+            trackName={track.name}
             isLiked={trackIsLiked}
             hasActiveMarkers={hasActiveMarkers}
             totalMarkers={totalMarkers}
@@ -242,6 +243,7 @@ export function SpotifyPlayer({ forceShow = false }: SpotifyPlayerProps) {
           <PlayerActions
             trackId={track.id}
             trackUri={track.uri}
+            trackName={track.name}
             isLiked={trackIsLiked}
             hasActiveMarkers={hasActiveMarkers}
             totalMarkers={totalMarkers}
