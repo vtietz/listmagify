@@ -141,7 +141,8 @@ export function AdaptiveNav({
       group: 'main',
     }] : []),
     // Group 2: View controls (Player not shown on phone - handled by bottom nav)
-    ...(supportsBrowse ? [{
+    // Browse not shown on phone - browse panel doesn't work well on small screens
+    ...(!isPhone && supportsBrowse ? [{
       id: 'browse',
       icon: <Search className="h-3.5 w-3.5" />,
       label: 'Browse',

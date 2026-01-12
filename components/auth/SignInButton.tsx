@@ -11,7 +11,7 @@ type Props = {
 export function SignInButton({ 
   label = "Sign in with Spotify", 
   className,
-  callbackUrl = "/playlists"
+  callbackUrl = "/split-editor"
 }: Props) {
   return (
     <button

@@ -13,7 +13,7 @@ interface ByokSignInButtonProps {
  * Button component for signing in with BYOK credentials.
  * Shows different states: not configured, configured, or loading.
  */
-export function ByokSignInButton({ callbackUrl = '/playlists' }: ByokSignInButtonProps) {
+export function ByokSignInButton({ callbackUrl = '/split-editor' }: ByokSignInButtonProps) {
   const { credentials, hasCredentials, isLoaded } = useByokCredentials();
   const [isLoading, setIsLoading] = useState(false);
   const [byokEnabled, setByokEnabled] = useState<boolean | null>(null);

@@ -22,7 +22,7 @@ export default async function LoginPage({ searchParams }: Props) {
   const isAccessRequestEnabled = serverEnv.ACCESS_REQUEST_ENABLED ?? false;
 
   // Default return path if none specified
-  const returnTo = next && next.startsWith("/") ? next : "/playlists";
+  const returnTo = next && next.startsWith("/") ? next : "/split-editor";
 
   // Check for session error (e.g., revoked refresh token)
   const sessionError = (session as { error?: string } | null)?.error;

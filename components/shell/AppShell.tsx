@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { useBrowsePanelStore } from "@/hooks/useBrowsePanelStore";
 import { usePlayerStore } from "@/hooks/usePlayerStore";
@@ -39,8 +39,16 @@ type AppShellProps = {
 export function AppShell({ headerTitle = "Listmagify", children }: AppShellProps) {
   const pathname = usePathname();
   const isBrowsePanelOpen = useBrowsePanelStore((state) => state.isOpen);
+  const closeBrowsePanel = useBrowsePanelStore((state) => state.close);
   const { authenticated } = useSessionUser();
   const { isPhone } = useDeviceType();
+
+  // Auto-close browse panel on phone - it doesn't work well on small screens
+  useEffect(() => {
+    if (isPhone && isBrowsePanelOpen) {
+      closeBrowsePanel();
+    }
+  }, [isPhone, isBrowsePanelOpen, closeBrowsePanel]);
 
   const isLandingPage = pathname === "/";
   

@@ -25,7 +25,7 @@ export default async function Home({ searchParams }: Props) {
   const hasValidSession = session && !sessionError;
 
   // Default return path for sign-in button
-  const returnTo = next && next.startsWith("/") ? next : "/playlists";
+  const returnTo = next && next.startsWith("/") ? next : "/split-editor";
 
   // Determine message based on reason or session error
   const showMessage = reason === "expired" || !!sessionError || reason === "unauthenticated";
