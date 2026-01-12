@@ -181,14 +181,6 @@ export function ByokDialog({ trigger, onCredentialsSaved }: ByokDialogProps) {
                 </ol>
               </div>
 
-              <div className="flex items-start gap-2 text-xs bg-blue-500/10 border border-blue-500/20 rounded-lg p-2 sm:p-3">
-                <AlertTriangle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-500 shrink-0 mt-0.5" />
-                <div className="text-xs text-muted-foreground">
-                  <span className="font-medium text-foreground">Important:</span>{' '}
-                  Use your <strong>real full name</strong> when creating the Spotify app. This is required by Spotify&apos;s terms of service.
-                </div>
-              </div>
-
               <div className="flex items-start gap-2 text-xs text-muted-foreground bg-amber-500/10 border border-amber-500/20 rounded-lg p-2 sm:p-3">
                 <AlertTriangle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-amber-500 shrink-0 mt-0.5" />
                 <div className="text-xs">

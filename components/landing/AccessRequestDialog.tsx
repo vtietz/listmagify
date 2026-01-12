@@ -14,18 +14,19 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { UserPlus, Loader2, CheckCircle } from 'lucide-react';
+import { UserPlus, Loader2, CheckCircle, AlertTriangle } from 'lucide-react';
 
 interface AccessRequestDialogProps {
-  trigger?: React.ReactNode;
+  trigger?: React.ReactNode | null;
+  defaultOpen?: boolean;
 }
 
 /**
  * Dialog for users to request access to the app while in Spotify development mode.
  * Collects name and email, sends request to backend which emails the admin.
  */
-export function AccessRequestDialog({ trigger }: AccessRequestDialogProps) {
-  const [open, setOpen] = useState(false);
+export function AccessRequestDialog({ trigger, defaultOpen = false }: AccessRequestDialogProps) {
+  const [open, setOpen] = useState(defaultOpen);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [motivation, setMotivation] = useState('');
@@ -74,14 +75,16 @@ export function AccessRequestDialog({ trigger }: AccessRequestDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        {trigger || (
-          <button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
-            <UserPlus className="h-3.5 w-3.5" />
-            Request Access
-          </button>
-        )}
-      </DialogTrigger>
+      {trigger !== null && (
+        <DialogTrigger asChild>
+          {trigger || (
+            <button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
+              <UserPlus className="h-3.5 w-3.5" />
+              Request Access
+            </button>
+          )}
+        </DialogTrigger>
+      )}
       <DialogContent className="sm:max-w-md">
         {isSuccess ? (
           <>
@@ -118,9 +121,13 @@ export function AccessRequestDialog({ trigger }: AccessRequestDialogProps) {
                   required
                   disabled={isSubmitting}
                 />
-                <p className="text-xs text-muted-foreground">
-                  Required: Your real name is needed for approval.
-                </p>
+                <div className="flex items-start gap-2 text-xs bg-blue-500/10 border border-blue-500/20 rounded-lg p-2">
+                  <AlertTriangle className="h-3.5 w-3.5 text-blue-500 shrink-0 mt-0.5" />
+                  <div className="text-xs">
+                    <span className="font-medium text-foreground">Important:</span>{' '}
+                    Use your <strong>real full name</strong> when requesting access. This is required by Spotify&apos;s terms of service.
+                  </div>
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="email">Spotify Email *</Label>

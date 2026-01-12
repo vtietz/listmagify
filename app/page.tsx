@@ -4,7 +4,7 @@ import { AuthPageLayout } from "@/components/auth/AuthPageLayout";
 import { LandingPageContent } from "@/components/landing/LandingPageContent";
 
 type Props = {
-  searchParams: Promise<{ next?: string; reason?: string }>;
+  searchParams: Promise<{ next?: string; reason?: string; error?: string }>;
 };
 
 /**
@@ -16,7 +16,7 @@ type Props = {
  */
 export default async function Home({ searchParams }: Props) {
   const session = await getServerSession(authOptions);
-  const { next, reason } = await searchParams;
+  const { next, reason, error } = await searchParams;
 
   // Check for session error (e.g., revoked refresh token)
   const sessionError = (session as { error?: string } | null)?.error;
@@ -61,6 +61,7 @@ export default async function Home({ searchParams }: Props) {
         showMessage={showMessage}
         message={message}
         returnTo={returnTo}
+        oauthError={error}
       />
     </>
   );

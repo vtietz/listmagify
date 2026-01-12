@@ -8,6 +8,7 @@ import { AccessRequestDialog } from '@/components/landing/AccessRequestDialog';
 import { ByokSignInButton } from '@/components/landing/ByokSignInButton';
 import { AuthMessage } from '@/components/auth/AuthMessage';
 import { DevModeNotice } from '@/components/auth/DevModeNotice';
+import { UnapprovedUserDialog } from '@/components/auth/UnapprovedUserDialog';
 import { AppLogo } from '@/components/ui/app-logo';
 import { 
   Columns, 
@@ -31,6 +32,7 @@ interface LandingPageContentProps {
   showMessage: boolean;
   message: string | null;
   returnTo: string;
+  oauthError?: string | undefined;
 }
 
 export function LandingPageContent({
@@ -38,6 +40,7 @@ export function LandingPageContent({
   showMessage,
   message,
   returnTo,
+  oauthError,
 }: LandingPageContentProps) {
   const router = useRouter();
   const panels = useSplitGridStore((state) => state.panels);
@@ -112,6 +115,9 @@ export function LandingPageContent({
           )}
         </div>
       </div>
+
+      {/* Unapproved User Dialog - shows when OAuth returns access_denied error */}
+      <UnapprovedUserDialog error={oauthError} showRequestAccess={isAccessRequestEnabled} />
 
       {/* Screenshot Showcase */}
       <div className="container mx-auto px-4 py-12">
