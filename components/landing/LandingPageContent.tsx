@@ -77,10 +77,10 @@ export function LandingPageContent({
           )}
           
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            Professional playlist management for Spotify. Edit multiple playlists side-by-side with drag-and-drop.
+            Professional playlist management for Spotify.<br />Edit multiple playlists side-by-side with drag-and-drop.
           </p>
           <p className="text-sm text-muted-foreground">
-            Open source • Free to use • Your data stays with Spotify*
+            Open source • Free to use • Your data stays with Spotify
           </p>
           <div className="flex flex-wrap justify-center gap-4 pt-4">
             {isAuthenticated ? (

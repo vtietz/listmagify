@@ -109,7 +109,6 @@ export function ByokSignInButton({ callbackUrl = '/playlists' }: ByokSignInButto
     <ByokDialog
       trigger={
         <button className="inline-flex items-center justify-center gap-2 rounded-md border border-border bg-background px-6 py-3 text-sm font-medium hover:bg-accent transition-colors">
-          <Key className="h-4 w-4" />
           Use Your Own API Key
         </button>
       }

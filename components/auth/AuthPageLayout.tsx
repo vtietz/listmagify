@@ -32,7 +32,9 @@ export function AuthPageLayout({ children, showLogoutLink = false }: AuthPageLay
       {children}
 
       {/* Footer */}
-      <AppFooter />
+      <div className="flex-shrink-0 px-4 py-2 border-t border-border">
+        <AppFooter showSpotifyAttribution={false} />
+      </div>
     </div>
   );
 }

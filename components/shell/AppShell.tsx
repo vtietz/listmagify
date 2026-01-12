@@ -71,7 +71,7 @@ export function AppShell({ headerTitle = "Listmagify", children }: AppShellProps
         <Header title={headerTitle} />
         <main className="flex-1 overflow-auto">{children}</main>
         <div className="flex-shrink-0 px-4 py-2 border-t border-border">
-          <AppFooter />
+          <AppFooter showSpotifyAttribution={false} />
         </div>
       </div>
     );
@@ -85,7 +85,7 @@ export function AppShell({ headerTitle = "Listmagify", children }: AppShellProps
         <main className="flex-1 overflow-auto">{children}</main>
         {!isPhone && (
           <div className="flex-shrink-0 px-4 py-2 border-t border-border">
-            <AppFooter />
+            <AppFooter showSpotifyAttribution={false} />
           </div>
         )}
       </div>

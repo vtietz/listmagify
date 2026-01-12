@@ -11,12 +11,13 @@ import { FeedbackDialog } from "@/components/feedback";
  * Shows Spotify logo and attribution on the left, legal links on the right.
  * Use on all pages displaying Spotify content.
  */
-export function AppFooter() {
+export function AppFooter({ showSpotifyAttribution = true }: { showSpotifyAttribution?: boolean }) {
   return (
-    <div className="flex items-center justify-between gap-4 text-muted-foreground">
+    <div className={`flex items-center gap-4 text-muted-foreground ${showSpotifyAttribution ? 'justify-between' : 'justify-end'}`}>
       {/* Spotify Attribution - Left side */}
       {/* Per Spotify guidelines: full logo min 70px width, icon min 21px. Using logo. */}
-      <div className="flex items-center gap-2">
+      {showSpotifyAttribution ? (
+        <div className="flex items-center gap-2">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/spotify/Primary_Logo_White_RGB.svg"
@@ -42,7 +43,10 @@ export function AppFooter() {
             Spotify
           </Link>
         </span>
-      </div>
+        </div>
+      ) : (
+        <div className="h-5" />
+      )}
 
       {/* Links - Right side */}
       <div className="flex gap-4 text-[10px]">
