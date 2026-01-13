@@ -118,14 +118,14 @@ This is an automated message from Listmagify.
           email.trim(),
           motivation && motivation.trim() ? motivation.trim() : null
         );
-        console.log(`[access-request] Stored in database for ${email}`);
+        console.debug(`[access-request] Stored in database for ${email}`);
       }
     } catch (dbError) {
       console.error(`[access-request] Failed to store in database:`, dbError);
       // Don't fail the request if DB storage fails
     }
 
-    console.log(`[access-request] Request sent for ${email}`);
+    console.debug(`[access-request] Request sent for ${email}`);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('[access-request] Error:', error);
