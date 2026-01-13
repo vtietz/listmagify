@@ -72,8 +72,12 @@ To deploy to production:
 ## Quick Start (Local)
 
 1. **Set up environment**:
-   ```cmd
+   ```bash
+   # Windows: Copy .env.example to .env
    run.bat init-env
+   
+   # macOS/Linux: Copy manually
+   cp .env.example .env
    ```
 
 2. **Add Spotify credentials** to `.env`:
@@ -109,16 +113,24 @@ All commands run inside Docker:
 | Start dev server | `run.bat up` | `./run.sh up` |
 | Stop dev server | `run.bat down` | `./run.sh down` |
 | Run unit tests | `run.bat test` | `./run.sh test` |
-| Run E2E tests | `run.bat test e2e` | `./run.sh test e2e` |
+| Run E2E tests | `run.bat test e2e` | N/A (use `run.bat` on Windows) |
+| Run test in watch mode | `run.bat test --watch` | `./run.sh test -- --watch` |
 | Add package | `run.bat dev pnpm add <pkg>` | `./run.sh exec pnpm add <pkg>` |
+| Run arbitrary command | `run.bat dev <cmd>` | `./run.sh exec <cmd>` |
+| Run docker compose cmd | `run.bat compose <cmd>` | `./run.sh compose <cmd>` |
 
 ## Production Deployment
 
 Build and run the production image:
 
-```cmd
-docker compose -f docker/docker-compose.prod.yml build
-docker compose -f docker/docker-compose.prod.yml up -d
+```bash
+# Windows
+run.bat prod-build
+run.bat prod-up
+
+# macOS/Linux
+./run.sh prod-build
+./run.sh prod-up
 ```
 
 The production setup includes:
@@ -126,6 +138,18 @@ The production setup includes:
 - Persistent metrics database volume
 - No test/mock services
 - Automatic container restart
+
+### Production Management Commands
+
+| Task | Windows | macOS/Linux |
+|------|---------|-------------|
+| Build production image | `run.bat prod-build` | `./run.sh prod-build` |
+| Start production | `run.bat prod-up` | `./run.sh prod-up` |
+| Stop production | `run.bat prod-down` | `./run.sh prod-down` |
+| View production logs | `run.bat compose logs -f` | `./run.sh prod-logs -f` |
+| Update (git pull + rebuild) | `run.bat prod-update` | `./run.sh prod-update` |
+| Cleanup artifacts | `run.bat prod-clean` | `./run.sh prod-clean` |
+| Cleanup + volumes | `run.bat prod-clean --volumes` | `./run.sh prod-clean --volumes` |
 
 ### Cleanup Docker Artifacts
 
@@ -139,6 +163,7 @@ run.bat prod-clean
 ./run.sh prod-clean
 
 # Also remove volumes (deletes database)
+run.bat prod-clean --volumes
 ./run.sh prod-clean --volumes
 ```
 
