@@ -149,4 +149,49 @@ export const metricsMigrations: Migration[] = [
       GROUP BY user_id, user_hash;
     `,
   },
+  {
+    version: 6,
+    name: 'add_error_reports_and_access_requests_tables',
+    sql: `
+      -- Error reports table - stores user-submitted error reports
+      CREATE TABLE IF NOT EXISTS error_reports (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        report_id TEXT UNIQUE NOT NULL,
+        ts DATETIME DEFAULT CURRENT_TIMESTAMP,
+        user_id TEXT,
+        user_name TEXT,
+        user_hash TEXT,
+        error_category TEXT NOT NULL,
+        error_severity TEXT NOT NULL,
+        error_message TEXT NOT NULL,
+        error_details TEXT,
+        error_status_code INTEGER,
+        error_request_path TEXT,
+        user_description TEXT,
+        environment_json TEXT,
+        app_version TEXT,
+        resolved INTEGER DEFAULT 0
+      );
+      
+      CREATE INDEX IF NOT EXISTS idx_error_reports_ts ON error_reports(ts);
+      CREATE INDEX IF NOT EXISTS idx_error_reports_report_id ON error_reports(report_id);
+      CREATE INDEX IF NOT EXISTS idx_error_reports_category ON error_reports(error_category);
+      CREATE INDEX IF NOT EXISTS idx_error_reports_resolved ON error_reports(resolved);
+
+      -- Access requests table - stores user access requests from landing page
+      CREATE TABLE IF NOT EXISTS access_requests (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ts DATETIME DEFAULT CURRENT_TIMESTAMP,
+        name TEXT NOT NULL,
+        email TEXT NOT NULL,
+        motivation TEXT,
+        status TEXT DEFAULT 'pending',
+        notes TEXT
+      );
+      
+      CREATE INDEX IF NOT EXISTS idx_access_requests_ts ON access_requests(ts);
+      CREATE INDEX IF NOT EXISTS idx_access_requests_email ON access_requests(email);
+      CREATE INDEX IF NOT EXISTS idx_access_requests_status ON access_requests(status);
+    `,
+  },
 ];

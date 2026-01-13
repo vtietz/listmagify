@@ -56,6 +56,19 @@ export function LandingPageContent({
       .catch(() => setByokEnabled(false));
   }, []);
 
+  // Log OAuth error (failed login attempt) when detected
+  useEffect(() => {
+    if (oauthError) {
+      fetch('/api/auth/log-failure', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: oauthError }),
+      }).catch(() => {
+        // Silently ignore logging errors
+      });
+    }
+  }, [oauthError]);
+
   // Smart redirect for authenticated users clicking "Get Started"
   const handleGetStarted = () => {
     // Check if user has panels configured (has used split editor before)

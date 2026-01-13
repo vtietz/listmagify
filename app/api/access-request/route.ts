@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { serverEnv } from '@/lib/env';
+import { getDb } from '@/lib/metrics/db';
 import nodemailer from 'nodemailer';
 
 /**
@@ -104,6 +105,25 @@ This is an automated message from Listmagify.
     };
 
     await transporter.sendMail(mailOptions);
+
+    // Store in database if metrics are enabled
+    try {
+      const db = getDb();
+      if (db) {
+        db.prepare(`
+          INSERT INTO access_requests (name, email, motivation, status)
+          VALUES (?, ?, ?, 'pending')
+        `).run(
+          name.trim(),
+          email.trim(),
+          motivation && motivation.trim() ? motivation.trim() : null
+        );
+        console.log(`[access-request] Stored in database for ${email}`);
+      }
+    } catch (dbError) {
+      console.error(`[access-request] Failed to store in database:`, dbError);
+      // Don't fail the request if DB storage fails
+    }
 
     console.log(`[access-request] Request sent for ${email}`);
     return NextResponse.json({ success: true });

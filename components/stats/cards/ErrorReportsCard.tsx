@@ -1,0 +1,160 @@
+'use client';
+
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { AlertTriangle, CheckCircle } from 'lucide-react';
+import { ErrorReportDetailsDialog } from '../dialogs/ErrorReportDetailsDialog';
+import { cn } from '@/lib/utils';
+import type { ErrorReport, ErrorReportsResponse } from '../types';
+
+interface ErrorReportsCardProps {
+  dateRange: { from: string; to: string };
+}
+
+export function ErrorReportsCard({ dateRange }: ErrorReportsCardProps) {
+  const [selectedReport, setSelectedReport] = useState<ErrorReport | null>(null);
+  const [showDetailsDialog, setShowDetailsDialog] = useState(false);
+
+  const { data, isLoading, refetch } = useQuery<ErrorReportsResponse>({
+    queryKey: ['stats', 'error-reports', dateRange],
+    queryFn: async () => {
+      const res = await fetch(
+        `/api/stats/error-reports?from=${dateRange.from}&to=${dateRange.to}&limit=10`
+      );
+      if (!res.ok) throw new Error('Failed to fetch error reports');
+      return res.json();
+    },
+  });
+
+  const reports = data?.data ?? [];
+  const unresolvedCount = reports.filter((r: ErrorReport) => !r.resolved).length;
+
+  const handleMarkResolved = async (reportId: string, resolved: boolean) => {
+    try {
+      const res = await fetch('/api/stats/error-reports', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reportId, resolved }),
+      });
+      if (res.ok) {
+        refetch();
+      }
+    } catch (error) {
+      console.error('Failed to update error report:', error);
+    }
+  };
+
+  const getSeverityColor = (severity: string) => {
+    switch (severity) {
+      case 'critical': return 'text-red-600';
+      case 'error': return 'text-red-500';
+      case 'warning': return 'text-yellow-500';
+      default: return 'text-blue-500';
+    }
+  };
+
+  const getCategoryBadge = (category: string) => {
+    const colors: Record<string, string> = {
+      rate_limit: 'bg-yellow-100 text-yellow-800',
+      auth: 'bg-red-100 text-red-800',
+      network: 'bg-blue-100 text-blue-800',
+      api: 'bg-purple-100 text-purple-800',
+      validation: 'bg-orange-100 text-orange-800',
+      unknown: 'bg-gray-100 text-gray-800',
+    };
+    return colors[category] || colors.unknown;
+  };
+
+  return (
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4" />
+            Error Reports
+            {unresolvedCount > 0 && (
+              <span className="ml-auto text-sm bg-red-100 text-red-800 px-2 py-1 rounded">
+                {unresolvedCount} unresolved
+              </span>
+            )}
+          </CardTitle>
+          <CardDescription>
+            User-submitted error reports from the application
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="py-8 text-center text-muted-foreground">Loading...</div>
+          ) : reports.length === 0 ? (
+            <div className="text-center text-muted-foreground py-8">
+              <AlertTriangle className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <p>No error reports in this period</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {reports.map((report: ErrorReport) => (
+                <div
+                  key={report.id}
+                  className={cn(
+                    "p-3 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors",
+                    report.resolved ? 'opacity-60' : ''
+                  )}
+                  onClick={() => {
+                    setSelectedReport(report);
+                    setShowDetailsDialog(true);
+                  }}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={cn(
+                          "px-2 py-0.5 rounded text-xs font-medium",
+                          getCategoryBadge(report.error_category)
+                        )}>
+                          {report.error_category}
+                        </span>
+                        <span className={cn("text-xs font-medium", getSeverityColor(report.error_severity))}>
+                          {report.error_severity}
+                        </span>
+                        {report.resolved ? (
+                          <CheckCircle className="h-4 w-4 text-green-500" />
+                        ) : null}
+                      </div>
+                      <p className="text-sm font-medium truncate">{report.error_message}</p>
+                      <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                        <span>{new Date(report.ts).toLocaleString()}</span>
+                        <span>{report.user_name || 'Anonymous'}</span>
+                        <span className="truncate">{report.report_id}</span>
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleMarkResolved(report.report_id, !report.resolved);
+                      }}
+                    >
+                      {report.resolved ? 'Unresolve' : 'Resolve'}
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {showDetailsDialog && selectedReport && (
+        <ErrorReportDetailsDialog
+          report={selectedReport}
+          open={showDetailsDialog}
+          onOpenChange={setShowDetailsDialog}
+          onMarkResolved={handleMarkResolved}
+        />
+      )}
+    </>
+  );
+}
