@@ -371,6 +371,101 @@ export function getRegisteredUsersPerDay(range: DateRange): RegisteredUsersPerDa
 }
 
 /**
+ * Authentication stats.
+ */
+export interface AuthStats {
+  loginSuccesses: number;
+  loginFailures: number;
+  successRate: number;
+  dailyStats: Array<{
+    date: string;
+    successes: number;
+    failures: number;
+  }>;
+  recentFailures: Array<{
+    ts: string;
+    errorCode: string | null;
+  }>;
+}
+
+/**
+ * Get authentication statistics (login successes and failures).
+ */
+export function getAuthStats(range: DateRange): AuthStats {
+  const db = getDb();
+  if (!db) {
+    return {
+      loginSuccesses: 0,
+      loginFailures: 0,
+      successRate: 0,
+      dailyStats: [],
+      recentFailures: [],
+    };
+  }
+
+  // Overall stats
+  const overallResult = queryOne<{
+    successes: number | null;
+    failures: number | null;
+  }>(
+    `SELECT 
+      SUM(CASE WHEN event = 'login_success' THEN 1 ELSE 0 END) as successes,
+      SUM(CASE WHEN event = 'login_failure' THEN 1 ELSE 0 END) as failures
+    FROM events
+    WHERE date(ts) BETWEEN ? AND ?
+      AND event IN ('login_success', 'login_failure')`,
+    [range.from, range.to]
+  );
+
+  const successes = overallResult?.successes ?? 0;
+  const failures = overallResult?.failures ?? 0;
+  const total = successes + failures;
+  const successRate = total > 0 ? successes / total : 0;
+
+  // Daily breakdown
+  const dailyStats = queryAll<{
+    date: string;
+    successes: number;
+    failures: number;
+  }>(
+    `SELECT 
+      date(ts) as date,
+      SUM(CASE WHEN event = 'login_success' THEN 1 ELSE 0 END) as successes,
+      SUM(CASE WHEN event = 'login_failure' THEN 1 ELSE 0 END) as failures
+    FROM events
+    WHERE date(ts) BETWEEN ? AND ?
+      AND event IN ('login_success', 'login_failure')
+    GROUP BY date(ts)
+    ORDER BY date(ts)`,
+    [range.from, range.to]
+  );
+
+  // Recent failures (last 20)
+  const recentFailures = queryAll<{
+    ts: string;
+    errorCode: string | null;
+  }>(
+    `SELECT 
+      ts,
+      error_code as errorCode
+    FROM events
+    WHERE date(ts) BETWEEN ? AND ?
+      AND event = 'login_failure'
+    ORDER BY ts DESC
+    LIMIT 20`,
+    [range.from, range.to]
+  );
+
+  return {
+    loginSuccesses: successes,
+    loginFailures: failures,
+    successRate,
+    dailyStats,
+    recentFailures,
+  };
+}
+
+/**
  * Update daily aggregates (run periodically, e.g., via cron or on-demand).
  */
 export function updateDailyAggregates(date: string): void {

@@ -209,6 +209,21 @@ interface RegisteredUsersPerDay {
   cumulativeUsers: number;
 }
 
+interface AuthStats {
+  loginSuccesses: number;
+  loginFailures: number;
+  successRate: number;
+  dailyStats: Array<{
+    date: string;
+    successes: number;
+    failures: number;
+  }>;
+  recentFailures: Array<{
+    ts: string;
+    errorCode: string | null;
+  }>;
+}
+
 interface EventsData {
   dailySummaries: DailySummary[];
   actionDistribution: ActionDistribution[];
@@ -923,6 +938,160 @@ function RecsStatsCard({ data, isLoading }: { data?: RecsStats; isLoading: boole
   );
 }
 
+function AuthenticationStatsCard({ 
+  dateRange 
+}: { 
+  dateRange: { from: string; to: string } 
+}) {
+  const { data, isLoading } = useQuery<{ data: AuthStats }>({
+    queryKey: ['stats', 'auth', dateRange],
+    queryFn: async () => {
+      const res = await fetch(`/api/stats/auth?from=${dateRange.from}&to=${dateRange.to}`);
+      if (!res.ok) throw new Error('Failed to fetch auth stats');
+      return res.json();
+    },
+  });
+
+  const stats = data?.data;
+  const maxValue = stats?.dailyStats.length
+    ? Math.max(...stats.dailyStats.map((d: { successes: number; failures: number }) => d.successes + d.failures), 1)
+    : 1;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Users className="h-4 w-4" />
+          Authentication Activity
+        </CardTitle>
+        <CardDescription>
+          Login successes and failures for the selected period
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="flex items-center justify-center py-8 text-muted-foreground">
+            Loading...
+          </div>
+        ) : !stats ? (
+          <div className="text-center py-8 text-muted-foreground">
+            No authentication data available
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {/* Overall Stats */}
+            <div className="grid grid-cols-3 gap-4">
+              <div className="text-center p-4 bg-green-500/10 rounded-lg">
+                <div className="text-2xl font-bold text-green-500">
+                  {stats.loginSuccesses}
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">Successful Logins</div>
+              </div>
+              <div className="text-center p-4 bg-red-500/10 rounded-lg">
+                <div className="text-2xl font-bold text-red-500">
+                  {stats.loginFailures}
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">Failed Attempts</div>
+              </div>
+              <div className="text-center p-4 bg-blue-500/10 rounded-lg">
+                <div className="text-2xl font-bold text-blue-500">
+                  {(stats.successRate * 100).toFixed(1)}%
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">Success Rate</div>
+              </div>
+            </div>
+
+            {/* Daily Chart */}
+            {stats.dailyStats.length > 0 && (
+              <div>
+                <div className="text-sm font-medium mb-3">Daily Authentication Activity</div>
+                <div className="flex items-end gap-1 h-32">
+                  {stats.dailyStats.map((d: { date: string; successes: number; failures: number }) => {
+                    const total = d.successes + d.failures;
+                    const successHeight = total > 0 ? (d.successes / maxValue) * 100 : 0;
+                    const failureHeight = total > 0 ? (d.failures / maxValue) * 100 : 0;
+                    
+                    return (
+                      <Tooltip key={d.date}>
+                        <TooltipTrigger asChild>
+                          <div className="flex-1 flex flex-col justify-end gap-0.5">
+                            {d.failures > 0 && (
+                              <div
+                                className="bg-red-500/80 rounded-t hover:bg-red-500 transition-colors"
+                                style={{ height: `${failureHeight}%`, minHeight: failureHeight > 0 ? '2px' : '0' }}
+                              />
+                            )}
+                            {d.successes > 0 && (
+                              <div
+                                className="bg-green-500/80 rounded-t hover:bg-green-500 transition-colors"
+                                style={{ height: `${successHeight}%`, minHeight: successHeight > 0 ? '2px' : '0' }}
+                              />
+                            )}
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <div className="text-sm">
+                            <div className="font-medium">{formatDate(d.date)}</div>
+                            <div className="text-green-500">✓ {d.successes} success{d.successes !== 1 ? 'es' : ''}</div>
+                            <div className="text-red-500">✗ {d.failures} failure{d.failures !== 1 ? 's' : ''}</div>
+                          </div>
+                        </TooltipContent>
+                      </Tooltip>
+                    );
+                  })}
+                </div>
+                <div className="flex items-center gap-4 mt-2 text-xs">
+                  <div className="flex items-center gap-1">
+                    <div className="w-3 h-3 bg-green-500 rounded" />
+                    <span className="text-muted-foreground">Successes</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-3 h-3 bg-red-500 rounded" />
+                    <span className="text-muted-foreground">Failures</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Recent Failures */}
+            {stats.recentFailures.length > 0 && (
+              <div className="border-t pt-4">
+                <div className="text-sm font-medium mb-3">Recent Failed Attempts</div>
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {stats.recentFailures.map((failure: { ts: string; errorCode: string | null }, idx: number) => (
+                    <div 
+                      key={idx} 
+                      className="flex items-start gap-3 p-2 bg-red-500/5 rounded text-sm"
+                    >
+                      <AlertCircle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs text-muted-foreground">
+                          {new Date(failure.ts).toLocaleString()}
+                        </div>
+                        {failure.errorCode && (
+                          <div className="font-mono text-xs truncate mt-0.5" title={failure.errorCode}>
+                            {failure.errorCode}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {stats.loginFailures === 0 && stats.loginSuccesses === 0 && (
+              <div className="text-center py-4 text-muted-foreground text-sm">
+                No authentication events in this period
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function FeedbackStatsCard({ 
   dateRange, 
   isLoading 
@@ -1397,6 +1566,9 @@ export function StatsDashboard() {
 
       {/* User Feedback / NPS */}
       <FeedbackStatsCard dateRange={dateRange} isLoading={overviewLoading} />
+
+      {/* Authentication Stats */}
+      <AuthenticationStatsCard dateRange={dateRange} />
 
       {/* Recommendations System Stats */}
       <RecsStatsCard data={recsData} isLoading={recsLoading} />
