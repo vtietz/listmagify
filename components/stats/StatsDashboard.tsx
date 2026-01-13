@@ -51,7 +51,7 @@ const sections = [
 ];
 
 export function StatsDashboard() {
-  const [timeRange, setTimeRange] = useState<TimeRange>('7d');
+  const [timeRange, setTimeRange] = useState<TimeRange>('all');
   const dateRange = useMemo(() => getDateRange(timeRange), [timeRange]);
 
   // Fetch overview KPIs

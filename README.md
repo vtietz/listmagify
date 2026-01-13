@@ -274,20 +274,12 @@ STATS_SALT=your-random-secret-salt
 STATS_ALLOWED_USER_IDS=your-spotify-user-id
 ```
 
-**How to get your Spotify user ID:**
-1. Go to https://www.spotify.com/account/overview/
-2. Your user ID is shown under "Username" (e.g., `31l77fd...`)
-3. Or from the app: Profile → ⋯ → Share → Copy link to profile → Extract ID from URL
-
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `STATS_ENABLED` | Enable/disable metrics | `false` |
 | `STATS_DB_PATH` | SQLite database path | `./data/metrics.db` |
 | `STATS_SALT` | Salt for hashing user IDs | `default-salt-change-me` |
 | `STATS_ALLOWED_USER_IDS` | Comma-separated Spotify IDs for /stats access | (none) |
-| `STATS_SHOW_EMAILS` | Show email addresses in stats (dev/admin only) | `false` |
-
-**Privacy Note:** Stats display anonymized hashed user IDs by default. Hover over a user to see their Spotify username. If `STATS_SHOW_EMAILS=true`, email addresses are also shown on hover for identifying users in API settings.
 
 ## Legal Pages (Imprint & Privacy)
 
@@ -360,7 +352,6 @@ RECS_ENABLED=true
 1. Select tracks in the split editor
 2. The recommendations panel appears in the Browse panel
 3. Drag suggested tracks into your playlists
-4. Dismiss unwanted suggestions with the X button
 
 For detailed documentation, see [docs/RECOMMENDATIONS.md](docs/RECOMMENDATIONS.md).
 

@@ -11,6 +11,7 @@ import { AuthMessage } from '@/components/auth/AuthMessage';
 import { DevModeNotice } from '@/components/auth/DevModeNotice';
 import { UnapprovedUserDialog } from '@/components/auth/UnapprovedUserDialog';
 import { AppLogo } from '@/components/ui/app-logo';
+import { useByokCredentials } from '@/hooks/useByokCredentials';
 import { 
   Columns, 
   GripVertical, 
@@ -48,6 +49,7 @@ export function LandingPageContent({
   const router = useRouter();
   const panels = useSplitGridStore((state) => state.panels);
   const [byokEnabled, setByokEnabled] = useState<boolean | null>(null);
+  const { hasCredentials } = useByokCredentials();
 
   useEffect(() => {
     fetch('/api/config')
@@ -114,7 +116,7 @@ export function LandingPageContent({
             ) : (
               <>
                 <SignInButton callbackUrl={returnTo} label="Sign in with Spotify" />
-                {isAccessRequestEnabled && (
+                {isAccessRequestEnabled && !hasCredentials && (
                   <AccessRequestDialog
                     trigger={
                       <button className="inline-flex items-center justify-center gap-2 rounded-md border border-border bg-background px-6 py-3 text-sm font-medium hover:bg-accent transition-colors">
@@ -123,7 +125,7 @@ export function LandingPageContent({
                     }
                   />
                 )}
-                <ByokSignInButton callbackUrl={returnTo} />
+                <ByokSignInButton />
               </>
             )}
           </div>
