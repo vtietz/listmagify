@@ -175,6 +175,8 @@ export function PlaylistPanel({
           overscrollBehaviorX: 'none', 
           overscrollBehaviorY: 'contain',
           willChange: 'scroll-position',
+          touchAction: 'pan-y',
+          WebkitOverflowScrolling: 'touch',
         }}
         role="listbox"
         aria-multiselectable="true"

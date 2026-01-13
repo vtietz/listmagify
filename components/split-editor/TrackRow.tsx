@@ -217,7 +217,7 @@ function TrackRowComponent({
   
   // Long-press handler for mobile multi-select (toggle selection)
   const { wasLongPress, resetLongPress, ...longPressTouchHandlers } = useLongPress({
-    delay: 400,
+    delay: 350,
     onLongPress: useCallback(() => {
       // Toggle selection on long press (like Ctrl+Click)
       onSelect(selectionKey, index, { ctrlKey: true, metaKey: false, shiftKey: false } as React.MouseEvent);
@@ -500,10 +500,11 @@ function TrackRowComponent({
             ? 'Click and drag to copy (Ctrl to move)'
             : 'Click and drag to move (Ctrl to copy)'
       }
-      // Only attach drag listeners to row on desktop; on touch devices, use DragHandle
+      // Desktop: Attach drag listeners to entire row
+      // Mobile: Only attach attributes (no listeners) - drag via handle only
       {...(!locked && !handleOnlyDrag ? { ...attributes, ...listeners } : { ...attributes })}
-      // Long-press handlers for mobile multi-select
-      {...longPressTouchHandlers}
+      // Long-press handlers for mobile multi-select (passive, won't block scroll)
+      {...(showHandle ? longPressTouchHandlers : {})}
     >
       {/* Selection indicator - small centered orange dot */}
       {isSelected && (

@@ -62,7 +62,7 @@ export function DragHandle({
       className={cn(
         'drag-handle',
         'flex items-center justify-center self-center',
-        'touch-action-none select-none',
+        'select-none',
         // Visual states
         disabled && 'opacity-30 cursor-not-allowed',
         !disabled && 'cursor-grab active:cursor-grabbing',
@@ -73,6 +73,7 @@ export function DragHandle({
         'transition-colors duration-100',
         className
       )}
+      style={{ touchAction: 'none' }}
       onClick={handleClick}
       onMouseDown={handleClick}
       role="button"

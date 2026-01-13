@@ -546,6 +546,9 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
     // This ensures smooth scrolling even when the pointer is stationary near panel edges.
 
     // Compute insertion index in filtered view for "make room" animation
+    // Note: getBoundingClientRect is called once per drag move event.
+    // This is acceptable since it's event-driven (not on every RAF tick).
+    // The rect is only used for the current operation and not repeated within the same frame.
     if (scrollContainer) {
       const containerRect = scrollContainer.getBoundingClientRect();
       const scrollTop = scrollContainer.scrollTop;

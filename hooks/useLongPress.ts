@@ -28,7 +28,7 @@ interface LongPressHandlers {
 }
 
 export function useLongPress({
-  delay = 500,
+  delay = 350,
   onLongPress,
   onClick,
   disabled = false,
@@ -87,12 +87,14 @@ export function useLongPress({
       if (disabled || !startPosRef.current) return;
       
       // Cancel if finger moved too far (prevents long press during scroll)
+      // Reduced from 10px to 6px for faster scroll initiation
+      // Don't preventDefault - let scroll happen
       const touch = e.touches[0];
       if (!touch) return;
       const dx = Math.abs(touch.clientX - startPosRef.current.x);
       const dy = Math.abs(touch.clientY - startPosRef.current.y);
       
-      if (dx > 10 || dy > 10) {
+      if (dx > 6 || dy > 6) {
         clear();
         startPosRef.current = null;
       }

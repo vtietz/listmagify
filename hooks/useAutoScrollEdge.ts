@@ -53,9 +53,22 @@ export function autoScrollEdge(
   pointerY: number,
   config: AutoScrollConfig = {}
 ): boolean {
+  const rect = scrollContainer.getBoundingClientRect();
+  return autoScrollEdgeWithRect(scrollContainer, pointerY, rect, config);
+}
+
+/**
+ * Internal version that accepts pre-computed rect to avoid redundant getBoundingClientRect calls.
+ * Used by RAF loop to cache rect per frame.
+ */
+function autoScrollEdgeWithRect(
+  scrollContainer: HTMLElement,
+  pointerY: number,
+  rect: DOMRect,
+  config: AutoScrollConfig = {}
+): boolean {
   const { threshold = 80, maxSpeed = 15, minSpeed = 2 } = config;
 
-  const rect = scrollContainer.getBoundingClientRect();
   const distanceFromTop = pointerY - rect.top;
   const distanceFromBottom = rect.bottom - pointerY;
 
@@ -131,13 +144,15 @@ export function createAutoScrollLoop(config: AutoScrollConfig = {}) {
       const scrollContainer = panelData.scrollRef.current;
       if (!scrollContainer) continue;
 
+      // Cache rect per frame - only one measurement per container per frame
       const rect = scrollContainer.getBoundingClientRect();
       
       // Check if pointer is within this panel's horizontal bounds
       if (pointerX >= rect.left && pointerX <= rect.right &&
           pointerY >= rect.top - 50 && pointerY <= rect.bottom + 50) {
         // Pointer is in this panel's column - check for edge scrolling
-        autoScrollEdge(scrollContainer, pointerY, state.config);
+        // Pass rect to avoid re-measuring
+        autoScrollEdgeWithRect(scrollContainer, pointerY, rect, state.config);
       }
     }
 

@@ -10,6 +10,8 @@ interface UseTapHandlerOptions {
   onTap: () => void;
   /** Maximum movement distance in pixels to still count as a tap (default: 10px) */
   movementThreshold?: number;
+  /** Whether to preventDefault on tap to block ghost clicks (default: true) */
+  preventDefaultOnTap?: boolean;
 }
 
 interface TapHandlers {
@@ -26,6 +28,7 @@ interface TapHandlers {
 export function useTapHandler({
   onTap,
   movementThreshold = 10,
+  preventDefaultOnTap = true,
 }: UseTapHandlerOptions): TapHandlers {
   const startPosRef = useRef<{ x: number; y: number } | null>(null);
   const isValidTapRef = useRef(false);
@@ -61,11 +64,13 @@ export function useTapHandler({
 
   const onTouchEnd = useCallback(
     (e: React.TouchEvent) => {
-      e.stopPropagation();
-      e.preventDefault();
-      
-      // Only trigger callback if it was a valid tap
+      // Only prevent default/stop propagation for actual taps
+      // If scroll already started (isValidTapRef.current = false), let it through
       if (isValidTapRef.current) {
+        if (preventDefaultOnTap) {
+          e.stopPropagation();
+          e.preventDefault();
+        }
         onTap();
       }
       
@@ -73,7 +78,7 @@ export function useTapHandler({
       startPosRef.current = null;
       isValidTapRef.current = false;
     },
-    [onTap]
+    [onTap, preventDefaultOnTap]
   );
 
   const onTouchCancel = useCallback(() => {

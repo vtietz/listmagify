@@ -1,11 +1,12 @@
 /**
  * Hook for managing insertion marker toggle behavior.
  * Handles edge detection and marker toggling for track rows.
+ * Uses RAF throttling and rect caching to avoid layout thrash.
  */
 
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 
 // Edge detection thresholds in pixels
 const EDGE_THRESHOLD_Y = 8;  // Vertical: how close to top/bottom edge
@@ -55,31 +56,73 @@ export function useInsertionMarkerToggle({
   togglePoint,
 }: UseInsertionMarkerToggleOptions): UseInsertionMarkerToggleReturn {
   const [nearEdge, setNearEdge] = useState<NearEdge>(null);
+  const rafRef = useRef<number | null>(null);
+  const rectCacheRef = useRef<DOMRect | null>(null);
+  const currentTargetRef = useRef<HTMLDivElement | null>(null);
+
+  // Cleanup RAF on unmount
+  useEffect(() => {
+    return () => {
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+      }
+    };
+  }, []);
 
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const relativeX = e.clientX - rect.left;
-    const relativeY = e.clientY - rect.top;
+    const target = e.currentTarget;
     
-    // Only show toggle when mouse is near left edge AND near top/bottom edge
-    const nearLeftEdge = relativeX <= EDGE_THRESHOLD_X;
-    
-    if (!nearLeftEdge) {
-      setNearEdge(null);
-      return;
+    // Cache the target and update rect cache if target changed
+    if (currentTargetRef.current !== target) {
+      currentTargetRef.current = target;
+      rectCacheRef.current = target.getBoundingClientRect();
     }
     
-    // Check if mouse is near top or bottom edge
-    if (relativeY <= EDGE_THRESHOLD_Y) {
-      setNearEdge('top');
-    } else if (relativeY >= rect.height - EDGE_THRESHOLD_Y) {
-      setNearEdge('bottom');
-    } else {
-      setNearEdge(null);
+    const clientX = e.clientX;
+    const clientY = e.clientY;
+    
+    // Cancel any pending RAF
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
     }
+    
+    // Schedule edge detection in next frame
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = null;
+      
+      // Use cached rect or get fresh one
+      const rect = rectCacheRef.current || target.getBoundingClientRect();
+      const relativeX = clientX - rect.left;
+      const relativeY = clientY - rect.top;
+      
+      // Only show toggle when mouse is near left edge AND near top/bottom edge
+      const nearLeftEdge = relativeX <= EDGE_THRESHOLD_X;
+      
+      if (!nearLeftEdge) {
+        setNearEdge(null);
+        return;
+      }
+      
+      // Check if mouse is near top or bottom edge
+      if (relativeY <= EDGE_THRESHOLD_Y) {
+        setNearEdge('top');
+      } else if (relativeY >= rect.height - EDGE_THRESHOLD_Y) {
+        setNearEdge('bottom');
+      } else {
+        setNearEdge(null);
+      }
+    });
   }, []);
 
   const handleMouseLeave = useCallback(() => {
+    // Cancel pending RAF
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    // Clear cached rect
+    rectCacheRef.current = null;
+    currentTargetRef.current = null;
     setNearEdge(null);
   }, []);
 
