@@ -145,7 +145,7 @@ export function LandingPageContent({
       {/* Unapproved User Dialog - shows when OAuth returns access_denied error */}
       <UnapprovedUserDialog error={oauthError} showRequestAccess={isAccessRequestEnabled} />
 
-      {/* Screenshot Showcase */}
+      {/* Main Screenshot */}
       <div className="container mx-auto px-4 py-12">
         <div className="max-w-6xl mx-auto space-y-8">
           <div className="rounded-xl overflow-hidden border border-border shadow-2xl">
@@ -235,6 +235,113 @@ export function LandingPageContent({
             title="Safe Editing"
             description="Lock panels to prevent accidental changes. All edits sync directly with Spotify in real-time."
           />
+        </div>
+      </div>
+
+      {/* Detailed Features with Screenshots */}
+      <div className="container mx-auto px-4 py-16 border-t border-border">
+        <h2 className="text-2xl font-semibold text-center mb-12">
+          See it in action
+        </h2>
+        
+        <div className="max-w-6xl mx-auto space-y-16">
+          {/* Split Editor */}
+          <div className="grid md:grid-cols-2 gap-8 items-center">
+            <div className="order-2 md:order-1">
+              <h3 className="text-xl font-semibold mb-3">Split Editor</h3>
+              <p className="text-muted-foreground mb-4">
+                Edit multiple playlists side-by-side with intuitive drag-and-drop. 
+                Split panels horizontally or vertically to compare, organize, and 
+                move tracks between playlists effortlessly. Lock panels to prevent 
+                accidental changes and work with confidence.
+              </p>
+            </div>
+            <div className="order-1 md:order-2 rounded-xl overflow-hidden border border-border shadow-lg">
+              <Image
+                src="/screenshot-split-editor.png"
+                alt="Split Editor - Edit multiple playlists side by side with drag and drop"
+                width={1920}
+                height={1080}
+                className="w-full h-auto"
+              />
+            </div>
+          </div>
+
+          {/* Playlists View */}
+          <div className="grid md:grid-cols-2 gap-8 items-center">
+            <div className="rounded-xl overflow-hidden border border-border shadow-lg">
+              <Image
+                src="/screenshot-playlists.png"
+                alt="Playlists - Browse and manage all your Spotify playlists"
+                width={1920}
+                height={1080}
+                className="w-full h-auto"
+              />
+            </div>
+            <div>
+              <h3 className="text-xl font-semibold mb-3">Playlists Management</h3>
+              <p className="text-muted-foreground mb-4">
+                Browse all your Spotify playlists in one organized view. Search, 
+                filter, and quickly access any playlist to start editing. See 
+                playlist details including track count, duration, and last modified 
+                date at a glance.
+              </p>
+            </div>
+          </div>
+
+          {/* Compare Mode */}
+          <div className="grid md:grid-cols-2 gap-8 items-center">
+            <div className="order-2 md:order-1">
+              <h3 className="text-xl font-semibold mb-3">Compare Mode</h3>
+              <p className="text-muted-foreground mb-4">
+                Visualize track distribution across multiple playlists with intelligent 
+                color coding. Green highlights tracks present in all playlists, red shows 
+                unique tracks, and yellow indicates partial presence. Perfect for finding 
+                duplicates or discovering which tracks to share between collections.
+              </p>
+            </div>
+            <div className="order-1 md:order-2 rounded-xl overflow-hidden border border-border shadow-lg">
+              <Image
+                src="/screenshot-compare-mode.png"
+                alt="Compare Mode - Visualize track distribution across playlists"
+                width={1920}
+                height={1080}
+                className="w-full h-auto"
+              />
+            </div>
+          </div>
+
+          {/* Mobile Experience */}
+          <div className="space-y-6">
+            <div className="text-center">
+              <h3 className="text-xl font-semibold mb-3">Mobile Experience</h3>
+              <p className="text-muted-foreground max-w-2xl mx-auto">
+                Fully responsive design optimized for phones and tablets. Edit playlists 
+                on the go with touch-friendly controls. Install as a Progressive Web App 
+                for a native app experience with offline support.
+              </p>
+            </div>
+            <div className="flex flex-col md:flex-row justify-center items-center md:items-start gap-6 max-w-5xl mx-auto">
+              <div className="rounded-xl overflow-hidden border border-border shadow-lg w-full max-w-[280px]">
+                <Image
+                  src="/screenshot-mobile-portrait.png"
+                  alt="Mobile Portrait - Touch-optimized interface for phones"
+                  width={1080}
+                  height={1920}
+                  className="w-full h-auto"
+                />
+              </div>
+              <div className="rounded-xl overflow-hidden border border-border shadow-lg w-full max-w-[500px]">
+                <Image
+                  src="/screenshot-mobile-landscape.png"
+                  alt="Mobile Landscape - Optimized layout for tablets"
+                  width={1920}
+                  height={1080}
+                  className="w-full h-auto"
+                />
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
