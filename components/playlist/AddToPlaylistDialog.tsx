@@ -111,18 +111,24 @@ export function AddToPlaylistDialog({ isOpen, onClose, trackUri, trackName: _tra
     }
   }, [isOpen, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-  // Flatten all pages into single array
+  // Flatten all pages into single array and filter to only editable playlists
   const allPlaylists = useMemo(() => {
     if (!data?.pages) return [];
     const all = data.pages.flatMap((p: PlaylistsResponse) => p.items);
-    // Deduplicate by playlist ID
+    // Deduplicate by playlist ID and filter to editable playlists only
     const seen = new Set<string>();
     return all.filter((p: Playlist) => {
       if (seen.has(p.id)) return false;
       seen.add(p.id);
-      return true;
+      
+      // Only include playlists that can be edited by the user:
+      // 1. Playlists owned by the user, OR
+      // 2. Collaborative playlists (followers can edit)
+      const isOwned = user?.id && p.owner?.id === user.id;
+      const isCollaborative = p.collaborative === true;
+      return isOwned || isCollaborative;
     });
-  }, [data]);
+  }, [data, user?.id]);
 
   // Check which playlists contain the track (from cache)
   const playlistsWithTrackFromCache = useMemo(() => {

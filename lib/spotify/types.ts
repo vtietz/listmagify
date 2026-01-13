@@ -27,6 +27,8 @@ export type Playlist = {
   image?: Image | null;
   tracksTotal: number;
   isPublic?: boolean | null;
+  /** Whether the playlist is collaborative (followers can edit) */
+  collaborative?: boolean | null;
 };
 
 export type Track = {
@@ -95,6 +97,7 @@ export function mapPlaylist(raw: any): Playlist {
     image: images?.[0] ?? null,
     tracksTotal: Number(raw?.tracks?.total ?? 0),
     isPublic: typeof raw?.public === "boolean" ? raw.public : null,
+    collaborative: typeof raw?.collaborative === "boolean" ? raw.collaborative : null,
   };
 }
 
