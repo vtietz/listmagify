@@ -42,15 +42,17 @@ export function useTrackPlayback(options: UseTrackPlaybackOptions) {
     loadingRef.current = true;
     
     try {
-      // Find the track index in the list
+      // Find the track index in the list (used for local context tracking)
       const trackIndex = trackUris.indexOf(trackUri);
       
       // If we have a playlist context URI, use it for proper Spotify queue management
       // This lets Spotify handle next/previous within the playlist
+      // IMPORTANT: Use URI offset instead of position offset to handle sorted/filtered views
+      // Position offset refers to Spotify's playlist order, but our trackUris may be sorted differently
       if (playlistUri && trackIndex >= 0) {
         await play({
           contextUri: playlistUri,
-          offset: { position: trackIndex },
+          offset: { uri: trackUri },
           playlistTrackUris: trackUris,
           currentIndex: trackIndex,
           ...(playlistId ? { playlistId } : {}),
