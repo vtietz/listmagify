@@ -553,6 +553,7 @@ function TrackRowComponent({
         <AddToMarkedButton
           trackUri={track.uri}
           trackName={track.name}
+          trackArtists={track.artists}
         />
       )}
 

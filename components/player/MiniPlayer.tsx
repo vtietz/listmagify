@@ -328,6 +328,7 @@ export function MiniPlayer({ isVisible, onHide }: MiniPlayerProps) {
           onClose={() => setShowPlaylistDialog(false)}
           trackUri={track.uri}
           trackName={track.name}
+          trackArtists={track.artists}
         />
       )}
 

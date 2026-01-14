@@ -33,6 +33,7 @@ interface AddToPlaylistDialogProps {
   onClose: () => void;
   trackUri: string;
   trackName: string;
+  trackArtists?: string[];
 }
 
 interface PlaylistsResponse {
@@ -56,7 +57,7 @@ const pendingTrackChanges = new Map<string, Map<string, boolean>>();
 // This persists across dialog close/reopen to avoid re-fetching
 const checkedPlaylists = new Set<string>();
 
-export function AddToPlaylistDialog({ isOpen, onClose, trackUri, trackName: _trackName }: AddToPlaylistDialogProps) {
+export function AddToPlaylistDialog({ isOpen, onClose, trackUri, trackName, trackArtists = [] }: AddToPlaylistDialogProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const { user } = useSessionUser();
   const { getPlaylistTrackUris, getTrackPositions } = usePlaylistTrackCheck();
@@ -460,8 +461,14 @@ export function AddToPlaylistDialog({ isOpen, onClose, trackUri, trackName: _tra
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Add to playlist</DialogTitle>
-          <DialogDescription>
-            Search and select a playlist to add this track to. Playlists already containing the track show a checkmark.
+          <DialogDescription className="space-y-1">
+            <div className="font-medium text-foreground truncate">{trackName}</div>
+            {trackArtists.length > 0 && (
+              <div className="text-sm truncate">{trackArtists.join(', ')}</div>
+            )}
+            <div className="pt-1 text-xs">
+              Select playlists to add or remove this track. Playlists with a checkmark already contain it.
+            </div>
           </DialogDescription>
         </DialogHeader>
 
@@ -499,7 +506,12 @@ export function AddToPlaylistDialog({ isOpen, onClose, trackUri, trackName: _tra
                   key={playlist.id}
                   ref={(el) => registerPlaylistElement(playlist.id, el)}
                   data-playlist-id={playlist.id}
-                  onClick={() => isEditable && !isProcessing && !isChecking && statusKnown && handleToggleTrack(playlist, containsTrack)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (isEditable && !isProcessing && !isChecking && statusKnown) {
+                      handleToggleTrack(playlist, containsTrack);
+                    }
+                  }}
                   disabled={!isEditable || isProcessing || isChecking || !statusKnown}
                   className={cn(
                     "w-full flex items-center gap-3 p-2 rounded-md text-left transition-colors",

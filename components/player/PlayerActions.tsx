@@ -15,6 +15,7 @@ interface PlayerActionsProps {
   trackId: string | null;
   trackUri: string | null;
   trackName: string | null;
+  trackArtists?: string[];
   isLiked: boolean;
   hasActiveMarkers: boolean;
   totalMarkers: number;
@@ -33,6 +34,7 @@ export function PlayerActions({
   trackId,
   trackUri,
   trackName,
+  trackArtists = [],
   isLiked,
   hasActiveMarkers,
   totalMarkers,
@@ -256,6 +258,7 @@ export function PlayerActions({
           onClose={() => setShowPlaylistDialog(false)}
           trackUri={trackUri}
           trackName={trackName}
+          trackArtists={trackArtists}
         />
       )}
     </div>

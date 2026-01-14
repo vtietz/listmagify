@@ -34,6 +34,8 @@ interface AddToMarkedButtonProps {
   trackUri: string;
   /** Track name for toast messages */
   trackName: string;
+  /** Track artists for dialog display */
+  trackArtists?: string[];
   /** Optional: exclude this playlist from insertion (e.g., the source playlist) */
   excludePlaylistId?: string;
 }
@@ -47,6 +49,7 @@ interface AddToMarkedButtonProps {
 export function AddToMarkedButton({
   trackUri,
   trackName,
+  trackArtists = [],
   excludePlaylistId,
 }: AddToMarkedButtonProps) {
   const { isCompact } = useCompactModeStore();
@@ -300,6 +303,7 @@ export function AddToMarkedButton({
         onClose={() => setShowPlaylistDialog(false)}
         trackUri={trackUri}
         trackName={trackName}
+        trackArtists={trackArtists}
       />
 
       <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
