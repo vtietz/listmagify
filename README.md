@@ -71,13 +71,11 @@ To deploy to production:
 
 ## Quick Start (Local)
 
+> **Note:** All commands below use `./run.sh` (Linux/macOS). Windows users can use `run.bat` with identical commands (e.g., `run.bat up` instead of `./run.sh up`).
+
 1. **Set up environment**:
    ```bash
-   # Windows: Copy .env.example to .env
-   run.bat init-env
-   
-   # macOS/Linux: Copy manually
-   cp .env.example .env
+   ./run.sh init-env
    ```
 
 2. **Add Spotify credentials** to `.env`:
@@ -92,11 +90,6 @@ To deploy to production:
 
 4. **Run**:
    ```bash
-   # Windows
-   run.bat install
-   run.bat up
-
-   # macOS/Linux
    ./run.sh install
    ./run.sh up
    ```
@@ -107,28 +100,22 @@ To deploy to production:
 
 All commands run inside Docker:
 
-| Task | Windows | macOS/Linux |
-|------|---------|-------------|
-| Install dependencies | `run.bat install` | `./run.sh install` |
-| Start dev server | `run.bat up` | `./run.sh up` |
-| Stop dev server | `run.bat down` | `./run.sh down` |
-| Run unit tests | `run.bat test` | `./run.sh test` |
-| Run E2E tests | `run.bat test e2e` | N/A (use `run.bat` on Windows) |
-| Run test in watch mode | `run.bat test --watch` | `./run.sh test -- --watch` |
-| Add package | `run.bat dev pnpm add <pkg>` | `./run.sh exec pnpm add <pkg>` |
-| Run arbitrary command | `run.bat dev <cmd>` | `./run.sh exec <cmd>` |
-| Run docker compose cmd | `run.bat compose <cmd>` | `./run.sh compose <cmd>` |
+| Task | Command |
+|------|----------|
+| Install dependencies | `./run.sh install` |
+| Start dev server | `./run.sh up` |
+| Stop dev server | `./run.sh down` |
+| Run unit tests | `./run.sh test` |
+| Run test in watch mode | `./run.sh test -- --watch` |
+| Add package | `./run.sh exec pnpm add <pkg>` |
+| Run arbitrary command | `./run.sh exec <cmd>` |
+| Run docker compose cmd | `./run.sh compose <cmd>` |
 
 ## Production Deployment
 
 Build and run the production image:
 
 ```bash
-# Windows
-run.bat prod-build
-run.bat prod-up
-
-# macOS/Linux
 ./run.sh prod-build
 ./run.sh prod-up
 ```
@@ -141,29 +128,24 @@ The production setup includes:
 
 ### Production Management Commands
 
-| Task | Windows | macOS/Linux |
-|------|---------|-------------|
-| Build production image | `run.bat prod-build` | `./run.sh prod-build` |
-| Start production | `run.bat prod-up` | `./run.sh prod-up` |
-| Stop production | `run.bat prod-down` | `./run.sh prod-down` |
-| View production logs | `run.bat compose logs -f` | `./run.sh prod-logs -f` |
-| Update (git pull + rebuild) | `run.bat prod-update` | `./run.sh prod-update` |
-| Cleanup artifacts | `run.bat prod-clean` | `./run.sh prod-clean` |
-| Cleanup + volumes | `run.bat prod-clean --volumes` | `./run.sh prod-clean --volumes` |
+| Task | Command |
+|------|----------|
+| Build production image | `./run.sh prod-build` |
+| Start production | `./run.sh prod-up` |
+| Stop production | `./run.sh prod-down` |
+| View production logs | `./run.sh prod-logs -f` |
+| Update (git pull + rebuild) | `./run.sh prod-update` |
+| Cleanup artifacts | `./run.sh prod-clean` |
+| Cleanup + volumes | `./run.sh prod-clean --volumes` |
 
 ### Cleanup Docker Artifacts
 
 Remove Docker images, containers, and build cache for this app:
 
 ```bash
-# Windows
-run.bat prod-clean
-
-# macOS/Linux
 ./run.sh prod-clean
 
 # Also remove volumes (deletes database)
-run.bat prod-clean --volumes
 ./run.sh prod-clean --volumes
 ```
 

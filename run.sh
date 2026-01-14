@@ -13,6 +13,7 @@ Commands:
   test            Run tests
   exec            Run command in container (e.g., exec pnpm add package)
   compose         Run docker compose command (e.g., compose logs -f)
+  init-env        Create .env from .env.example
   prod-build      Build production image (use --no-cache to force rebuild)
   prod-up         Start production deployment
   prod-down       Stop production deployment
@@ -28,6 +29,7 @@ Examples:
   ./run.sh test -- --watch
   ./run.sh exec pnpm add lodash
   ./run.sh compose logs -f
+  ./run.sh init-env
   ./run.sh prod-build --no-cache
   ./run.sh prod-logs -f
   ./run.sh prod-update
@@ -74,6 +76,14 @@ case "${1:-}" in
   test)
     shift
     docker compose --env-file .env -f docker/docker-compose.yml run --rm web pnpm test "$@"
+    ;;
+  init-env)
+    if [ ! -f .env ]; then
+      cp .env.example .env
+      echo "Created .env from .env.example. Fill in real secrets (NEXTAUTH_SECRET, SPOTIFY_*)."
+    else
+      echo ".env already exists. Edit it to set your secrets."
+    fi
     ;;
   prod-build)
     shift
