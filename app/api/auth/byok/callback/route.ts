@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { serverEnv } from '@/lib/env';
-import { cookies } from 'next/headers';
 import { encode } from 'next-auth/jwt';
+import { cookies } from 'next/headers';
+import { serverEnv } from '@/lib/env';
+import { logAuthEvent, startSession } from '@/lib/metrics';
 
 interface ByokState {
   clientId: string;
@@ -107,6 +108,7 @@ export async function GET(request: NextRequest) {
         accessToken: tokens.access_token,
         refreshToken: tokens.refresh_token,
         accessTokenExpires: expiresAt,
+        isByok: true, // Mark session as using BYOK
         // Store BYOK credentials for token refresh
         byok: {
           clientId,
@@ -128,6 +130,14 @@ export async function GET(request: NextRequest) {
     });
 
     console.debug('[byok] Successfully authenticated user:', profile.id);
+
+    // Track BYOK login success event
+    try {
+      logAuthEvent('login_success', profile.id, undefined, true); // Mark as BYOK
+      startSession(profile.id);
+    } catch {
+      // Don't fail auth if metrics fail
+    }
 
     // Redirect to the callback URL
     return NextResponse.redirect(new URL(callbackUrl || '/playlists', serverEnv.NEXTAUTH_URL));

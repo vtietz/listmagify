@@ -194,4 +194,14 @@ export const metricsMigrations: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_access_requests_status ON access_requests(status);
     `,
   },
+  {
+    version: 7,
+    name: 'add_is_byok_to_events',
+    sql: `
+      -- Add is_byok flag to track BYOK (Bring Your Own Key) authentication
+      ALTER TABLE events ADD COLUMN is_byok INTEGER DEFAULT 0;
+      
+      CREATE INDEX IF NOT EXISTS idx_events_is_byok ON events(is_byok);
+    `,
+  },
 ];

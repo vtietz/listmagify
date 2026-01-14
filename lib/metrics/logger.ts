@@ -36,6 +36,7 @@ export interface EventParams {
   durationMs?: number | undefined;
   success?: boolean | undefined;
   errorCode?: string | undefined;
+  isByok?: boolean | undefined; // Flag for BYOK authentication
   meta?: Record<string, unknown> | undefined;
 }
 
@@ -65,8 +66,8 @@ export function insertEvent(params: EventParams): void {
     const metaJson = params.meta ? JSON.stringify(params.meta) : null;
 
     execute(
-      `INSERT INTO events (user_id, user_hash, event, source, entity_type, entity_id, count, duration_ms, success, error_code, meta_json)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO events (user_id, user_hash, event, source, entity_type, entity_id, count, duration_ms, success, error_code, is_byok, meta_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         userId,
         userHash,
@@ -78,6 +79,7 @@ export function insertEvent(params: EventParams): void {
         params.durationMs ?? null,
         params.success !== undefined ? (params.success ? 1 : 0) : null,
         params.errorCode || null,
+        params.isByok ? 1 : 0,
         metaJson
       ]
     );
@@ -229,7 +231,8 @@ export function logFetchOperation(
 export function logAuthEvent(
   event: 'login_success' | 'login_failure',
   userId?: string,
-  errorCode?: string
+  errorCode?: string,
+  isByok?: boolean
 ): void {
   insertEvent({
     event,
@@ -238,6 +241,7 @@ export function logAuthEvent(
     entityType: 'user',
     success: event === 'login_success',
     errorCode,
+    isByok,
   });
 }
 

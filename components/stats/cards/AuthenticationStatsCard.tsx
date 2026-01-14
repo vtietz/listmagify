@@ -54,6 +54,18 @@ export function AuthenticationStatsCard({ dateRange }: AuthenticationStatsCardPr
                   {stats.loginSuccesses}
                 </div>
                 <div className="text-xs text-muted-foreground mt-1">Successful Logins</div>
+                {(stats.byokLogins > 0 || stats.regularLogins > 0) && (
+                  <div className="text-xs text-muted-foreground mt-2 space-y-0.5">
+                    <div className="flex items-center justify-center gap-1.5">
+                      <div className="w-2 h-2 rounded-full bg-purple-500"></div>
+                      <span>{stats.byokLogins} BYOK</span>
+                    </div>
+                    <div className="flex items-center justify-center gap-1.5">
+                      <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                      <span>{stats.regularLogins} Regular</span>
+                    </div>
+                  </div>
+                )}
               </div>
               <div className="text-center p-4 bg-red-500/10 rounded-lg">
                 <div className="text-2xl font-bold text-red-500">
@@ -73,9 +85,11 @@ export function AuthenticationStatsCard({ dateRange }: AuthenticationStatsCardPr
               <div>
                 <div className="text-sm font-medium mb-3">Daily Authentication Activity</div>
                 <div className="flex items-end gap-1 h-32">
-                  {stats.dailyStats.map((d: { date: string; successes: number; failures: number }) => {
+                  {stats.dailyStats.map((d: { date: string; successes: number; failures: number; byokSuccesses: number }) => {
                     const total = d.successes + d.failures;
-                    const successHeight = total > 0 ? (d.successes / maxValue) * 100 : 0;
+                    const regularSuccesses = d.successes - d.byokSuccesses;
+                    const regularHeight = total > 0 ? (regularSuccesses / maxValue) * 100 : 0;
+                    const byokHeight = total > 0 ? (d.byokSuccesses / maxValue) * 100 : 0;
                     const failureHeight = total > 0 ? (d.failures / maxValue) * 100 : 0;
                     
                     return (
@@ -88,10 +102,16 @@ export function AuthenticationStatsCard({ dateRange }: AuthenticationStatsCardPr
                                 style={{ height: `${failureHeight}%`, minHeight: failureHeight > 0 ? '2px' : '0' }}
                               />
                             )}
-                            {d.successes > 0 && (
+                            {d.byokSuccesses > 0 && (
+                              <div
+                                className="bg-purple-500/80 rounded-t hover:bg-purple-500 transition-colors"
+                                style={{ height: `${byokHeight}%`, minHeight: byokHeight > 0 ? '2px' : '0' }}
+                              />
+                            )}
+                            {regularSuccesses > 0 && (
                               <div
                                 className="bg-green-500/80 rounded-t hover:bg-green-500 transition-colors"
-                                style={{ height: `${successHeight}%`, minHeight: successHeight > 0 ? '2px' : '0' }}
+                                style={{ height: `${regularHeight}%`, minHeight: regularHeight > 0 ? '2px' : '0' }}
                               />
                             )}
                           </div>
@@ -99,8 +119,9 @@ export function AuthenticationStatsCard({ dateRange }: AuthenticationStatsCardPr
                         <TooltipContent>
                           <div className="text-sm">
                             <div className="font-medium">{formatDate(d.date)}</div>
-                            <div className="text-green-500">✓ {d.successes} success{d.successes !== 1 ? 'es' : ''}</div>
-                            <div className="text-red-500">✗ {d.failures} failure{d.failures !== 1 ? 's' : ''}</div>
+                            {regularSuccesses > 0 && <div className="text-green-500">✓ {regularSuccesses} regular</div>}
+                            {d.byokSuccesses > 0 && <div className="text-purple-500">✓ {d.byokSuccesses} BYOK</div>}
+                            {d.failures > 0 && <div className="text-red-500">✗ {d.failures} failure{d.failures !== 1 ? 's' : ''}</div>}
                           </div>
                         </TooltipContent>
                       </Tooltip>
@@ -110,7 +131,11 @@ export function AuthenticationStatsCard({ dateRange }: AuthenticationStatsCardPr
                 <div className="flex items-center gap-4 mt-2 text-xs">
                   <div className="flex items-center gap-1">
                     <div className="w-3 h-3 bg-green-500 rounded" />
-                    <span className="text-muted-foreground">Successes</span>
+                    <span className="text-muted-foreground">Regular</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-3 h-3 bg-purple-500 rounded" />
+                    <span className="text-muted-foreground">BYOK</span>
                   </div>
                   <div className="flex items-center gap-1">
                     <div className="w-3 h-3 bg-red-500 rounded" />

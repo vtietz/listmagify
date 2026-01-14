@@ -62,6 +62,7 @@ async function refreshAccessToken(token: Record<string, any>) {
       accessTokenExpires: Date.now() + expiresInMs,
       // Some providers only return a new refresh_token sometimes.
       refreshToken: data.refresh_token ?? token.refreshToken,
+      isByok: token.isByok, // Preserve BYOK flag
       error: undefined,
     };
   } catch (error) {
@@ -217,6 +218,7 @@ export const authOptions: AuthOptions = {
       (session as any).accessToken = token.accessToken;
       (session as any).accessTokenExpires = token.accessTokenExpires;
       (session as any).error = token.error;
+      (session as any).isByok = token.isByok || false; // Expose BYOK flag
       
       // Add user info if available
       if (session.user) {
