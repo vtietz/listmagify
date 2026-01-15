@@ -172,9 +172,10 @@ export function SearchPanel({ isActive = true, inputRef: externalInputRef }: Sea
     [sortedTracks]
   );
 
-  // Playback integration
+  // Playback integration - pass 'search' as sourceId to maintain playback context
   const { isTrackPlaying, isTrackLoading, playTrack, pausePlayback } = useTrackPlayback({
     trackUris,
+    sourceId: SEARCH_PANEL_ID,
   });
 
   // Dynamic row height based on compact mode

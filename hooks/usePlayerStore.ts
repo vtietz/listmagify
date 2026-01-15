@@ -15,6 +15,8 @@ export interface PlaybackContext {
   currentIndex: number;
   /** Playlist ID if playing from a playlist */
   playlistId?: string;
+  /** Source identifier: 'search', 'lastfm', or panel ID (for tracking where playback started) */
+  sourceId?: string;
 }
 
 interface PlayerStore {

@@ -245,6 +245,8 @@ export function useSpotifyPlayer() {
     currentIndex?: number;
     /** Playlist ID for context */
     playlistId?: string;
+    /** Source identifier (e.g., 'search', 'lastfm', or panel ID) */
+    sourceId?: string;
   }) => {
     setLoading(true);
     setError(null);
@@ -292,6 +294,7 @@ export function useSpotifyPlayer() {
           trackUris: options.playlistTrackUris,
           currentIndex: options.currentIndex ?? 0,
           ...(options.playlistId ? { playlistId: options.playlistId } : {}),
+          ...(options.sourceId ? { sourceId: options.sourceId } : {}),
         } as PlaybackContext);
       }
     } finally {

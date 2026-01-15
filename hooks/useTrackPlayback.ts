@@ -13,10 +13,12 @@ interface UseTrackPlaybackOptions {
   playlistId?: string | undefined;
   /** Playlist URI (optional, for Spotify context playback) */
   playlistUri?: string | undefined;
+  /** Source identifier (e.g., 'search', 'lastfm', or panel ID) for tracking playback origin */
+  sourceId?: string | undefined;
 }
 
 export function useTrackPlayback(options: UseTrackPlaybackOptions) {
-  const { trackUris, playlistId, playlistUri } = options;
+  const { trackUris, playlistId, playlistUri, sourceId } = options;
   const { play, pause, isPlaying, currentTrackId, isLoading } = useSpotifyPlayer();
   
   // Track which track we're loading (for showing spinner)
@@ -56,6 +58,7 @@ export function useTrackPlayback(options: UseTrackPlaybackOptions) {
           playlistTrackUris: trackUris,
           currentIndex: trackIndex,
           ...(playlistId ? { playlistId } : {}),
+          ...(sourceId ? { sourceId } : {}),
         });
       } else {
         // For Liked Songs or other non-playlist contexts:
@@ -66,6 +69,7 @@ export function useTrackPlayback(options: UseTrackPlaybackOptions) {
           playlistTrackUris: trackUris,
           currentIndex: trackIndex >= 0 ? trackIndex : 0,
           ...(playlistId ? { playlistId } : {}),
+          ...(sourceId ? { sourceId } : {}),
         });
       }
     } finally {

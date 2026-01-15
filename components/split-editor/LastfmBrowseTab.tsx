@@ -12,43 +12,25 @@
  */
 
 'use client';
-'use no memo';
 
-import { useState, useEffect, useRef, useCallback, useMemo, useDeferredValue } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { useVirtualizer } from '@tanstack/react-virtual';
-import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { User, Loader2, Radio } from 'lucide-react';
 import { useBrowsePanelStore } from '@/hooks/useBrowsePanelStore';
 import { useHydratedCompactMode } from '@/hooks/useCompactModeStore';
 import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
 import { useContextMenuStore } from '@/hooks/useContextMenuStore';
 import { useLastfmMatch, makeMatchKeyFromDTO } from '@/hooks/useLastfmMatchCache';
-import { lastfmToTrack, type IndexedTrackDTO, type LastfmTrack } from '@/hooks/useLastfmTracks';
+import { lastfmToTrack, type IndexedTrackDTO } from '@/hooks/useLastfmTracks';
 import { useSavedTracksIndex } from '@/hooks/useSavedTracksIndex';
 import { useTrackPlayback } from '@/hooks/useTrackPlayback';
 import { useCompareModeStore, getTrackCompareColor } from '@/hooks/useCompareModeStore';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { apiFetch } from '@/lib/api/client';
-import { cn } from '@/lib/utils';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { TrackRow } from './TrackRow';
-import { TrackContextMenu } from './TrackContextMenu';
-import { TableHeader } from './TableHeader';
-import { AddSelectedToMarkersButton } from './AddSelectedToMarkersButton';
-import { LastfmAddToMarkedButton } from './LastfmAddToMarkedButton';
-import { MatchStatusIndicator } from './MatchStatusIndicator';
-import { TRACK_ROW_HEIGHT, TRACK_ROW_HEIGHT_COMPACT, VIRTUALIZATION_OVERSCAN } from './constants';
 import { makeCompositeId } from '@/lib/dnd/id';
 import { toast } from '@/lib/ui/toast';
-import type { ImportedTrackDTO, ImportSource, LastfmPeriod } from '@/lib/importers/types';
+import { LastfmBrowseFilters } from './LastfmBrowseFilters';
+import { LastfmBrowseList } from './LastfmBrowseList';
+import type { ImportedTrackDTO, ImportSource } from '@/lib/importers/types';
 import type { Track } from '@/lib/spotify/types';
 
 /** Virtual panel ID for Last.fm browse (used in DnD composite IDs) */
@@ -64,25 +46,9 @@ interface LastfmResponse {
     totalItems?: number;
   };
   source: ImportSource;
-  period?: LastfmPeriod;
+  period?: string;
   error?: string;
 }
-
-const SOURCE_OPTIONS: { value: ImportSource; label: string }[] = [
-  { value: 'lastfm-recent', label: 'Recent' },
-  { value: 'lastfm-loved', label: 'Loved' },
-  { value: 'lastfm-top', label: 'Top' },
-  { value: 'lastfm-weekly', label: 'Weekly' },
-];
-
-const PERIOD_OPTIONS: { value: LastfmPeriod; label: string }[] = [
-  { value: '7day', label: '7d' },
-  { value: '1month', label: '1mo' },
-  { value: '3month', label: '3mo' },
-  { value: '6month', label: '6mo' },
-  { value: '12month', label: '1yr' },
-  { value: 'overall', label: 'All' },
-];
 
 interface LastfmBrowseTabProps {
   /** Whether this tab is currently active */
@@ -122,7 +88,6 @@ export function LastfmBrowseTab({ isActive = true }: LastfmBrowseTabProps) {
   // Context menu store
   const contextMenu = useContextMenuStore();
   const closeContextMenu = useContextMenuStore((s) => s.closeMenu);
-  const shouldShowContextMenu = contextMenu.isOpen && contextMenu.panelId === LASTFM_PANEL_ID;
   
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -208,11 +173,12 @@ export function LastfmBrowseTab({ isActive = true }: LastfmBrowseTabProps) {
   }, [data?.pages]);
   
   // Convert to Track format for display (with matched data when available)
-  const allTracks = useMemo((): LastfmTrack[] => {
+  const allTracks = useMemo(() => {
     return allLastfmTracks.map((dto) => {
       const cached = getCachedMatch(dto);
       return lastfmToTrack(dto, cached);
-    });  }, [allLastfmTracks, getCachedMatch]);
+    });  
+  }, [allLastfmTracks, getCachedMatch]);
   
   // Create composite IDs for sortable context
   const sortableIds = useMemo(() => {
@@ -275,43 +241,11 @@ export function LastfmBrowseTab({ isActive = true }: LastfmBrowseTabProps) {
     [allTracks]
   );
   
-  // Playback integration
+  // Playback integration - pass 'lastfm' as sourceId to maintain playback context
   const { isTrackPlaying, isTrackLoading, playTrack, pausePlayback } = useTrackPlayback({
     trackUris,
+    sourceId: LASTFM_PANEL_ID,
   });
-  
-  // Dynamic row height based on compact mode
-  const rowHeight = isCompact ? TRACK_ROW_HEIGHT_COMPACT : TRACK_ROW_HEIGHT;
-  
-  // Defer the count to avoid flushSync during render
-  const deferredCount = useDeferredValue(allTracks.length);
-  
-  // Virtualizer for efficient rendering
-  // Uses ref-based scroll element to avoid option churn
-  const virtualizer = useVirtualizer({
-    count: deferredCount,
-    getScrollElement: () => scrollRef.current,
-    estimateSize: () => rowHeight,
-    overscan: VIRTUALIZATION_OVERSCAN,
-  });
-  
-  // Store virtualizer in ref
-  const virtualizerRef = useRef(virtualizer);
-  virtualizerRef.current = virtualizer;
-  
-  // Track previous compact mode
-  const prevCompactRef = useRef(isCompact);
-  
-  // Re-measure when compact mode changes
-  useEffect(() => {
-    if (prevCompactRef.current !== isCompact) {
-      prevCompactRef.current = isCompact;
-      const timeoutId = setTimeout(() => {
-        virtualizerRef.current.measure();
-      }, 0);
-      return () => clearTimeout(timeoutId);
-    }
-  }, [isCompact]);
   
   // Auto-load more when scrolling near the bottom (infinite scroll)
   useEffect(() => {
@@ -462,258 +396,53 @@ export function LastfmBrowseTab({ isActive = true }: LastfmBrowseTabProps) {
   
   return (
     <div className="flex-1 min-h-0 flex flex-col">
-      {/* Username input and filters */}
-      <div className="px-3 py-2 border-b border-border">
-        <div className="flex items-center gap-1.5">
-          <div className="relative flex-1">
-            <User className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              ref={inputRef}
-              type="text"
-              placeholder="Last.fm username..."
-              value={localUsername}
-              onChange={(e) => setLocalUsername(e.target.value)}
-              className="h-9 pl-9 text-sm"
-            />
-          </div>
-          
-          {/* Source selector */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="h-9 text-xs w-[80px] justify-between shrink-0">
-                {SOURCE_OPTIONS.find(opt => opt.value === lastfmSource)?.label}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-[140px]">
-              {SOURCE_OPTIONS.map((opt) => (
-                <DropdownMenuItem 
-                  key={opt.value} 
-                  onClick={() => setLastfmSource(opt.value)}
-                  className={cn("text-xs", lastfmSource === opt.value && "bg-accent")}
-                >
-                  {opt.label}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-          
-          {/* Period selector (only for Top) */}
-          {lastfmSource === 'lastfm-top' && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="h-9 text-xs w-[60px] justify-between shrink-0">
-                  {PERIOD_OPTIONS.find(opt => opt.value === lastfmPeriod)?.label}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-[100px]">
-                {PERIOD_OPTIONS.map((opt) => (
-                  <DropdownMenuItem 
-                    key={opt.value} 
-                    onClick={() => setLastfmPeriod(opt.value)}
-                    className={cn("text-xs", lastfmPeriod === opt.value && "bg-accent")}
-                  >
-                    {opt.label}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-          
-          {/* Add selected to markers button - always show when markers exist */}
-          {hasAnyMarkers && (
-            <AddSelectedToMarkersButton
-              selectedCount={lastfmSelection.length}
-              getTrackUris={getSelectedTrackUris}
-              className="h-9 w-9 shrink-0"
-            />
-          )}
-        </div>
-      </div>
+      <LastfmBrowseFilters
+        localUsername={localUsername}
+        onUsernameChange={setLocalUsername}
+        lastfmSource={lastfmSource}
+        onSourceChange={setLastfmSource}
+        lastfmPeriod={lastfmPeriod}
+        onPeriodChange={setLastfmPeriod}
+        hasAnyMarkers={hasAnyMarkers}
+        selectedCount={lastfmSelection.length}
+        getTrackUris={getSelectedTrackUris}
+        inputRef={inputRef}
+      />
       
-      {/* Results - scroll container is always rendered to keep virtualizer stable */}
       <div className="flex-1 min-h-0 overflow-hidden">
         <div
           ref={scrollRef}
           className="h-full overflow-auto"
         >
-          {isLoading && debouncedUsername ? (
-            <div className="flex items-center justify-center h-32">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : isError ? (
-            <div className="flex flex-col items-center justify-center h-32 text-sm text-destructive px-4 text-center">
-              <p>Failed to load tracks</p>
-              <p className="text-xs mt-1 text-muted-foreground">
-                {error instanceof Error ? error.message : 'Unknown error'}
-              </p>
-            </div>
-          ) : !debouncedUsername ? (
-            <div className="flex flex-col items-center justify-center h-32 text-sm text-muted-foreground px-4 text-center">
-              <Radio className="h-8 w-8 mb-2 opacity-50" />
-              <p>Enter a Last.fm username</p>
-              <p className="text-xs mt-1">to browse their listening history</p>
-            </div>
-          ) : allTracks.length === 0 ? (
-            <div className="flex items-center justify-center h-32 text-sm text-muted-foreground">
-              No tracks found for &quot;{debouncedUsername}&quot;
-            </div>
-          ) : (
-            <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
-              <div className="relative w-full">
-                <TableHeader
-                  isEditable={false}
-                  sortKey="position"
-                  sortDirection="asc"
-                  onSort={handleSort}
-                  showLikedColumn={true}
-                  showMatchStatusColumn={true}
-                  showCustomAddColumn={hasAnyMarkers}
-                  showScrobbleDateColumn={true}
-                  showCumulativeTime={false}
-                />
-                <div
-                  style={{
-                    height: virtualizer.getTotalSize(),
-                    position: 'relative',
-                  }}
-                >
-                  {virtualizer.getVirtualItems().map((virtualRow) => {
-                    const track = allTracks[virtualRow.index];
-                    if (!track) return null;
-                    
-                    const dto = track._lastfmDto;
-                    const isMatched = track._isMatched;
-                    
-                    const key = makeMatchKeyFromDTO(dto);
-                    const compositeId = makeCompositeId(LASTFM_PANEL_ID, key, dto.globalIndex);
-                    const isSelected = lastfmSelection.includes(virtualRow.index);
-                    const liked = track.id ? isLiked(track.id) : false;
-                    
-                    // Get match status from cache
-                    const cached = getCachedMatch(dto);
-                    const matchStatus = cached?.status ?? 'idle';
-                    const matchedSpotifyTrack = cached?.spotifyTrack;
-                    
-                    // Handler to trigger matching when drag starts (allows drag without prior selection)
-                    const handleDragStart = () => {
-                      if (!cached || cached.status === 'idle') {
-                        matchTrack(dto);
-                      }
-                    };
-                    
-                    // Build optional props conditionally to satisfy exactOptionalPropertyTypes
-                    const optionalProps = isMatched ? {
-                      onToggleLiked: handleToggleLiked,
-                      isPlaybackLoading: isTrackLoading(track.uri),
-                      onPlay: playTrack,
-                      onPause: pausePlayback,
-                    } : {};
-                    
-                    // Render prefix columns (match status + custom add button when markers exist)
-                    const renderPrefixColumns = () => (
-                      <>
-                        {/* Match status indicator */}
-                        <div className="flex items-center justify-center">
-                          <MatchStatusIndicator status={matchStatus} />
-                        </div>
-                        {/* Last.fm add to marked button (only when markers exist) */}
-                        {hasAnyMarkers && (
-                          <div className="flex items-center justify-center">
-                            <LastfmAddToMarkedButton
-                              lastfmTrack={dto}
-                              trackName={track.name}
-                            />
-                          </div>
-                        )}
-                      </>
-                    );
-                    
-                    return (
-                      <div
-                        key={compositeId}
-                        style={{
-                          position: 'absolute',
-                          top: 0,
-                          left: 0,
-                          width: '100%',
-                          transform: `translateY(${virtualRow.start}px)`,
-                        }}
-                      >
-                        <TrackRow
-                          track={track}
-                          index={virtualRow.index}
-                          selectionKey={compositeId}
-                          isSelected={isSelected}
-                          isEditable={false}
-                          locked={false}
-                          onSelect={handleSelect}
-                          onClick={handleClick}
-                          panelId={LASTFM_PANEL_ID}
-                          dndMode="copy"
-                          isDragSourceSelected={false}
-                          showLikedColumn={true}
-                          isLiked={liked}
-                          isPlaying={isMatched && track.id ? isTrackPlaying(track.id) : false}
-                          showMatchStatusColumn={true}
-                          showCustomAddColumn={hasAnyMarkers}
-                          renderPrefixColumns={renderPrefixColumns}
-                          scrobbleTimestamp={dto.playedAt}
-                          showScrobbleDateColumn={true}
-                          showCumulativeTime={false}
-                          dragType="lastfm-track"
-                          matchedTrack={matchedSpotifyTrack ? {
-                            id: matchedSpotifyTrack.id,
-                            uri: matchedSpotifyTrack.uri,
-                            name: matchedSpotifyTrack.name,
-                            artist: matchedSpotifyTrack.artists[0],
-                            durationMs: matchedSpotifyTrack.durationMs,
-                          } : null}
-                          lastfmDto={{
-                            artistName: dto.artistName,
-                            trackName: dto.trackName,
-                            albumName: dto.albumName,
-                          }}
-                          onDragStart={handleDragStart}
-                          compareColor={matchedSpotifyTrack?.uri ? getCompareColorForTrack(matchedSpotifyTrack.uri) : undefined}
-                          isMultiSelect={lastfmSelection.length > 1}
-                          selectedCount={lastfmSelection.length}
-                          {...(isSelected && selectedMatchedUris.length > 0 
-                            ? { selectedMatchedUris } 
-                            : {})}
-                          {...(isSelected && selectedTracks.length > 0
-                            ? { selectedTracks }
-                            : {})}
-                          {...optionalProps}
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-              
-              {/* Loading more indicator */}
-              {isFetchingNextPage && (
-                <div className="flex items-center justify-center py-4">
-                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                </div>
-              )}
-            </SortableContext>
-          )}
-          
-          {/* Context menu for this panel */}
-          {shouldShowContextMenu && contextMenu.track && (
-            <TrackContextMenu
-              track={contextMenu.track}
-              isOpen={true}
-              onClose={closeContextMenu}
-              {...(contextMenu.position ? { position: contextMenu.position } : {})}
-              {...(contextMenu.markerActions ? { markerActions: contextMenu.markerActions } : {})}
-              {...(contextMenu.trackActions ? { trackActions: contextMenu.trackActions } : {})}
-              isMultiSelect={contextMenu.isMultiSelect}
-              selectedCount={contextMenu.selectedCount}
-              isEditable={false}
-            />
-          )}
+          <LastfmBrowseList
+            allTracks={allTracks}
+            sortableIds={sortableIds}
+            isLoading={isLoading}
+            isError={isError}
+            error={error}
+            debouncedUsername={debouncedUsername}
+            isFetchingNextPage={isFetchingNextPage}
+            lastfmSelection={lastfmSelection}
+            isCompact={isCompact}
+            hasAnyMarkers={hasAnyMarkers}
+            selectedMatchedUris={selectedMatchedUris}
+            selectedTracks={selectedTracks}
+            isLiked={isLiked}
+            getCachedMatch={getCachedMatch}
+            matchTrack={matchTrack}
+            isTrackPlaying={isTrackPlaying}
+            isTrackLoading={isTrackLoading}
+            playTrack={playTrack}
+            pausePlayback={pausePlayback}
+            handleToggleLiked={handleToggleLiked}
+            handleSelect={handleSelect}
+            handleClick={handleClick}
+            handleSort={handleSort}
+            getCompareColorForTrack={getCompareColorForTrack}
+            contextMenu={contextMenu}
+            closeContextMenu={closeContextMenu}
+            scrollRef={scrollRef}
+          />
         </div>
       </div>
     </div>
