@@ -5,6 +5,7 @@
 import { NextResponse } from 'next/server';
 import { getJSON } from '@/lib/spotify/client';
 import { mapDevice, type SpotifyDevice } from '@/lib/spotify/playerTypes';
+import { handleSpotifyException } from '@/lib/api/spotifyErrorHandler';
 
 interface DevicesResponse {
   devices: any[];
@@ -18,18 +19,9 @@ export async function GET() {
     
     return NextResponse.json({ devices });
   } catch (error: any) {
-    console.error('[api/player/devices] Error:', error);
-    
-    if (error.message?.includes('Missing access token')) {
-      return NextResponse.json(
-        { error: 'token_expired', message: 'Authentication required' },
-        { status: 401 }
-      );
-    }
-    
-    return NextResponse.json(
-      { error: 'Failed to get devices', message: error.message },
-      { status: 500 }
-    );
+    return handleSpotifyException(error, {
+      operation: 'api/player/devices',
+      path: '/me/player/devices'
+    });
   }
 }

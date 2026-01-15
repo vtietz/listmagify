@@ -5,6 +5,7 @@
 import { NextResponse } from 'next/server';
 import { spotifyFetch } from '@/lib/spotify/client';
 import { mapPlaybackState, type PlaybackState } from '@/lib/spotify/playerTypes';
+import { handleSpotifyResponseError, handleSpotifyException } from '@/lib/api/spotifyErrorHandler';
 
 export async function GET() {
   try {
@@ -16,8 +17,10 @@ export async function GET() {
     }
     
     if (!response.ok) {
-      const text = await response.text().catch(() => '');
-      throw new Error(`Failed to get playback state: ${response.status} ${text}`);
+      return handleSpotifyResponseError(response, {
+        operation: 'api/player/state',
+        path: '/me/player'
+      });
     }
     
     const data = await response.json();
@@ -25,18 +28,8 @@ export async function GET() {
     
     return NextResponse.json({ playback });
   } catch (error: any) {
-    console.error('[api/player/state] Error:', error);
-    
-    if (error.message?.includes('Missing access token')) {
-      return NextResponse.json(
-        { error: 'token_expired', message: 'Authentication required' },
-        { status: 401 }
-      );
-    }
-    
-    return NextResponse.json(
-      { error: 'Failed to get playback state', message: error.message },
-      { status: 500 }
-    );
+    return handleSpotifyException(error, {
+      operation: 'api/player/state'
+    });
   }
 }

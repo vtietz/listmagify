@@ -40,11 +40,12 @@ export async function GET(request: NextRequest) {
     const response = await spotifyFetch(spotifyUrl);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      return NextResponse.json(
-        { error: errorData.error?.message || 'Failed to search tracks' },
-        { status: response.status }
-      );
+      const { handleSpotifyResponseError } = await import('@/lib/api/spotifyErrorHandler');
+      return handleSpotifyResponseError(response, {
+        operation: 'api/search/tracks',
+        path: spotifyUrl,
+        context: { query, limit, offset }
+      });
     }
 
     const data = await response.json();
@@ -62,11 +63,10 @@ export async function GET(request: NextRequest) {
       total,
       nextOffset,
     });
-  } catch (error) {
-    console.error('[api/search/tracks] Error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+  } catch (error: any) {
+    const { handleSpotifyException } = await import('@/lib/api/spotifyErrorHandler');
+    return handleSpotifyException(error, {
+      operation: 'api/search/tracks'
+    });
   }
 }
