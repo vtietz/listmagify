@@ -87,6 +87,8 @@ export function useSpotifyPlayer() {
   // Track the last played track URI to detect track changes
   const lastTrackUriRef = useRef<string | null>(null);
   const autoPlayInProgressRef = useRef(false);
+  const lastProgressRef = useRef<number>(0);
+  const lastTrackEndDetectedRef = useRef<string | null>(null);
 
   // Auto-play next track when current track ends (for non-context playback like Liked Songs)
   // This effect monitors playback state and triggers next track when:
@@ -103,6 +105,19 @@ export function useSpotifyPlayer() {
     const track = state.track;
     if (!track) return;
     
+    // Debug logging for auto-advance
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[auto-advance] Check:', {
+        trackUri: track.uri,
+        isPlaying: state.isPlaying,
+        progress: state.progressMs,
+        duration: track.durationMs,
+        currentIndex: playbackContext.currentIndex,
+        totalTracks: playbackContext.trackUris.length,
+        sourceId: playbackContext.sourceId,
+      });
+    }
+    
     // Detect if track has changed (Spotify advanced or user clicked different track)
     const currentUri = track.uri;
     if (lastTrackUriRef.current && lastTrackUriRef.current !== currentUri) {
@@ -117,11 +132,32 @@ export function useSpotifyPlayer() {
     }
     lastTrackUriRef.current = currentUri;
     
-    // Check if track has ended: not playing AND progress is very close to duration
-    // Use a threshold to account for polling delay
-    const hasEnded = !state.isPlaying && 
-                     track.durationMs > 0 && 
-                     state.progressMs >= track.durationMs - 1000; // Within last second
+    // Detect track end using progress jump detection:
+    // If progress was high (>80% of duration) and now reset to near 0, track ended
+    const lastProgress = lastProgressRef.current;
+    const progressThreshold = track.durationMs * 0.8;
+    const hasProgressReset = lastProgress > progressThreshold && state.progressMs < 2000;
+    
+    // Also detect: not playing AND progress is 0 AND we haven't already handled this track
+    const isStoppedAtStart = !state.isPlaying && state.progressMs < 2000;
+    const alreadyHandled = lastTrackEndDetectedRef.current === currentUri;
+    
+    // Track ended if: progress jumped from high to low, OR stopped at start (but not already handled)
+    const hasEnded = hasProgressReset || (isStoppedAtStart && lastProgress > progressThreshold && !alreadyHandled);
+    
+    // Update last progress
+    lastProgressRef.current = state.progressMs;
+    
+    if (process.env.NODE_ENV === 'development' && hasEnded) {
+      console.log('[auto-advance] Track ended detected:', {
+        lastProgress,
+        currentProgress: state.progressMs,
+        threshold: progressThreshold,
+        hasProgressReset,
+        isStoppedAtStart,
+        alreadyHandled,
+      });
+    }
     
     if (hasEnded && playbackContext.currentIndex < playbackContext.trackUris.length - 1) {
       // Play next track
@@ -129,6 +165,14 @@ export function useSpotifyPlayer() {
       const nextTrackUri = playbackContext.trackUris[nextIndex];
       
       if (nextTrackUri) {
+        console.log('[auto-advance] Triggering next track:', {
+          nextIndex,
+          nextTrackUri,
+          sourceId: playbackContext.sourceId,
+        });
+        
+        // Mark this track as handled to prevent re-triggering
+        lastTrackEndDetectedRef.current = currentUri;
         autoPlayInProgressRef.current = true;
         
         // Use the control mutation directly to avoid circular dependencies

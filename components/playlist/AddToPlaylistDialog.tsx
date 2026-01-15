@@ -531,7 +531,7 @@ export function AddToPlaylistDialog({ isOpen, onClose, trackUri, trackName, trac
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Add to playlist</DialogTitle>
-          <div className="space-y-1">
+          <div className="space-y-1 min-w-0 overflow-hidden">
             <div className="font-medium text-foreground truncate">
               {trackName}
               {trackArtists.length > 0 && (
