@@ -123,8 +123,10 @@ interface TrackRowProps {
   selectedMatchedUris?: string[];
   /** Callback when drag starts (used to trigger Last.fm matching) */
   onDragStart?: () => void;
-  /** Whether this track appears multiple times in the playlist (duplicate) */
+  /** Whether this track is a real duplicate (same Spotify track ID) */
   isDuplicate?: boolean;
+  /** Whether this track is a soft duplicate (same title/artist/duration, different ID) */
+  isSoftDuplicate?: boolean;
   /** Whether another instance of this duplicate track is currently selected */
   isOtherInstanceSelected?: boolean;
   /** Compare mode background color (transparent when not in compare mode) */
@@ -183,6 +185,7 @@ function TrackRowComponent({
   selectedMatchedUris,
   onDragStart,
   isDuplicate = false,
+  isSoftDuplicate = false,
   isOtherInstanceSelected = false,
   compareColor,
   reorderActions,
@@ -447,12 +450,14 @@ function TrackRowComponent({
   }, [track, isSelected, isMultiSelect, selectedCount, isEditable, panelId, fullMarkerActions, fullTrackActions, reorderActions, openContextMenu]);
 
   // Compute the effective background style for compare mode
+  // Skip compare color if any type of duplicate
+  const isAnyDuplicate = isDuplicate || isSoftDuplicate;
   const effectiveBackgroundStyle = useMemo(() => {
-    if (compareColor && compareColor !== 'transparent' && !isSelected && !isDuplicate) {
+    if (compareColor && compareColor !== 'transparent' && !isSelected && !isAnyDuplicate) {
       return { backgroundColor: compareColor };
     }
     return {};
-  }, [compareColor, isSelected, isDuplicate]);
+  }, [compareColor, isSelected, isAnyDuplicate]);
 
   // Get contributor profile data
   const contributorProfile = useMemo(() => {
@@ -471,16 +476,21 @@ function TrackRowComponent({
       style={{ ...gridStyle, ...effectiveBackgroundStyle }}
       className={cn(
         'relative group/row cursor-default',
-        !compareColor || compareColor === 'transparent' || isSelected || isDuplicate ? 'bg-card' : '',
+        !compareColor || compareColor === 'transparent' || isSelected || isAnyDuplicate ? 'bg-card' : '',
         TRACK_GRID_CLASSES,
         isCompact ? 'h-7 ' + TRACK_GRID_CLASSES_COMPACT : 'h-10 ' + TRACK_GRID_CLASSES_NORMAL,
         'border-b border-border transition-colors',
         // Selection and duplicate states
+        // Real duplicates (same Spotify ID) - strong orange
         isSelected && isDuplicate && 'bg-orange-500/30 text-foreground hover:bg-orange-500/40',
-        isSelected && !isDuplicate && 'bg-accent/70 text-foreground hover:bg-accent/80',
         !isSelected && isDuplicate && isOtherInstanceSelected && 'bg-orange-500/20 hover:bg-orange-500/30',
-        !isSelected && isDuplicate && !isOtherInstanceSelected && 'bg-orange-500/5 hover:bg-orange-500/10',
-        !isSelected && !isDuplicate && (!compareColor || compareColor === 'transparent') && 'hover:bg-accent/40 hover:text-foreground',
+        !isSelected && isDuplicate && !isOtherInstanceSelected && 'bg-orange-500/10 hover:bg-orange-500/15',
+        // Soft duplicates (same title/artist/duration) - subtle amber
+        isSelected && isSoftDuplicate && !isDuplicate && 'bg-amber-500/20 text-foreground hover:bg-amber-500/25',
+        !isSelected && isSoftDuplicate && !isDuplicate && 'bg-amber-500/5 hover:bg-amber-500/10',
+        // Normal selection (not a duplicate)
+        isSelected && !isAnyDuplicate && 'bg-accent/70 text-foreground hover:bg-accent/80',
+        !isSelected && !isAnyDuplicate && (!compareColor || compareColor === 'transparent') && 'hover:bg-accent/40 hover:text-foreground',
         // Drag states
         (isDragging || isDragSourceSelected) && dndMode === 'move' && 'opacity-0',
         (isDragging || isDragSourceSelected) && dndMode === 'copy' && 'opacity-50',

@@ -9,6 +9,7 @@ import type { Track } from '@/lib/spotify/types';
 
 /**
  * Build a set of duplicate URIs (URIs that appear more than once in the track list).
+ * These are "real" duplicates - exact same Spotify track ID.
  */
 export function buildDuplicateUris(filteredTracks: Track[]): Set<string> {
   const uriCounts = new Map<string, number>();
@@ -24,6 +25,54 @@ export function buildDuplicateUris(filteredTracks: Track[]): Set<string> {
     }
   }
   return duplicates;
+}
+
+/**
+ * Create a signature key for soft duplicate detection.
+ * Uses normalized title, artist names, and duration (rounded to nearest second).
+ */
+function createSoftDuplicateKey(track: Track): string {
+  const title = track.name.toLowerCase().trim();
+  const artists = track.artists.map(a => a.toLowerCase().trim()).sort().join('|');
+  // Round duration to nearest second to handle minor variations
+  const durationSeconds = Math.round(track.durationMs / 1000);
+  return `${title}::${artists}::${durationSeconds}`;
+}
+
+/**
+ * Build a set of "soft duplicate" URIs.
+ * Soft duplicates are tracks with matching title, artist, and duration,
+ * but different Spotify track IDs (e.g., same song from different albums/releases).
+ * Does NOT include real duplicates (same URI).
+ */
+export function buildSoftDuplicateUris(
+  filteredTracks: Track[],
+  realDuplicateUris: Set<string>
+): Set<string> {
+  // Group tracks by their soft duplicate key
+  const keyToTracks = new Map<string, Track[]>();
+  for (const track of filteredTracks) {
+    const key = createSoftDuplicateKey(track);
+    const existing = keyToTracks.get(key) || [];
+    existing.push(track);
+    keyToTracks.set(key, existing);
+  }
+  
+  const softDuplicates = new Set<string>();
+  for (const tracks of keyToTracks.values()) {
+    // Check if there are multiple different URIs for this key
+    const uniqueUris = new Set(tracks.map(t => t.uri));
+    if (uniqueUris.size > 1) {
+      // Mark all tracks with this key as soft duplicates
+      // (but exclude those that are already real duplicates)
+      for (const track of tracks) {
+        if (!realDuplicateUris.has(track.uri)) {
+          softDuplicates.add(track.uri);
+        }
+      }
+    }
+  }
+  return softDuplicates;
 }
 
 /**

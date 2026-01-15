@@ -304,8 +304,11 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
     cumulativeDurations,
     hourBoundaries,
     duplicateUris: duplicates.duplicateUris,
+    softDuplicateUris: duplicates.softDuplicateUris,
     selectedDuplicateUris: duplicates.selectedDuplicateUris,
     isDuplicate: duplicates.isDuplicate,
+    isSoftDuplicate: duplicates.isSoftDuplicate,
+    getDuplicateType: duplicates.getDuplicateType,
     isOtherInstanceSelected: duplicates.isOtherInstanceSelected,
 
     // Compare mode

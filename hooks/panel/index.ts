@@ -11,7 +11,7 @@ export { useDndModePreview } from './useDndModePreview';
 export { useFilteringAndSorting, type SortKey, type SortDirection } from './useFilteringAndSorting';
 export { useSelectionManagement } from './useSelectionManagement';
 export { useInsertionMarkers } from './useInsertionMarkers';
-export { useDuplicates } from './useDuplicates';
+export { useDuplicates, type DuplicateType } from './useDuplicates';
 export { useCompareModeIntegration } from './useCompareModeIntegration';
 export { useContributorsPrefetch } from './useContributorsPrefetch';
 export { useCumulativeDurations } from './useCumulativeDurations';

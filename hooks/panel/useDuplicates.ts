@@ -6,8 +6,10 @@
 
 import { useMemo, useState, useCallback } from 'react';
 import { toast } from '@/lib/ui/toast';
-import { buildDuplicateUris, buildSelectedDuplicateUris } from './panelUtils';
+import { buildDuplicateUris, buildSelectedDuplicateUris, buildSoftDuplicateUris } from './panelUtils';
 import type { Track } from '@/lib/spotify/types';
+
+export type DuplicateType = 'real' | 'soft' | null;
 
 interface UseDuplicatesOptions {
   playlistId: string | null | undefined;
@@ -32,10 +34,16 @@ export function useDuplicates({
 }: UseDuplicatesOptions) {
   const [isDeletingDuplicates, setIsDeletingDuplicates] = useState(false);
 
-  // Detect duplicate URIs in the track list
+  // Detect real duplicate URIs in the track list (exact same Spotify track ID)
   const duplicateUris = useMemo(
     () => buildDuplicateUris(filteredTracks),
     [filteredTracks]
+  );
+
+  // Detect soft duplicate URIs (same title+artist+duration but different ID)
+  const softDuplicateUris = useMemo(
+    () => buildSoftDuplicateUris(filteredTracks, duplicateUris),
+    [filteredTracks, duplicateUris]
   );
 
   // Compute which duplicate URIs are currently selected
@@ -44,10 +52,26 @@ export function useDuplicates({
     [selection, filteredTracks, duplicateUris]
   );
 
-  // Check if a URI is a duplicate
+  // Check if a URI is a real duplicate (same Spotify track ID)
   const isDuplicate = useCallback(
     (uri: string) => duplicateUris.has(uri),
     [duplicateUris]
+  );
+
+  // Check if a URI is a soft duplicate (same title+artist+duration, different ID)
+  const isSoftDuplicate = useCallback(
+    (uri: string) => softDuplicateUris.has(uri),
+    [softDuplicateUris]
+  );
+
+  // Get the duplicate type for a URI: 'real', 'soft', or null
+  const getDuplicateType = useCallback(
+    (uri: string): DuplicateType => {
+      if (duplicateUris.has(uri)) return 'real';
+      if (softDuplicateUris.has(uri)) return 'soft';
+      return null;
+    },
+    [duplicateUris, softDuplicateUris]
   );
 
   // Check if another instance of this URI is selected
@@ -143,8 +167,11 @@ export function useDuplicates({
 
   return {
     duplicateUris,
+    softDuplicateUris,
     selectedDuplicateUris,
     isDuplicate,
+    isSoftDuplicate,
+    getDuplicateType,
     isOtherInstanceSelected,
     isDeletingDuplicates,
     handleDeleteAllDuplicates,

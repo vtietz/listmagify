@@ -61,8 +61,10 @@ interface VirtualizedTrackListContainerProps {
   isTrackPlaying: (trackId: string) => boolean;
   /** Function to check if a track is loading for playback */
   isTrackLoading: (trackUri: string) => boolean;
-  /** Function to check if a track URI is a duplicate */
+  /** Function to check if a track URI is a real duplicate (same ID) */
   isDuplicate: (trackUri: string) => boolean;
+  /** Function to check if a track URI is a soft duplicate (same title/artist/duration) */
+  isSoftDuplicate?: (trackUri: string) => boolean;
   /** Function to check if another instance of a duplicate is selected */
   isOtherInstanceSelected: (trackUri: string) => boolean;
   /** Function to get compare mode color for a track */
@@ -116,6 +118,7 @@ export function VirtualizedTrackListContainer({
   isTrackPlaying,
   isTrackLoading,
   isDuplicate,
+  isSoftDuplicate,
   isOtherInstanceSelected,
   getCompareColorForTrack,
   getProfile,
@@ -218,6 +221,7 @@ export function VirtualizedTrackListContainer({
                 crossesHourBoundary={hourBoundaries.has(virtualRow.index)}
                 hourNumber={hourBoundaries.get(virtualRow.index) || 0}
                 isDuplicate={isDuplicate(track.uri)}
+                isSoftDuplicate={isSoftDuplicate ? isSoftDuplicate(track.uri) : false}
                 isOtherInstanceSelected={isOtherInstanceSelected(track.uri)}
                 compareColor={getCompareColorForTrack(track.uri)}
                 isMultiSelect={selection.size > 1}

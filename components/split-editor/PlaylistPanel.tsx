@@ -232,6 +232,7 @@ export function PlaylistPanel({
                 isTrackPlaying={state.isTrackPlaying}
                 isTrackLoading={state.isTrackLoading}
                 isDuplicate={state.isDuplicate}
+                isSoftDuplicate={state.isSoftDuplicate}
                 isOtherInstanceSelected={state.isOtherInstanceSelected}
                 getCompareColorForTrack={state.getCompareColorForTrack}
                 getProfile={state.getProfile}
