@@ -6,6 +6,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   Users,
   Activity,
   Plus,
@@ -106,7 +113,23 @@ export function StatsDashboard() {
           <div className="flex items-center gap-2 mb-3">
             <Calendar className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm text-muted-foreground">Time Range:</span>
-            <div className="flex gap-1">
+            {/* Mobile: Dropdown */}
+            <div className="md:hidden flex-1">
+              <Select value={timeRange} onValueChange={(value) => setTimeRange(value as TimeRange)}>
+                <SelectTrigger className="h-8 w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {timeRanges.map((r) => (
+                    <SelectItem key={r.value} value={r.value}>
+                      {r.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {/* Desktop: Buttons */}
+            <div className="hidden md:flex gap-1">
               {timeRanges.map((r) => (
                 <Button
                   key={r.value}
@@ -131,7 +154,7 @@ export function StatsDashboard() {
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
                 >
                   <Icon className="h-3.5 w-3.5" />
-                  {section.label}
+                  <span className="hidden sm:inline">{section.label}</span>
                 </a>
               );
             })}
