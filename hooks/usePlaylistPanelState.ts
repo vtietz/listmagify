@@ -238,13 +238,14 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
   const { cumulativeDurations, hourBoundaries } = useCumulativeDurations(filteredTracks);
 
   // --- Playback ---
+  // Pass sortedTracks to maintain playback continuity when text filtering changes
   const {
     isTrackPlaying,
     isTrackLoading,
     playTrack,
     pausePlayback,
     handlePlayFirst,
-  } = usePlaybackControls(filteredTracks, playlistId, isLikedPlaylist);
+  } = usePlaybackControls(filteredTracks, playlistId, isLikedPlaylist, sortedTracks);
 
   // --- Event subscriptions ---
   usePlaylistEvents({

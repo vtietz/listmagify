@@ -1,5 +1,13 @@
 /**
  * Hook for track playback controls.
+ * 
+ * The hook receives two track lists:
+ * - sortedTracks: Full sorted list (without text filter) for playback continuity
+ * - filteredTracks: Currently visible tracks after text filtering
+ * 
+ * This ensures that filtering by text doesn't break playback continuity -
+ * the auto-advance will continue through the full sorted list regardless
+ * of what filtering happens during playback.
  */
 
 'use client';
@@ -11,11 +19,17 @@ import type { Track } from '@/lib/spotify/types';
 export function usePlaybackControls(
   filteredTracks: Track[],
   playlistId: string | null | undefined,
-  isLikedPlaylist: boolean
+  isLikedPlaylist: boolean,
+  /** Full sorted track list (without text filter) for playback continuity */
+  sortedTracks?: Track[]
 ) {
+  // Use sortedTracks (if available) for playback context to maintain continuity
+  // when text filtering changes. Fall back to filteredTracks if not provided.
+  const playbackTracks = sortedTracks ?? filteredTracks;
+  
   const trackUris = useMemo(
-    () => filteredTracks.map((t: Track) => t.uri),
-    [filteredTracks]
+    () => playbackTracks.map((t: Track) => t.uri),
+    [playbackTracks]
   );
 
   const playlistUri =
