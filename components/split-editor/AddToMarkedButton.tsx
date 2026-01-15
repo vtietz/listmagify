@@ -304,6 +304,7 @@ export function AddToMarkedButton({
         trackUri={trackUri}
         trackName={trackName}
         trackArtists={trackArtists}
+        currentPlaylistId={excludePlaylistId ?? null}
       />
 
       <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>

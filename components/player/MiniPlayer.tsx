@@ -329,6 +329,7 @@ export function MiniPlayer({ isVisible, onHide }: MiniPlayerProps) {
           trackUri={track.uri}
           trackName={track.name}
           trackArtists={track.artists}
+          currentPlaylistId={null}
         />
       )}
 

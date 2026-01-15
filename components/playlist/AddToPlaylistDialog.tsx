@@ -19,11 +19,13 @@ import { Check, Plus, Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
 import { apiFetch } from '@/lib/api/client';
 import { userPlaylists, playlistTracksInfinite } from '@/lib/api/queryKeys';
 import { usePlaylistTrackCheck } from '@/hooks/usePlaylistTrackCheck';
 import { useAddTracks, useRemoveTracks } from '@/lib/spotify/playlistMutations';
 import { useSessionUser } from '@/hooks/useSessionUser';
+import { useSplitGridStore, flattenPanels } from '@/hooks/useSplitGridStore';
 import { matchesAllWords } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 import type { Playlist, Track } from '@/lib/spotify/types';
@@ -34,6 +36,8 @@ interface AddToPlaylistDialogProps {
   trackUri: string;
   trackName: string;
   trackArtists?: string[];
+  /** Optional: ID of the current playlist context (will be shown at top) */
+  currentPlaylistId?: string | null;
 }
 
 interface PlaylistsResponse {
@@ -57,7 +61,7 @@ const pendingTrackChanges = new Map<string, Map<string, boolean>>();
 // This persists across dialog close/reopen to avoid re-fetching
 const checkedPlaylists = new Set<string>();
 
-export function AddToPlaylistDialog({ isOpen, onClose, trackUri, trackName, trackArtists = [] }: AddToPlaylistDialogProps) {
+export function AddToPlaylistDialog({ isOpen, onClose, trackUri, trackName, trackArtists = [], currentPlaylistId = null }: AddToPlaylistDialogProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const { user } = useSessionUser();
   const { getPlaylistTrackUris, getTrackPositions } = usePlaylistTrackCheck();
@@ -83,6 +87,16 @@ export function AddToPlaylistDialog({ isOpen, onClose, trackUri, trackName, trac
   const checkQueueRef = useRef<Set<string>>(new Set());
   // Whether we're currently processing the queue
   const isProcessingQueueRef = useRef(false);
+  
+  // Get currently open panel playlist IDs
+  const root = useSplitGridStore((state) => state.root);
+  const openPanelPlaylistIds = useMemo(() => {
+    return new Set(
+      flattenPanels(root)
+        .filter((panel) => panel.playlistId)
+        .map((panel) => panel.playlistId as string)
+    );
+  }, [root]);
 
   // Fetch all user's playlists
   const {
@@ -343,27 +357,40 @@ export function AddToPlaylistDialog({ isOpen, onClose, trackUri, trackName, trac
     return checkedPlaylists.has(playlistId);
   }, [trackUri]);
 
-  // Capture initial sort state when dialog opens (for stable sorting)
+  // Pre-populate checkedPlaylists and initial sort state when dialog opens
+  // This ensures playlists with cached data show status instantly
   useEffect(() => {
-    if (isOpen && allPlaylists.length > 0 && initialSortStateRef.current === null) {
-      // Snapshot which playlists have the track at dialog open time
-      const snapshot = new Set<string>();
-      allPlaylists.forEach(playlist => {
-        const trackUris = getPlaylistTrackUris(playlist.id);
-        if (trackUris.has(trackUri)) {
-          snapshot.add(playlist.id);
-        }
-        // Also include pending changes
-        const pendingChangesForTrack = pendingTrackChanges.get(trackUri);
-        if (pendingChangesForTrack?.get(playlist.id) === true) {
-          snapshot.add(playlist.id);
-        } else if (pendingChangesForTrack?.get(playlist.id) === false) {
-          snapshot.delete(playlist.id);
-        }
-      });
-      initialSortStateRef.current = snapshot;
+    if (isOpen && allPlaylists.length > 0) {
+      // Only set initial state once per dialog open
+      if (initialSortStateRef.current === null) {
+        // Snapshot which playlists have the track at dialog open time (from cache only)
+        const snapshot = new Set<string>();
+        allPlaylists.forEach(playlist => {
+          // Check if playlist tracks are already in cache
+          const cachedData = queryClient.getQueryData(playlistTracksInfinite(playlist.id));
+          if (cachedData) {
+            // Mark as checked so status shows instantly
+            checkedPlaylists.add(playlist.id);
+          }
+          
+          const trackUris = getPlaylistTrackUris(playlist.id);
+          if (trackUris.has(trackUri)) {
+            snapshot.add(playlist.id);
+          }
+          // Also include pending changes
+          const pendingChangesForTrack = pendingTrackChanges.get(trackUri);
+          if (pendingChangesForTrack?.get(playlist.id) === true) {
+            snapshot.add(playlist.id);
+          } else if (pendingChangesForTrack?.get(playlist.id) === false) {
+            snapshot.delete(playlist.id);
+          }
+        });
+        initialSortStateRef.current = snapshot;
+        // Trigger re-render to show instant status for cached playlists
+        setPendingVersion(v => v + 1);
+      }
     }
-  }, [isOpen, allPlaylists, trackUri, getPlaylistTrackUris]);
+  }, [isOpen, allPlaylists, trackUri, getPlaylistTrackUris, queryClient]);
 
   // Reset sort state when dialog closes
   useEffect(() => {
@@ -372,7 +399,11 @@ export function AddToPlaylistDialog({ isOpen, onClose, trackUri, trackName, trac
     }
   }, [isOpen]);
 
-  // Filter and sort playlists (sort is stable based on initial state)
+  // Filter and sort playlists with sections:
+  // 1. Current playlist (if provided)
+  // 2. Open panels (excluding current playlist)
+  // 3. Separator
+  // 4. All other playlists
   const filteredPlaylists = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     
@@ -386,20 +417,59 @@ export function AddToPlaylistDialog({ isOpen, onClose, trackUri, trackName, trac
       );
     }
 
-    // Use initial sort state for stable ordering (prevents list jumping)
+    // Use initial sort state for stable ordering (prevents list jumping when track status loads)
     const sortState = initialSortStateRef.current ?? playlistsWithTrack;
 
-    // Sort: playlists with track first, then alphabetically
-    return [...filtered].sort((a, b) => {
-      const aHasTrack = sortState.has(a.id);
-      const bHasTrack = sortState.has(b.id);
-      
-      if (aHasTrack && !bHasTrack) return -1;
-      if (!aHasTrack && bHasTrack) return 1;
-      
-      return a.name.localeCompare(b.name);
-    });
-  }, [allPlaylists, searchQuery, playlistsWithTrack]);
+    // Categorize playlists
+    const currentPlaylist = currentPlaylistId 
+      ? filtered.find(p => p.id === currentPlaylistId)
+      : null;
+    
+    const openPanelPlaylists = filtered.filter(p => 
+      p.id !== currentPlaylistId && openPanelPlaylistIds.has(p.id)
+    );
+    
+    const otherPlaylists = filtered.filter(p => 
+      p.id !== currentPlaylistId && !openPanelPlaylistIds.has(p.id)
+    );
+
+    // Sort each section: with track first, then alphabetically
+    const sortSection = (playlists: Playlist[]) => {
+      return [...playlists].sort((a, b) => {
+        const aHasTrack = sortState.has(a.id);
+        const bHasTrack = sortState.has(b.id);
+        
+        if (aHasTrack && !bHasTrack) return -1;
+        if (!aHasTrack && bHasTrack) return 1;
+        
+        return a.name.localeCompare(b.name);
+      });
+    };
+
+    const result: (Playlist | { kind: 'separator' })[] = [];
+    
+    // Add current playlist first (if exists in filtered results)
+    if (currentPlaylist) {
+      result.push(currentPlaylist);
+    }
+    
+    // Add open panel playlists
+    if (openPanelPlaylists.length > 0) {
+      result.push(...sortSection(openPanelPlaylists));
+    }
+    
+    // Add separator if we have sections above AND below
+    if ((currentPlaylist || openPanelPlaylists.length > 0) && otherPlaylists.length > 0) {
+      result.push({ kind: 'separator' });
+    }
+    
+    // Add all other playlists
+    if (otherPlaylists.length > 0) {
+      result.push(...sortSection(otherPlaylists));
+    }
+
+    return result;
+  }, [allPlaylists, searchQuery, playlistsWithTrack, currentPlaylistId, openPanelPlaylistIds]);
 
   const handleToggleTrack = async (playlist: Playlist, containsTrack: boolean) => {
     setProcessingPlaylists(prev => new Set(prev).add(playlist.id));
@@ -461,15 +531,17 @@ export function AddToPlaylistDialog({ isOpen, onClose, trackUri, trackName, trac
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Add to playlist</DialogTitle>
-          <DialogDescription className="space-y-1">
-            <div className="font-medium text-foreground truncate">{trackName}</div>
-            {trackArtists.length > 0 && (
-              <div className="text-sm truncate">{trackArtists.join(', ')}</div>
-            )}
-            <div className="pt-1 text-xs">
-              Select playlists to add or remove this track. Playlists with a checkmark already contain it.
+          <div className="space-y-1">
+            <div className="font-medium text-foreground truncate">
+              {trackName}
+              {trackArtists.length > 0 && (
+                <span className="text-sm text-muted-foreground font-normal"> - {trackArtists.join(', ')}</span>
+              )}
             </div>
-          </DialogDescription>
+            <DialogDescription className="text-xs">
+              Select playlists to add or remove this track. Playlists with a checkmark already contain it.
+            </DialogDescription>
+          </div>
         </DialogHeader>
 
         {/* Search bar */}
@@ -494,7 +566,17 @@ export function AddToPlaylistDialog({ isOpen, onClose, trackUri, trackName, trac
               No playlists found
             </div>
           ) : (
-            filteredPlaylists.map((playlist) => {
+            filteredPlaylists.map((item, index) => {
+              // Handle separator
+              if ('kind' in item && item.kind === 'separator') {
+                return (
+                  <div key={`separator-${index}`} className="py-2">
+                    <Separator />
+                  </div>
+                );
+              }
+              
+              const playlist = item as Playlist;
               const containsTrack = playlistsWithTrack.has(playlist.id);
               const isProcessing = processingPlaylists.has(playlist.id);
               const isChecking = checkingPlaylists.has(playlist.id);

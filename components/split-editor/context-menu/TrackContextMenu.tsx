@@ -28,10 +28,12 @@ export function TrackContextMenu({
   const { isPhone } = useDeviceType();
   const { mounted, menuPosition } = useContextMenuPosition(position);
 
-  // Title format: "Track Name" or "Track Name +N" for multi-select
+  // Title format: "Track Name - Artist" or "Track Name - Artist +N" for multi-select
+  const artistsText = track.artists.join(', ');
+  const baseTitle = artistsText ? `${track.name} - ${artistsText}` : track.name;
   const title = isMultiSelect && selectedCount > 1
-    ? `${track.name} +${selectedCount - 1}`
-    : track.name;
+    ? `${baseTitle} +${selectedCount - 1}`
+    : baseTitle;
 
   // Action wrapper that closes menu after action
   const withClose = React.useCallback((action?: () => void) => {

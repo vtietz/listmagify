@@ -554,6 +554,7 @@ function TrackRowComponent({
           trackUri={track.uri}
           trackName={track.name}
           trackArtists={track.artists}
+          {...(playlistId ? { excludePlaylistId: playlistId } : {})}
         />
       )}
 

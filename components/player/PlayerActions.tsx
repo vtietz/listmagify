@@ -259,6 +259,7 @@ export function PlayerActions({
           trackUri={trackUri}
           trackName={trackName}
           trackArtists={trackArtists}
+          currentPlaylistId={null}
         />
       )}
     </div>
