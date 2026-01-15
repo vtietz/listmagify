@@ -245,6 +245,7 @@ export function SpotifyPlayer({ forceShow = false }: SpotifyPlayerProps) {
             trackId={track.id}
             trackUri={track.uri}
             trackName={track.name}
+            trackArtists={track.artists}
             isLiked={trackIsLiked}
             hasActiveMarkers={hasActiveMarkers}
             totalMarkers={totalMarkers}

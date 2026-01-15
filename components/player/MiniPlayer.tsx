@@ -322,16 +322,14 @@ export function MiniPlayer({ isVisible, onHide }: MiniPlayerProps) {
       </div>
 
       {/* Playlist selector dialog (when no markers) */}
-      {track.uri && track.name && (
-        <AddToPlaylistDialog
-          isOpen={showPlaylistDialog}
-          onClose={() => setShowPlaylistDialog(false)}
-          trackUri={track.uri}
-          trackName={track.name}
-          trackArtists={track.artists}
-          currentPlaylistId={null}
-        />
-      )}
+      <AddToPlaylistDialog
+        isOpen={showPlaylistDialog}
+        onClose={() => setShowPlaylistDialog(false)}
+        trackUri={track.uri}
+        trackName={track.name}
+        trackArtists={track.artists}
+        currentPlaylistId={null}
+      />
 
       <DeviceSelector
         isOpen={isDeviceSelectorOpen}

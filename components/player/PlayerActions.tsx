@@ -171,6 +171,18 @@ export function PlayerActions({
             <MonitorSpeaker className="h-4 w-4" />
           </Button>
         </div>
+
+        {/* Playlist selector dialog (when no markers) */}
+        {trackUri && trackName && (
+          <AddToPlaylistDialog
+            isOpen={showPlaylistDialog}
+            onClose={() => setShowPlaylistDialog(false)}
+            trackUri={trackUri}
+            trackName={trackName}
+            trackArtists={trackArtists}
+            currentPlaylistId={null}
+          />
+        )}
       </div>
     );
   }
