@@ -258,9 +258,9 @@ export function BrowsePanel({ defaultTab, isMobileOverlay = false }: BrowsePanel
         showRecs && recsExpanded && "overflow-hidden"
       )}>
         {activeTab === 'spotify' ? (
-          <SearchPanel isActive={isOpen} inputRef={inputRef} />
+          <SearchPanel isActive={isMobileOverlay || isOpen} inputRef={inputRef} />
         ) : (
-          <LastfmBrowseTab isActive={isOpen} />
+          <LastfmBrowseTab isActive={isMobileOverlay || isOpen} />
         )}
       </div>
       
