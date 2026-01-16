@@ -216,14 +216,55 @@ export const metricsMigrations: Migration[] = [
         country_code TEXT,
         referrer_domain TEXT,
         search_query TEXT,
+        utm_source TEXT,
         visit_count INTEGER NOT NULL DEFAULT 1,
-        UNIQUE(date, page_path, country_code, referrer_domain, search_query)
+        UNIQUE(date, page_path, country_code, referrer_domain, search_query, utm_source)
       );
       
       CREATE INDEX IF NOT EXISTS idx_traffic_date ON traffic_analytics(date);
       CREATE INDEX IF NOT EXISTS idx_traffic_page ON traffic_analytics(page_path);
       CREATE INDEX IF NOT EXISTS idx_traffic_country ON traffic_analytics(country_code);
       CREATE INDEX IF NOT EXISTS idx_traffic_referrer ON traffic_analytics(referrer_domain);
+      CREATE INDEX IF NOT EXISTS idx_traffic_utm ON traffic_analytics(utm_source);
+    `,
+  },
+  {
+    version: 9,
+    name: 'add_utm_source_to_existing_traffic',
+    sql: `
+      -- Add utm_source column if table already exists from version 8
+      -- This handles the case where traffic_analytics was created without utm_source
+      ALTER TABLE traffic_analytics ADD COLUMN utm_source TEXT;
+      
+      -- Recreate the unique constraint to include utm_source
+      -- SQLite doesn't support modifying constraints, so we need to recreate the table
+      CREATE TABLE IF NOT EXISTS traffic_analytics_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date DATE NOT NULL,
+        page_path TEXT NOT NULL,
+        country_code TEXT,
+        referrer_domain TEXT,
+        search_query TEXT,
+        utm_source TEXT,
+        visit_count INTEGER NOT NULL DEFAULT 1,
+        UNIQUE(date, page_path, country_code, referrer_domain, search_query, utm_source)
+      );
+      
+      -- Copy data from old table (utm_source will be NULL for existing rows)
+      INSERT INTO traffic_analytics_new (id, date, page_path, country_code, referrer_domain, search_query, utm_source, visit_count)
+      SELECT id, date, page_path, country_code, referrer_domain, search_query, utm_source, visit_count
+      FROM traffic_analytics;
+      
+      -- Drop old table and rename new one
+      DROP TABLE traffic_analytics;
+      ALTER TABLE traffic_analytics_new RENAME TO traffic_analytics;
+      
+      -- Recreate indexes
+      CREATE INDEX IF NOT EXISTS idx_traffic_date ON traffic_analytics(date);
+      CREATE INDEX IF NOT EXISTS idx_traffic_page ON traffic_analytics(page_path);
+      CREATE INDEX IF NOT EXISTS idx_traffic_country ON traffic_analytics(country_code);
+      CREATE INDEX IF NOT EXISTS idx_traffic_referrer ON traffic_analytics(referrer_domain);
+      CREATE INDEX IF NOT EXISTS idx_traffic_utm ON traffic_analytics(utm_source);
     `,
   },
 ];

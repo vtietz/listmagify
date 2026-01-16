@@ -13,7 +13,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Globe, TrendingUp, Search, ExternalLink, MapPin, FileText } from 'lucide-react';
+import { Globe, TrendingUp, Search, ExternalLink, MapPin, FileText, Tag } from 'lucide-react';
 
 interface TrafficStats {
   totalVisits: number;
@@ -22,6 +22,7 @@ interface TrafficStats {
   topCountries: Array<{ country: string; visits: number }>;
   topReferrers: Array<{ domain: string; visits: number }>;
   topSearchQueries: Array<{ query: string; visits: number }>;
+  topUtmSources: Array<{ source: string; visits: number }>;
   dailyVisits: Array<{ date: string; visits: number }>;
 }
 
@@ -246,11 +247,50 @@ export function TrafficStatsCard({ dateRange }: TrafficStatsCardProps) {
         </Card>
       )}
 
+      {/* Top UTM Sources */}
+      {stats.topUtmSources.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Tag className="h-4 w-4" />
+              Top UTM Sources
+            </CardTitle>
+            <CardDescription>Campaign traffic sources</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {stats.topUtmSources.map((utm: { source: string; visits: number }, idx: number) => {
+                const maxVisits = stats.topUtmSources[0]?.visits || 1;
+                const percentage = (utm.visits / maxVisits) * 100;
+                
+                return (
+                  <div key={idx} className="space-y-1">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="truncate max-w-[200px]" title={utm.source}>
+                        {utm.source}
+                      </span>
+                      <span className="text-muted-foreground">{utm.visits.toLocaleString()}</span>
+                    </div>
+                    <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-orange-500 rounded-full transition-all"
+                        style={{ width: `${percentage}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Empty State */}
       {stats.topPages.length === 0 && 
        stats.topCountries.length === 0 && 
        stats.topReferrers.length === 0 && 
-       stats.topSearchQueries.length === 0 && (
+       stats.topSearchQueries.length === 0 &&
+       stats.topUtmSources.length === 0 && (
         <Card>
           <CardContent className="py-8">
             <div className="text-center text-muted-foreground">

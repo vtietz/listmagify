@@ -104,6 +104,28 @@ export function extractSearchQuery(searchParams: URLSearchParams): string | null
 }
 
 /**
+ * Extract UTM source from URL search params.
+ * Used for tracking marketing campaigns and traffic sources.
+ */
+export function extractUtmSource(searchParams: URLSearchParams): string | null {
+  const utmSource = searchParams.get('utm_source');
+  if (utmSource && utmSource.trim()) {
+    return utmSource.trim().substring(0, 100);
+  }
+  return null;
+}
+
+/**
+ * Normalize page path by removing query parameters.
+ * This ensures '/' and '/?utm_source=x' are counted together.
+ */
+export function normalizePagePath(path: string): string {
+  // Remove query string
+  const pathOnly = path.split('?')[0] || '/';
+  return pathOnly === '' ? '/' : pathOnly;
+}
+
+/**
  * Track a page visit by incrementing aggregated counters.
  * No individual visit data is stored - only daily aggregates.
  * 
@@ -111,12 +133,14 @@ export function extractSearchQuery(searchParams: URLSearchParams): string | null
  * @param countryCode - ISO country code (e.g., 'US', 'DE') or null
  * @param referrerDomain - External referrer domain or null
  * @param searchQuery - Search query if present in URL or null
+ * @param utmSource - UTM source parameter for campaign tracking or null
  */
 export function trackPageVisit(
   pagePath: string,
   countryCode: string | null,
   referrerDomain: string | null,
-  searchQuery: string | null
+  searchQuery: string | null,
+  utmSource: string | null
 ): void {
   const db = getDb();
   if (!db) return;
@@ -124,16 +148,16 @@ export function trackPageVisit(
   try {
     const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
     
-    // Normalize page path
-    const normalizedPath = pagePath === '' ? '/' : pagePath;
+    // Normalize page path (remove query params)
+    const normalizedPath = normalizePagePath(pagePath);
     
     // Upsert: increment count if entry exists, insert if not
     execute(
-      `INSERT INTO traffic_analytics (date, page_path, country_code, referrer_domain, search_query, visit_count)
-       VALUES (?, ?, ?, ?, ?, 1)
-       ON CONFLICT(date, page_path, country_code, referrer_domain, search_query)
+      `INSERT INTO traffic_analytics (date, page_path, country_code, referrer_domain, search_query, utm_source, visit_count)
+       VALUES (?, ?, ?, ?, ?, ?, 1)
+       ON CONFLICT(date, page_path, country_code, referrer_domain, search_query, utm_source)
        DO UPDATE SET visit_count = visit_count + 1`,
-      [today, normalizedPath, countryCode ?? null, referrerDomain ?? null, searchQuery ?? null]
+      [today, normalizedPath, countryCode ?? null, referrerDomain ?? null, searchQuery ?? null, utmSource ?? null]
     );
   } catch (error) {
     // Log but don't throw - metrics should never break the app
@@ -151,6 +175,7 @@ export interface TrafficStats {
   topCountries: Array<{ country: string; visits: number }>;
   topReferrers: Array<{ domain: string; visits: number }>;
   topSearchQueries: Array<{ query: string; visits: number }>;
+  topUtmSources: Array<{ source: string; visits: number }>;
   dailyVisits: Array<{ date: string; visits: number }>;
 }
 
@@ -164,6 +189,7 @@ export function getTrafficStats(fromDate?: string, toDate?: string): TrafficStat
       topCountries: [],
       topReferrers: [],
       topSearchQueries: [],
+      topUtmSources: [],
       dailyVisits: [],
     };
   }
@@ -223,6 +249,16 @@ export function getTrafficStats(fromDate?: string, toDate?: string): TrafficStat
        LIMIT 10`
     ).all(...params) as Array<{ query: string; visits: number }>;
 
+    // Top UTM sources (excluding nulls)
+    const topUtmSources = db.prepare(
+      `SELECT utm_source as source, SUM(visit_count) as visits
+       FROM traffic_analytics
+       ${whereClause ? whereClause + ' AND' : 'WHERE'} utm_source IS NOT NULL
+       GROUP BY utm_source
+       ORDER BY visits DESC
+       LIMIT 10`
+    ).all(...params) as Array<{ source: string; visits: number }>;
+
     // Daily visits
     const dailyVisits = db.prepare(
       `SELECT date, SUM(visit_count) as visits
@@ -238,6 +274,7 @@ export function getTrafficStats(fromDate?: string, toDate?: string): TrafficStat
       topCountries,
       topReferrers,
       topSearchQueries,
+      topUtmSources,
       dailyVisits,
     };
   } catch (error) {
@@ -249,6 +286,7 @@ export function getTrafficStats(fromDate?: string, toDate?: string): TrafficStat
       topCountries: [],
       topReferrers: [],
       topSearchQueries: [],
+      topUtmSources: [],
       dailyVisits: [],
     };
   }

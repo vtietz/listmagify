@@ -12,6 +12,7 @@ import {
   getCountryFromHeaders,
   extractReferrerDomain,
   extractSearchQuery,
+  extractUtmSource,
 } from '@/lib/metrics/traffic';
 
 export async function POST(req: NextRequest) {
@@ -37,12 +38,13 @@ export async function POST(req: NextRequest) {
     // Extract referrer domain (external only)
     const referrerDomain = extractReferrerDomain(referrer, host);
     
-    // Extract search query from URL
-    const url = new URL(req.url);
+    // Parse URL to extract UTM and search params
+    const url = new URL(path, `http://${host}`);
     const searchQuery = extractSearchQuery(url.searchParams);
+    const utmSource = extractUtmSource(url.searchParams);
 
     // Track the visit (aggregated, no individual logs)
-    trackPageVisit(path, countryCode, referrerDomain, searchQuery);
+    trackPageVisit(path, countryCode, referrerDomain, searchQuery, utmSource);
 
     return NextResponse.json({ success: true });
   } catch (error) {
