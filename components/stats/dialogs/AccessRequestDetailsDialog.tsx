@@ -72,7 +72,7 @@ export function AccessRequestDetailsDialog({
             {request.motivation && (
               <div>
                 <div className="text-sm font-medium text-muted-foreground">Motivation</div>
-                <div className="p-3 bg-blue-50 border-l-4 border-blue-500 rounded text-sm whitespace-pre-wrap">
+                <div className="p-3 bg-blue-50 dark:bg-blue-950 border-l-4 border-blue-500 rounded text-sm whitespace-pre-wrap text-gray-900 dark:text-gray-100">
                   {request.motivation}
                 </div>
               </div>
