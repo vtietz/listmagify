@@ -116,7 +116,8 @@ export function getOverviewKPIs(range: DateRange): OverviewKPIs {
       SUM(CASE WHEN event = 'api_error' THEN 1 ELSE 0 END) * 1.0 / 
         NULLIF(SUM(CASE WHEN event IN ('api_call', 'api_error') THEN 1 ELSE 0 END), 0) as errorRate
     FROM events
-    WHERE date(ts) BETWEEN ? AND ?`,
+    WHERE date(ts) BETWEEN ? AND ?
+      AND event != 'login_failure'`,
     [range.from, range.to]
   ) ?? {};
 
@@ -215,6 +216,7 @@ export function getDailyUsers(range: DateRange): DailyUsers[] {
       COUNT(DISTINCT user_hash) as users
     FROM events
     WHERE date(ts) BETWEEN ? AND ?
+      AND event != 'login_failure'
     GROUP BY date(ts)
     ORDER BY date(ts)`,
     [range.from, range.to]
@@ -325,6 +327,7 @@ export function getTopUsers(
     WHERE 
       date(e.ts) BETWEEN ? AND ?
       AND e.user_hash IS NOT NULL
+      AND e.event != 'login_failure'
     GROUP BY e.user_hash, e.user_id, r.registered_at
     ORDER BY ${orderClause}
     LIMIT ? OFFSET ?`,
@@ -341,7 +344,8 @@ export function getTotalUserCount(range: DateRange): number {
     FROM events
     WHERE 
       date(ts) BETWEEN ? AND ?
-      AND user_hash IS NOT NULL`,
+      AND user_hash IS NOT NULL
+      AND event != 'login_failure'`,
     [range.from, range.to]
   );
   return result?.count ?? 0;
