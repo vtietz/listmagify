@@ -32,6 +32,7 @@ interface MenuContentWithPrimitivesProps extends MenuContentProps {
  * Unified menu content that works for both phone (BottomSheet) and tablet (Popover).
  * The UI primitives are passed in, allowing the same logic to render differently per device.
  */
+// eslint-disable-next-line complexity
 export function MenuContent({
   title,
   withClose,
@@ -217,13 +218,13 @@ export function MenuContent({
           <Section title="Go to">
             <Item
               icon={User}
-              label="Go to artist"
+              label="Search for artist"
               onClick={withClose(trackActions?.onGoToArtist)}
               disabled={!trackActions?.onGoToArtist}
             />
             <Item
               icon={Disc}
-              label="Go to album"
+              label="Search for album"
               onClick={withClose(trackActions?.onGoToAlbum)}
               disabled={!trackActions?.onGoToAlbum}
             />

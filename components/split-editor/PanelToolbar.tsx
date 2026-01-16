@@ -48,6 +48,7 @@ interface PanelToolbarProps {
   playlistId: string | null;
   playlistName?: string;
   playlistDescription?: string;
+  playlistIsPublic?: boolean;
   isEditable: boolean;
   locked: boolean;
   dndMode: 'move' | 'copy';
@@ -94,6 +95,7 @@ export function PanelToolbar({
   playlistId,
   playlistName,
   playlistDescription,
+  playlistIsPublic,
   isEditable,
   locked,
   dndMode,
@@ -167,12 +169,13 @@ export function PanelToolbar({
     onSearchChange(value);
   }, [onSearchChange]);
 
-  const handleUpdatePlaylist = useCallback(async (values: { name: string; description: string }) => {
+  const handleUpdatePlaylist = useCallback(async (values: { name: string; description: string; isPublic: boolean }) => {
     if (!playlistId) return;
     await updatePlaylist.mutateAsync({
       playlistId,
       name: values.name,
       description: values.description,
+      isPublic: values.isPublic,
     });
   }, [playlistId, updatePlaylist]);
 
@@ -482,6 +485,7 @@ export function PanelToolbar({
           initialValues={{
             name: playlistName ?? '',
             description: playlistDescription ?? '',
+            isPublic: playlistIsPublic ?? false,
           }}
           onSubmit={handleUpdatePlaylist}
           isSubmitting={updatePlaylist.isPending}

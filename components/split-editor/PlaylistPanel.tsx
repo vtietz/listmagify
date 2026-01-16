@@ -131,6 +131,7 @@ export function PlaylistPanel({
         playlistId={state.playlistId}
         playlistName={state.playlistName}
         playlistDescription={state.playlistDescription}
+        playlistIsPublic={state.playlistIsPublic}
         isEditable={state.isEditable}
         dndMode={state.dndMode}
         locked={state.locked}

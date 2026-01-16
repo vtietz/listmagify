@@ -5,10 +5,10 @@ import { spotifyFetchWithToken } from '@/lib/spotify/client';
 /**
  * GET /api/playlists/[id]
  *
- * Fetches playlist metadata (name, owner, collaborative status, total tracks).
+ * Fetches playlist metadata (name, owner, collaborative status, total tracks, public status).
  * Used by panels to display playlist information without fetching full track list.
  *
- * Returns: { id, name, owner, collaborative, tracksTotal }
+ * Returns: { id, name, owner, collaborative, tracksTotal, isPublic }
  */
 export async function GET(
   _request: NextRequest,
@@ -25,7 +25,7 @@ export async function GET(
 
     // Fetch playlist metadata
     const path = `/playlists/${encodeURIComponent(playlistId)}`;
-    const fields = 'id,name,description,owner(id,display_name),collaborative,tracks(total)';
+    const fields = 'id,name,description,owner(id,display_name),collaborative,public,tracks(total)';
 
     const res = await spotifyFetchWithToken(session.accessToken, `${path}?fields=${encodeURIComponent(fields)}`, {
       method: 'GET',
@@ -62,6 +62,7 @@ export async function GET(
       },
       collaborative: playlist.collaborative ?? false,
       tracksTotal: playlist.tracks?.total ?? 0,
+      isPublic: typeof playlist.public === 'boolean' ? playlist.public : false,
     };
 
     return NextResponse.json(response);

@@ -15,6 +15,7 @@ export function usePlaylistMetaPermissions(playlistId: string | null | undefined
   
   const [playlistName, setPlaylistName] = useState<string>('');
   const [playlistDescription, setPlaylistDescription] = useState<string>('');
+  const [playlistIsPublic, setPlaylistIsPublic] = useState<boolean>(false);
 
   // Playlist metadata query
   const { data: playlistMetaData } = useQuery({
@@ -28,6 +29,7 @@ export function usePlaylistMetaPermissions(playlistId: string | null | undefined
         owner: { id: string; displayName: string };
         collaborative: boolean;
         tracksTotal: number;
+        isPublic: boolean;
       }>(`/api/playlists/${playlistId}`);
     },
     enabled: !!playlistId && !isLikedPlaylist,
@@ -39,9 +41,11 @@ export function usePlaylistMetaPermissions(playlistId: string | null | undefined
     if (isLikedPlaylist) {
       setPlaylistName(LIKED_SONGS_METADATA.name);
       setPlaylistDescription(LIKED_SONGS_METADATA.description ?? '');
+      setPlaylistIsPublic(false);
     } else if (playlistMetaData?.name) {
       setPlaylistName(playlistMetaData.name);
       setPlaylistDescription(playlistMetaData.description ?? '');
+      setPlaylistIsPublic(playlistMetaData.isPublic ?? false);
     }
   }, [playlistMetaData, isLikedPlaylist]);
 
@@ -62,6 +66,7 @@ export function usePlaylistMetaPermissions(playlistId: string | null | undefined
   return {
     playlistName,
     playlistDescription,
+    playlistIsPublic,
     isEditable,
     permissionsData,
     isLikedPlaylist,

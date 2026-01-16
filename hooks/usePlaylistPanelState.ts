@@ -94,6 +94,7 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
   const {
     playlistName,
     playlistDescription,
+    playlistIsPublic,
     isEditable,
     permissionsData,
   } = metaPermissions;
@@ -284,6 +285,7 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
     playlistId,
     playlistName,
     playlistDescription,
+    playlistIsPublic,
     searchQuery,
     selection,
     locked,

@@ -57,10 +57,11 @@ export function PlaylistsToolbar({
     }
   }, [onRefresh, isRefreshing]);
 
-  const handleCreatePlaylist = useCallback(async (values: { name: string; description: string }) => {
+  const handleCreatePlaylist = useCallback(async (values: { name: string; description: string; isPublic: boolean }) => {
     const result = await createPlaylist.mutateAsync({
       name: values.name,
       description: values.description,
+      isPublic: values.isPublic,
     });
     // Immediately add the new playlist to the list for instant feedback
     if (onPlaylistCreated) {

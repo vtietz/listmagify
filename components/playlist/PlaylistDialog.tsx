@@ -23,9 +23,10 @@ export interface PlaylistDialogProps {
   initialValues?: {
     name: string;
     description?: string;
+    isPublic?: boolean;
   };
   /** Called when the form is submitted */
-  onSubmit: (values: { name: string; description: string }) => Promise<void>;
+  onSubmit: (values: { name: string; description: string; isPublic: boolean }) => Promise<void>;
   /** Whether the form is submitting */
   isSubmitting?: boolean;
 }
@@ -44,6 +45,7 @@ export function PlaylistDialog({
 }: PlaylistDialogProps) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [isPublic, setIsPublic] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Reset form when dialog opens/closes or initial values change
@@ -51,6 +53,7 @@ export function PlaylistDialog({
     if (open) {
       setName(initialValues?.name ?? "");
       setDescription(initialValues?.description ?? "");
+      setIsPublic(initialValues?.isPublic ?? false);
       setError(null);
     }
   }, [open, initialValues]);
@@ -67,7 +70,7 @@ export function PlaylistDialog({
     setError(null);
     
     try {
-      await onSubmit({ name: trimmedName, description: description.trim() });
+      await onSubmit({ name: trimmedName, description: description.trim(), isPublic });
       onOpenChange(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
@@ -112,6 +115,24 @@ export function PlaylistDialog({
                 placeholder="Add a description..."
                 disabled={isSubmitting}
                 rows={3}
+              />
+            </div>
+
+            <div className="flex items-center justify-between gap-4 rounded-md border border-input px-3 py-2">
+              <div className="space-y-0.5">
+                <Label htmlFor="playlist-public">Public playlist</Label>
+                <p className="text-xs text-muted-foreground">
+                  Allow others to find and follow this playlist.
+                </p>
+              </div>
+              <input
+                id="playlist-public"
+                type="checkbox"
+                checked={isPublic}
+                onChange={(e) => setIsPublic(e.target.checked)}
+                disabled={isSubmitting}
+                className="h-4 w-4 rounded border-input"
+                aria-label="Public playlist"
               />
             </div>
 

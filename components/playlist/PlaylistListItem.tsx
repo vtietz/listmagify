@@ -51,11 +51,12 @@ export function PlaylistListItem({ playlist, className }: PlaylistListItemProps)
     });
   }, [isLiked, playlist.id, play]);
 
-  const handleUpdatePlaylist = useCallback(async (values: { name: string; description: string }) => {
+  const handleUpdatePlaylist = useCallback(async (values: { name: string; description: string; isPublic: boolean }) => {
     await updatePlaylist.mutateAsync({
       playlistId: playlist.id,
       name: values.name,
       description: values.description,
+      isPublic: values.isPublic,
     });
   }, [updatePlaylist, playlist.id]);
   
@@ -137,6 +138,7 @@ export function PlaylistListItem({ playlist, className }: PlaylistListItemProps)
           initialValues={{
             name: playlist.name,
             description: playlist.description ?? "",
+            isPublic: playlist.isPublic ?? false,
           }}
           onSubmit={handleUpdatePlaylist}
           isSubmitting={updatePlaylist.isPending}
