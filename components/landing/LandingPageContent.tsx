@@ -26,7 +26,8 @@ import {
   Smartphone,
   Music2,
   Github,
-  MapPin
+  MapPin,
+  TextCursorInput
 } from 'lucide-react';
 
 interface LandingPageContentProps {
@@ -224,6 +225,11 @@ export function LandingPageContent({
             icon={<Minimize2 className="h-6 w-6" />}
             title="Compact Mode"
             description="Toggle compact view to see more tracks at once. Perfect for large playlists and smaller screens."
+          />
+          <FeatureCard
+            icon={<TextCursorInput className="h-6 w-6" />}
+            title="Scroll Text"
+            description="Auto-scroll overflowing track labels horizontally for better readability. Hover to pause and click artist or album links."
           />
           <FeatureCard
             icon={<Sparkles className="h-6 w-6" />}
