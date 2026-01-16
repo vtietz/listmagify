@@ -5,9 +5,13 @@
  * 1. Auto-scroll mode is enabled globally
  * 2. The text overflows its container
  * 3. The element is in the viewport (uses IntersectionObserver)
- * 4. The user hovers over the element (desktop) or it's focused
+ * 4. The user is not hovering over the element
+ * 5. User has not enabled prefers-reduced-motion
  * 
- * Features smooth, descent scrolling with pause at start/end.
+ * Performance optimized:
+ * - Direct DOM manipulation (no React re-renders during animation)
+ * - Respects prefers-reduced-motion for accessibility
+ * - Gated by viewport visibility and overflow detection
  */
 
 'use client';
@@ -55,10 +59,24 @@ function MarqueeTextComponent({
   const [isOverflowing, setIsOverflowing] = useState(false);
   const [isInViewport, setIsInViewport] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
-  const [scrollOffset, setScrollOffset] = useState(0);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   const [isScrolling, setIsScrolling] = useState(false);
   const animationRef = useRef<number | null>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const currentOffsetRef = useRef(0);
+
+  // Check for prefers-reduced-motion
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    setPrefersReducedMotion(mediaQuery.matches);
+
+    const handleChange = (e: MediaQueryListEvent) => {
+      setPrefersReducedMotion(e.matches);
+    };
+
+    mediaQuery.addEventListener('change', handleChange);
+    return () => mediaQuery.removeEventListener('change', handleChange);
+  }, []);
 
   // Check if text overflows container
   const checkOverflow = useCallback(() => {
@@ -121,13 +139,14 @@ function MarqueeTextComponent({
     };
   }, []);
 
-  // Animation logic - infinite scroll
+  // Animation logic - infinite scroll with direct DOM manipulation
   useEffect(() => {
     const shouldAnimate = 
       isAutoScrollEnabled && 
       isOverflowing && 
       isInViewport &&
-      !isHovered; // Pause when hovered to allow clicking links
+      !isHovered && // Pause when hovered to allow clicking links
+      !prefersReducedMotion; // Respect accessibility preference
 
     if (!shouldAnimate) {
       // Reset position when not animating
@@ -139,17 +158,21 @@ function MarqueeTextComponent({
         clearTimeout(timeoutRef.current);
         timeoutRef.current = null;
       }
-      setScrollOffset(0);
+      // Reset transform directly on DOM
+      if (textRef.current) {
+        textRef.current.style.transform = 'translateX(0px)';
+      }
+      currentOffsetRef.current = 0;
       setIsScrolling(false);
       return;
     }
 
-    if (!containerRef.current || !firstTextRef.current) return;
+    if (!containerRef.current || !firstTextRef.current || !textRef.current) return;
 
     const textWidth = firstTextRef.current.scrollWidth;
     const loopPoint = textWidth + ANIMATION_CONFIG.textGap;
+    const textElement = textRef.current;
 
-    let currentOffset = 0;
     let lastTime = 0;
     let hasStarted = false;
     let isPaused = false;
@@ -177,11 +200,11 @@ function MarqueeTextComponent({
       lastTime = timestamp;
 
       const pixelsToMove = (ANIMATION_CONFIG.scrollSpeed * deltaTime) / 1000;
-      currentOffset += pixelsToMove;
+      currentOffsetRef.current += pixelsToMove;
 
       // Reset to 0 when we've scrolled one full cycle
-      if (currentOffset >= loopPoint) {
-        currentOffset = 0;
+      if (currentOffsetRef.current >= loopPoint) {
+        currentOffsetRef.current = 0;
         // Pause at the beginning of the loop
         isPaused = true;
         timeoutRef.current = setTimeout(() => {
@@ -189,7 +212,8 @@ function MarqueeTextComponent({
         }, ANIMATION_CONFIG.loopPause);
       }
 
-      setScrollOffset(currentOffset);
+      // Update transform directly on DOM - no React re-render
+      textElement.style.transform = `translateX(-${currentOffsetRef.current}px)`;
       animationRef.current = requestAnimationFrame(animate);
     };
 
@@ -205,7 +229,7 @@ function MarqueeTextComponent({
         timeoutRef.current = null;
       }
     };
-  }, [isAutoScrollEnabled, isOverflowing, isInViewport, isHovered]);
+  }, [isAutoScrollEnabled, isOverflowing, isInViewport, isHovered, prefersReducedMotion]);
 
   return (
     <div
@@ -221,9 +245,6 @@ function MarqueeTextComponent({
           'inline-block whitespace-nowrap',
           isScrolling && 'transition-none'
         )}
-        style={{
-          transform: `translateX(-${scrollOffset}px)`,
-        }}
       >
         <span ref={firstTextRef} className="inline-block">
           {children}
