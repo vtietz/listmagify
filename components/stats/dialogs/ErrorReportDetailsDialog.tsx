@@ -98,7 +98,7 @@ export function ErrorReportDetailsDialog({
             {report.user_description && (
               <div>
                 <div className="text-sm font-medium text-muted-foreground">User Description</div>
-                <div className="p-3 bg-blue-50 border-l-4 border-blue-500 rounded text-sm">{report.user_description}</div>
+                <div className="p-3 bg-blue-50 dark:bg-blue-950 border-l-4 border-blue-500 rounded text-sm text-gray-900 dark:text-gray-100 whitespace-pre-wrap">{report.user_description}</div>
               </div>
             )}
 

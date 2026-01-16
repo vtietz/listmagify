@@ -78,44 +78,23 @@ export function TrafficStatsCard({ dateRange }: TrafficStatsCardProps) {
 
   return (
     <div className="space-y-4">
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-primary" />
-              Total Page Views
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalVisits.toLocaleString()}</div>
-            {stats.uniqueDays > 0 && (
-              <p className="text-xs text-muted-foreground mt-1">
-                Across {stats.uniqueDays} {stats.uniqueDays === 1 ? 'day' : 'days'}
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Globe className="h-4 w-4 text-primary" />
-              Global Reach
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {stats.topCountries.length > 0 ? stats.topCountries.length : 'N/A'}
-            </div>
-            {stats.topCountries.length > 0 && (
-              <p className="text-xs text-muted-foreground mt-1">
-                {stats.topCountries.length === 1 ? 'Country' : 'Countries'} tracked
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+      {/* Summary Card */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-medium flex items-center gap-2">
+            <TrendingUp className="h-4 w-4 text-primary" />
+            Total Page Views
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">{stats.totalVisits.toLocaleString()}</div>
+          {stats.uniqueDays > 0 && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Across {stats.uniqueDays} {stats.uniqueDays === 1 ? 'day' : 'days'}
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Top Pages */}
       {stats.topPages.length > 0 && (
