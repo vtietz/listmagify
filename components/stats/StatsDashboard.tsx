@@ -17,8 +17,6 @@ import {
   Activity,
   Plus,
   Minus,
-  Clock,
-  AlertCircle,
   BarChart3,
   Calendar,
   TrendingUp,
@@ -26,6 +24,7 @@ import {
   MessageSquare,
   Shield,
   Sparkles,
+  RefreshCw,
 } from 'lucide-react';
 
 // Import extracted components
@@ -43,7 +42,7 @@ import { FeedbackStatsCard } from './cards/FeedbackStatsCard';
 import { UserRegistrationChart } from './cards/UserRegistrationChart';
 import { ErrorReportsCard } from './cards/ErrorReportsCard';
 import { AccessRequestsCard } from './cards/AccessRequestsCard';
-import { getDateRange, formatDuration, formatPercent } from './utils';
+import { getDateRange } from './utils';
 import type { TimeRange, OverviewKPIs, RecsStats, EventsData } from './types';
 
 // Section navigation items
@@ -61,28 +60,30 @@ export function StatsDashboard() {
   const [timeRange, setTimeRange] = useState<TimeRange>('all');
   const dateRange = useMemo(() => getDateRange(timeRange), [timeRange]);
 
-  // Fetch overview KPIs
-  const { data: overviewData, isLoading: overviewLoading } = useQuery<{ data: OverviewKPIs }>({
+  // Fetch overview KPIs with auto-refresh every 10 seconds
+  const { data: overviewData, isLoading: overviewLoading, refetch: refetchOverview, isFetching: overviewFetching } = useQuery<{ data: OverviewKPIs }>({
     queryKey: ['stats', 'overview', dateRange],
     queryFn: async () => {
       const res = await fetch(`/api/stats/overview?from=${dateRange.from}&to=${dateRange.to}`);
       if (!res.ok) throw new Error('Failed to fetch overview');
       return res.json();
     },
+    refetchInterval: 10000, // Auto-refresh every 10 seconds
   });
 
-  // Fetch events data
-  const { data: eventsData, isLoading: eventsLoading } = useQuery<{ data: EventsData }>({
+  // Fetch events data with auto-refresh every 10 seconds
+  const { data: eventsData, isLoading: eventsLoading, refetch: refetchEvents, isFetching: eventsFetching } = useQuery<{ data: EventsData }>({
     queryKey: ['stats', 'events', dateRange],
     queryFn: async () => {
       const res = await fetch(`/api/stats/events?from=${dateRange.from}&to=${dateRange.to}`);
       if (!res.ok) throw new Error('Failed to fetch events');
       return res.json();
     },
+    refetchInterval: 10000, // Auto-refresh every 10 seconds
   });
 
   // Fetch recs stats with top tracks (not time-dependent)
-  const { data: recsData, isLoading: recsLoading } = useQuery<RecsStats>({
+  const { data: recsData, isLoading: recsLoading, refetch: refetchRecs, isFetching: recsFetching } = useQuery<RecsStats>({
     queryKey: ['stats', 'recs'],
     queryFn: async () => {
       const res = await fetch('/api/stats/recs?topTracksLimit=50');
@@ -90,7 +91,17 @@ export function StatsDashboard() {
       return res.json();
     },
     staleTime: 30 * 1000,
+    refetchInterval: 10000, // Auto-refresh every 10 seconds
   });
+
+  // Manual refresh function
+  const handleRefresh = () => {
+    refetchOverview();
+    refetchEvents();
+    refetchRecs();
+  };
+
+  const isRefreshing = overviewFetching || eventsFetching || recsFetching;
 
   const kpis = overviewData?.data;
   const events = eventsData?.data;
@@ -109,7 +120,7 @@ export function StatsDashboard() {
       <div className="space-y-6">
         {/* Header with Time Range and Section Navigation */}
         <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 pb-4 -mx-4 px-4 border-b">
-          {/* Time Range Selector */}
+          {/* Time Range Selector and Refresh Button */}
           <div className="flex items-center gap-2 mb-3">
             <Calendar className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm text-muted-foreground">Time Range:</span>
@@ -129,7 +140,7 @@ export function StatsDashboard() {
               </Select>
             </div>
             {/* Desktop: Buttons */}
-            <div className="hidden md:flex gap-1">
+            <div className="hidden md:flex gap-1 flex-1">
               {timeRanges.map((r) => (
                 <Button
                   key={r.value}
@@ -141,6 +152,17 @@ export function StatsDashboard() {
                 </Button>
               ))}
             </div>
+            {/* Refresh Button */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="ml-auto md:ml-0"
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">Refresh</span>
+            </Button>
           </div>
           
           {/* Section Navigation */}
@@ -196,28 +218,10 @@ export function StatsDashboard() {
               description="Number of tracks removed from playlists by users"
             />
             <KPICard
-              title="Avg API Duration"
-              value={overviewLoading ? '...' : formatDuration(kpis?.avgApiDurationMs ?? 0)}
-              icon={Clock}
-              description="Average time taken for Spotify API calls to complete"
-            />
-            <KPICard
-              title="Error Rate"
-              value={overviewLoading ? '...' : formatPercent(kpis?.errorRate ?? 0)}
-              icon={AlertCircle}
-              description="Percentage of API calls that resulted in errors"
-            />
-            <KPICard
               title="Total Sessions"
               value={overviewLoading ? '...' : kpis?.totalSessions ?? 0}
               icon={Users}
               description="Number of unique user sessions started during the selected period"
-            />
-            <KPICard
-              title="Avg Session Duration"
-              value={overviewLoading ? '...' : formatDuration(kpis?.avgSessionDurationMs ?? 0)}
-              icon={Clock}
-              description="Average time users spent in a single session"
             />
           </div>
         </section>

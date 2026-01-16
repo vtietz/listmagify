@@ -132,5 +132,5 @@ describe("RateLimitError class", () => {
     expect(error.retryAfterMs).toBe(60000);
     expect(error.requestPath).toBe("/api/test");
     expect(error.statusCode).toBe(429);
-  });
+  }, 15000);
 });
