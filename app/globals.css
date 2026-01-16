@@ -458,6 +458,36 @@
     padding: 0 4px;
   }
 
+  /* Playing indicator animations */
+  @keyframes playing-bar {
+    0%, 100% {
+      transform: scaleY(0.5);
+    }
+    50% {
+      transform: scaleY(1);
+    }
+  }
+
+  .animate-playing-bar-1 {
+    animation: playing-bar 0.9s ease-in-out infinite;
+    transform-origin: bottom;
+  }
+
+  .animate-playing-bar-2 {
+    animation: playing-bar 1.1s ease-in-out infinite;
+    transform-origin: bottom;
+  }
+
+  .animate-playing-bar-3 {
+    animation: playing-bar 0.8s ease-in-out infinite;
+    transform-origin: bottom;
+  }
+
+  .animate-playing-bar-4 {
+    animation: playing-bar 1.0s ease-in-out infinite;
+    transform-origin: bottom;
+  }
+
   /* Reduced motion support */
   @media (prefers-reduced-motion: reduce) {
     .panel-focused,
@@ -470,6 +500,14 @@
 
     .drag-handle:active {
       transform: none;
+    }
+
+    .animate-playing-bar-1,
+    .animate-playing-bar-2,
+    .animate-playing-bar-3,
+    .animate-playing-bar-4 {
+      animation: none;
+      transform: scaleY(1);
     }
   }
 }

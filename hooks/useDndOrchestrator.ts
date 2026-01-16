@@ -20,6 +20,7 @@ import { useContinuousAutoScroll } from './useAutoScrollEdge';
 import { calculateDropPosition } from './useDropPosition';
 import { useHydratedCompactMode } from './useCompactModeStore';
 import { useBrowsePanelStore } from './useBrowsePanelStore';
+import { usePlayerStore } from './usePlayerStore';
 import { TABLE_HEADER_HEIGHT, TABLE_HEADER_HEIGHT_COMPACT } from '@/components/split-editor/constants';
 import {
   KeyboardSensor,
@@ -88,6 +89,9 @@ interface UseDndOrchestratorReturn {
   // Utility for cursor determination
   getEffectiveDndMode: () => 'copy' | 'move' | null;
   isTargetEditable: () => boolean;
+  
+  // Scroll utility
+  scrollToTrack: (trackId: string) => void;
 }
 
 /**
@@ -140,6 +144,9 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
   // Get compact mode state for header offset calculation
   const isCompact = useHydratedCompactMode();
   const headerOffset = isCompact ? TABLE_HEADER_HEIGHT_COMPACT : TABLE_HEADER_HEIGHT;
+
+  // Get playback context to determine which panel is playing
+  const playbackContext = usePlayerStore((s) => s.playbackContext);
 
   // Compute global playlist position and filtered index from pointer Y in target panel
   const computeDropPosition = useCallback((
@@ -907,6 +914,44 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
     return targetPanel?.isEditable ?? true;
   }, [activePanelId, panels]);
 
+  /**
+   * Scroll to the currently playing track, but only in the panel where playback started
+   */
+  const scrollToTrack = useCallback((trackId: string) => {
+    if (!trackId) return;
+
+    // Only scroll in the panel that started playback
+    const playingPanelId = playbackContext?.sourceId;
+    if (!playingPanelId) {
+      logDebug('scroll', 'No playback source panel found');
+      return;
+    }
+
+    // Check if the playing panel is registered
+    const panelData = panelVirtualizersRef.current.get(playingPanelId);
+    if (!panelData) {
+      logDebug('scroll', `Playing panel ${playingPanelId} not registered`);
+      return;
+    }
+
+    const { virtualizer, filteredTracks } = panelData;
+    
+    // Find the track in the playing panel's filtered tracks
+    const trackIndex = filteredTracks.findIndex((track) => track.id === trackId);
+    
+    if (trackIndex !== -1) {
+      // Found the track - scroll to it at the top
+      try {
+        virtualizer.scrollToIndex(trackIndex, { align: 'start' });
+        logDebug('scroll', `Scrolled playing panel ${playingPanelId} to track ID: ${trackId} at index ${trackIndex}`);
+      } catch (error) {
+        console.error(`[ScrollToTrack] Failed to scroll panel ${playingPanelId}:`, error);
+      }
+    } else {
+      logDebug('scroll', `Track ${trackId} not found in playing panel ${playingPanelId}`);
+    }
+  }, [playbackContext]);
+
   return {
     // Drag state
     activeTrack,
@@ -933,5 +978,6 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
     // Utility functions
     getEffectiveDndMode,
     isTargetEditable,
+    scrollToTrack,
   };
 }

@@ -64,12 +64,14 @@ export function updatePanelInTree(
 
 /**
  * Clone a panel config with a new ID and cleared selection.
+ * Preserves scroll position but clears selection.
  */
 function clonePanelConfig(source: PanelConfig): PanelConfig {
   return {
     ...source,
     id: generatePanelId(),
     selection: new Set(), // Clear selection in clone
+    scrollOffset: source.scrollOffset, // Preserve scroll position
   };
 }
 

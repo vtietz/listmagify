@@ -132,6 +132,7 @@ export function SplitGrid() {
     unregisterVirtualizer,
     getEffectiveDndMode,
     isTargetEditable,
+    scrollToTrack,
   } = useDndOrchestrator(panels);
 
   // Show loading state while checking auth
@@ -285,11 +286,12 @@ export function SplitGrid() {
         {isPhone ? (
           // Phone layout: MiniPlayer when playing, full player when overlay is open
           showMobilePlayer ? (
-            <SpotifyPlayer forceShow={true} />
+            <SpotifyPlayer forceShow={true} onTrackClick={scrollToTrack} />
           ) : hasTrack && !isMiniPlayerHidden ? (
             <MiniPlayer 
               isVisible={true} 
-              onHide={() => setMiniPlayerHidden(true)} 
+              onHide={() => setMiniPlayerHidden(true)}
+              onTrackClick={scrollToTrack}
             />
           ) : null
         ) : (
@@ -298,11 +300,12 @@ export function SplitGrid() {
             hasTrack && !isMiniPlayerHidden ? (
               <MiniPlayer 
                 isVisible={true} 
-                onHide={() => setMiniPlayerHidden(true)} 
+                onHide={() => setMiniPlayerHidden(true)}
+                onTrackClick={scrollToTrack}
               />
             ) : null
           ) : (
-            <SpotifyPlayer />
+            <SpotifyPlayer onTrackClick={scrollToTrack} />
           )
         )}
 

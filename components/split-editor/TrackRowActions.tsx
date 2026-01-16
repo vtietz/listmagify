@@ -63,11 +63,23 @@ interface PlayPauseButtonProps {
   isLoading: boolean;
   /** Whether this is a local file (can't be played) */
   isLocalFile: boolean;
+  /** Whether this track is playing from this specific panel (true) or from another source (false) */
+  isPlayingFromThisPanel?: boolean;
   /** Callback to toggle playback */
   onClick: (e: React.MouseEvent) => void;
 }
 
-export function PlayPauseButton({ isCompact, isPlaying, isLoading, isLocalFile, onClick }: PlayPauseButtonProps) {
+export function PlayPauseButton({ 
+  isCompact, 
+  isPlaying, 
+  isLoading, 
+  isLocalFile, 
+  isPlayingFromThisPanel = true,
+  onClick 
+}: PlayPauseButtonProps) {
+  // Show hollow circle if playing but not from this panel
+  const showHollowCircle = isPlaying && !isPlayingFromThisPanel;
+  
   return (
     <button
       onClick={onClick}
@@ -77,19 +89,28 @@ export function PlayPauseButton({ isCompact, isPlaying, isLoading, isLocalFile, 
         isCompact ? 'h-5 w-5' : 'h-6 w-6',
         isLocalFile && 'opacity-30 cursor-not-allowed',
         !isLocalFile && 'hover:scale-110 hover:bg-green-500 hover:text-white',
-        isPlaying ? 'bg-green-500 text-white' : 'text-muted-foreground',
+        showHollowCircle 
+          ? 'border-2 border-green-500 text-green-500'
+          : isPlaying 
+            ? 'bg-green-500 text-white' 
+            : 'text-muted-foreground',
       )}
       title={
         isLocalFile
           ? 'Local files cannot be played'
-          : isPlaying
-            ? 'Pause'
-            : 'Play'
+          : showHollowCircle
+            ? 'Playing from another playlist'
+            : isPlaying
+              ? 'Pause'
+              : 'Play'
       }
       aria-label={isPlaying ? 'Pause track' : 'Play track'}
     >
       {isLoading ? (
         <Loader2 className={isCompact ? 'h-3 w-3 animate-spin' : 'h-4 w-4 animate-spin'} />
+      ) : showHollowCircle ? (
+        // Play triangle with hollow circle border for playing from another source
+        <Play className={isCompact ? 'h-3 w-3 ml-0.5' : 'h-4 w-4 ml-0.5'} />
       ) : isPlaying ? (
         <Pause className={isCompact ? 'h-3 w-3' : 'h-4 w-4'} />
       ) : (

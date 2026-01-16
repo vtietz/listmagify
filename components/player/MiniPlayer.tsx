@@ -44,9 +44,11 @@ interface MiniPlayerProps {
   isVisible: boolean;
   /** Callback to hide the mini player */
   onHide: () => void;
+  /** Callback when user clicks on track info to scroll to track in playlists */
+  onTrackClick?: (trackId: string) => void;
 }
 
-export function MiniPlayer({ isVisible, onHide }: MiniPlayerProps) {
+export function MiniPlayer({ isVisible, onHide, onTrackClick }: MiniPlayerProps) {
   const {
     playbackState,
     isPlaying,
@@ -140,6 +142,12 @@ export function MiniPlayer({ isVisible, onHide }: MiniPlayerProps) {
     openDeviceSelector();
   }, [refreshDevices, openDeviceSelector]);
 
+  const handleTrackClick = useCallback(() => {
+    if (track?.id && onTrackClick) {
+      onTrackClick(track.id);
+    }
+  }, [track?.id, onTrackClick]);
+
   // Update progress from playback state
   useEffect(() => {
     setLocalProgress(progressMs);
@@ -200,12 +208,24 @@ export function MiniPlayer({ isVisible, onHide }: MiniPlayerProps) {
             <img
               src={track.albumImage}
               alt={track.albumName ?? 'Album art'}
-              className="h-8 w-8 rounded object-contain bg-black/10 shrink-0"
+              className={cn(
+                "h-8 w-8 rounded object-contain bg-black/10 shrink-0",
+                track.id && onTrackClick && "cursor-pointer hover:opacity-80 transition-opacity"
+              )}
+              onClick={handleTrackClick}
+              title={track.id && onTrackClick ? "Click to scroll to this track in playlists" : undefined}
             />
           )}
 
           {/* Track info - with auto-scroll */}
-          <div className="flex-1 min-w-0 overflow-hidden">
+          <div 
+            className={cn(
+              "flex-1 min-w-0 overflow-hidden",
+              track.id && onTrackClick && "cursor-pointer hover:opacity-80 transition-opacity"
+            )}
+            onClick={handleTrackClick}
+            title={track.id && onTrackClick ? "Click to scroll to this track in playlists" : undefined}
+          >
             <MarqueeText
               isAutoScrollEnabled={isAutoScrollEnabled}
               className="text-xs font-medium leading-tight"

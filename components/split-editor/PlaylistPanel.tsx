@@ -8,13 +8,15 @@
 
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { usePlaylistPanelState } from '@/hooks/usePlaylistPanelState';
 import { useContextMenuStore } from '@/hooks/useContextMenuStore';
 import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
 import { useAddToMarkers } from '@/hooks/useAddToMarkers';
 import { usePlaylistSelectionMenu } from '@/hooks/usePlaylistSelectionMenu';
 import { useVirtualizerRegistration } from '@/hooks/useVirtualizerRegistration';
+import { usePlayerStore } from '@/hooks/usePlayerStore';
+import { useHydratedAutoScrollPlay } from '@/hooks/useAutoScrollPlayStore';
 import { PanelToolbar } from './PanelToolbar';
 import { TableHeader } from './TableHeader';
 import { VirtualizedTrackListContainer } from './VirtualizedTrackListContainer';
@@ -65,6 +67,68 @@ export function PlaylistPanel({
   const panelState = usePlaylistPanelState({ panelId, isDragSource });
   const { scrollRef, scrollDroppableRef, virtualizerRef: _virtualizerRef, ...state } = panelState;
   const openContextMenu = useContextMenuStore((s) => s.openMenu);
+  
+  // Check if this panel is the active playback source
+  const playbackContext = usePlayerStore((s) => s.playbackContext);
+  const playbackState = usePlayerStore((s) => s.playbackState);
+  const isPlayingPanel = playbackContext?.sourceId === panelId;
+  
+  // Auto-scroll during playback toggle (user preference)
+  const autoScrollEnabled = useHydratedAutoScrollPlay();
+  const prevAutoScrollRef = useRef(autoScrollEnabled);
+  
+  // Immediately scroll to playing track when toggle is enabled (any panel with the track)
+  useEffect(() => {
+    const wasDisabled = !prevAutoScrollRef.current;
+    const isNowEnabled = autoScrollEnabled;
+    prevAutoScrollRef.current = autoScrollEnabled;
+    
+    // If just enabled, scroll immediately to playing track (in any panel that has it)
+    if (wasDisabled && isNowEnabled) {
+      if (!playbackState?.track?.id || !state.virtualizer || !state.playlistId) return;
+      
+      const trackId = playbackState.track.id;
+      const trackIndex = state.filteredTracks.findIndex((track) => track.id === trackId);
+      
+      if (trackIndex !== -1) {
+        try {
+          // Scroll to show track with 3 items before it
+          const targetIndex = Math.max(0, trackIndex - 3);
+          state.virtualizer.scrollToIndex(targetIndex, { align: 'start', behavior: 'smooth' });
+        } catch (error) {
+          console.error('[PlaylistPanel] Failed to scroll to playing track:', error);
+        }
+      }
+    }
+  }, [autoScrollEnabled, playbackState?.track?.id, state.virtualizer, state.filteredTracks, state.playlistId]);
+  
+  // Auto-scroll during playback when track changes (only in source panel, when near bottom)
+  useEffect(() => {
+    // Only auto-scroll on track change if toggle is enabled and this is the source panel
+    if (!autoScrollEnabled || !isPlayingPanel) return;
+    if (!playbackState?.track?.id || !state.virtualizer || !state.playlistId) return;
+    
+    const trackId = playbackState.track.id;
+    const trackIndex = state.filteredTracks.findIndex((track) => track.id === trackId);
+    
+    if (trackIndex === -1) return;
+    
+    try {
+      const range = state.virtualizer.range;
+      if (!range) return;
+      
+      const visibleEnd = range.endIndex;
+      const isNearBottom = trackIndex >= (visibleEnd - 2);
+      
+      if (isNearBottom) {
+        // Track is near the bottom of visible area - scroll to show more ahead
+        const targetIndex = Math.min(trackIndex + 3, state.filteredTracks.length - 1);
+        state.virtualizer.scrollToIndex(targetIndex, { align: 'end', behavior: 'smooth' });
+      }
+    } catch (error) {
+      console.error('[PlaylistPanel] Failed to auto-scroll during playback:', error);
+    }
+  }, [autoScrollEnabled, isPlayingPanel, playbackState?.track?.id, state.virtualizer, state.filteredTracks, state.playlistId]);
   
   // Get togglePoint from insertion points store (for marker actions)
   const togglePoint = useInsertionPointsStore((s) => s.togglePoint);
@@ -120,8 +184,12 @@ export function PlaylistPanel({
     <div 
       data-testid="playlist-panel"
       data-editable={state.isEditable}
-      className={`flex flex-col h-full border border-border rounded-lg overflow-hidden transition-all ${
-        isActiveDropTarget ? 'bg-primary/10' : 'bg-card'
+      className={`flex flex-col h-full border-2 rounded-lg overflow-hidden transition-all ${
+        isPlayingPanel
+          ? 'border-green-500 shadow-[0_0_10px_rgba(34,197,94,0.3)]'
+          : isActiveDropTarget
+          ? 'border-primary bg-primary/10'
+          : 'border-border bg-card'
       }`}
       onMouseEnter={() => state.setIsMouseOver(true)}
       onMouseLeave={() => state.setIsMouseOver(false)}
@@ -147,6 +215,7 @@ export function PlaylistPanel({
         hasTracks={state.hasTracks}
         hasDuplicates={state.hasDuplicates}
         isDeletingDuplicates={state.isDeletingDuplicates}
+        isPlayingPanel={isPlayingPanel}
         onOpenSelectionMenu={handleOpenSelectionMenu}
         onClearSelection={state.clearSelection}
         onSearchChange={state.handleSearchChange}
@@ -242,6 +311,7 @@ export function PlaylistPanel({
                 handleToggleLiked={state.handleToggleLiked}
                 playTrack={state.playTrack}
                 pausePlayback={state.pausePlayback}
+                playbackContext={playbackContext}
                 {...(hasActiveMarkers ? { hasAnyMarkers: hasActiveMarkers, onAddToAllMarkers: handleAddToAllMarkers } : {})}
                 {...(state.isEditable ? { buildReorderActions: state.buildReorderActions } : {})}
                 {...(state.isEditable && state.handleDeleteTrackDuplicates ? { onDeleteTrackDuplicates: state.handleDeleteTrackDuplicates } : {})}

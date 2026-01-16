@@ -26,15 +26,18 @@ import {
   Play,
   Eraser,
   ListChecks,
+  ArrowDownToLine,
 } from 'lucide-react';
 import { PlaylistSelector } from './PlaylistSelector';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { PlaylistDialog } from '@/components/playlist/PlaylistDialog';
 import { AdaptiveNav, type NavItem } from '@/components/ui/adaptive-nav';
+import { PlayingIndicator } from '@/components/ui/playing-indicator';
 import { useUpdatePlaylist } from '@/lib/spotify/playlistMutations';
 import { useDeviceType } from '@/hooks/useDeviceType';
 import { isLikedSongsPlaylist } from '@/hooks/useLikedVirtualPlaylist';
+import { useAutoScrollPlayStore, useHydratedAutoScrollPlay } from '@/hooks/useAutoScrollPlayStore';
 import { cn } from '@/lib/utils';
 import type { SortKey, SortDirection } from '@/hooks/usePlaylistSort';
 
@@ -75,6 +78,8 @@ interface PanelToolbarProps {
   hasDuplicates?: boolean;
   /** Whether duplicate removal is in progress */
   isDeletingDuplicates?: boolean;
+  /** Whether this panel is the active playback source */
+  isPlayingPanel?: boolean;
   onSearchChange: (query: string) => void;
   onSortChange?: (key: SortKey, direction: SortDirection) => void;
   onReload: () => void;
@@ -113,6 +118,7 @@ export function PanelToolbar({
   hasTracks = false,
   hasDuplicates = false,
   isDeletingDuplicates = false,
+  isPlayingPanel = false,
   onSearchChange,
   onSortChange: _onSortChange,
   onReload,
@@ -138,6 +144,10 @@ export function PanelToolbar({
   const { isPhone } = useDeviceType();
   const isLiked = playlistId ? isLikedSongsPlaylist(playlistId) : false;
   const canEditPlaylistInfo = !!(playlistId && isEditable && !isLiked);
+  
+  // Auto-scroll during playback toggle
+  const autoScrollEnabled = useHydratedAutoScrollPlay();
+  const toggleAutoScroll = useAutoScrollPlayStore((s) => s.toggle);
   
   // On mobile, hide split commands (use bottom nav panel toggle instead)
   const showSplitCommands = !isPhone;
@@ -376,6 +386,20 @@ export function PanelToolbar({
 
     // === PANEL ACTIONS GROUP ===
 
+    // Auto-scroll during playback toggle
+    items.push({
+      id: 'auto-scroll',
+      icon: <ArrowDownToLine className="h-4 w-4" />,
+      label: autoScrollEnabled ? 'Auto-scroll: On' : 'Auto-scroll: Off',
+      onClick: toggleAutoScroll,
+      showCheckmark: true,
+      isActive: autoScrollEnabled,
+      title: autoScrollEnabled 
+        ? 'Auto-scroll during playback is enabled - click to disable' 
+        : 'Enable auto-scroll to follow playing track',
+      group: 'panel',
+    });
+
     // Lock Toggle
     if (playlistId) {
       items.push({
@@ -430,7 +454,8 @@ export function PanelToolbar({
     isReloading, onReload, dndMode, onDndModeToggle, onLockToggle, canEditPlaylistInfo,
     isSorted, onSaveCurrentOrder, isSavingOrder, insertionMarkerCount, onClearInsertionMarkers,
     showSplitCommands, canSplitHorizontal, onSplitHorizontal, onSplitVertical,
-    isPhone, isLastPanel, onClose, disableClose, selectionCount, onOpenSelectionMenu, panelCount
+    isPhone, isLastPanel, onClose, disableClose, selectionCount, onOpenSelectionMenu, panelCount,
+    autoScrollEnabled, toggleAutoScroll
   ]);
 
   return (
@@ -441,13 +466,16 @@ export function PanelToolbar({
       
       {/* Playlist selector + search share available width - approx 50% */}
       <div className="flex flex-1 min-w-0 basis-0 items-center gap-1">
-        {/* Playlist selector - always visible */}
-        <div className="flex-1 min-w-0 basis-0">
-          <PlaylistSelector
-            selectedPlaylistId={playlistId}
-            selectedPlaylistName={playlistName ?? ''}
-            onSelectPlaylist={onLoadPlaylist}
-          />
+        {/* Playlist selector - always visible, with playing indicator */}
+        <div className="flex-1 min-w-0 basis-0 flex items-center gap-2">
+          {isPlayingPanel && <PlayingIndicator size="sm" className="ml-2 shrink-0" />}
+          <div className="flex-1 min-w-0">
+            <PlaylistSelector
+              selectedPlaylistId={playlistId}
+              selectedPlaylistName={playlistName ?? ''}
+              onSelectPlaylist={onLoadPlaylist}
+            />
+          </div>
         </div>
 
         {/* Search - only in normal mode */}

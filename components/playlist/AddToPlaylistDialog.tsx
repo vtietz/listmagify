@@ -20,11 +20,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
+import { PlayingIndicator } from '@/components/ui/playing-indicator';
 import { apiFetch } from '@/lib/api/client';
 import { userPlaylists, playlistTracksInfinite } from '@/lib/api/queryKeys';
 import { usePlaylistTrackCheck } from '@/hooks/usePlaylistTrackCheck';
 import { useAddTracks, useRemoveTracks } from '@/lib/spotify/playlistMutations';
 import { useSessionUser } from '@/hooks/useSessionUser';
+import { usePlayerStore } from '@/hooks/usePlayerStore';
 import { useSplitGridStore, flattenPanels } from '@/hooks/useSplitGridStore';
 import { matchesAllWords } from '@/lib/utils';
 import { cn } from '@/lib/utils';
@@ -64,6 +66,7 @@ const checkedPlaylists = new Set<string>();
 export function AddToPlaylistDialog({ isOpen, onClose, trackUri, trackName, trackArtists = [], currentPlaylistId = null }: AddToPlaylistDialogProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const { user } = useSessionUser();
+  const playbackContext = usePlayerStore((s) => s.playbackContext);
   const { getPlaylistTrackUris, getTrackPositions } = usePlaylistTrackCheck();
   const addTracksMutation = useAddTracks();
   const removeTracksMutation = useRemoveTracks();
@@ -619,7 +622,12 @@ export function AddToPlaylistDialog({ isOpen, onClose, trackUri, trackName, trac
 
                   {/* Playlist info */}
                   <div className="flex-1 min-w-0">
-                    <div className="font-medium truncate">{playlist.name}</div>
+                    <div className="flex items-center gap-2">
+                      {playbackContext?.playlistId === playlist.id && (
+                        <PlayingIndicator size="sm" />
+                      )}
+                      <div className="font-medium truncate">{playlist.name}</div>
+                    </div>
                     <div className="text-sm text-muted-foreground truncate">
                       {playlist.ownerName || 'Unknown'}
                     </div>

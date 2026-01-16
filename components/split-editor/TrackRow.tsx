@@ -86,6 +86,8 @@ interface TrackRowProps {
   onPlay?: (trackUri: string) => void;
   /** Callback to pause playback */
   onPause?: () => void;
+  /** Whether this track is playing from this specific panel (true) or from another source (false) */
+  isPlayingFromThisPanel?: boolean;
   /** Whether there's an insertion marker before this row */
   hasInsertionMarker?: boolean;
   /** Whether there's an insertion marker after this row (for last item) */
@@ -166,6 +168,7 @@ function TrackRowComponent({
   isPlaybackLoading = false,
   onPlay,
   onPause,
+  isPlayingFromThisPanel = true,
   hasInsertionMarker = false,
   hasInsertionMarkerAfter = false,
   isCollaborative = false,
@@ -556,6 +559,7 @@ function TrackRowComponent({
           isPlaying={isPlaying}
           isLoading={isPlaybackLoading}
           isLocalFile={isLocalFile}
+          isPlayingFromThisPanel={isPlayingFromThisPanel}
           onClick={handlePlayClick}
         />
       )}

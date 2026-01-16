@@ -128,6 +128,23 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
     setPanelDnDMode(panelId, dndMode === 'move' ? 'copy' : 'move');
   }, [panelId, dndMode, setPanelDnDMode]);
 
+  // Wrap split handlers to save scroll position first
+  const handleSplitHorizontalWithScroll = useCallback(() => {
+    // Save current scroll position before splitting
+    if (scrollRef.current) {
+      setScroll(panelId, scrollRef.current.scrollTop);
+    }
+    handleSplitHorizontal();
+  }, [handleSplitHorizontal, panelId, setScroll, scrollRef]);
+
+  const handleSplitVerticalWithScroll = useCallback(() => {
+    // Save current scroll position before splitting
+    if (scrollRef.current) {
+      setScroll(panelId, scrollRef.current.scrollTop);
+    }
+    handleSplitVertical();
+  }, [handleSplitVertical, panelId, setScroll, scrollRef]);
+
   // Load playlist when permissions change
   useEffect(() => {
     if (playlistId && permissionsData) {
@@ -246,7 +263,7 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
     playTrack,
     pausePlayback,
     handlePlayFirst,
-  } = usePlaybackControls(filteredTracks, playlistId, isLikedPlaylist, sortedTracks);
+  } = usePlaybackControls(filteredTracks, playlistId, isLikedPlaylist, sortedTracks, panelId);
 
   // --- Event subscriptions ---
   usePlaylistEvents({
@@ -348,8 +365,8 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
     handleSearchChange,
     handleReload,
     handleClose,
-    handleSplitHorizontal,
-    handleSplitVertical,
+    handleSplitHorizontal: handleSplitHorizontalWithScroll,
+    handleSplitVertical: handleSplitVerticalWithScroll,
     handleDndModeToggle,
     handleLockToggle,
     handleLoadPlaylist,
@@ -365,6 +382,7 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
 
     // Panel info
     panelCount,
+    scrollOffset,
 
     // Save current order
     isSorted,

@@ -26,9 +26,11 @@ import { useDeviceType } from '@/hooks/useDeviceType';
 interface SpotifyPlayerProps {
   /** Force the player to show regardless of isPlayerVisible state (for mobile overlay) */
   forceShow?: boolean;
+  /** Callback when user clicks on track info to scroll to track in playlists */
+  onTrackClick?: (trackId: string) => void;
 }
 
-export function SpotifyPlayer({ forceShow = false }: SpotifyPlayerProps) {
+export function SpotifyPlayer({ forceShow = false, onTrackClick }: SpotifyPlayerProps) {
   const { isReady: isWebPlayerReady, isInitializing: isWebPlayerInitializing } = useWebPlaybackSDK();
   const { isPhone, isTablet } = useDeviceType();
   const isMobileDevice = isPhone || isTablet;
@@ -202,7 +204,11 @@ export function SpotifyPlayer({ forceShow = false }: SpotifyPlayerProps) {
       )}
     >
       <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr_200px] gap-4 items-center">
-        <TrackInfo track={track} isMobileDevice={isMobileDevice} />
+        <TrackInfo 
+          track={track} 
+          isMobileDevice={isMobileDevice}
+          {...(onTrackClick && { onTrackClick })}
+        />
 
         <PlaybackControls
           isPlaying={isPlaying}

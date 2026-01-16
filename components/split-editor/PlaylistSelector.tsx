@@ -177,7 +177,6 @@ export function PlaylistSelector({ selectedPlaylistId, selectedPlaylistName, onS
     (playlistId: string) => {
       onSelectPlaylist(playlistId);
       setOpen(false);
-      setQuery('');
     },
     [onSelectPlaylist]
   );

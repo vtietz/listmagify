@@ -21,7 +21,9 @@ export function usePlaybackControls(
   playlistId: string | null | undefined,
   isLikedPlaylist: boolean,
   /** Full sorted track list (without text filter) for playback continuity */
-  sortedTracks?: Track[]
+  sortedTracks?: Track[],
+  /** Panel ID to track playback source */
+  panelId?: string
 ) {
   // Use sortedTracks (if available) for playback context to maintain continuity
   // when text filtering changes. Fall back to filteredTracks if not provided.
@@ -40,6 +42,7 @@ export function usePlaybackControls(
       trackUris,
       playlistId: playlistId ?? undefined,
       playlistUri,
+      sourceId: panelId,
     });
 
   // Play first track in the playlist

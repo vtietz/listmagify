@@ -23,10 +23,17 @@ interface TrackInfoProps {
     durationMs: number;
   };
   isMobileDevice: boolean;
+  onTrackClick?: (trackId: string) => void;
 }
 
-export function TrackInfo({ track, isMobileDevice }: TrackInfoProps) {
+export function TrackInfo({ track, isMobileDevice, onTrackClick }: TrackInfoProps) {
   const isAutoScrollEnabled = useHydratedAutoScrollText();
+  
+  const handleTrackClick = () => {
+    if (track.id && onTrackClick) {
+      onTrackClick(track.id);
+    }
+  };
   
   // Convert to Track format for drag data
   const trackForDrag: Track | null = track ? {
@@ -75,29 +82,38 @@ export function TrackInfo({ track, isMobileDevice }: TrackInfoProps) {
       {track.id && !isMobileDevice && (
         <GripVertical className="h-5 w-5 text-muted-foreground/70 group-hover/track-info:text-muted-foreground transition-colors shrink-0" />
       )}
-      {track.albumImage && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={track.albumImage}
-          alt={track.albumName ?? 'Album art'}
-          className="h-14 w-14 rounded object-contain bg-black/10 shadow shrink-0"
-        />
-      )}
-      <div className="min-w-0 flex-1">
-        <MarqueeText
-          isAutoScrollEnabled={isAutoScrollEnabled}
-          className="text-sm font-medium"
-          title={track.name}
-        >
-          {track.name}
-        </MarqueeText>
-        <MarqueeText
-          isAutoScrollEnabled={isAutoScrollEnabled}
-          className="text-xs text-muted-foreground"
-          title={`${track.artists.join(', ')}${track.albumName ? ` • ${track.albumName}` : ''}`}
-        >
-          {track.artists.join(', ')} {track.albumName && `• ${track.albumName}`}
-        </MarqueeText>
+      <div
+        className={cn(
+          "flex items-center gap-3 min-w-0 flex-1",
+          track.id && onTrackClick && "cursor-pointer"
+        )}
+        onClick={handleTrackClick}
+        title={track.id && onTrackClick ? "Click to scroll to this track in playlists" : undefined}
+      >
+        {track.albumImage && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={track.albumImage}
+            alt={track.albumName ?? 'Album art'}
+            className="h-14 w-14 rounded object-contain bg-black/10 shadow shrink-0 hover:opacity-80 transition-opacity"
+          />
+        )}
+        <div className="min-w-0 flex-1">
+          <MarqueeText
+            isAutoScrollEnabled={isAutoScrollEnabled}
+            className="text-sm font-medium hover:opacity-80 transition-opacity"
+            title={track.name}
+          >
+            {track.name}
+          </MarqueeText>
+          <MarqueeText
+            isAutoScrollEnabled={isAutoScrollEnabled}
+            className="text-xs text-muted-foreground hover:opacity-80 transition-opacity"
+            title={`${track.artists.join(', ')}${track.albumName ? ` • ${track.albumName}` : ''}`}
+          >
+            {track.artists.join(', ')} {track.albumName && `• ${track.albumName}`}
+          </MarqueeText>
+        </div>
       </div>
     </div>
   );

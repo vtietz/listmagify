@@ -81,6 +81,8 @@ interface VirtualizedTrackListContainerProps {
   playTrack: (trackUri: string) => void;
   /** Handler to pause playback */
   pausePlayback: () => void;
+  /** Playback context to determine if track is playing from this panel */
+  playbackContext?: { sourceId?: string; playlistId?: string } | null;
   /** Optional handler to delete duplicates of a specific track */
   onDeleteTrackDuplicates?: (track: Track, position: number) => void | Promise<void>;
   /** Optional track actions for context menu (e.g., remove from playlist) */
@@ -127,6 +129,7 @@ export function VirtualizedTrackListContainer({
   handleToggleLiked,
   playTrack,
   pausePlayback,
+  playbackContext,
   onDeleteTrackDuplicates,
   contextTrackActions,
   onAddToAllMarkers,
@@ -212,6 +215,7 @@ export function VirtualizedTrackListContainer({
                 isPlaybackLoading={isTrackLoading(track.uri)}
                 onPlay={playTrack}
                 onPause={pausePlayback}
+                isPlayingFromThisPanel={playbackContext?.sourceId === panelId}
                 hasInsertionMarker={!searchQuery && !isSorted && activeMarkerIndices.has(positionActual)}
                 hasInsertionMarkerAfter={!searchQuery && !isSorted && activeMarkerIndices.has(positionActual + 1)}
                 allowInsertionMarkerToggle={!searchQuery && !isSorted}
