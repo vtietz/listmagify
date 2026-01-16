@@ -204,4 +204,26 @@ export const metricsMigrations: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_events_is_byok ON events(is_byok);
     `,
   },
+  {
+    version: 8,
+    name: 'add_traffic_analytics',
+    sql: `
+      -- Traffic analytics table - aggregated page views without logging individual visits
+      CREATE TABLE IF NOT EXISTS traffic_analytics (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date DATE NOT NULL,
+        page_path TEXT NOT NULL,
+        country_code TEXT,
+        referrer_domain TEXT,
+        search_query TEXT,
+        visit_count INTEGER NOT NULL DEFAULT 1,
+        UNIQUE(date, page_path, country_code, referrer_domain, search_query)
+      );
+      
+      CREATE INDEX IF NOT EXISTS idx_traffic_date ON traffic_analytics(date);
+      CREATE INDEX IF NOT EXISTS idx_traffic_page ON traffic_analytics(page_path);
+      CREATE INDEX IF NOT EXISTS idx_traffic_country ON traffic_analytics(country_code);
+      CREATE INDEX IF NOT EXISTS idx_traffic_referrer ON traffic_analytics(referrer_domain);
+    `,
+  },
 ];

@@ -246,6 +246,7 @@ Listmagify includes privacy-first usage analytics, disabled by default. When ena
 - **Local Storage**: All data stored in local SQLite database
 - **Retention**: Raw events auto-deleted after 180 days
 - **Access Control**: Stats dashboard restricted to allowlisted user IDs
+- **Traffic Analytics**: Aggregated page visits, referrers, search queries, and countries (no individual logs)
 
 ### Enable Metrics
 

@@ -25,6 +25,7 @@ import {
   Shield,
   Sparkles,
   RefreshCw,
+  Globe,
 } from 'lucide-react';
 
 // Import extracted components
@@ -42,6 +43,7 @@ import { FeedbackStatsCard } from './cards/FeedbackStatsCard';
 import { UserRegistrationChart } from './cards/UserRegistrationChart';
 import { ErrorReportsCard } from './cards/ErrorReportsCard';
 import { AccessRequestsCard } from './cards/AccessRequestsCard';
+import { TrafficStatsCard } from './cards/TrafficStatsCard';
 import { getDateRange } from './utils';
 import type { TimeRange, OverviewKPIs, RecsStats, EventsData } from './types';
 
@@ -50,6 +52,7 @@ const sections = [
   { id: 'overview', label: 'Overview', icon: BarChart3 },
   { id: 'activity', label: 'Activity', icon: Activity },
   { id: 'users', label: 'Users', icon: Users },
+  { id: 'traffic', label: 'Traffic', icon: Globe },
   { id: 'rankings', label: 'Rankings', icon: Trophy },
   { id: 'feedback', label: 'Feedback', icon: MessageSquare },
   { id: 'auth', label: 'Authentication', icon: Shield },
@@ -347,6 +350,19 @@ export function StatsDashboard() {
                 )}
               </CardContent>
             </Card>
+          </div>
+        </section>
+
+        {/* ============================================ */}
+        {/* SECTION: Traffic - Page Analytics           */}
+        {/* ============================================ */}
+        <section id="traffic" className="scroll-mt-28">
+          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <Globe className="h-5 w-5" />
+            Traffic Analytics
+          </h2>
+          <div className="space-y-4">
+            <TrafficStatsCard dateRange={dateRange} />
           </div>
         </section>
 

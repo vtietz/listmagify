@@ -3,6 +3,7 @@ import { authOptions } from "@/lib/auth/auth";
 import { serverEnv } from "@/lib/env";
 import { AuthPageLayout } from "@/components/auth/AuthPageLayout";
 import { LandingPageContent } from "@/components/landing/LandingPageContent";
+import { PageVisitTracker } from "@/components/analytics/PageVisitTracker";
 
 type Props = {
   searchParams: Promise<{ next?: string; reason?: string; error?: string }>;
@@ -54,6 +55,7 @@ export default async function Home({ searchParams }: Props) {
 
   const content = (
     <>
+      <PageVisitTracker />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
