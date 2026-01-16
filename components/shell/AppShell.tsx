@@ -44,6 +44,11 @@ export function AppShell({ headerTitle = "Listmagify", children }: AppShellProps
   const { authenticated } = useSessionUser();
   const { isPhone } = useDeviceType();
 
+  const isLandingPage = pathname === "/";
+  const isPlaylistsPage = pathname === '/playlists';
+  const isStatsPage = pathname === '/stats' || pathname.startsWith('/stats/');
+  const supportsBrowsePanel = !isPlaylistsPage && !isStatsPage && !isLandingPage;
+
   // Auto-close browse panel on phone - it doesn't work well on small screens
   useEffect(() => {
     if (isPhone && isBrowsePanelOpen) {
@@ -51,8 +56,13 @@ export function AppShell({ headerTitle = "Listmagify", children }: AppShellProps
     }
   }, [isPhone, isBrowsePanelOpen, closeBrowsePanel]);
 
-  const isLandingPage = pathname === "/";
-  
+  // Auto-close browse panel on pages that don't support it
+  useEffect(() => {
+    if (isBrowsePanelOpen && !supportsBrowsePanel) {
+      closeBrowsePanel();
+    }
+  }, [isBrowsePanelOpen, supportsBrowsePanel, closeBrowsePanel]);
+
   // Pages that handle their own complete layout (bypass AppShell)
   const isStandalonePage = pathname === '/login' || (isLandingPage && !authenticated);
   
@@ -131,7 +141,7 @@ export function AppShell({ headerTitle = "Listmagify", children }: AppShellProps
       </div>
       <div className="flex-1 min-h-0 flex overflow-hidden relative">
         <main className="flex-1 min-w-0 overflow-auto">{children}</main>
-        {authenticated && isBrowsePanelOpen && (
+        {authenticated && isBrowsePanelOpen && supportsBrowsePanel && (
           <div className={cn(
             isPhone 
               ? "absolute inset-0 z-50 bg-background" // Mobile: full-screen overlay
@@ -166,8 +176,6 @@ function Header({ title: _title }: { title: string }) {
   const { authenticated, loading } = useSessionUser();
   const { hasAccess: hasStatsAccess } = useStatsAccess();
   const { isPhone } = useDeviceType();
-  
-  // Compute marker stats from playlists state using memoized selector
   const markerStats: MarkerStats = React.useMemo(() => {
     const playlistIds = Object.keys(playlists).filter(
       (id) => (playlists[id]?.markers.length ?? 0) > 0
@@ -181,6 +189,7 @@ function Header({ title: _title }: { title: string }) {
   
   const isPlaylistsActive = pathname === '/playlists' || pathname.startsWith('/playlists/');
   const isSplitEditorActive = pathname === '/split-editor';
+  const isStatsActive = pathname === '/stats' || pathname.startsWith('/stats/');
   const isLandingPage = pathname === '/';
   
   // Pages that support player and compare mode
@@ -199,7 +208,7 @@ function Header({ title: _title }: { title: string }) {
             hasStatsAccess={hasStatsAccess}
             isBrowseOpen={isBrowseOpen}
             toggleBrowse={toggleBrowse}
-            supportsBrowse={!isLandingPage}
+            supportsBrowse={!isLandingPage && !isPlaylistsActive && !isStatsActive}
             isPlayerVisible={isPlayerVisible}
             togglePlayerVisible={togglePlayerVisible}
             supportsPlayer={supportsPlayerAndCompare}
