@@ -27,6 +27,7 @@ import {
   Search,
   Music2,
   MessageSquarePlus,
+  TextCursorInput,
   // Github brand icon is deprecated in lucide-react but still functional
   // TODO: Consider migrating to SimpleIcons in the future
   Github,
@@ -70,6 +71,10 @@ interface AdaptiveNavProps {
   isCompact: boolean;
   /** Toggle compact mode */
   toggleCompact: () => void;
+  /** Whether auto-scroll text mode is enabled */
+  isAutoScrollText: boolean;
+  /** Toggle auto-scroll text mode */
+  toggleAutoScrollText: () => void;
   /** Whether compare mode is enabled */
   isCompareEnabled: boolean;
   /** Toggle compare mode */
@@ -99,6 +104,8 @@ export function AdaptiveNav({
   supportsCompact = true,
   isCompact,
   toggleCompact,
+  isAutoScrollText,
+  toggleAutoScrollText,
   isCompareEnabled,
   toggleCompare,
   supportsCompare,
@@ -169,6 +176,15 @@ export function AdaptiveNav({
       showCheckmark: true,
       group: 'view',
     }] : []),
+    ...(supportsCompact ? [{
+      id: 'auto-scroll',
+      icon: <TextCursorInput className="h-3.5 w-3.5" />,
+      label: 'Scroll Text',
+      onClick: toggleAutoScrollText,
+      isActive: isAutoScrollText,
+      showCheckmark: true,
+      group: 'view',
+    }] : []),
     ...(supportsCompare ? [{
       id: 'compare',
       icon: <GitCompare className="h-3.5 w-3.5" />,
@@ -235,7 +251,8 @@ export function AdaptiveNav({
     isPlaylistsActive, isSplitEditorActive, isStatsActive, hasStatsAccess,
     isBrowseOpen, toggleBrowse, isPlayerVisible, togglePlayerVisible, supportsPlayer,
     supportsCompact,
-    isCompact, toggleCompact, isCompareEnabled, toggleCompare, supportsCompare,
+    isCompact, toggleCompact, isAutoScrollText, toggleAutoScrollText,
+    isCompareEnabled, toggleCompare, supportsCompare,
     markerStats.totalMarkers, clearAllMarkers,
   ]);
 

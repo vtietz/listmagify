@@ -6,6 +6,7 @@ import { useBrowsePanelStore } from "@/hooks/useBrowsePanelStore";
 import { usePlayerStore } from "@/hooks/usePlayerStore";
 import { useCompactModeStore } from "@/hooks/useCompactModeStore";
 import { useCompareModeStore } from "@/hooks/useCompareModeStore";
+import { useAutoScrollTextStore } from "@/hooks/useAutoScrollTextStore";
 import { useInsertionPointsStore } from "@/hooks/useInsertionPointsStore";
 import { useSessionUser } from "@/hooks/useSessionUser";
 import { useStatsAccess } from "@/hooks/useStatsAccess";
@@ -156,6 +157,7 @@ export function AppShell({ headerTitle = "Listmagify", children }: AppShellProps
 function Header({ title: _title }: { title: string }) {
   const pathname = usePathname();
   const { isCompact, toggle: toggleCompact } = useCompactModeStore();
+  const { isEnabled: isAutoScrollText, toggle: toggleAutoScrollText } = useAutoScrollTextStore();
   const { isEnabled: isCompareEnabled, toggle: toggleCompare } = useCompareModeStore();
   const { isOpen: isBrowseOpen, toggle: toggleBrowse } = useBrowsePanelStore();
   const { isPlayerVisible, togglePlayerVisible } = usePlayerStore();
@@ -204,6 +206,8 @@ function Header({ title: _title }: { title: string }) {
             supportsCompact={!isLandingPage}
             isCompact={isCompact}
             toggleCompact={toggleCompact}
+            isAutoScrollText={isAutoScrollText}
+            toggleAutoScrollText={toggleAutoScrollText}
             isCompareEnabled={isCompareEnabled}
             toggleCompare={toggleCompare}
             supportsCompare={supportsPlayerAndCompare}

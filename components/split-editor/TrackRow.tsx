@@ -14,6 +14,7 @@ import { MoreHorizontal } from 'lucide-react';
 import type { Track } from '@/lib/spotify/types';
 import { cn } from '@/lib/utils';
 import { useCompactModeStore } from '@/hooks/useCompactModeStore';
+import { useAutoScrollTextStore } from '@/hooks/useAutoScrollTextStore';
 import { useBrowsePanelStore } from '@/hooks/useBrowsePanelStore';
 import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
 import { useContextMenuStore } from '@/hooks/useContextMenuStore';
@@ -197,6 +198,7 @@ function TrackRowComponent({
 }: TrackRowProps) {
   // Store hooks
   const { isCompact } = useCompactModeStore();
+  const { isEnabled: isAutoScrollEnabled } = useAutoScrollTextStore();
   const { open: openBrowsePanel, setSearchQuery } = useBrowsePanelStore();
   const togglePoint = useInsertionPointsStore((s) => s.togglePoint);
   const hasActiveMarkers = useInsertionPointsStore((s) => s.hasActiveMarkers);
@@ -591,6 +593,7 @@ function TrackRowComponent({
       <TitleCell 
         isCompact={isCompact} 
         track={track}
+        isAutoScrollEnabled={isAutoScrollEnabled}
         moreButton={!showHandle ? (
           <button
             className={cn(
@@ -612,6 +615,7 @@ function TrackRowComponent({
         isCompact={isCompact}
         track={track}
         onArtistClick={handleArtistClick}
+        isAutoScrollEnabled={isAutoScrollEnabled}
       />
 
       {/* Album */}
@@ -619,6 +623,7 @@ function TrackRowComponent({
         isCompact={isCompact}
         track={track}
         onAlbumClick={handleAlbumClick}
+        isAutoScrollEnabled={isAutoScrollEnabled}
       />
 
       {/* Date (release year or scrobble timestamp) */}

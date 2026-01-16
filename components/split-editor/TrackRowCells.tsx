@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 import { formatDuration, formatReleaseDate, formatScrobbleDate } from '@/lib/utils/format';
 import type { Track } from '@/lib/spotify/types';
 import { useTapHandler } from '@/hooks/useTapHandler';
+import { MarqueeText } from '@/components/ui/marquee-text';
 
 // ============================================================================
 // Common Types
@@ -17,6 +18,8 @@ import { useTapHandler } from '@/hooks/useTapHandler';
 
 interface CellProps {
   isCompact: boolean;
+  /** Whether auto-scroll text mode is enabled */
+  isAutoScrollEnabled?: boolean;
 }
 
 // ============================================================================
@@ -48,7 +51,7 @@ interface TitleCellProps extends CellProps {
   moreButton?: React.ReactNode;
 }
 
-export function TitleCell({ isCompact, track, moreButton }: TitleCellProps) {
+export function TitleCell({ isCompact, track, moreButton, isAutoScrollEnabled = false }: TitleCellProps) {
   return (
     <div className="min-w-0 relative flex items-center gap-1.5 group/title">
       {/* Explicit content badge per Spotify guidelines */}
@@ -64,12 +67,22 @@ export function TitleCell({ isCompact, track, moreButton }: TitleCellProps) {
           E
         </span>
       )}
-      <span 
-        className={cn('truncate select-none', isCompact ? 'text-xs pr-6' : 'text-sm pr-7')}
-        title={track.name}
-      >
-        {track.name}
-      </span>
+      {isAutoScrollEnabled ? (
+        <MarqueeText
+          className={cn(isCompact ? 'text-xs pr-6' : 'text-sm pr-7')}
+          isAutoScrollEnabled={isAutoScrollEnabled}
+          title={track.name}
+        >
+          {track.name}
+        </MarqueeText>
+      ) : (
+        <span 
+          className={cn('truncate select-none', isCompact ? 'text-xs pr-6' : 'text-sm pr-7')}
+          title={track.name}
+        >
+          {track.name}
+        </span>
+      )}
       {/* More button - absolutely positioned to allow text underneath */}
       {moreButton && (
         <div className="absolute right-0 top-1/2 -translate-y-1/2">
@@ -124,32 +137,48 @@ interface ArtistCellProps extends CellProps {
   onArtistClick?: (e: React.MouseEvent, artistName: string) => void;
 }
 
-export function ArtistCell({ isCompact, track, onArtistClick }: ArtistCellProps) {
+export function ArtistCell({ isCompact, track, onArtistClick, isAutoScrollEnabled = false }: ArtistCellProps) {
+  const artistNames = track.artistObjects && track.artistObjects.length > 0
+    ? track.artistObjects.map(a => a.name).join(', ')
+    : track.artists.join(', ');
+
+  const artistsContent = track.artistObjects && track.artistObjects.length > 0 ? (
+    track.artistObjects.map((artist, idx) => (
+      <span key={artist.id || artist.name}>
+        <ClickableArtistButton 
+          artistName={artist.name}
+          {...(onArtistClick ? { onArtistClick } : {})}
+        />
+        {idx < track.artistObjects!.length - 1 && ', '}
+      </span>
+    ))
+  ) : (
+    track.artists.map((artistName, idx) => (
+      <span key={artistName}>
+        <ClickableArtistButton 
+          artistName={artistName}
+          {...(onArtistClick ? { onArtistClick } : {})}
+        />
+        {idx < track.artists.length - 1 && ', '}
+      </span>
+    ))
+  );
+
   return (
     <div className="min-w-0">
-      <div className={cn('text-muted-foreground truncate', isCompact ? 'text-xs' : 'text-sm')}>
-        {track.artistObjects && track.artistObjects.length > 0 ? (
-          track.artistObjects.map((artist, idx) => (
-            <span key={artist.id || artist.name}>
-              <ClickableArtistButton 
-                artistName={artist.name}
-                {...(onArtistClick ? { onArtistClick } : {})}
-              />
-              {idx < track.artistObjects!.length - 1 && ', '}
-            </span>
-          ))
-        ) : (
-          track.artists.map((artistName, idx) => (
-            <span key={artistName}>
-              <ClickableArtistButton 
-                artistName={artistName}
-                {...(onArtistClick ? { onArtistClick } : {})}
-              />
-              {idx < track.artists.length - 1 && ', '}
-            </span>
-          ))
-        )}
-      </div>
+      {isAutoScrollEnabled ? (
+        <MarqueeText
+          className={cn('text-muted-foreground', isCompact ? 'text-xs' : 'text-sm')}
+          isAutoScrollEnabled={isAutoScrollEnabled}
+          title={artistNames}
+        >
+          {artistsContent}
+        </MarqueeText>
+      ) : (
+        <div className={cn('text-muted-foreground truncate', isCompact ? 'text-xs' : 'text-sm')}>
+          {artistsContent}
+        </div>
+      )}
     </div>
   );
 }
@@ -164,7 +193,7 @@ interface AlbumCellProps extends CellProps {
   onAlbumClick?: (e: React.MouseEvent, albumName: string) => void;
 }
 
-export function AlbumCell({ isCompact, track, onAlbumClick }: AlbumCellProps) {
+export function AlbumCell({ isCompact, track, onAlbumClick, isAutoScrollEnabled = false }: AlbumCellProps) {
   const albumName = track.album?.name;
   
   const tapHandlers = useTapHandler({
@@ -183,19 +212,39 @@ export function AlbumCell({ isCompact, track, onAlbumClick }: AlbumCellProps) {
   return (
     <div className="min-w-0">
       {albumName && (
-        <div className={cn('text-muted-foreground truncate', isCompact ? 'text-xs' : 'text-sm')}>
-          <button
-            className="hover:underline hover:text-green-500 text-left cursor-pointer truncate max-w-full"
-            onClick={(e) => onAlbumClick?.(e, albumName)}
-            onTouchStart={tapHandlers.onTouchStart}
-            onTouchMove={tapHandlers.onTouchMove}
-            onTouchEnd={tapHandlers.onTouchEnd}
-            onTouchCancel={tapHandlers.onTouchCancel}
-            title={`Search for tracks from "${albumName}"`}
+        isAutoScrollEnabled ? (
+          <MarqueeText
+            className={cn('text-muted-foreground', isCompact ? 'text-xs' : 'text-sm')}
+            isAutoScrollEnabled={isAutoScrollEnabled}
+            title={albumName}
           >
-            {albumName}
-          </button>
-        </div>
+            <button
+              className="hover:underline hover:text-green-500 text-left cursor-pointer"
+              onClick={(e) => onAlbumClick?.(e, albumName)}
+              onTouchStart={tapHandlers.onTouchStart}
+              onTouchMove={tapHandlers.onTouchMove}
+              onTouchEnd={tapHandlers.onTouchEnd}
+              onTouchCancel={tapHandlers.onTouchCancel}
+              title={`Search for tracks from "${albumName}"`}
+            >
+              {albumName}
+            </button>
+          </MarqueeText>
+        ) : (
+          <div className={cn('text-muted-foreground truncate', isCompact ? 'text-xs' : 'text-sm')}>
+            <button
+              className="hover:underline hover:text-green-500 text-left cursor-pointer truncate max-w-full"
+              onClick={(e) => onAlbumClick?.(e, albumName)}
+              onTouchStart={tapHandlers.onTouchStart}
+              onTouchMove={tapHandlers.onTouchMove}
+              onTouchEnd={tapHandlers.onTouchEnd}
+              onTouchCancel={tapHandlers.onTouchCancel}
+              title={`Search for tracks from "${albumName}"`}
+            >
+              {albumName}
+            </button>
+          </div>
+        )
       )}
     </div>
   );
