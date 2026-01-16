@@ -84,6 +84,13 @@ export function SplitGrid() {
     }
   }, [isPlaying, isMiniPlayerHidden, setMiniPlayerHidden]);
   
+  // Reopen mini player when user clicks Player tab (on mobile)
+  useEffect(() => {
+    if (isPhone && activeOverlay === 'player' && isMiniPlayerHidden) {
+      setMiniPlayerHidden(false);
+    }
+  }, [isPhone, activeOverlay, isMiniPlayerHidden, setMiniPlayerHidden]);
+  
   // Auto-focus first panel on phones when panels change
   useEffect(() => {
     if (isPhone && panels.length > 0 && !focusedPanelId) {

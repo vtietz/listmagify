@@ -9,6 +9,8 @@ import { GripVertical } from 'lucide-react';
 import { useDraggable } from '@dnd-kit/core';
 import { cn } from '@/lib/utils';
 import type { Track } from '@/lib/spotify/types';
+import { MarqueeText } from '@/components/ui/marquee-text';
+import { useHydratedAutoScrollText } from '@/hooks/useAutoScrollTextStore';
 
 interface TrackInfoProps {
   track: {
@@ -24,6 +26,8 @@ interface TrackInfoProps {
 }
 
 export function TrackInfo({ track, isMobileDevice }: TrackInfoProps) {
+  const isAutoScrollEnabled = useHydratedAutoScrollText();
+  
   // Convert to Track format for drag data
   const trackForDrag: Track | null = track ? {
     id: track.id,
@@ -80,10 +84,20 @@ export function TrackInfo({ track, isMobileDevice }: TrackInfoProps) {
         />
       )}
       <div className="min-w-0 flex-1">
-        <div className="text-sm font-medium truncate">{track.name}</div>
-        <div className="text-xs text-muted-foreground truncate">
+        <MarqueeText
+          isAutoScrollEnabled={isAutoScrollEnabled}
+          className="text-sm font-medium"
+          title={track.name}
+        >
+          {track.name}
+        </MarqueeText>
+        <MarqueeText
+          isAutoScrollEnabled={isAutoScrollEnabled}
+          className="text-xs text-muted-foreground"
+          title={`${track.artists.join(', ')}${track.albumName ? ` • ${track.albumName}` : ''}`}
+        >
           {track.artists.join(', ')} {track.albumName && `• ${track.albumName}`}
-        </div>
+        </MarqueeText>
       </div>
     </div>
   );

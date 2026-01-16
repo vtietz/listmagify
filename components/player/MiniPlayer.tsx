@@ -36,6 +36,8 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { formatDuration } from '@/lib/utils/format';
 import { toast } from '@/lib/ui/toast';
+import { MarqueeText } from '@/components/ui/marquee-text';
+import { useHydratedAutoScrollText } from '@/hooks/useAutoScrollTextStore';
 
 interface MiniPlayerProps {
   /** Whether to show the mini player (controlled externally) */
@@ -64,6 +66,7 @@ export function MiniPlayer({ isVisible, onHide }: MiniPlayerProps) {
   const [localProgress, setLocalProgress] = useState(0);
   const lastUpdateRef = useRef<number>(0);
   const rafRef = useRef<number>(0);
+  const isAutoScrollEnabled = useHydratedAutoScrollText();
 
   const track = playbackState?.track;
   const device = playbackState?.device;
@@ -201,14 +204,22 @@ export function MiniPlayer({ isVisible, onHide }: MiniPlayerProps) {
             />
           )}
 
-          {/* Track info - truncated */}
+          {/* Track info - with auto-scroll */}
           <div className="flex-1 min-w-0 overflow-hidden">
-            <div className="text-xs font-medium truncate leading-tight">
+            <MarqueeText
+              isAutoScrollEnabled={isAutoScrollEnabled}
+              className="text-xs font-medium leading-tight"
+              title={track.name}
+            >
               {track.name}
-            </div>
-            <div className="text-[10px] text-muted-foreground truncate leading-tight">
+            </MarqueeText>
+            <MarqueeText
+              isAutoScrollEnabled={isAutoScrollEnabled}
+              className="text-[10px] text-muted-foreground leading-tight"
+              title={track.artists.join(', ')}
+            >
               {track.artists.join(', ')}
-            </div>
+            </MarqueeText>
           </div>
 
           {/* Time display - stacked vertically to save horizontal space */}
