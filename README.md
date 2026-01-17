@@ -136,7 +136,7 @@ The production setup includes:
 | Start production | `./run.sh prod-up` |
 | Stop production | `./run.sh prod-down` |
 | View production logs | `./run.sh prod-logs -f` |
-| Update (git pull + rebuild) | `./run.sh prod-update` |
+| Update (git pull + rebuild) | `./run.sh prod-update [--no-cache]` |
 | Cleanup artifacts | `./run.sh prod-clean` |
 | Cleanup + volumes | `./run.sh prod-clean --volumes` |
 

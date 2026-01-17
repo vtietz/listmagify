@@ -18,7 +18,7 @@ Commands:
   prod-up         Start production deployment
   prod-down       Stop production deployment
   prod-logs       View production logs (use -f to follow)
-  prod-update     Pull latest code, rebuild, and restart (git pull + prod-build + prod-up)
+  prod-update     Pull latest code, rebuild, and restart (use --no-cache to force rebuild)
   prod-clean      Clean up Docker images, containers, and build cache (use --volumes to also remove volumes)
 
 Examples:
@@ -125,14 +125,16 @@ case "${1:-}" in
     ;;
   prod-update)
     # Pull latest code, rebuild, and restart production
+    shift
     echo "Pulling latest code..."
     git pull
     echo ""
     echo "Rebuilding production image..."
+    build_args=("$@")
     if [ -f docker/docker-compose.prod.override.yml ]; then
-      docker compose --env-file .env -f docker/docker-compose.prod.yml -f docker/docker-compose.prod.override.yml build --no-cache
+      docker compose --env-file .env -f docker/docker-compose.prod.yml -f docker/docker-compose.prod.override.yml build "${build_args[@]}"
     else
-      docker compose --env-file .env -f docker/docker-compose.prod.yml build --no-cache
+      docker compose --env-file .env -f docker/docker-compose.prod.yml build "${build_args[@]}"
     fi
     echo ""
     echo "Restarting production deployment..."
