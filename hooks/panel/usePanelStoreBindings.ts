@@ -9,25 +9,25 @@ import { useSplitGridStore } from '@/hooks/useSplitGridStore';
 import { useMobileOverlayStore } from '@/components/split-editor/MobileBottomNav';
 import { useDeviceType } from '@/hooks/useDeviceType';
 import { eventBus } from '@/lib/sync/eventBus';
-import type { SortKey, SortDirection } from '@/hooks/usePlaylistSort';
+import type { SortKey, SortDirection } from '@/lib/utils/sort';
 
 export function usePanelStoreBindings(panelId: string, dndMode: 'move' | 'copy') {
-  // Store selectors
-  const panel = useSplitGridStore((state: any) =>
-    state.panels.find((p: any) => p.id === panelId)
+  // Store selectors - using typed selectors for type safety
+  const panel = useSplitGridStore(
+    (state) => state.panels.find((p) => p.id === panelId)
   );
-  const panelCount = useSplitGridStore((state: any) => state.panels.length);
-  const setSearch = useSplitGridStore((state: any) => state.setSearch);
-  const setSelection = useSplitGridStore((state: any) => state.setSelection);
-  const toggleSelection = useSplitGridStore((state: any) => state.toggleSelection);
-  const setScroll = useSplitGridStore((state: any) => state.setScroll);
-  const closePanel = useSplitGridStore((state: any) => state.closePanel);
-  const splitPanel = useSplitGridStore((state: any) => state.splitPanel);
-  const setPanelDnDMode = useSplitGridStore((state: any) => state.setPanelDnDMode);
-  const togglePanelLock = useSplitGridStore((state: any) => state.togglePanelLock);
-  const loadPlaylist = useSplitGridStore((state: any) => state.loadPlaylist);
-  const selectPlaylist = useSplitGridStore((state: any) => state.selectPlaylist);
-  const setSort = useSplitGridStore((state: any) => state.setSort);
+  const panelCount = useSplitGridStore((state) => state.panels.length);
+  const setSearch = useSplitGridStore((state) => state.setSearch);
+  const setSelection = useSplitGridStore((state) => state.setSelection);
+  const toggleSelection = useSplitGridStore((state) => state.toggleSelection);
+  const setScroll = useSplitGridStore((state) => state.setScroll);
+  const closePanel = useSplitGridStore((state) => state.closePanel);
+  const splitPanel = useSplitGridStore((state) => state.splitPanel);
+  const setPanelDnDMode = useSplitGridStore((state) => state.setPanelDnDMode);
+  const togglePanelLock = useSplitGridStore((state) => state.togglePanelLock);
+  const loadPlaylist = useSplitGridStore((state) => state.loadPlaylist);
+  const selectPlaylist = useSplitGridStore((state) => state.selectPlaylist);
+  const setSort = useSplitGridStore((state) => state.setSort);
 
   // Mobile overlay state
   const { isPhone } = useDeviceType();
@@ -37,7 +37,7 @@ export function usePanelStoreBindings(panelId: string, dndMode: 'move' | 'copy')
   // Panel state from store
   const playlistId = panel?.playlistId;
   const searchQuery = panel?.searchQuery || '';
-  const selection = panel?.selection || new Set();
+  const selection = panel?.selection || new Set<string>();
   const locked = panel?.locked || false;
   const sortKey: SortKey = panel?.sortKey || 'position';
   const sortDirection: SortDirection = panel?.sortDirection || 'asc';

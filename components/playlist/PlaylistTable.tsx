@@ -19,15 +19,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, ArrowUpDown } from "lucide-react";
 import { useMemo } from "react";
-
-export type SortKey = 
-  | "position" 
-  | "title" 
-  | "artist" 
-  | "album" 
-  | "duration" 
-  | "addedAt";
-export type SortDirection = "asc" | "desc";
+import type { SortKey, SortDirection } from "@/lib/utils/sort";
 
 export interface PlaylistTableProps {
   tracks: Track[];
@@ -311,7 +303,7 @@ export function PlaylistTable({
                   />
                   <ColumnHeader
                     label="Title"
-                    sortKey="title"
+                    sortKey="name"
                     currentSortKey={sortKey}
                     currentDirection={sortDirection}
                     onSort={onSortChange}

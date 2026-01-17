@@ -99,7 +99,7 @@ export function PlayPauseButton({
         isLocalFile
           ? 'Local files cannot be played'
           : showHollowCircle
-            ? 'Playing from another playlist'
+            ? 'Playing from another playlist or device'
             : isPlaying
               ? 'Pause'
               : 'Play'

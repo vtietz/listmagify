@@ -135,7 +135,7 @@ export function PlaylistPanel({
   
   // Hook to add tracks to all markers
   const { hasActiveMarkers, addToMarkers } = useAddToMarkers({ 
-    excludePlaylistId: state.playlistId ?? undefined 
+    excludePlaylistId: state.playlistId !== null ? state.playlistId : undefined 
   });
   
   // Handler to add selected tracks to all markers (used in context menu)

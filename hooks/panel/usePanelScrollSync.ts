@@ -15,10 +15,32 @@
 
 import { useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import type { Virtualizer } from '@tanstack/react-virtual';
-import { eventBus } from '@/lib/sync/eventBus';
 
 /** Minimum ms between automatic store updates during scroll */
 const THROTTLE_MS = 200;
+
+type ScrollRegistryEntry = {
+  panelId: string;
+  scrollRef: React.RefObject<HTMLDivElement | null>;
+  setScroll: (panelId: string, scrollTop: number) => void;
+};
+
+const scrollRegistry = new Map<string, ScrollRegistryEntry>();
+
+/**
+ * Flush scroll positions for all currently mounted panels.
+ *
+ * This is used before split/close tree mutations that can cause sibling panels
+ * to remount. Without this, a surviving panel can lose its stored offset and
+ * restore to 0 on the next mount.
+ */
+export function flushAllPanelScrollPositions() {
+  for (const entry of scrollRegistry.values()) {
+    const el = entry.scrollRef.current;
+    if (!el) continue;
+    entry.setScroll(entry.panelId, el.scrollTop);
+  }
+}
 
 interface UsePanelScrollSyncOptions {
   panelId: string;
@@ -37,6 +59,14 @@ export function usePanelScrollSync({
   dataUpdatedAt,
   setScroll,
 }: UsePanelScrollSyncOptions) {
+  // Register this panel's scroll container so other panels can flush before a tree mutation.
+  useEffect(() => {
+    scrollRegistry.set(panelId, { panelId, scrollRef, setScroll });
+    return () => {
+      scrollRegistry.delete(panelId);
+    };
+  }, [panelId, scrollRef, setScroll]);
+
   // --- Refs for tracking state ---
   // Suspend saves during restoration to prevent "0" overwrites
   const suspendSavesRef = useRef(true); // Start suspended until first restore completes
@@ -86,6 +116,9 @@ export function usePanelScrollSync({
     if (el.clientHeight === 0 || el.scrollHeight === 0) return false;
     
     const maxScroll = Math.max(0, el.scrollHeight - el.clientHeight);
+    // If we want to restore to a non-zero position but the container can't scroll yet,
+    // treat this as "not ready" so we retry on a later frame.
+    if (offset > 0 && maxScroll === 0) return false;
     const clampedOffset = Math.max(0, Math.min(offset, maxScroll));
     
     // Try virtualizer scrollToOffset first if available
@@ -97,8 +130,13 @@ export function usePanelScrollSync({
     }
     
     lastSavedValueRef.current = clampedOffset;
+    // Critical: also persist the restored offset to the store.
+    // Otherwise, if the panel remounts again before the user scrolls (e.g. closing a sibling
+    // panel collapses the tree and causes a remount), the store may still contain 0 and we'd
+    // jump to the top on the next mount.
+    setScroll(panelId, clampedOffset);
     return true;
-  }, [scrollRef, virtualizerRef]);
+  }, [panelId, scrollRef, setScroll, virtualizerRef]);
 
   // --- Restore with double-rAF and retry logic ---
   const restoreScrollPosition = useCallback((offset: number, onComplete?: () => void) => {
@@ -136,8 +174,6 @@ export function usePanelScrollSync({
   // --- Initial restoration on mount (useLayoutEffect for before-paint timing) ---
   useLayoutEffect(() => {
     if (initialRestoreDoneRef.current) return;
-    
-    const offset = targetScrollOffsetRef.current ?? 0;
 
     let cancelled = false;
 
@@ -147,7 +183,9 @@ export function usePanelScrollSync({
     const attempt = () => {
       if (cancelled) return;
 
-      if (doRestore(offset)) {
+      // Always read the latest desired offset (it can change across remounts)
+      const latestOffset = targetScrollOffsetRef.current ?? 0;
+      if (doRestore(latestOffset)) {
         initialRestoreDoneRef.current = true;
         suspendSavesRef.current = false;
         return;
@@ -191,20 +229,6 @@ export function usePanelScrollSync({
       }
     };
   }, [scrollRef, saveScrollPosition]);
-
-  // --- External flush request (used before structural changes like close/collapse) ---
-  useEffect(() => {
-    return eventBus.on('panels:save-scroll', () => {
-      const el = scrollRef.current;
-      if (!el) return;
-
-      // Flush immediately, regardless of suspend state.
-      // This event is intended to be emitted BEFORE a structural change.
-      const scrollTop = el.scrollTop;
-      lastSavedValueRef.current = scrollTop;
-      setScroll(panelId, scrollTop);
-    });
-  }, [panelId, scrollRef, setScroll]);
 
   // --- Restore on data update (e.g., after playlist reload) ---
   useEffect(() => {

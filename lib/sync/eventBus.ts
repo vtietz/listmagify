@@ -6,7 +6,6 @@
 type EventMap = {
   'playlist:update': { playlistId: string; cause: 'reorder' | 'add' | 'remove' | 'metadata' };
   'playlist:reload': { playlistId: string };
-  'panels:save-scroll': Record<string, never>; // Empty payload - all panels should save their scroll
 };
 
 type EventCallback<T> = (data: T) => void;

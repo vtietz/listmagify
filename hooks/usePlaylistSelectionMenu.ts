@@ -36,7 +36,7 @@ type OpenContextMenuArgs = {
 };
 
 type PlaylistPanelStateLike = {
-  playlistId: string | null;
+  playlistId: string | null | undefined;
   isEditable: boolean;
 
   activeMarkerIndices: Set<number>;

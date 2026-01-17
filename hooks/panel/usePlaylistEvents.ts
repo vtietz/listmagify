@@ -1,6 +1,6 @@
 /**
  * Hook for playlist event subscriptions (reload, update events).
- * Note: Scroll save is now handled by usePanelScrollSync.
+ * Scroll persistence is handled separately by usePanelScrollSync.
  */
 
 'use client';
@@ -11,18 +11,12 @@ import { eventBus } from '@/lib/sync/eventBus';
 import { playlistMeta } from '@/lib/api/queryKeys';
 
 interface UsePlaylistEventsOptions {
-  panelId: string;
   playlistId: string | null | undefined;
-  scrollRef: React.RefObject<HTMLDivElement | null>;
-  setScroll: (panelId: string, scrollTop: number) => void;
   queryClient: QueryClient;
 }
 
 export function usePlaylistEvents({
-  panelId,
   playlistId,
-  scrollRef,
-  setScroll,
   queryClient,
 }: UsePlaylistEventsOptions) {
   useEffect(() => {
@@ -33,10 +27,8 @@ export function usePlaylistEvents({
     const unsubscribeUpdate = eventBus.on('playlist:update', () => {});
     const unsubscribeReload = eventBus.on('playlist:reload', ({ playlistId: id }) => {
       if (id === playlistId) {
-        // Save current scroll position before invalidating
-        const scrollTop = scrollRef.current?.scrollTop || 0;
-        setScroll(panelId, scrollTop);
-        // Invalidate queries
+        // Invalidate queries - scroll restoration is handled by usePanelScrollSync
+        // when dataUpdatedAt changes after the queries refetch
         queryClient.invalidateQueries({
           queryKey: ['playlist-tracks-infinite', playlistId],
         });
@@ -48,5 +40,5 @@ export function usePlaylistEvents({
       unsubscribeUpdate();
       unsubscribeReload();
     };
-  }, [playlistId, panelId, queryClient, setScroll, scrollRef]);
+  }, [playlistId, queryClient]);
 }

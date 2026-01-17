@@ -12,7 +12,7 @@ import { toast } from '@/lib/ui/toast';
 
 interface UseAddToMarkersOptions {
   /** Playlist ID to exclude from markers (e.g., the source playlist) */
-  excludePlaylistId?: string;
+  excludePlaylistId?: string | undefined;
 }
 
 interface UseAddToMarkersResult {

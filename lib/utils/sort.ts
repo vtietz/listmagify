@@ -12,7 +12,8 @@ export type SortKey =
   | "album"
   | "duration"
   | "popularity"
-  | "year";
+  | "year"
+  | "addedAt";
 
 export type SortDirection = "asc" | "desc";
 
@@ -118,6 +119,26 @@ export function compareByReleaseDate(a: Track, b: Track): number {
 }
 
 /**
+ * Sort by date added to playlist (ISO date string)
+ */
+export function compareByAddedAt(a: Track, b: Track): number {
+  // Parse ISO date string to timestamp for comparison
+  const parseAddedAt = (dateStr: string | undefined): number => {
+    if (!dateStr) return 0;
+    try {
+      return new Date(dateStr).getTime();
+    } catch {
+      return 0;
+    }
+  };
+  
+  const aDate = parseAddedAt(a.addedAt);
+  const bDate = parseAddedAt(b.addedAt);
+  const result = aDate - bDate;
+  return result !== 0 ? result : stableSort(a, b);
+}
+
+/**
  * Get comparator function for a given sort key
  */
 export function getComparator(sortKey: SortKey): (a: Track, b: Track) => number {
@@ -136,6 +157,8 @@ export function getComparator(sortKey: SortKey): (a: Track, b: Track) => number 
       return compareByPopularity;
     case "year":
       return compareByReleaseDate;
+    case "addedAt":
+      return compareByAddedAt;
     default:
       return compareByPosition;
   }

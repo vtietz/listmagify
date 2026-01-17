@@ -5,6 +5,11 @@
  * Extracted from useSplitGridStore for better modularity.
  */
 
+import type { SortKey, SortDirection } from '@/lib/utils/sort';
+
+// Re-export for convenience
+export type { SortKey, SortDirection };
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -18,8 +23,8 @@ export interface PanelConfig {
   scrollOffset: number;
   selection: Set<string>;
   dndMode: 'move' | 'copy';
-  sortKey: 'position' | 'title' | 'artist' | 'album' | 'addedAt' | 'duration';
-  sortDirection: 'asc' | 'desc';
+  sortKey: SortKey;
+  sortDirection: SortDirection;
 }
 
 /** A leaf node containing a panel */

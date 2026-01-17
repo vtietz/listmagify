@@ -9,7 +9,6 @@
 
 import { useEffect, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { eventBus } from '@/lib/sync/eventBus';
 import {
   usePanelStoreBindings,
   usePlaylistDataSource,
@@ -29,6 +28,7 @@ import {
   usePlaylistEvents,
   useAutoReload,
   usePanelScrollSync,
+  flushAllPanelScrollPositions,
   usePlaylistMutations,
 } from './panel';
 
@@ -250,10 +250,7 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
 
   // --- Event subscriptions ---
   usePlaylistEvents({
-    panelId,
     playlistId,
-    scrollRef,
-    setScroll,
     queryClient,
   });
 
@@ -274,21 +271,25 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
   // This ensures the store has the correct scrollOffset BEFORE the tree mutation,
   // so both the clone (on split) and the original (after remount) can restore correctly.
   const handleSplitHorizontalWithScroll = useCallback(() => {
+    flushAllPanelScrollPositions();
     const scrollTop = scrollRef.current?.scrollTop ?? 0;
     setScroll(panelId, scrollTop);
     handleSplitHorizontal();
   }, [scrollRef, setScroll, panelId, handleSplitHorizontal]);
 
   const handleSplitVerticalWithScroll = useCallback(() => {
+    flushAllPanelScrollPositions();
     const scrollTop = scrollRef.current?.scrollTop ?? 0;
     setScroll(panelId, scrollTop);
     handleSplitVertical();
   }, [scrollRef, setScroll, panelId, handleSplitVertical]);
 
   const handleCloseWithScroll = useCallback(() => {
-    // Flush all panels' scroll positions before the structural change.
-    // This matters when closing a cloned panel collapses a group and remounts the sibling.
-    eventBus.emit('panels:save-scroll', {});
+    // Closing one panel can remount surviving siblings (group collapses).
+    // Flush all mounted panel scroll positions so the survivor restores correctly.
+    flushAllPanelScrollPositions();
+    // Save this panel's scroll position before the structural change.
+    // Sibling panels will flush via their unmount effect if they remount.
     const scrollTop = scrollRef.current?.scrollTop ?? 0;
     setScroll(panelId, scrollTop);
     handleClose();

@@ -19,7 +19,7 @@ export { usePlaybackControls } from './usePlaybackControls';
 export { useVirtualizerState } from './useVirtualizerState';
 export { usePlaylistEvents } from './usePlaylistEvents';
 export { useAutoReload } from './useAutoReload';
-export { usePanelScrollSync } from './usePanelScrollSync';
+export { usePanelScrollSync, flushAllPanelScrollPositions } from './usePanelScrollSync';
 export { usePlaylistMutations } from './usePlaylistMutations';
 
 export * from './panelUtils';
