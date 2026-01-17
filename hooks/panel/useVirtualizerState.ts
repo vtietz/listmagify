@@ -19,8 +19,13 @@ import type { Track } from '@/lib/spotify/types';
 export function useVirtualizerState(
   filteredTracks: Track[],
   scrollRef: React.RefObject<HTMLDivElement | null>,
-  panelId: string
+  panelId: string,
+  initialScrollOffset?: number
 ) {
+  // Capture the initial scroll offset once per mount so we don't accidentally
+  // re-initialize the virtualizer if the stored scrollOffset changes over time.
+  const initialOffsetRef = useRef<number | undefined>(initialScrollOffset);
+
   const isCompact = useHydratedCompactMode();
   const rowHeight = isCompact ? TRACK_ROW_HEIGHT_COMPACT : TRACK_ROW_HEIGHT;
   const deferredCount = useDeferredValue(filteredTracks.length);
@@ -30,6 +35,9 @@ export function useVirtualizerState(
     getScrollElement: () => scrollRef.current,
     estimateSize: () => rowHeight,
     overscan: VIRTUALIZATION_OVERSCAN,
+    // Ensure the first paint after mount/remount starts at the stored scroll position.
+    // This avoids the visible "jump" from 0 -> restored offset.
+    initialOffset: () => initialOffsetRef.current ?? 0,
   });
 
   const virtualizerRef = useRef(virtualizer);

@@ -1,5 +1,6 @@
 /**
  * Hook for playlist event subscriptions (reload, update events).
+ * Note: Scroll save is now handled by usePanelScrollSync.
  */
 
 'use client';
@@ -25,7 +26,9 @@ export function usePlaylistEvents({
   queryClient,
 }: UsePlaylistEventsOptions) {
   useEffect(() => {
-    if (!playlistId) return;
+    if (!playlistId) {
+      return;
+    }
 
     const unsubscribeUpdate = eventBus.on('playlist:update', () => {});
     const unsubscribeReload = eventBus.on('playlist:reload', ({ playlistId: id }) => {

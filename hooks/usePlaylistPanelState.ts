@@ -9,6 +9,7 @@
 
 import { useEffect, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { eventBus } from '@/lib/sync/eventBus';
 import {
   usePanelStoreBindings,
   usePlaylistDataSource,
@@ -27,8 +28,7 @@ import {
   useVirtualizerState,
   usePlaylistEvents,
   useAutoReload,
-  useScrollPersistence,
-  useScrollRestoration,
+  usePanelScrollSync,
   usePlaylistMutations,
 } from './panel';
 
@@ -128,23 +128,6 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
     setPanelDnDMode(panelId, dndMode === 'move' ? 'copy' : 'move');
   }, [panelId, dndMode, setPanelDnDMode]);
 
-  // Wrap split handlers to save scroll position first
-  const handleSplitHorizontalWithScroll = useCallback(() => {
-    // Save current scroll position before splitting
-    if (scrollRef.current) {
-      setScroll(panelId, scrollRef.current.scrollTop);
-    }
-    handleSplitHorizontal();
-  }, [handleSplitHorizontal, panelId, setScroll, scrollRef]);
-
-  const handleSplitVerticalWithScroll = useCallback(() => {
-    // Save current scroll position before splitting
-    if (scrollRef.current) {
-      setScroll(panelId, scrollRef.current.scrollTop);
-    }
-    handleSplitVertical();
-  }, [handleSplitVertical, panelId, setScroll, scrollRef]);
-
   // Load playlist when permissions change
   useEffect(() => {
     if (playlistId && permissionsData) {
@@ -179,7 +162,7 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
     contextItems,
     rowHeight,
     isCompact,
-  } = useVirtualizerState(filteredTracks, scrollRef, panelId);
+  } = useVirtualizerState(filteredTracks, scrollRef, panelId, scrollOffset);
 
   // --- Playlist mutations ---
   const mutations = usePlaylistMutations({
@@ -277,19 +260,39 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
   // --- Auto reload ---
   useAutoReload(playlistId, isLikedPlaylist);
 
-  // --- Scroll persistence ---
-  useScrollPersistence({
+  // --- Unified scroll sync (save and restore) ---
+  usePanelScrollSync({
     panelId,
     scrollRef,
+    virtualizerRef,
+    targetScrollOffset: scrollOffset,
+    dataUpdatedAt,
     setScroll,
   });
 
-  // --- Scroll restoration ---
-  useScrollRestoration({
-    scrollRef,
-    targetScrollOffset: scrollOffset,
-    dataUpdatedAt,
-  });
+  // --- Wrap split/close handlers to save scroll synchronously before mutation ---
+  // This ensures the store has the correct scrollOffset BEFORE the tree mutation,
+  // so both the clone (on split) and the original (after remount) can restore correctly.
+  const handleSplitHorizontalWithScroll = useCallback(() => {
+    const scrollTop = scrollRef.current?.scrollTop ?? 0;
+    setScroll(panelId, scrollTop);
+    handleSplitHorizontal();
+  }, [scrollRef, setScroll, panelId, handleSplitHorizontal]);
+
+  const handleSplitVerticalWithScroll = useCallback(() => {
+    const scrollTop = scrollRef.current?.scrollTop ?? 0;
+    setScroll(panelId, scrollTop);
+    handleSplitVertical();
+  }, [scrollRef, setScroll, panelId, handleSplitVertical]);
+
+  const handleCloseWithScroll = useCallback(() => {
+    // Flush all panels' scroll positions before the structural change.
+    // This matters when closing a cloned panel collapses a group and remounts the sibling.
+    eventBus.emit('panels:save-scroll', {});
+    const scrollTop = scrollRef.current?.scrollTop ?? 0;
+    setScroll(panelId, scrollTop);
+    handleClose();
+  }, [scrollRef, setScroll, panelId, handleClose]);
 
   // --- Return the same shape as before for API compatibility ---
   return {
@@ -364,7 +367,7 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
     // Handlers
     handleSearchChange,
     handleReload,
-    handleClose,
+    handleClose: handleCloseWithScroll,
     handleSplitHorizontal: handleSplitHorizontalWithScroll,
     handleSplitVertical: handleSplitVerticalWithScroll,
     handleDndModeToggle,
