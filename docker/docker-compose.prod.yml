@@ -1,6 +1,6 @@
 services:
   web:
-    image: ${IMAGE:-ghcr.io/vtietz/spotify-playlist-studio:latest}
+    image: ${IMAGE:-ghcr.io/vtietz/listmagify:latest}
     build:
       context: ..
       dockerfile: docker/Dockerfile.prod

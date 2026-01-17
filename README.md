@@ -75,7 +75,7 @@ Images are automatically built and pushed to GitHub Container Registry on every 
 
    To use a specific version:
    ```bash
-   IMAGE=ghcr.io/vtietz/spotify-playlist-studio:main-abc123 ./run.sh prod-up
+   IMAGE=ghcr.io/vtietz/listmagify:main-abc123 ./run.sh prod-up
    ```
 
 4. **Update to Latest**:
@@ -115,7 +115,7 @@ To enable:
 2. Under "Workflow permissions", select "Read and write permissions"
 3. Save changes
 
-Images will be available at: `ghcr.io/vtietz/spotify-playlist-studio:latest`
+Images will be available at: `ghcr.io/vtietz/listmagify:latest`
 
 ## Quick Start (Local)
 
