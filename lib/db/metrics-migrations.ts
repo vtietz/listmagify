@@ -267,4 +267,14 @@ export const metricsMigrations: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_traffic_utm ON traffic_analytics(utm_source);
     `,
   },
+  {
+    version: 10,
+    name: 'add_spotify_username_to_access_requests',
+    sql: `
+      -- Add spotify_username column to access_requests table
+      ALTER TABLE access_requests ADD COLUMN spotify_username TEXT;
+      
+      CREATE INDEX IF NOT EXISTS idx_access_requests_spotify_username ON access_requests(spotify_username);
+    `,
+  },
 ];

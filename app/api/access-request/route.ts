@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, email, motivation } = body;
+    const { name, email, spotifyUsername, motivation } = body;
 
     // Validate input
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
@@ -62,6 +62,7 @@ export async function POST(request: NextRequest) {
 
 Name: ${name.trim()}
 Spotify Email: ${email.trim()}
+${spotifyUsername && spotifyUsername.trim() ? `Spotify Username: ${spotifyUsername.trim()}\n` : ''}
 ${motivation && motivation.trim() ? `\nMotivation:\n${motivation.trim()}\n` : ''}
 To approve this user:
 1. Go to https://developer.spotify.com/dashboard
@@ -83,6 +84,12 @@ This is an automated message from Listmagify.
     <td style="padding: 8px; font-weight: bold;">Spotify Email:</td>
     <td style="padding: 8px;">${escapeHtml(email.trim())}</td>
   </tr>
+  ${spotifyUsername && spotifyUsername.trim() ? `
+  <tr>
+    <td style="padding: 8px; font-weight: bold;">Spotify Username:</td>
+    <td style="padding: 8px;">${escapeHtml(spotifyUsername.trim())}</td>
+  </tr>
+  ` : ''}
   ${motivation && motivation.trim() ? `
   <tr>
     <td style="padding: 8px; font-weight: bold; vertical-align: top;">Motivation:</td>
@@ -111,11 +118,12 @@ This is an automated message from Listmagify.
       const db = getDb();
       if (db) {
         db.prepare(`
-          INSERT INTO access_requests (name, email, motivation, status)
-          VALUES (?, ?, ?, 'pending')
+          INSERT INTO access_requests (name, email, spotify_username, motivation, status)
+          VALUES (?, ?, ?, ?, 'pending')
         `).run(
           name.trim(),
           email.trim(),
+          spotifyUsername && spotifyUsername.trim() ? spotifyUsername.trim() : null,
           motivation && motivation.trim() ? motivation.trim() : null
         );
         console.debug(`[access-request] Stored in database for ${email}`);

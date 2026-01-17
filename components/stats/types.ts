@@ -184,6 +184,7 @@ export interface AccessRequest {
   ts: string;
   name: string;
   email: string;
+  spotify_username: string | null;
   motivation: string | null;
   status: string;
   notes: string | null;

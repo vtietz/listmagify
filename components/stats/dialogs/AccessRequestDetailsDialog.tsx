@@ -62,6 +62,13 @@ export function AccessRequestDetailsDialog({
               </div>
             </div>
 
+            {request.spotify_username && (
+              <div>
+                <div className="text-sm font-medium text-muted-foreground">Spotify Username</div>
+                <div className="font-medium">{request.spotify_username}</div>
+              </div>
+            )}
+
             <div>
               <div className="text-sm font-medium text-muted-foreground">Status</div>
               <span className={cn("inline-block px-2 py-0.5 rounded text-xs font-medium mt-1", getStatusColor(request.status))}>

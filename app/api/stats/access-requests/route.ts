@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status'); // null = all, 'pending', 'approved', 'rejected'
 
     let query = `
-      SELECT id, ts, name, email, motivation, status, notes
+      SELECT id, ts, name, email, spotify_username, motivation, status, notes
       FROM access_requests
       WHERE 1=1
     `;

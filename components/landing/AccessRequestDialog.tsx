@@ -29,6 +29,7 @@ export function AccessRequestDialog({ trigger, defaultOpen = false }: AccessRequ
   const [open, setOpen] = useState(defaultOpen);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [spotifyUsername, setSpotifyUsername] = useState('');
   const [motivation, setMotivation] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -43,7 +44,7 @@ export function AccessRequestDialog({ trigger, defaultOpen = false }: AccessRequ
       const response = await fetch('/api/access-request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, motivation }),
+        body: JSON.stringify({ name, email, spotifyUsername, motivation }),
       });
 
       if (!response.ok) {
@@ -66,6 +67,7 @@ export function AccessRequestDialog({ trigger, defaultOpen = false }: AccessRequ
       setTimeout(() => {
         setName('');
         setEmail('');
+        setSpotifyUsername('');
         setMotivation('');
         setIsSuccess(false);
         setError(null);
@@ -142,6 +144,20 @@ export function AccessRequestDialog({ trigger, defaultOpen = false }: AccessRequ
                 />
                 <p className="text-xs text-muted-foreground">
                   Use the email address associated with your Spotify account.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="spotifyUsername">Spotify Username</Label>
+                <Input
+                  id="spotifyUsername"
+                  type="text"
+                  placeholder="your-spotify-username"
+                  value={spotifyUsername}
+                  onChange={(e) => setSpotifyUsername(e.target.value)}
+                  disabled={isSubmitting}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Your Spotify username (optional, but helpful for verification).
                 </p>
               </div>
               <div className="space-y-2">

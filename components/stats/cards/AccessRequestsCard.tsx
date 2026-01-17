@@ -101,6 +101,7 @@ export function AccessRequestsCard({ dateRange }: AccessRequestsCardProps) {
                       <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
                         <span>{new Date(request.ts).toLocaleDateString()}</span>
                         <span className="truncate">{request.email}</span>
+                        {request.spotify_username && <span className="truncate">@{request.spotify_username}</span>}
                       </div>
                       {request.motivation && (
                         <p className="text-xs text-muted-foreground mt-2 line-clamp-2">{request.motivation}</p>
