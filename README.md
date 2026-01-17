@@ -25,6 +25,8 @@ Playlist magic for Spotify. Edit multiple playlists side-by-side with drag-and-d
 - **Compact Mode** – Dense view to see more tracks on screen
 - **Scroll Text** – Auto-scroll overflowing track labels horizontally for better readability. Pause on hover to click links
 
+**Note**: The Spotify API does not support playlist folders. All playlists are displayed in a flat list view.
+
 ## Mobile Installation
 
 Listmagify can be installed on your mobile device for a native-like experience:
