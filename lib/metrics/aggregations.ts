@@ -272,7 +272,7 @@ export function getActionDistribution(range: DateRange): { event: string; count:
   return queryAll<{ event: string; count: number }>(
     `SELECT 
       event,
-      COUNT(*) as count
+      SUM(COALESCE(count, 1)) as count
     FROM events
     WHERE 
       date(ts) BETWEEN ? AND ?
