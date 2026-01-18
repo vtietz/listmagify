@@ -26,6 +26,7 @@ import {
   Sparkles,
   RefreshCw,
   Globe,
+  Database,
 } from 'lucide-react';
 
 // Import extracted components
@@ -64,7 +65,7 @@ export function StatsDashboard() {
   const dateRange = useMemo(() => getDateRange(timeRange), [timeRange]);
 
   // Fetch overview KPIs with auto-refresh every 10 seconds
-  const { data: overviewData, isLoading: overviewLoading, refetch: refetchOverview, isFetching: overviewFetching } = useQuery<{ data: OverviewKPIs }>({
+  const { data: overviewData, isLoading: overviewLoading, refetch: refetchOverview, isFetching: overviewFetching } = useQuery<{ data: OverviewKPIs; dbStats?: { sizeBytes: number; sizeMB: number } }>({
     queryKey: ['stats', 'overview', dateRange],
     queryFn: async () => {
       const res = await fetch(`/api/stats/overview?from=${dateRange.from}&to=${dateRange.to}`);
@@ -225,6 +226,12 @@ export function StatsDashboard() {
               value={overviewLoading ? '...' : kpis?.totalSessions ?? 0}
               icon={Users}
               description="Number of unique user sessions started during the selected period"
+            />
+            <KPICard
+              title="Database Size"
+              value={overviewLoading ? '...' : overviewData?.dbStats ? `${overviewData.dbStats.sizeMB} MB` : 'N/A'}
+              icon={Database}
+              description="Size of the metrics database file (metrics.db) on disk"
             />
           </div>
         </section>
