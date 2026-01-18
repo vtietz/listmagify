@@ -15,8 +15,6 @@ import {
 import {
   Users,
   Activity,
-  Plus,
-  Minus,
   BarChart3,
   Calendar,
   TrendingUp,
@@ -27,6 +25,8 @@ import {
   RefreshCw,
   Globe,
   Database,
+  AlertTriangle,
+  UserPlus,
 } from 'lucide-react';
 
 // Import extracted components
@@ -99,7 +99,7 @@ export function StatsDashboard() {
   });
 
   // Fetch user registrations for growth chart
-  const { data: registrationsData, isLoading: registrationsLoading } = useQuery<{ data: any[] }>({
+  const { data: _registrationsData, isLoading: _registrationsLoading } = useQuery<{ data: any[] }>({
     queryKey: ['stats', 'registrations', dateRange],
     queryFn: async () => {
       const res = await fetch(`/api/stats/registrations?from=${dateRange.from}&to=${dateRange.to}`);
@@ -129,7 +129,7 @@ export function StatsDashboard() {
   });
 
   // Fetch resolved error reports count
-  const { data: errorReportsResolvedSummary } = useQuery<{ data: any[]; pagination: { total: number } }>({
+  const { data: _errorReportsResolvedSummary } = useQuery<{ data: any[]; pagination: { total: number } }>({
     queryKey: ['stats', 'error-reports-resolved-summary', dateRange],
     queryFn: async () => {
       const res = await fetch(`/api/stats/error-reports?from=${dateRange.from}&to=${dateRange.to}&limit=1&resolved=true`);
@@ -149,7 +149,7 @@ export function StatsDashboard() {
   });
 
   // Fetch approved access requests count
-  const { data: accessRequestsApprovedSummary } = useQuery<{ data: any[]; pagination: { total: number } }>({
+  const { data: _accessRequestsApprovedSummary } = useQuery<{ data: any[]; pagination: { total: number } }>({
     queryKey: ['stats', 'access-requests-approved-summary', dateRange],
     queryFn: async () => {
       const res = await fetch(`/api/stats/access-requests?from=${dateRange.from}&to=${dateRange.to}&limit=1&status=approved`);
@@ -255,38 +255,64 @@ export function StatsDashboard() {
             <BarChart3 className="h-5 w-5" />
             Overview
           </h2>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <KPICard
-              title="Active Users"
-              value={overviewLoading ? '...' : kpis?.activeUsers ?? 0}
-              subtitle={`${dateRange.from} to ${dateRange.to}`}
-              icon={Users}
-              description="Number of unique users who have interacted with the app during the selected time period"
-            />
-            <KPICard
-              title="Total Events"
-              value={overviewLoading ? '...' : kpis?.totalEvents ?? 0}
-              icon={Activity}
-              description="Sum of all tracked events including track additions, removals, reorders, and API calls"
-            />
-            <KPICard
-              title="Tracks Added"
-              value={overviewLoading ? '...' : kpis?.tracksAdded ?? 0}
-              icon={Plus}
-              description="Number of tracks added to playlists by users"
-            />
-            <KPICard
-              title="Tracks Removed"
-              value={overviewLoading ? '...' : kpis?.tracksRemoved ?? 0}
-              icon={Minus}
-              description="Number of tracks removed from playlists by users"
-            />
-            <KPICard
-              title="Total Sessions"
-              value={overviewLoading ? '...' : kpis?.totalSessions ?? 0}
-              icon={Users}
-              description="Number of unique user sessions started during the selected period"
-            />
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+            <a href="#users" className="block transition-transform hover:scale-105">
+              <KPICard
+                title="Active Users"
+                value={overviewLoading ? '...' : kpis?.activeUsers ?? 0}
+                subtitle={`${dateRange.from} to ${dateRange.to}`}
+                icon={Users}
+                description="Number of unique users who have interacted with the app during the selected time period"
+              />
+            </a>
+            <a href="#activity" className="block transition-transform hover:scale-105">
+              <KPICard
+                title="Total Events"
+                value={overviewLoading ? '...' : kpis?.totalEvents ?? 0}
+                icon={Activity}
+                description="Sum of all tracked events including track additions, removals, reorders, and API calls"
+              />
+            </a>
+            <a href="#traffic" className="block transition-transform hover:scale-105">
+              <KPICard
+                title="Total Sessions"
+                value={overviewLoading ? '...' : kpis?.totalSessions ?? 0}
+                icon={Globe}
+                description="Number of unique user sessions started during the selected period"
+              />
+            </a>
+            <a href="#recs" className="block transition-transform hover:scale-105">
+              <KPICard
+                title="Recommendations"
+                value={recsLoading ? '...' : recsData?.totalTracks ?? 0}
+                icon={Sparkles}
+                description="Total number of tracks in the recommendations database"
+              />
+            </a>
+            <a href="#feedback" className="block transition-transform hover:scale-105">
+              <KPICard
+                title="Feedback"
+                value={feedbackSummaryLoading ? '...' : feedbackSummary?.data?.totalResponses ?? 0}
+                icon={MessageSquare}
+                description="Total feedback responses received during the selected period"
+              />
+            </a>
+            <a href="#feedback" className="block transition-transform hover:scale-105">
+              <KPICard
+                title="Error Reports"
+                value={errorReportsSummaryLoading ? '...' : errorReportsSummary?.pagination?.total ?? 0}
+                icon={AlertTriangle}
+                description="Unresolved error reports from users"
+              />
+            </a>
+            <a href="#auth" className="block transition-transform hover:scale-105">
+              <KPICard
+                title="Access Requests"
+                value={accessRequestsSummaryLoading ? '...' : accessRequestsSummary?.pagination?.total ?? 0}
+                icon={UserPlus}
+                description="Pending access requests from new users"
+              />
+            </a>
             <KPICard
               title="Database Size"
               value={overviewLoading ? '...' : overviewData?.dbStats ? `${overviewData.dbStats.sizeMB} MB` : 'N/A'}
