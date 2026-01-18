@@ -11,9 +11,11 @@ export function QueryProvider({ children }: PropsWithChildren) {
         defaultOptions: {
           queries: {
             staleTime: 30_000,
-            gcTime: 5 * 60_000,
+            gcTime: 10 * 60_000,
             refetchOnWindowFocus: false,
-            retry: 2,
+            refetchOnReconnect: false,
+            refetchOnMount: false,
+            retry: false,
           },
         },
       })

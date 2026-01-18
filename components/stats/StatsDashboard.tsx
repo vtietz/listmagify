@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import {
@@ -36,6 +36,7 @@ import { SimpleBarChart } from './charts/SimpleBarChart';
 import { UsersBarChart } from './charts/UsersBarChart';
 import { ActionsBarChart } from './charts/ActionsBarChart';
 import { ActionDonut } from './charts/ActionDonut';
+import { UserGrowthChart } from './charts/UserGrowthChart';
 import { TopUsersCard } from './cards/TopUsersCard';
 import { TopTracksCard } from './cards/TopTracksCard';
 import { RecsStatsCard } from './cards/RecsStatsCard';
@@ -63,108 +64,120 @@ const sections = [
 export function StatsDashboard() {
   const [timeRange, setTimeRange] = useState<TimeRange>('all');
   const dateRange = useMemo(() => getDateRange(timeRange), [timeRange]);
+  const queryClient = useQueryClient();
+  
+  // Create stable query key parts from dateRange to avoid reference issues
+  const dateRangeKey = `${dateRange.from}_${dateRange.to}`;
 
-  // Fetch overview KPIs with auto-refresh every 10 seconds
-  const { data: overviewData, isLoading: overviewLoading, refetch: refetchOverview, isFetching: overviewFetching } = useQuery<{ data: OverviewKPIs; dbStats?: { sizeBytes: number; sizeMB: number } }>({
-    queryKey: ['stats', 'overview', dateRange],
-    queryFn: async () => {
-      const res = await fetch(`/api/stats/overview?from=${dateRange.from}&to=${dateRange.to}`);
+  // Fetch overview KPIs
+  const { data: overviewData, isLoading: overviewLoading, isFetching: overviewFetching } = useQuery<{ data: OverviewKPIs; dbStats?: { sizeBytes: number; sizeMB: number } }>({
+    queryKey: ['stats', 'overview', dateRangeKey],
+    queryFn: async ({ signal }: { signal: AbortSignal }) => {
+      const res = await fetch(`/api/stats/overview?from=${dateRange.from}&to=${dateRange.to}`, { signal });
       if (!res.ok) throw new Error('Failed to fetch overview');
       return res.json();
     },
-    refetchInterval: 10000, // Auto-refresh every 10 seconds
+    refetchOnMount: true,
   });
 
-  // Fetch events data with auto-refresh every 10 seconds
-  const { data: eventsData, isLoading: eventsLoading, refetch: refetchEvents, isFetching: eventsFetching } = useQuery<{ data: EventsData }>({
-    queryKey: ['stats', 'events', dateRange],
-    queryFn: async () => {
-      const res = await fetch(`/api/stats/events?from=${dateRange.from}&to=${dateRange.to}`);
+  // Fetch events data
+  const { data: eventsData, isLoading: eventsLoading, isFetching: eventsFetching } = useQuery<{ data: EventsData }>({
+    queryKey: ['stats', 'events', dateRangeKey],
+    queryFn: async ({ signal }: { signal: AbortSignal }) => {
+      const res = await fetch(`/api/stats/events?from=${dateRange.from}&to=${dateRange.to}`, { signal });
       if (!res.ok) throw new Error('Failed to fetch events');
       return res.json();
     },
-    refetchInterval: 10000, // Auto-refresh every 10 seconds
+    refetchOnMount: true,
   });
 
   // Fetch recs stats with top tracks (not time-dependent)
-  const { data: recsData, isLoading: recsLoading, refetch: refetchRecs, isFetching: recsFetching } = useQuery<RecsStats>({
+  const { data: recsData, isLoading: recsLoading, isFetching: recsFetching } = useQuery<RecsStats>({
     queryKey: ['stats', 'recs'],
-    queryFn: async () => {
-      const res = await fetch('/api/stats/recs?topTracksLimit=50');
+    queryFn: async ({ signal }: { signal: AbortSignal }) => {
+      const res = await fetch('/api/stats/recs?topTracksLimit=50', { signal });
       if (!res.ok) throw new Error('Failed to fetch recs stats');
       return res.json();
     },
-    staleTime: 30 * 1000,
-    refetchInterval: 10000, // Auto-refresh every 10 seconds
+    staleTime: 60 * 1000,
+    refetchOnMount: true,
   });
 
   // Fetch user registrations for growth chart
-  const { data: _registrationsData, isLoading: _registrationsLoading } = useQuery<{ data: any[] }>({
-    queryKey: ['stats', 'registrations', dateRange],
-    queryFn: async () => {
-      const res = await fetch(`/api/stats/registrations?from=${dateRange.from}&to=${dateRange.to}`);
+  const { data: registrationsData, isLoading: registrationsLoading } = useQuery<{ data: any[] }>({
+    queryKey: ['stats', 'registrations', dateRangeKey],
+    queryFn: async ({ signal }: { signal: AbortSignal }) => {
+      const res = await fetch(`/api/stats/registrations?from=${dateRange.from}&to=${dateRange.to}`, { signal });
       if (!res.ok) throw new Error('Failed to fetch registration stats');
       return res.json();
     },
+    refetchOnMount: true,
   });
 
   // Fetch feedback summary
   const { data: feedbackSummary, isLoading: feedbackSummaryLoading } = useQuery<{ data: { totalResponses: number } }>({
-    queryKey: ['stats', 'feedback-summary', dateRange],
-    queryFn: async () => {
-      const res = await fetch(`/api/feedback?from=${dateRange.from}&to=${dateRange.to}`);
+    queryKey: ['stats', 'feedback-summary', dateRangeKey],
+    queryFn: async ({ signal }: { signal: AbortSignal }) => {
+      const res = await fetch(`/api/feedback?from=${dateRange.from}&to=${dateRange.to}`, { signal });
       if (!res.ok) throw new Error('Failed to fetch feedback');
       return res.json();
     },
+    refetchOnMount: true,
   });
 
   // Fetch error reports summary
   const { data: errorReportsSummary, isLoading: errorReportsSummaryLoading } = useQuery<{ data: any[]; pagination: { total: number } }>({
-    queryKey: ['stats', 'error-reports-summary', dateRange],
-    queryFn: async () => {
-      const res = await fetch(`/api/stats/error-reports?from=${dateRange.from}&to=${dateRange.to}&limit=1&resolved=false`);
+    queryKey: ['stats', 'error-reports-summary', dateRangeKey],
+    queryFn: async ({ signal }: { signal: AbortSignal }) => {
+      const res = await fetch(`/api/stats/error-reports?from=${dateRange.from}&to=${dateRange.to}&limit=1&resolved=false`, { signal });
       if (!res.ok) throw new Error('Failed to fetch error reports');
       return res.json();
     },
+    refetchOnMount: true,
   });
 
   // Fetch resolved error reports count
-  const { data: _errorReportsResolvedSummary } = useQuery<{ data: any[]; pagination: { total: number } }>({
-    queryKey: ['stats', 'error-reports-resolved-summary', dateRange],
-    queryFn: async () => {
-      const res = await fetch(`/api/stats/error-reports?from=${dateRange.from}&to=${dateRange.to}&limit=1&resolved=true`);
+  const { data: errorReportsResolvedSummary } = useQuery<{ data: any[]; pagination: { total: number } }>({
+    queryKey: ['stats', 'error-reports-resolved-summary', dateRangeKey],
+    queryFn: async ({ signal }: { signal: AbortSignal }) => {
+      const res = await fetch(`/api/stats/error-reports?from=${dateRange.from}&to=${dateRange.to}&limit=1&resolved=true`, { signal });
       if (!res.ok) throw new Error('Failed to fetch error reports');
       return res.json();
     },
+    refetchOnMount: true,
   });
 
   // Fetch access requests summary
   const { data: accessRequestsSummary, isLoading: accessRequestsSummaryLoading } = useQuery<{ data: any[]; pagination: { total: number } }>({
-    queryKey: ['stats', 'access-requests-summary', dateRange],
-    queryFn: async () => {
-      const res = await fetch(`/api/stats/access-requests?from=${dateRange.from}&to=${dateRange.to}&limit=1&status=pending`);
+    queryKey: ['stats', 'access-requests-summary', dateRangeKey],
+    queryFn: async ({ signal }: { signal: AbortSignal }) => {
+      const res = await fetch(`/api/stats/access-requests?from=${dateRange.from}&to=${dateRange.to}&limit=1&status=pending`, { signal });
       if (!res.ok) throw new Error('Failed to fetch access requests');
       return res.json();
     },
+    refetchOnMount: true,
   });
 
   // Fetch approved access requests count
-  const { data: _accessRequestsApprovedSummary } = useQuery<{ data: any[]; pagination: { total: number } }>({
-    queryKey: ['stats', 'access-requests-approved-summary', dateRange],
-    queryFn: async () => {
-      const res = await fetch(`/api/stats/access-requests?from=${dateRange.from}&to=${dateRange.to}&limit=1&status=approved`);
+  const { data: accessRequestsApprovedSummary } = useQuery<{ data: any[]; pagination: { total: number } }>({
+    queryKey: ['stats', 'access-requests-approved-summary', dateRangeKey],
+    queryFn: async ({ signal }: { signal: AbortSignal }) => {
+      const res = await fetch(`/api/stats/access-requests?from=${dateRange.from}&to=${dateRange.to}&limit=1&status=approved`, { signal });
       if (!res.ok) throw new Error('Failed to fetch access requests');
       return res.json();
     },
+    refetchOnMount: true,
   });
 
-  // Manual refresh function
+  // Manual refresh function - only refresh core queries to avoid overwhelming the server
+  // Child cards (auth, traffic, feedback, etc.) will refresh on scroll/mount
   const handleRefresh = () => {
-    refetchOverview();
-    refetchEvents();
-    refetchRecs();
+    queryClient.invalidateQueries({ queryKey: ['stats', 'overview', dateRangeKey] });
+    queryClient.invalidateQueries({ queryKey: ['stats', 'events', dateRangeKey] });
+    queryClient.invalidateQueries({ queryKey: ['stats', 'recs'] });
   };
 
+  // Filter spinner to only stats queries with current dateRangeKey
   const isRefreshing = overviewFetching || eventsFetching || recsFetching;
 
   const kpis = overviewData?.data;
@@ -190,7 +203,7 @@ export function StatsDashboard() {
             <span className="text-sm text-muted-foreground">Time Range:</span>
             {/* Mobile: Dropdown */}
             <div className="md:hidden flex-1">
-              <Select value={timeRange} onValueChange={(value) => setTimeRange(value as TimeRange)}>
+              <Select value={timeRange} onValueChange={(value: string) => setTimeRange(value as TimeRange)}>
                 <SelectTrigger className="h-8 w-full">
                   <SelectValue />
                 </SelectTrigger>
@@ -255,7 +268,7 @@ export function StatsDashboard() {
             <BarChart3 className="h-5 w-5" />
             Overview
           </h2>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <a href="#users" className="block transition-transform hover:scale-105">
               <KPICard
                 title="Active Users"
@@ -300,17 +313,19 @@ export function StatsDashboard() {
             <a href="#feedback" className="block transition-transform hover:scale-105">
               <KPICard
                 title="Error Reports"
-                value={errorReportsSummaryLoading ? '...' : errorReportsSummary?.pagination?.total ?? 0}
+                value={errorReportsSummaryLoading ? '...' : `${errorReportsSummary?.pagination?.total ?? 0} / ${errorReportsResolvedSummary?.pagination?.total ?? 0}`}
+                subtitle="Open / Solved"
                 icon={AlertTriangle}
-                description="Unresolved error reports from users"
+                description="Error reports submitted by users - open vs resolved"
               />
             </a>
             <a href="#auth" className="block transition-transform hover:scale-105">
               <KPICard
                 title="Access Requests"
-                value={accessRequestsSummaryLoading ? '...' : accessRequestsSummary?.pagination?.total ?? 0}
+                value={accessRequestsSummaryLoading ? '...' : `${accessRequestsSummary?.pagination?.total ?? 0} / ${accessRequestsApprovedSummary?.pagination?.total ?? 0}`}
+                subtitle="Pending / Approved"
                 icon={UserPlus}
-                description="Pending access requests from new users"
+                description="Access requests from users - pending vs approved"
               />
             </a>
             <KPICard
@@ -397,7 +412,7 @@ export function StatsDashboard() {
             <TrendingUp className="h-5 w-5" />
             User Growth & Activity
           </h2>
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -417,6 +432,27 @@ export function StatsDashboard() {
             </Card>
 
             <UserRegistrationChart dateRange={dateRange} />
+            
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4" />
+                  Total Users Growth
+                </CardTitle>
+                <CardDescription>
+                  Cumulative user count over time
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {registrationsLoading ? (
+                  <div className="h-32 flex items-center justify-center text-muted-foreground">
+                    Loading...
+                  </div>
+                ) : (
+                  <UserGrowthChart data={registrationsData?.data ?? []} />
+                )}
+              </CardContent>
+            </Card>
           </div>
         </section>
 

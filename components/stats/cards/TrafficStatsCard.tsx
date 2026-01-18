@@ -37,16 +37,19 @@ interface TrafficStatsCardProps {
 }
 
 export function TrafficStatsCard({ dateRange }: TrafficStatsCardProps) {
+  const dateRangeKey = `${dateRange.from}_${dateRange.to}`;
+
   const { data, isLoading } = useQuery<{ data: TrafficStats }>({
-    queryKey: ['stats', 'traffic', dateRange],
-    queryFn: async () => {
+    queryKey: ['stats', 'traffic', dateRangeKey],
+    queryFn: async ({ signal }: { signal: AbortSignal }) => {
       const res = await fetch(
-        `/api/stats/traffic?from=${dateRange.from}&to=${dateRange.to}`
+        `/api/stats/traffic?from=${dateRange.from}&to=${dateRange.to}`,
+        { signal }
       );
       if (!res.ok) throw new Error('Failed to fetch traffic stats');
       return res.json();
     },
-    refetchInterval: 10000, // Auto-refresh every 10 seconds
+    refetchOnMount: true,
   });
 
   const stats = data?.data;

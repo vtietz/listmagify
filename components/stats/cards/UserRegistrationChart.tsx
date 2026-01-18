@@ -12,13 +12,16 @@ interface UserRegistrationChartProps {
 }
 
 export function UserRegistrationChart({ dateRange }: UserRegistrationChartProps) {
+  const dateRangeKey = `${dateRange.from}_${dateRange.to}`;
+
   const { data, isLoading } = useQuery<{ data: RegisteredUsersPerDay[] }>({
-    queryKey: ['stats', 'registrations', dateRange],
-    queryFn: async () => {
-      const res = await fetch(`/api/stats/registrations?from=${dateRange.from}&to=${dateRange.to}`);
+    queryKey: ['stats', 'registrations', dateRangeKey],
+    queryFn: async ({ signal }: { signal: AbortSignal }) => {
+      const res = await fetch(`/api/stats/registrations?from=${dateRange.from}&to=${dateRange.to}`, { signal });
       if (!res.ok) throw new Error('Failed to fetch registration stats');
       return res.json();
     },
+    refetchOnMount: true,
   });
 
   const registrations = data?.data ?? [];

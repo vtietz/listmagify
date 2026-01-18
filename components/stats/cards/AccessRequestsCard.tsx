@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { UserPlus, Mail } from 'lucide-react';
+import { UserPlus, Mail, AlertTriangle } from 'lucide-react';
 import { AccessRequestDetailsDialog } from '../dialogs/AccessRequestDetailsDialog';
 import { cn } from '@/lib/utils';
 import type { AccessRequest, AccessRequestsResponse } from '../types';
@@ -15,16 +15,19 @@ interface AccessRequestsCardProps {
 export function AccessRequestsCard({ dateRange }: AccessRequestsCardProps) {
   const [selectedRequest, setSelectedRequest] = useState<AccessRequest | null>(null);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
+  const dateRangeKey = `${dateRange.from}_${dateRange.to}`;
 
   const { data, isLoading, refetch } = useQuery<AccessRequestsResponse>({
-    queryKey: ['stats', 'access-requests', dateRange],
-    queryFn: async () => {
+    queryKey: ['stats', 'access-requests', dateRangeKey],
+    queryFn: async ({ signal }: { signal: AbortSignal }) => {
       const res = await fetch(
-        `/api/stats/access-requests?from=${dateRange.from}&to=${dateRange.to}&limit=10`
+        `/api/stats/access-requests?from=${dateRange.from}&to=${dateRange.to}&limit=10`,
+        { signal }
       );
       if (!res.ok) throw new Error('Failed to fetch access requests');
       return res.json();
     },
+    refetchOnMount: true,
   });
 
   const requests = data?.data ?? [];
@@ -80,36 +83,48 @@ export function AccessRequestsCard({ dateRange }: AccessRequestsCardProps) {
             </div>
           ) : (
             <div className="space-y-2">
-              {requests.map((request: AccessRequest) => (
-                <div
-                  key={request.id}
-                  className="p-3 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors"
-                  onClick={() => {
-                    setSelectedRequest(request);
-                    setShowDetailsDialog(true);
-                  }}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className={cn("px-2 py-0.5 rounded text-xs font-medium", getStatusColor(request.status))}>
-                          {request.status}
-                        </span>
-                        <Mail className="h-3 w-3 text-muted-foreground" />
+              {requests.map((request: AccessRequest) => {
+                const hasRedFlags = request.red_flags && request.red_flags !== 'null';
+                return (
+                  <div
+                    key={request.id}
+                    className={cn(
+                      "p-3 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors",
+                      hasRedFlags && "border-red-300 dark:border-red-800 bg-red-50/50 dark:bg-red-950/30"
+                    )}
+                    onClick={() => {
+                      setSelectedRequest(request);
+                      setShowDetailsDialog(true);
+                    }}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={cn("px-2 py-0.5 rounded text-xs font-medium", getStatusColor(request.status))}>
+                            {request.status}
+                          </span>
+                          <Mail className="h-3 w-3 text-muted-foreground" />
+                          {hasRedFlags && (
+                            <span className="flex items-center gap-1 text-xs text-red-600 dark:text-red-400 font-medium">
+                              <AlertTriangle className="h-3 w-3" />
+                              Suspicious
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm font-medium">{request.name}</p>
+                        <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                          <span>{new Date(request.ts).toLocaleDateString()}</span>
+                          <span className="truncate">{request.email}</span>
+                          {request.spotify_username && <span className="truncate">@{request.spotify_username}</span>}
+                        </div>
+                        {request.motivation && (
+                          <p className="text-xs text-muted-foreground mt-2 line-clamp-2">{request.motivation}</p>
+                        )}
                       </div>
-                      <p className="text-sm font-medium">{request.name}</p>
-                      <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                        <span>{new Date(request.ts).toLocaleDateString()}</span>
-                        <span className="truncate">{request.email}</span>
-                        {request.spotify_username && <span className="truncate">@{request.spotify_username}</span>}
-                      </div>
-                      {request.motivation && (
-                        <p className="text-xs text-muted-foreground mt-2 line-clamp-2">{request.motivation}</p>
-                      )}
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>

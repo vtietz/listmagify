@@ -277,4 +277,14 @@ export const metricsMigrations: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_access_requests_spotify_username ON access_requests(spotify_username);
     `,
   },
+  {
+    version: 11,
+    name: 'add_red_flags_to_access_requests',
+    sql: `
+      -- Add red_flags column to store JSON array of suspicious patterns detected
+      ALTER TABLE access_requests ADD COLUMN red_flags TEXT;
+      
+      CREATE INDEX IF NOT EXISTS idx_access_requests_red_flags ON access_requests(red_flags);
+    `,
+  },
 ];

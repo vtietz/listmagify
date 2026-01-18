@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { CheckCircle, XCircle, Mail } from 'lucide-react';
+import { CheckCircle, XCircle, Mail, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { AccessRequest } from '../types';
 
@@ -19,6 +19,8 @@ export function AccessRequestDetailsDialog({
   onUpdateStatus,
 }: AccessRequestDetailsDialogProps) {
   if (!open) return null;
+
+  const redFlags = request.red_flags ? JSON.parse(request.red_flags) as string[] : [];
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -44,6 +46,27 @@ export function AccessRequestDetailsDialog({
           </div>
           
           <div className="space-y-4">
+            {redFlags.length > 0 && (
+              <div className="bg-red-50 dark:bg-red-950 border-2 border-red-500 rounded-lg p-4">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-red-900 dark:text-red-100 mb-2">
+                      Suspicious Patterns Detected
+                    </h3>
+                    <ul className="space-y-1 text-sm text-red-800 dark:text-red-200">
+                      {redFlags.map((flag, index) => (
+                        <li key={index} className="flex items-start gap-2">
+                          <span className="text-red-500 mt-0.5">•</span>
+                          <span>{flag}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div>
               <div className="text-sm font-medium text-muted-foreground">Timestamp</div>
               <div>{new Date(request.ts).toLocaleString()}</div>

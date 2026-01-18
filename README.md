@@ -310,7 +310,7 @@ STATS_ALLOWED_USER_IDS=your-spotify-user-id
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `STATS_ENABLED` | Enable/disable metrics | `false` |
-| `STATS_DB_PATH` | SQLite database path | `./data/metrics.db` |
+| `STATS_DB_PATH` | SQLite database path | `development: /tmp/listmagify-metrics.db`<br>`production: ./data/metrics.db` |
 | `STATS_SALT` | Salt for hashing user IDs | `default-salt-change-me` |
 | `STATS_ALLOWED_USER_IDS` | Comma-separated Spotify IDs for /stats access | (none) |
 

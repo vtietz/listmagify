@@ -16,16 +16,19 @@ interface ErrorReportsCardProps {
 export function ErrorReportsCard({ dateRange }: ErrorReportsCardProps) {
   const [selectedReport, setSelectedReport] = useState<ErrorReport | null>(null);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
+  const dateRangeKey = `${dateRange.from}_${dateRange.to}`;
 
   const { data, isLoading, refetch } = useQuery<ErrorReportsResponse>({
-    queryKey: ['stats', 'error-reports', dateRange],
-    queryFn: async () => {
+    queryKey: ['stats', 'error-reports', dateRangeKey],
+    queryFn: async ({ signal }: { signal: AbortSignal }) => {
       const res = await fetch(
-        `/api/stats/error-reports?from=${dateRange.from}&to=${dateRange.to}&limit=10`
+        `/api/stats/error-reports?from=${dateRange.from}&to=${dateRange.to}&limit=10`,
+        { signal }
       );
       if (!res.ok) throw new Error('Failed to fetch error reports');
       return res.json();
     },
+    refetchOnMount: true,
   });
 
   const reports = data?.data ?? [];

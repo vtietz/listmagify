@@ -2,6 +2,45 @@ import { NextRequest, NextResponse } from 'next/server';
 import { serverEnv } from '@/lib/env';
 import { getDb } from '@/lib/metrics/db';
 import nodemailer from 'nodemailer';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth/auth';
+
+/**
+ * Check if a Spotify username exists by calling Spotify API
+ * Uses admin's token if available (when called from authenticated context)
+ * Returns true if user exists, false if not found, null if check failed
+ */
+async function verifySpotifyUsername(username: string): Promise<boolean | null> {
+  try {
+    // Try to get admin session for API access
+    const session = await getServerSession(authOptions);
+    const accessToken = (session as any)?.accessToken;
+    
+    if (!accessToken) {
+      // No admin token available, skip verification
+      return null;
+    }
+
+    const response = await fetch(`https://api.spotify.com/v1/users/${encodeURIComponent(username)}`, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+      },
+    });
+
+    if (response.ok) {
+      return true; // User exists
+    } else if (response.status === 404) {
+      return false; // User not found
+    } else {
+      // Other error (rate limit, auth error, etc.) - don't penalize user
+      console.warn(`[access-request] Spotify username check returned ${response.status}`);
+      return null;
+    }
+  } catch (error) {
+    console.error('[access-request] Error verifying Spotify username:', error);
+    return null; // Network error - don't penalize user
+  }
+}
 
 /**
  * POST /api/access-request
@@ -25,6 +64,58 @@ export async function POST(request: NextRequest) {
 
     if (!email || typeof email !== 'string' || !email.includes('@')) {
       return NextResponse.json({ error: 'Valid email is required' }, { status: 400 });
+    }
+
+    // Detect suspicious patterns (red flags)
+    const redFlags: string[] = [];
+    const nameTrimmed = name.trim();
+    const spotifyUsernameTrimmed = spotifyUsername?.trim();
+
+    // Red flag: Name looks like a username (no spaces, all lowercase)
+    if (!nameTrimmed.includes(' ') && nameTrimmed === nameTrimmed.toLowerCase()) {
+      redFlags.push('Name looks like username (no spaces, lowercase)');
+    }
+
+    // Red flag: Spotify username contains spaces (invalid format)
+    if (spotifyUsernameTrimmed && spotifyUsernameTrimmed.includes(' ')) {
+      redFlags.push('Spotify username contains spaces (invalid)');
+    }
+
+    // Red flag: Verify Spotify username exists (if provided)
+    if (spotifyUsernameTrimmed && !spotifyUsernameTrimmed.includes(' ')) {
+      const usernameExists = await verifySpotifyUsername(spotifyUsernameTrimmed);
+      if (usernameExists === false) {
+        redFlags.push('Spotify username does not exist');
+      }
+    }
+
+    // Red flag: Very short name (likely fake)
+    if (nameTrimmed.length < 3) {
+      redFlags.push('Name too short (< 3 chars)');
+    }
+
+    // Red flag: Generic/templated motivation
+    const motivationLower = motivation?.trim().toLowerCase();
+    if (motivationLower) {
+      const genericPhrases = [
+        'para melhorar',
+        'to improve',
+        'want to use',
+        'please approve',
+        'give me access',
+        'test',
+        'testing'
+      ];
+      if (genericPhrases.some(phrase => motivationLower === phrase || motivationLower.length < 10)) {
+        redFlags.push('Generic or very short motivation');
+      }
+    }
+
+    // Red flag: Email and name mismatch (email prefix doesn't match name)
+    const emailPrefix = email.split('@')[0]?.toLowerCase() ?? '';
+    const nameNormalized = nameTrimmed.toLowerCase().replace(/\s+/g, '');
+    if (emailPrefix && !emailPrefix.includes(nameNormalized.substring(0, 4)) && !nameNormalized.includes(emailPrefix.substring(0, 4))) {
+      redFlags.push('Email and name mismatch');
     }
 
     // Check if SMTP is configured
@@ -57,12 +148,13 @@ export async function POST(request: NextRequest) {
     const mailOptions = {
       from: smtpUser || `noreply@${smtpHost}`,
       to: contactEmail,
-      subject: `[Listmagify] Access Request from ${name.trim()}${motivation && motivation.trim() ? ' ⭐' : ''}`,
+      subject: `[Listmagify] Access Request from ${name.trim()}${redFlags.length > 0 ? ' 🚩' : ''}${motivation && motivation.trim() ? ' ⭐' : ''}`,
       text: `New access request for Listmagify:
 
 Name: ${name.trim()}
 Spotify Email: ${email.trim()}
 ${spotifyUsername && spotifyUsername.trim() ? `Spotify Username: ${spotifyUsername.trim()}\n` : ''}
+${redFlags.length > 0 ? `\n🚩 RED FLAGS:\n${redFlags.map(f => `  - ${f}`).join('\n')}\n` : ''}
 ${motivation && motivation.trim() ? `\nMotivation:\n${motivation.trim()}\n` : ''}
 To approve this user:
 1. Go to https://developer.spotify.com/dashboard
@@ -75,6 +167,14 @@ This is an automated message from Listmagify.
 `,
       html: `
 <h2>New Access Request for Listmagify</h2>
+${redFlags.length > 0 ? `
+<div style="background-color: #fee; border: 2px solid #c33; border-radius: 4px; padding: 12px; margin-bottom: 16px;">
+  <strong style="color: #c33;">🚩 RED FLAGS DETECTED:</strong>
+  <ul style="margin: 8px 0 0 0; padding-left: 20px; color: #666;">
+    ${redFlags.map(flag => `<li>${escapeHtml(flag)}</li>`).join('\n    ')}
+  </ul>
+</div>
+` : ''}
 <table style="border-collapse: collapse;">
   <tr>
     <td style="padding: 8px; font-weight: bold;">Name:</td>
@@ -118,13 +218,14 @@ This is an automated message from Listmagify.
       const db = getDb();
       if (db) {
         db.prepare(`
-          INSERT INTO access_requests (name, email, spotify_username, motivation, status)
-          VALUES (?, ?, ?, ?, 'pending')
+          INSERT INTO access_requests (name, email, spotify_username, motivation, status, red_flags)
+          VALUES (?, ?, ?, ?, 'pending', ?)
         `).run(
           name.trim(),
           email.trim(),
           spotifyUsername && spotifyUsername.trim() ? spotifyUsername.trim() : null,
-          motivation && motivation.trim() ? motivation.trim() : null
+          motivation && motivation.trim() ? motivation.trim() : null,
+          redFlags.length > 0 ? JSON.stringify(redFlags) : null
         );
         console.debug(`[access-request] Stored in database for ${email}`);
       }

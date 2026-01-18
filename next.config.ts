@@ -7,6 +7,8 @@ const nextConfig = {
   ],
   // Standalone output: creates minimal production bundle with only needed dependencies
   output: 'standalone',
+  // Ensure compatibility with Turbopack in Next.js 16+
+  turbopack: {},
 } as const;
 
 export default nextConfig;

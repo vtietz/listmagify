@@ -12,13 +12,16 @@ interface AuthenticationStatsCardProps {
 }
 
 export function AuthenticationStatsCard({ dateRange }: AuthenticationStatsCardProps) {
+  const dateRangeKey = `${dateRange.from}_${dateRange.to}`;
+
   const { data, isLoading } = useQuery<{ data: AuthStats }>({
-    queryKey: ['stats', 'auth', dateRange],
-    queryFn: async () => {
-      const res = await fetch(`/api/stats/auth?from=${dateRange.from}&to=${dateRange.to}`);
+    queryKey: ['stats', 'auth', dateRangeKey],
+    queryFn: async ({ signal }: { signal: AbortSignal }) => {
+      const res = await fetch(`/api/stats/auth?from=${dateRange.from}&to=${dateRange.to}`, { signal });
       if (!res.ok) throw new Error('Failed to fetch auth stats');
       return res.json();
     },
+    refetchOnMount: true,
   });
 
   const stats = data?.data;

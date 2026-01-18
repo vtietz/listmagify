@@ -193,6 +193,7 @@ export interface AccessRequest {
   motivation: string | null;
   status: string;
   notes: string | null;
+  red_flags: string | null; // JSON array of red flag strings
 }
 
 export interface AccessRequestsResponse {

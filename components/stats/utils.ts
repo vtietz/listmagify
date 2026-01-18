@@ -14,30 +14,41 @@ export function formatPercent(value: number): string {
 }
 
 export function getDateRange(range: 'today' | '7d' | '30d' | '90d' | 'ytd' | 'all' | 'custom'): { from: string; to: string } {
-  const today = new Date();
+  // Use UTC midnight to ensure consistent date strings across calls
+  const now = new Date();
+  const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
   const to = today.toISOString().split('T')[0]!;
   
   switch (range) {
     case 'today':
       return { from: to, to };
-    case '7d':
+    case '7d': {
+      const fromDate = new Date(today);
+      fromDate.setUTCDate(fromDate.getUTCDate() - 7);
       return {
-        from: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]!,
+        from: fromDate.toISOString().split('T')[0]!,
         to,
       };
-    case '30d':
+    }
+    case '30d': {
+      const fromDate = new Date(today);
+      fromDate.setUTCDate(fromDate.getUTCDate() - 30);
       return {
-        from: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]!,
+        from: fromDate.toISOString().split('T')[0]!,
         to,
       };
-    case '90d':
+    }
+    case '90d': {
+      const fromDate = new Date(today);
+      fromDate.setUTCDate(fromDate.getUTCDate() - 90);
       return {
-        from: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]!,
+        from: fromDate.toISOString().split('T')[0]!,
         to,
       };
+    }
     case 'ytd':
       return {
-        from: `${today.getFullYear()}-01-01`,
+        from: `${now.getFullYear()}-01-01`,
         to,
       };
     case 'all':
@@ -45,10 +56,13 @@ export function getDateRange(range: 'today' | '7d' | '30d' | '90d' | 'ytd' | 'al
         from: '2020-01-01',
         to,
       };
-    default:
+    default: {
+      const fromDate = new Date(today);
+      fromDate.setUTCDate(fromDate.getUTCDate() - 7);
       return {
-        from: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]!,
+        from: fromDate.toISOString().split('T')[0]!,
         to,
       };
+    }
   }
 }

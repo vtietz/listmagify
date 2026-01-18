@@ -17,7 +17,9 @@ export interface MetricsConfig {
  */
 export function getMetricsConfig(): MetricsConfig {
   const enabled = process.env.STATS_ENABLED === 'true';
-  const dbPath = process.env.STATS_DB_PATH || './data/metrics.db';
+  const isDev = process.env.NODE_ENV === 'development';
+  const defaultDbPath = isDev ? '/tmp/listmagify-metrics.db' : './data/metrics.db';
+  const dbPath = process.env.STATS_DB_PATH || defaultDbPath;
   const salt = process.env.STATS_SALT || 'default-salt-change-me';
   const allowedUserIds = (process.env.STATS_ALLOWED_USER_IDS || '')
     .split(',')

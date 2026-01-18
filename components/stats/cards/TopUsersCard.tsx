@@ -23,16 +23,19 @@ export function TopUsersCard({ dateRange }: TopUsersCardProps) {
   const [selectedUser, setSelectedUser] = useState<TopUser | null>(null);
   const [showUserDetails, setShowUserDetails] = useState(false);
   const pageSize = 10;
+  const dateRangeKey = `${dateRange.from}_${dateRange.to}`;
 
   const { data, isLoading } = useQuery<TopUsersResponse>({
-    queryKey: ['stats', 'users', dateRange, page, sortBy, sortDirection],
-    queryFn: async () => {
+    queryKey: ['stats', 'users', dateRangeKey, page, sortBy, sortDirection],
+    queryFn: async ({ signal }: { signal: AbortSignal }) => {
       const res = await fetch(
-        `/api/stats/users?from=${dateRange.from}&to=${dateRange.to}&limit=${pageSize}&offset=${page * pageSize}&sortBy=${sortBy}&sortDirection=${sortDirection}`
+        `/api/stats/users?from=${dateRange.from}&to=${dateRange.to}&limit=${pageSize}&offset=${page * pageSize}&sortBy=${sortBy}&sortDirection=${sortDirection}`,
+        { signal }
       );
       if (!res.ok) throw new Error('Failed to fetch top users');
       return res.json();
     },
+    refetchOnMount: true,
   });
 
   useQuery({

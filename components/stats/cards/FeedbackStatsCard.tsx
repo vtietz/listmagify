@@ -11,13 +11,16 @@ interface FeedbackStatsCardProps {
 }
 
 export function FeedbackStatsCard({ dateRange, isLoading }: FeedbackStatsCardProps) {
+  const dateRangeKey = `${dateRange.from}_${dateRange.to}`;
+
   const { data: feedbackData, isLoading: feedbackLoading } = useQuery<{ data: FeedbackStats }>({
-    queryKey: ['stats', 'feedback', dateRange],
-    queryFn: async () => {
-      const res = await fetch(`/api/feedback?from=${dateRange.from}&to=${dateRange.to}`);
+    queryKey: ['stats', 'feedback', dateRangeKey],
+    queryFn: async ({ signal }: { signal: AbortSignal }) => {
+      const res = await fetch(`/api/feedback?from=${dateRange.from}&to=${dateRange.to}`, { signal });
       if (!res.ok) throw new Error('Failed to fetch feedback');
       return res.json();
     },
+    refetchOnMount: true,
   });
 
   const loading = isLoading || feedbackLoading;
