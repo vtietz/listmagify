@@ -19,7 +19,7 @@ export function KPICard({
   description,
 }: KPICardProps) {
   return (
-    <Card>
+    <Card className="h-full">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium">
           <div className="flex items-center gap-2">
