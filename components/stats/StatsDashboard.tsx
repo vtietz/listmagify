@@ -98,6 +98,66 @@ export function StatsDashboard() {
     refetchInterval: 10000, // Auto-refresh every 10 seconds
   });
 
+  // Fetch user registrations for growth chart
+  const { data: registrationsData, isLoading: registrationsLoading } = useQuery<{ data: any[] }>({
+    queryKey: ['stats', 'registrations', dateRange],
+    queryFn: async () => {
+      const res = await fetch(`/api/stats/registrations?from=${dateRange.from}&to=${dateRange.to}`);
+      if (!res.ok) throw new Error('Failed to fetch registration stats');
+      return res.json();
+    },
+  });
+
+  // Fetch feedback summary
+  const { data: feedbackSummary, isLoading: feedbackSummaryLoading } = useQuery<{ data: { totalResponses: number } }>({
+    queryKey: ['stats', 'feedback-summary', dateRange],
+    queryFn: async () => {
+      const res = await fetch(`/api/feedback?from=${dateRange.from}&to=${dateRange.to}`);
+      if (!res.ok) throw new Error('Failed to fetch feedback');
+      return res.json();
+    },
+  });
+
+  // Fetch error reports summary
+  const { data: errorReportsSummary, isLoading: errorReportsSummaryLoading } = useQuery<{ data: any[]; pagination: { total: number } }>({
+    queryKey: ['stats', 'error-reports-summary', dateRange],
+    queryFn: async () => {
+      const res = await fetch(`/api/stats/error-reports?from=${dateRange.from}&to=${dateRange.to}&limit=1&resolved=false`);
+      if (!res.ok) throw new Error('Failed to fetch error reports');
+      return res.json();
+    },
+  });
+
+  // Fetch resolved error reports count
+  const { data: errorReportsResolvedSummary } = useQuery<{ data: any[]; pagination: { total: number } }>({
+    queryKey: ['stats', 'error-reports-resolved-summary', dateRange],
+    queryFn: async () => {
+      const res = await fetch(`/api/stats/error-reports?from=${dateRange.from}&to=${dateRange.to}&limit=1&resolved=true`);
+      if (!res.ok) throw new Error('Failed to fetch error reports');
+      return res.json();
+    },
+  });
+
+  // Fetch access requests summary
+  const { data: accessRequestsSummary, isLoading: accessRequestsSummaryLoading } = useQuery<{ data: any[]; pagination: { total: number } }>({
+    queryKey: ['stats', 'access-requests-summary', dateRange],
+    queryFn: async () => {
+      const res = await fetch(`/api/stats/access-requests?from=${dateRange.from}&to=${dateRange.to}&limit=1&status=pending`);
+      if (!res.ok) throw new Error('Failed to fetch access requests');
+      return res.json();
+    },
+  });
+
+  // Fetch approved access requests count
+  const { data: accessRequestsApprovedSummary } = useQuery<{ data: any[]; pagination: { total: number } }>({
+    queryKey: ['stats', 'access-requests-approved-summary', dateRange],
+    queryFn: async () => {
+      const res = await fetch(`/api/stats/access-requests?from=${dateRange.from}&to=${dateRange.to}&limit=1&status=approved`);
+      if (!res.ok) throw new Error('Failed to fetch access requests');
+      return res.json();
+    },
+  });
+
   // Manual refresh function
   const handleRefresh = () => {
     refetchOverview();
