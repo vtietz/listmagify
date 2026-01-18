@@ -23,6 +23,11 @@ export interface OverviewKPIs {
   avgSessionDurationMs: number;
 }
 
+export interface DatabaseStats {
+  sizeBytes: number;
+  sizeMB: number;
+}
+
 export interface RecsStats {
   enabled: boolean;
   stats: {

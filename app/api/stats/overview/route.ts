@@ -10,7 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/auth';
 import { isUserAllowedForStats } from '@/lib/metrics/env';
-import { getOverviewKPIs } from '@/lib/metrics';
+import { getOverviewKPIs, getDatabaseStats } from '@/lib/metrics';
 
 export async function GET(request: NextRequest) {
   // Check authentication and authorization
@@ -33,10 +33,12 @@ export async function GET(request: NextRequest) {
 
   try {
     const kpis = getOverviewKPIs({ from, to });
+    const dbStats = getDatabaseStats();
     
     return NextResponse.json({
       success: true,
       data: kpis,
+      dbStats: dbStats || undefined, // Include DB stats if available
       range: { from, to },
     });
   } catch (error) {

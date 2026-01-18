@@ -15,8 +15,6 @@ import {
 import {
   Users,
   Activity,
-  Plus,
-  Minus,
   BarChart3,
   Calendar,
   TrendingUp,
@@ -26,6 +24,9 @@ import {
   Sparkles,
   RefreshCw,
   Globe,
+  Database,
+  AlertTriangle,
+  UserPlus,
 } from 'lucide-react';
 
 // Import extracted components
@@ -64,7 +65,7 @@ export function StatsDashboard() {
   const dateRange = useMemo(() => getDateRange(timeRange), [timeRange]);
 
   // Fetch overview KPIs with auto-refresh every 10 seconds
-  const { data: overviewData, isLoading: overviewLoading, refetch: refetchOverview, isFetching: overviewFetching } = useQuery<{ data: OverviewKPIs }>({
+  const { data: overviewData, isLoading: overviewLoading, refetch: refetchOverview, isFetching: overviewFetching } = useQuery<{ data: OverviewKPIs; dbStats?: { sizeBytes: number; sizeMB: number } }>({
     queryKey: ['stats', 'overview', dateRange],
     queryFn: async () => {
       const res = await fetch(`/api/stats/overview?from=${dateRange.from}&to=${dateRange.to}`);
@@ -95,6 +96,66 @@ export function StatsDashboard() {
     },
     staleTime: 30 * 1000,
     refetchInterval: 10000, // Auto-refresh every 10 seconds
+  });
+
+  // Fetch user registrations for growth chart
+  const { data: _registrationsData, isLoading: _registrationsLoading } = useQuery<{ data: any[] }>({
+    queryKey: ['stats', 'registrations', dateRange],
+    queryFn: async () => {
+      const res = await fetch(`/api/stats/registrations?from=${dateRange.from}&to=${dateRange.to}`);
+      if (!res.ok) throw new Error('Failed to fetch registration stats');
+      return res.json();
+    },
+  });
+
+  // Fetch feedback summary
+  const { data: feedbackSummary, isLoading: feedbackSummaryLoading } = useQuery<{ data: { totalResponses: number } }>({
+    queryKey: ['stats', 'feedback-summary', dateRange],
+    queryFn: async () => {
+      const res = await fetch(`/api/feedback?from=${dateRange.from}&to=${dateRange.to}`);
+      if (!res.ok) throw new Error('Failed to fetch feedback');
+      return res.json();
+    },
+  });
+
+  // Fetch error reports summary
+  const { data: errorReportsSummary, isLoading: errorReportsSummaryLoading } = useQuery<{ data: any[]; pagination: { total: number } }>({
+    queryKey: ['stats', 'error-reports-summary', dateRange],
+    queryFn: async () => {
+      const res = await fetch(`/api/stats/error-reports?from=${dateRange.from}&to=${dateRange.to}&limit=1&resolved=false`);
+      if (!res.ok) throw new Error('Failed to fetch error reports');
+      return res.json();
+    },
+  });
+
+  // Fetch resolved error reports count
+  const { data: _errorReportsResolvedSummary } = useQuery<{ data: any[]; pagination: { total: number } }>({
+    queryKey: ['stats', 'error-reports-resolved-summary', dateRange],
+    queryFn: async () => {
+      const res = await fetch(`/api/stats/error-reports?from=${dateRange.from}&to=${dateRange.to}&limit=1&resolved=true`);
+      if (!res.ok) throw new Error('Failed to fetch error reports');
+      return res.json();
+    },
+  });
+
+  // Fetch access requests summary
+  const { data: accessRequestsSummary, isLoading: accessRequestsSummaryLoading } = useQuery<{ data: any[]; pagination: { total: number } }>({
+    queryKey: ['stats', 'access-requests-summary', dateRange],
+    queryFn: async () => {
+      const res = await fetch(`/api/stats/access-requests?from=${dateRange.from}&to=${dateRange.to}&limit=1&status=pending`);
+      if (!res.ok) throw new Error('Failed to fetch access requests');
+      return res.json();
+    },
+  });
+
+  // Fetch approved access requests count
+  const { data: _accessRequestsApprovedSummary } = useQuery<{ data: any[]; pagination: { total: number } }>({
+    queryKey: ['stats', 'access-requests-approved-summary', dateRange],
+    queryFn: async () => {
+      const res = await fetch(`/api/stats/access-requests?from=${dateRange.from}&to=${dateRange.to}&limit=1&status=approved`);
+      if (!res.ok) throw new Error('Failed to fetch access requests');
+      return res.json();
+    },
   });
 
   // Manual refresh function
@@ -194,37 +255,69 @@ export function StatsDashboard() {
             <BarChart3 className="h-5 w-5" />
             Overview
           </h2>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+            <a href="#users" className="block transition-transform hover:scale-105">
+              <KPICard
+                title="Active Users"
+                value={overviewLoading ? '...' : kpis?.activeUsers ?? 0}
+                subtitle={`${dateRange.from} to ${dateRange.to}`}
+                icon={Users}
+                description="Number of unique users who have interacted with the app during the selected time period"
+              />
+            </a>
+            <a href="#activity" className="block transition-transform hover:scale-105">
+              <KPICard
+                title="Total Events"
+                value={overviewLoading ? '...' : kpis?.totalEvents ?? 0}
+                icon={Activity}
+                description="Sum of all tracked events including track additions, removals, reorders, and API calls"
+              />
+            </a>
+            <a href="#traffic" className="block transition-transform hover:scale-105">
+              <KPICard
+                title="Total Sessions"
+                value={overviewLoading ? '...' : kpis?.totalSessions ?? 0}
+                icon={Globe}
+                description="Number of unique user sessions started during the selected period"
+              />
+            </a>
+            <a href="#recs" className="block transition-transform hover:scale-105">
+              <KPICard
+                title="Recommendations"
+                value={recsLoading ? '...' : recsData?.totalTracks ?? 0}
+                icon={Sparkles}
+                description="Total number of tracks in the recommendations database"
+              />
+            </a>
+            <a href="#feedback" className="block transition-transform hover:scale-105">
+              <KPICard
+                title="Feedback"
+                value={feedbackSummaryLoading ? '...' : feedbackSummary?.data?.totalResponses ?? 0}
+                icon={MessageSquare}
+                description="Total feedback responses received during the selected period"
+              />
+            </a>
+            <a href="#feedback" className="block transition-transform hover:scale-105">
+              <KPICard
+                title="Error Reports"
+                value={errorReportsSummaryLoading ? '...' : errorReportsSummary?.pagination?.total ?? 0}
+                icon={AlertTriangle}
+                description="Unresolved error reports from users"
+              />
+            </a>
+            <a href="#auth" className="block transition-transform hover:scale-105">
+              <KPICard
+                title="Access Requests"
+                value={accessRequestsSummaryLoading ? '...' : accessRequestsSummary?.pagination?.total ?? 0}
+                icon={UserPlus}
+                description="Pending access requests from new users"
+              />
+            </a>
             <KPICard
-              title="Active Users"
-              value={overviewLoading ? '...' : kpis?.activeUsers ?? 0}
-              subtitle={`${dateRange.from} to ${dateRange.to}`}
-              icon={Users}
-              description="Number of unique users who have interacted with the app during the selected time period"
-            />
-            <KPICard
-              title="Total Events"
-              value={overviewLoading ? '...' : kpis?.totalEvents ?? 0}
-              icon={Activity}
-              description="Sum of all tracked events including track additions, removals, reorders, and API calls"
-            />
-            <KPICard
-              title="Tracks Added"
-              value={overviewLoading ? '...' : kpis?.tracksAdded ?? 0}
-              icon={Plus}
-              description="Number of tracks added to playlists by users"
-            />
-            <KPICard
-              title="Tracks Removed"
-              value={overviewLoading ? '...' : kpis?.tracksRemoved ?? 0}
-              icon={Minus}
-              description="Number of tracks removed from playlists by users"
-            />
-            <KPICard
-              title="Total Sessions"
-              value={overviewLoading ? '...' : kpis?.totalSessions ?? 0}
-              icon={Users}
-              description="Number of unique user sessions started during the selected period"
+              title="Database Size"
+              value={overviewLoading ? '...' : overviewData?.dbStats ? `${overviewData.dbStats.sizeMB} MB` : 'N/A'}
+              icon={Database}
+              description="Size of the metrics database file (metrics.db) on disk"
             />
           </div>
         </section>

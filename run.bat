@@ -80,11 +80,11 @@ if "%1"=="prod-update" (
   echo Pulling latest code...
   git pull
   echo.
-  echo Rebuilding production image...
+  echo Pulling latest production image...
   if exist "docker\docker-compose.prod.override.yml" (
-    docker compose -f docker\docker-compose.prod.yml -f docker\docker-compose.prod.override.yml build --no-cache
+    docker compose -f docker\docker-compose.prod.yml -f docker\docker-compose.prod.override.yml pull
   ) else (
-    docker compose -f docker\docker-compose.prod.yml build --no-cache
+    docker compose -f docker\docker-compose.prod.yml pull
   )
   echo.
   echo Restarting production deployment...
@@ -187,7 +187,7 @@ echo   run.bat up/down         - Start/stop dev services
  echo   run.bat start-prod      - Start the production server (dev compose)
  echo   run.bat prod-build      - Build production image (use --no-cache to force rebuild)
  echo   run.bat prod-up         - Start production deployment (prod compose)
- echo   run.bat prod-down       - Stop production deploymentecho   run.bat prod-update     - Pull latest code, rebuild, and restart production echo   run.bat prod-clean      - Clean up Docker images, containers, and build cache (use --volumes to also remove volumes)echo   run.bat dev ^<cmd^>      - Execute a command in a temporary dev container (e.g., run pnpm lint)
+ echo   run.bat prod-down       - Stop production deploymentecho   run.bat prod-update     - Pull latest code, pull latest image, and restart production echo   run.bat prod-clean      - Clean up Docker images, containers, and build cache (use --volumes to also remove volumes)echo   run.bat dev ^<cmd^>      - Execute a command in a temporary dev container (e.g., run pnpm lint)
 echo   run.bat prod ^<cmd^>     - Execute a command in a temporary prod container
 echo   run.bat test [args]     - Run tests (default: unit, args: --watch, ui, e2e, e2e:ui, e2e:ci)
 echo   run.bat test stack:up   - Start E2E test stack (web-test + spotify-mock)

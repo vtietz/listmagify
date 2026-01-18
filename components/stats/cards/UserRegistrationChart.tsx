@@ -23,7 +23,6 @@ export function UserRegistrationChart({ dateRange }: UserRegistrationChartProps)
 
   const registrations = data?.data ?? [];
   const maxNewUsers = registrations.length > 0 ? Math.max(...registrations.map((d: RegisteredUsersPerDay) => d.newUsers), 1) : 1;
-  const maxCumulative = registrations.length > 0 ? Math.max(...registrations.map((d: RegisteredUsersPerDay) => d.cumulativeUsers), 1) : 1;
   const totalNewUsers = registrations.reduce((sum: number, d: RegisteredUsersPerDay) => sum + d.newUsers, 0);
 
   return (
@@ -47,64 +46,28 @@ export function UserRegistrationChart({ dateRange }: UserRegistrationChartProps)
             No first logins in selected period
           </div>
         ) : (
-          <div className="space-y-6">
-            <div className="space-y-2">
-              <div className="text-sm font-medium">First Logins</div>
-              <div className="flex items-end gap-1 h-24">
-                {registrations.map((d: RegisteredUsersPerDay) => (
-                  <Tooltip key={d.date}>
-                    <TooltipTrigger asChild>
-                      <div
-                        className="flex-1 bg-green-500/80 rounded-t hover:bg-green-500 transition-colors cursor-default"
-                        style={{ height: `${(d.newUsers / maxNewUsers) * 100}%`, minHeight: d.newUsers > 0 ? '3px' : '0px' }}
-                      />
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <div className="text-sm">
-                        <div className="font-medium">{formatDate(d.date)}</div>
-                        <div>{d.newUsers} new user{d.newUsers !== 1 ? 's' : ''}</div>
-                      </div>
-                    </TooltipContent>
-                  </Tooltip>
-                ))}
-              </div>
-              <div className="flex justify-between text-xs text-muted-foreground">
-                <span>{registrations[0]?.date ? formatDate(registrations[0].date) : ''}</span>
-                <span>{registrations.at(-1)?.date ? formatDate(registrations.at(-1)!.date) : ''}</span>
-              </div>
+          <div className="space-y-2">
+            <div className="flex items-end gap-1 h-32">
+              {registrations.map((d: RegisteredUsersPerDay) => (
+                <Tooltip key={d.date}>
+                  <TooltipTrigger asChild>
+                    <div
+                      className="flex-1 bg-green-500/80 rounded-t hover:bg-green-500 transition-colors cursor-default"
+                      style={{ height: `${(d.newUsers / maxNewUsers) * 100}%`, minHeight: d.newUsers > 0 ? '3px' : '0px' }}
+                    />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <div className="text-sm">
+                      <div className="font-medium">{formatDate(d.date)}</div>
+                      <div>{d.newUsers} new user{d.newUsers !== 1 ? 's' : ''}</div>
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              ))}
             </div>
-
-            <div className="space-y-2">
-              <div className="text-sm font-medium">Total Users Growth</div>
-              <div className="h-24 relative">
-                <svg className="w-full h-full" preserveAspectRatio="none">
-                  <polyline
-                    points={registrations.map((d: RegisteredUsersPerDay, i: number) => {
-                      const x = registrations.length > 1 ? (i / (registrations.length - 1)) * 100 : 50;
-                      const y = 100 - (d.cumulativeUsers / maxCumulative) * 100;
-                      return `${x},${y}`;
-                    }).join(' ')}
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    className="text-blue-500"
-                    vectorEffect="non-scaling-stroke"
-                  />
-                  <polyline
-                    points={registrations.map((d: RegisteredUsersPerDay, i: number) => {
-                      const x = registrations.length > 1 ? (i / (registrations.length - 1)) * 100 : 50;
-                      const y = 100 - (d.cumulativeUsers / maxCumulative) * 100;
-                      return `${x},${y}`;
-                    }).join(' ') + ` 100,100 0,100`}
-                    fill="currentColor"
-                    className="text-blue-500/20"
-                  />
-                </svg>
-              </div>
-              <div className="flex justify-between text-xs text-muted-foreground">
-                <span>{registrations[0]?.cumulativeUsers ?? 0} users</span>
-                <span>{registrations.at(-1)?.cumulativeUsers ?? 0} users</span>
-              </div>
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>{registrations[0]?.date ? formatDate(registrations[0].date) : ''}</span>
+              <span>{registrations.at(-1)?.date ? formatDate(registrations.at(-1)!.date) : ''}</span>
             </div>
           </div>
         )}

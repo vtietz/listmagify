@@ -292,6 +292,9 @@ export function LandingPageContent({
                 playlist details including track count, duration, and last modified 
                 date at a glance.
               </p>
+              <p className="text-sm text-muted-foreground/80 italic">
+                Note: The Spotify API does not support playlist folders, so all playlists are displayed in a flat list.
+              </p>
             </div>
           </div>
 

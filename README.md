@@ -25,6 +25,8 @@ Playlist magic for Spotify. Edit multiple playlists side-by-side with drag-and-d
 - **Compact Mode** – Dense view to see more tracks on screen
 - **Scroll Text** – Auto-scroll overflowing track labels horizontally for better readability. Pause on hover to click links
 
+**Note**: The Spotify API does not support playlist folders. All playlists are displayed in a flat list view.
+
 ## Mobile Installation
 
 Listmagify can be installed on your mobile device for a native-like experience:
@@ -49,7 +51,9 @@ Once installed, the app will:
 
 ## Production Setup (listmagify.com)
 
-To deploy to production:
+### Option 1: Using Pre-built Images (Recommended)
+
+Images are automatically built and pushed to GitHub Container Registry on every commit to `main`.
 
 1. **Configure Environment Variables**:
    ```env
@@ -62,14 +66,58 @@ To deploy to production:
 2. **Update Spotify Dashboard**:
    - Add Redirect URI: `https://listmagify.com/api/auth/callback/spotify`
 
-3. **Build & Run**:
+3. **Pull and Run**:
+   ```bash
+   # Pull the latest pre-built image
+   ./run.sh prod-pull
+
+   # Start the container
+   ./run.sh prod-up
+   ```
+
+   To use a specific version:
+   ```bash
+   IMAGE=ghcr.io/vtietz/listmagify:main-abc123 ./run.sh prod-up
+   ```
+
+4. **Update to Latest**:
+   ```bash
+   ./run.sh prod-pull && ./run.sh prod-up
+   ```
+
+### Option 2: Build Locally
+
+If you need to build with custom modifications:
+
+1. **Configure Environment Variables** (same as above)
+
+2. **Build & Run**:
    ```bash
    # Build the production image
-   docker build -f docker/Dockerfile.prod -t listmagify .
+   ./run.sh prod-build
 
-   # Run the container
-   docker run -p 3000:3000 --env-file .env.production listmagify
+   # Start the container
+   ./run.sh prod-up
    ```
+
+3. **Update Workflow**:
+   ```bash
+   ./run.sh prod-update [--no-cache]
+   ```
+
+### GitHub Actions Setup
+
+The repository includes a GitHub Actions workflow that automatically:
+- Builds the production Docker image
+- Pushes to GitHub Container Registry (ghcr.io)
+- Creates tags for each commit and `latest` for main branch
+
+To enable:
+1. Go to Settings → Actions → General
+2. Under "Workflow permissions", select "Read and write permissions"
+3. Save changes
+
+Images will be available at: `ghcr.io/vtietz/listmagify:latest`
 
 ## Quick Start (Local)
 
@@ -136,7 +184,7 @@ The production setup includes:
 | Start production | `./run.sh prod-up` |
 | Stop production | `./run.sh prod-down` |
 | View production logs | `./run.sh prod-logs -f` |
-| Update (git pull + rebuild) | `./run.sh prod-update` |
+| Update (git pull + rebuild) | `./run.sh prod-update [--no-cache]` |
 | Cleanup artifacts | `./run.sh prod-clean` |
 | Cleanup + volumes | `./run.sh prod-clean --volumes` |
 

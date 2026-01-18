@@ -106,9 +106,22 @@ export function getOverviewKPIs(range: DateRange): OverviewKPIs {
   }
 
   // Events stats
+  // Note: Active users are those with MORE than 1 event (to exclude users who just logged in)
   const eventsResult = queryOne<Record<string, number | null>>(
     `SELECT 
-      COUNT(DISTINCT user_hash) as activeUsers,
+      (SELECT COUNT(DISTINCT user_hash) 
+       FROM events 
+       WHERE date(ts) BETWEEN ? AND ? 
+         AND event != 'login_failure'
+         AND user_hash IN (
+           SELECT user_hash 
+           FROM events 
+           WHERE date(ts) BETWEEN ? AND ? 
+             AND event != 'login_failure'
+           GROUP BY user_hash 
+           HAVING COUNT(*) > 1
+         )
+      ) as activeUsers,
       COUNT(*) as totalEvents,
       SUM(CASE WHEN event = 'track_add' THEN COALESCE(count, 1) ELSE 0 END) as tracksAdded,
       SUM(CASE WHEN event = 'track_remove' THEN COALESCE(count, 1) ELSE 0 END) as tracksRemoved,
@@ -118,7 +131,7 @@ export function getOverviewKPIs(range: DateRange): OverviewKPIs {
     FROM events
     WHERE date(ts) BETWEEN ? AND ?
       AND event != 'login_failure'`,
-    [range.from, range.to]
+    [range.from, range.to, range.from, range.to, range.from, range.to]
   ) ?? {};
 
   // Sessions stats
@@ -259,7 +272,7 @@ export function getActionDistribution(range: DateRange): { event: string; count:
   return queryAll<{ event: string; count: number }>(
     `SELECT 
       event,
-      COUNT(*) as count
+      SUM(COALESCE(count, 1)) as count
     FROM events
     WHERE 
       date(ts) BETWEEN ? AND ?
@@ -505,4 +518,15 @@ export function updateDailyAggregates(date: string): void {
     GROUP BY date(ts), event`,
     [date]
   );
+}
+
+export interface DatabaseStats {
+  sizeBytes: number;
+  sizeMB: number;
+}
+
+export function getDatabaseStats(): DatabaseStats | null {
+  // Import at function level to avoid circular dependencies
+  const { getDatabaseSize } = require('./db');
+  return getDatabaseSize();
 }

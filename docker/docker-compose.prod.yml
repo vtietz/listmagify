@@ -1,5 +1,6 @@
 services:
   web:
+    image: ${IMAGE:-ghcr.io/vtietz/listmagify:latest}
     build:
       context: ..
       dockerfile: docker/Dockerfile.prod
@@ -12,7 +13,6 @@ services:
         - CONTACT_CITY=${CONTACT_CITY}
         - CONTACT_COUNTRY=${CONTACT_COUNTRY}
         - CONTACT_EMAIL=${CONTACT_EMAIL}
-    image: sbs-web:prod
     ports:
       - "${PORT:-3000}:3000"
     environment:

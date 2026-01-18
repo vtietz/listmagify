@@ -18,7 +18,9 @@ Commands:
   prod-up         Start production deployment
   prod-down       Stop production deployment
   prod-logs       View production logs (use -f to follow)
-  prod-update     Pull latest code, rebuild, and restart (git pull + prod-build + prod-up)
+  prod-pull       Pull pre-built production image from registry
+  prod-push       Push production image to registry
+  prod-update     Pull latest code, pull latest image, and restart production
   prod-clean      Clean up Docker images, containers, and build cache (use --volumes to also remove volumes)
 
 Examples:
@@ -32,6 +34,8 @@ Examples:
   ./run.sh init-env
   ./run.sh prod-build --no-cache
   ./run.sh prod-logs -f
+  ./run.sh prod-pull
+  ./run.sh prod-push
   ./run.sh prod-update
   ./run.sh prod-clean
   ./run.sh prod-clean --volumes
@@ -123,16 +127,35 @@ case "${1:-}" in
       docker compose --env-file .env -f docker/docker-compose.prod.yml logs "$@"
     fi
     ;;
+  prod-pull)
+    shift
+    # Pull pre-built production image from registry
+    if [ -f docker/docker-compose.prod.override.yml ]; then
+      docker compose --env-file .env -f docker/docker-compose.prod.yml -f docker/docker-compose.prod.override.yml pull "$@"
+    else
+      docker compose --env-file .env -f docker/docker-compose.prod.yml pull "$@"
+    fi
+    ;;
+  prod-push)
+    shift
+    # Push production image to registry
+    if [ -f docker/docker-compose.prod.override.yml ]; then
+      docker compose --env-file .env -f docker/docker-compose.prod.yml -f docker/docker-compose.prod.override.yml push "$@"
+    else
+      docker compose --env-file .env -f docker/docker-compose.prod.yml push "$@"
+    fi
+    ;;
   prod-update)
-    # Pull latest code, rebuild, and restart production
+    # Pull latest code, pull latest image, and restart production
+    shift
     echo "Pulling latest code..."
     git pull
     echo ""
-    echo "Rebuilding production image..."
+    echo "Pulling latest production image..."
     if [ -f docker/docker-compose.prod.override.yml ]; then
-      docker compose --env-file .env -f docker/docker-compose.prod.yml -f docker/docker-compose.prod.override.yml build --no-cache
+      docker compose --env-file .env -f docker/docker-compose.prod.yml -f docker/docker-compose.prod.override.yml pull
     else
-      docker compose --env-file .env -f docker/docker-compose.prod.yml build --no-cache
+      docker compose --env-file .env -f docker/docker-compose.prod.yml pull
     fi
     echo ""
     echo "Restarting production deployment..."
