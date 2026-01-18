@@ -170,3 +170,29 @@ export function execute(
   const result = stmt.run(...params);
   return result.changes;
 }
+
+/**
+ * Get the size of the database file in bytes.
+ * Returns null if metrics are disabled or file doesn't exist.
+ */
+export function getDatabaseSize(): { sizeBytes: number; sizeMB: number } | null {
+  const config = getMetricsConfig();
+  
+  if (!config.enabled) {
+    return null;
+  }
+
+  try {
+    const stats = fs.statSync(config.dbPath);
+    const sizeBytes = stats.size;
+    const sizeMB = sizeBytes / (1024 * 1024);
+    
+    return {
+      sizeBytes,
+      sizeMB: Math.round(sizeMB * 100) / 100, // Round to 2 decimal places
+    };
+  } catch (error) {
+    console.error('[metrics] Failed to get database size:', error);
+    return null;
+  }
+}

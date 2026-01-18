@@ -506,3 +506,14 @@ export function updateDailyAggregates(date: string): void {
     [date]
   );
 }
+
+export interface DatabaseStats {
+  sizeBytes: number;
+  sizeMB: number;
+}
+
+export function getDatabaseStats(): DatabaseStats | null {
+  // Import at function level to avoid circular dependencies
+  const { getDatabaseSize } = require('./db');
+  return getDatabaseSize();
+}

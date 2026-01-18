@@ -41,6 +41,7 @@ export {
   getRegisteredUsersPerDay,
   getAuthStats,
   updateDailyAggregates,
+  getDatabaseStats,
   type DateRange,
   type EventCount,
   type DailyEventSummary,
@@ -54,6 +55,7 @@ export {
   type SortDirection,
   type RegisteredUsersPerDay,
   type AuthStats,
+  type DatabaseStats,
 } from './aggregations';
 export {
   saveFeedback,
