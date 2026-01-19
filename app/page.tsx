@@ -23,7 +23,11 @@ export default async function Home({ searchParams }: Props) {
 
   // Check for session error (e.g., revoked refresh token)
   const sessionError = (session as { error?: string } | null)?.error;
-  const hasValidSession = session && !sessionError;
+  
+  // Additional validation: ensure session has a valid access token
+  // This prevents showing "Open App" when the session exists but token is invalid
+  const hasAccessToken = session && (session as any).accessToken;
+  const hasValidSession = session && !sessionError && hasAccessToken;
 
   // Default return path for sign-in button
   const returnTo = next && next.startsWith("/") ? next : "/split-editor";

@@ -26,7 +26,11 @@ export default async function LoginPage({ searchParams }: Props) {
 
   // Check for session error (e.g., revoked refresh token)
   const sessionError = (session as { error?: string } | null)?.error;
-  const hasValidSession = session && !sessionError;
+  
+  // Additional validation: ensure session has a valid access token
+  // This prevents auto-redirect when session exists but token is invalid
+  const hasAccessToken = session && (session as any).accessToken;
+  const hasValidSession = session && !sessionError && hasAccessToken;
 
   // If authenticated with valid session, redirect to intended destination
   if (hasValidSession) {
