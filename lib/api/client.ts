@@ -116,8 +116,25 @@ export async function apiFetch<T = any>(
       const errorMessage = data.error || data.details || `Request failed: ${response.status} ${response.statusText}`;
       const apiError = new ApiError(errorMessage, response.status, data);
 
+      // Suppress dialog for known non-critical errors
       const suppressDialog =
         requestPath === '/api/player/control' && data?.error === 'no_active_device';
+      
+      // Handle user not approved error with helpful message
+      if (data?.error === 'user_not_approved') {
+        const appError = createAppError({
+          message: 'Your account is not approved yet',
+          details: 'Please request access from the homepage. The administrator needs to add you to the Spotify Developer Dashboard.',
+          category: 'auth',
+          severity: 'warning',
+          statusCode: response.status,
+          ...(requestPath ? { requestPath } : {}),
+        });
+        
+        reportError(appError);
+        useErrorStore.getState().openDialog(appError);
+        throw apiError;
+      }
       
       // Report API errors to error store and show dialog (except auth errors handled above)
       if (!suppressDialog) {

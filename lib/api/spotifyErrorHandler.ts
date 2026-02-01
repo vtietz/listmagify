@@ -52,6 +52,32 @@ export async function handleSpotifyResponseError(
       );
       
     case 403:
+      // Check if this is a "user not registered" error
+      if (text.toLowerCase().includes('user may not be registered') || 
+          text.toLowerCase().includes('developer.spotify.com/dashboard')) {
+        return NextResponse.json(
+          { 
+            error: 'user_not_approved', 
+            message: 'Your Spotify account is not approved for this app yet',
+            details: 'Please request access from the homepage or contact the administrator to be added to the approved users list'
+          },
+          { status: 403 }
+        );
+      }
+      
+      // Check if this is a premium requirement
+      if (text.toLowerCase().includes('premium')) {
+        return NextResponse.json(
+          { 
+            error: 'premium_required', 
+            message: 'Spotify Premium is required to control playback',
+            details: 'You can still use this app to organize your playlists!'
+          },
+          { status: 403 }
+        );
+      }
+      
+      // Generic permission error
       return NextResponse.json(
         { 
           error: 'insufficient_permissions', 
