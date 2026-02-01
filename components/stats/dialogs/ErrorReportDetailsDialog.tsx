@@ -1,7 +1,9 @@
 'use client';
 
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { Copy, Check } from 'lucide-react';
 import type { ErrorReport } from '../types';
 
 interface ErrorReportDetailsDialogProps {
@@ -17,6 +19,8 @@ export function ErrorReportDetailsDialog({
   onOpenChange,
   onMarkResolved,
 }: ErrorReportDetailsDialogProps) {
+  const [copied, setCopied] = useState(false);
+
   if (!open) return null;
 
   const getSeverityColor = (severity: string) => {
@@ -38,6 +42,55 @@ export function ErrorReportDetailsDialog({
       unknown: 'bg-gray-100 text-gray-800',
     };
     return colors[category] || colors.unknown;
+  };
+
+  const generateErrorSummary = () => {
+    const env = report.environment_json 
+      ? JSON.parse(report.environment_json) 
+      : {};
+
+    return `# Error Report Summary
+
+**Report ID:** ${report.report_id}
+**Timestamp:** ${new Date(report.ts).toLocaleString()}
+**Category:** ${report.error_category}
+**Severity:** ${report.error_severity}
+**User:** ${report.user_name || 'Anonymous'}${report.user_id ? ` (${report.user_id})` : ''}
+${report.user_hash ? `**User Hash:** ${report.user_hash}` : ''}
+
+## Error Message
+${report.error_message}
+
+${report.error_details ? `## Error Details
+\`\`\`
+${report.error_details}
+\`\`\`` : ''}
+
+${report.user_description ? `## User Description
+> ${report.user_description.split('\n').join('\n> ')}` : ''}
+
+${report.error_request_path ? `## Request Information
+- **Path:** ${report.error_request_path}${report.error_status_code ? `
+- **Status Code:** ${report.error_status_code}` : ''}` : ''}
+
+${Object.keys(env).length > 0 ? `## Environment
+- **App Version:** ${report.app_version || 'N/A'}
+- **User Agent:** ${env.userAgent || 'N/A'}
+- **URL:** ${env.url || 'N/A'}
+- **Viewport:** ${env.viewport || 'N/A'}
+- **Browser:** ${env.browser || 'N/A'}
+- **OS:** ${env.os || 'N/A'}` : ''}
+
+---
+*Status: ${report.resolved ? 'Resolved ✓' : 'Unresolved'}*
+`;
+  };
+
+  const handleCopySummary = async () => {
+    const summary = generateErrorSummary();
+    await navigator.clipboard.writeText(summary);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
@@ -133,6 +186,23 @@ export function ErrorReportDetailsDialog({
                 }}
               >
                 {report.resolved ? 'Mark as Unresolved' : 'Mark as Resolved'}
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={handleCopySummary}
+                className="gap-2"
+              >
+                {copied ? (
+                  <>
+                    <Check className="h-4 w-4" />
+                    Copied!
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-4 w-4" />
+                    Copy Summary
+                  </>
+                )}
               </Button>
               <Button variant="outline" onClick={() => onOpenChange(false)}>
                 Close
