@@ -130,16 +130,18 @@ export function handleSamePanelDrop(
 
   // Move mode: reorder operations
   if (dragTracks.length === 1) {
-    logDebug('✅ REORDER single:', sourceIndex, '→', effectiveTargetIndex);
+    logDebug('✅ REORDER single:', sourceIndex, '→', targetIndex);
     console.debug('[DND] end: branch = single-item', {
       sourceIndex,
-      targetIndex: effectiveTargetIndex,
+      targetIndex,
     });
     if (sourceIndex === targetIndex) return true;
+    // Use raw targetIndex - the optimistic update in applyReorderToInfinitePages
+    // already handles the insert position adjustment when moving forward
     mutations.reorderTracks.mutate({
       playlistId: targetPlaylistId,
       fromIndex: sourceIndex,
-      toIndex: effectiveTargetIndex,
+      toIndex: targetIndex,
     });
     return true;
   }
@@ -160,18 +162,20 @@ export function handleSamePanelDrop(
     const fromIndex = trackPositions[0] ?? sourceIndex;
     const rangeLength = trackPositions.length || 1;
 
-    logDebug('✅ REORDER contiguous:', trackPositions, '→', effectiveTargetIndex, `(${rangeLength} tracks)`);
+    logDebug('✅ REORDER contiguous:', trackPositions, '→', targetIndex, `(${rangeLength} tracks)`);
     console.debug('[DND] end: branch = contiguous', {
       fromIndex,
-      toIndex: effectiveTargetIndex,
+      toIndex: targetIndex,
       rangeLength,
       indices: trackPositions.slice(0, 25),
     });
 
+    // Use raw targetIndex - the optimistic update in applyReorderToInfinitePages
+    // already handles the insert position adjustment when moving forward
     mutations.reorderTracks.mutate({
       playlistId: targetPlaylistId,
       fromIndex,
-      toIndex: effectiveTargetIndex,
+      toIndex: targetIndex,
       rangeLength,
     });
     return true;
@@ -213,7 +217,7 @@ export function handleCrossPanelDrop(
   effectiveMode: 'copy' | 'move',
   sourceIndex: number,
   targetIndex: number,
-  effectiveTargetIndex: number,
+  _effectiveTargetIndex: number, // Unused - kept for API compatibility with handleSamePanelDrop
   dragTracks: Track[],
   dragTrackUris: string[],
   sourcePlaylistId: string,
@@ -263,20 +267,22 @@ export function handleCrossPanelDrop(
       const fromIndex = trackPositions[0] ?? sourceIndex;
       const rangeLength = trackPositions.length || 1;
 
-      logDebug('✅ REORDER cross-panel (contiguous):', trackPositions, '→', effectiveTargetIndex, `(${rangeLength} tracks)`);
+      logDebug('✅ REORDER cross-panel (contiguous):', trackPositions, '→', targetIndex, `(${rangeLength} tracks)`);
+      // Use raw targetIndex - the optimistic update already handles the adjustment
       mutations.reorderTracks.mutate({
         playlistId: targetPlaylistId,
         fromIndex,
-        toIndex: effectiveTargetIndex,
+        toIndex: targetIndex,
         rangeLength,
       });
     } else {
       // Non-contiguous or single track: use reorder API for each track
-      logDebug('✅ REORDER cross-panel (single/non-contiguous):', dragTracks.map((t) => t.position), '→', effectiveTargetIndex);
+      logDebug('✅ REORDER cross-panel (single/non-contiguous):', dragTracks.map((t) => t.position), '→', targetIndex);
+      // Use raw targetIndex - the optimistic update already handles the adjustment
       mutations.reorderTracks.mutate({
         playlistId: targetPlaylistId,
         fromIndex: sourceIndex,
-        toIndex: effectiveTargetIndex,
+        toIndex: targetIndex,
         rangeLength: 1,
       });
     }
