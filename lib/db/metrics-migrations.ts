@@ -230,15 +230,21 @@ export const metricsMigrations: Migration[] = [
   },
   {
     version: 9,
-    name: 'add_utm_source_to_existing_traffic',
+    name: 'ensure_traffic_analytics_has_utm_source',
     sql: `
-      -- Add utm_source column if table already exists from version 8
-      -- This handles the case where traffic_analytics was created without utm_source
-      ALTER TABLE traffic_analytics ADD COLUMN utm_source TEXT;
+      -- Ensure traffic_analytics has utm_source column
+      -- This is idempotent - safely handles both cases:
+      -- 1. Table created with old migration 8 (no utm_source) - will add it
+      -- 2. Table created with new migration 8 (has utm_source) - will be no-op
       
-      -- Recreate the unique constraint to include utm_source
-      -- SQLite doesn't support modifying constraints, so we need to recreate the table
-      CREATE TABLE IF NOT EXISTS traffic_analytics_new (
+      -- Backup existing data if any
+      CREATE TEMP TABLE IF NOT EXISTS _traffic_backup AS
+        SELECT * FROM traffic_analytics WHERE 1=1;
+      
+      -- Drop and recreate table with correct schema
+      DROP TABLE IF EXISTS traffic_analytics;
+      
+      CREATE TABLE traffic_analytics (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         date DATE NOT NULL,
         page_path TEXT NOT NULL,
@@ -250,14 +256,25 @@ export const metricsMigrations: Migration[] = [
         UNIQUE(date, page_path, country_code, referrer_domain, search_query, utm_source)
       );
       
-      -- Copy data from old table (utm_source will be NULL for existing rows)
-      INSERT INTO traffic_analytics_new (id, date, page_path, country_code, referrer_domain, search_query, utm_source, visit_count)
-      SELECT id, date, page_path, country_code, referrer_domain, search_query, utm_source, visit_count
-      FROM traffic_analytics;
+      -- Restore data, handling both old schema (6 cols) and new schema (7 cols)
+      INSERT INTO traffic_analytics (id, date, page_path, country_code, referrer_domain, search_query, utm_source, visit_count)
+        SELECT 
+          id, 
+          date, 
+          page_path, 
+          country_code, 
+          referrer_domain, 
+          search_query,
+          CASE 
+            WHEN (SELECT COUNT(*) FROM pragma_table_info('_traffic_backup') WHERE name = 'utm_source') > 0 
+            THEN utm_source 
+            ELSE NULL 
+          END as utm_source,
+          visit_count
+        FROM _traffic_backup;
       
-      -- Drop old table and rename new one
-      DROP TABLE traffic_analytics;
-      ALTER TABLE traffic_analytics_new RENAME TO traffic_analytics;
+      -- Cleanup
+      DROP TABLE IF EXISTS _traffic_backup;
       
       -- Recreate indexes
       CREATE INDEX IF NOT EXISTS idx_traffic_date ON traffic_analytics(date);
@@ -285,6 +302,36 @@ export const metricsMigrations: Migration[] = [
       ALTER TABLE access_requests ADD COLUMN red_flags TEXT;
       
       CREATE INDEX IF NOT EXISTS idx_access_requests_red_flags ON access_requests(red_flags);
+    `,
+  },
+  {
+    version: 12,
+    name: 'add_validation_status_to_access_requests',
+    sql: `
+      -- Add validation_status column to track Spotify username verification
+      -- Values: 'verified' (username exists), 'not_verified' (couldn't check), 'invalid' (doesn't exist)
+      ALTER TABLE access_requests ADD COLUMN validation_status TEXT;
+    `,
+  },
+  {
+    version: 13,
+    name: 'add_email_verification_codes',
+    sql: `
+      -- Email verification codes for access request validation
+      CREATE TABLE IF NOT EXISTS email_verification_codes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT NOT NULL,
+        code TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        expires_at DATETIME NOT NULL,
+        verified INTEGER DEFAULT 0,
+        verification_token TEXT UNIQUE
+      );
+      
+      CREATE INDEX IF NOT EXISTS idx_email_verification_email ON email_verification_codes(email);
+      CREATE INDEX IF NOT EXISTS idx_email_verification_code ON email_verification_codes(code);
+      CREATE INDEX IF NOT EXISTS idx_email_verification_token ON email_verification_codes(verification_token);
+      CREATE INDEX IF NOT EXISTS idx_email_verification_expires ON email_verification_codes(expires_at);
     `,
   },
 ];

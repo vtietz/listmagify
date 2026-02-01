@@ -3,8 +3,12 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/auth';
 import { isUserAllowedForStats } from '@/lib/metrics/env';
 import { getDb } from '@/lib/metrics/db';
+import { sendApprovalEmail, sendRejectionEmail, sendRevokedEmail } from '@/lib/email/access-request-emails';
 
 export const dynamic = 'force-dynamic';
+
+// Re-export for backward compatibility if used elsewhere
+export { sendRevokedEmail };
 
 /**
  * GET /api/stats/access-requests
@@ -130,12 +134,37 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
     }
 
+    // Get the access request details for email
+    const accessRequest = db.prepare(`
+      SELECT name, email, spotify_username
+      FROM access_requests
+      WHERE id = ?
+    `).get(id) as { name: string; email: string; spotify_username: string | null } | undefined;
+
+    if (!accessRequest) {
+      return NextResponse.json({ error: 'Access request not found' }, { status: 404 });
+    }
+
     const updates: string[] = [];
     const params: (string | number)[] = [];
 
     if (status) {
       updates.push('status = ?');
       params.push(status);
+      
+      // Send email notification based on status
+      try {
+        if (status === 'approved') {
+          await sendApprovalEmail(accessRequest.name, accessRequest.email);
+        } else if (status === 'rejected') {
+          await sendRejectionEmail(accessRequest.name, accessRequest.email);
+        } else if (status === 'removed') {
+          await sendRevokedEmail(accessRequest.name, accessRequest.email);
+        }
+      } catch (error) {
+        // Log error but don't fail the status update
+        console.error('[access-requests] Failed to send status email:', error);
+      }
     }
 
     if (notes !== undefined) {

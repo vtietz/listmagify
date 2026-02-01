@@ -202,9 +202,9 @@ export function StatsDashboard() {
             <Calendar className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm text-muted-foreground">Time Range:</span>
             {/* Mobile: Dropdown */}
-            <div className="md:hidden flex-1">
+            <div className="md:hidden flex-1" suppressHydrationWarning>
               <Select value={timeRange} onValueChange={(value: string) => setTimeRange(value as TimeRange)}>
-                <SelectTrigger className="h-8 w-full">
+                <SelectTrigger className="h-8 w-full" suppressHydrationWarning>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

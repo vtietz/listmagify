@@ -22,10 +22,16 @@ export function PageVisitTracker() {
         const query = searchParams?.toString();
         const fullPath = query ? `${pathname}?${query}` : pathname;
         
+        // Capture the real external referrer (not available in HTTP headers from fetch)
+        const externalReferrer = typeof document !== 'undefined' ? document.referrer : null;
+        
         await fetch('/api/track/visit', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ path: fullPath }),
+          body: JSON.stringify({ 
+            path: fullPath,
+            referrer: externalReferrer || undefined,
+          }),
         });
       } catch (error) {
         // Silently fail - tracking should never break the app

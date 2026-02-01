@@ -1,46 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { serverEnv } from '@/lib/env';
 import { getDb } from '@/lib/metrics/db';
-import nodemailer from 'nodemailer';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth/auth';
-
-/**
- * Check if a Spotify username exists by calling Spotify API
- * Uses admin's token if available (when called from authenticated context)
- * Returns true if user exists, false if not found, null if check failed
- */
-async function verifySpotifyUsername(username: string): Promise<boolean | null> {
-  try {
-    // Try to get admin session for API access
-    const session = await getServerSession(authOptions);
-    const accessToken = (session as any)?.accessToken;
-    
-    if (!accessToken) {
-      // No admin token available, skip verification
-      return null;
-    }
-
-    const response = await fetch(`https://api.spotify.com/v1/users/${encodeURIComponent(username)}`, {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-      },
-    });
-
-    if (response.ok) {
-      return true; // User exists
-    } else if (response.status === 404) {
-      return false; // User not found
-    } else {
-      // Other error (rate limit, auth error, etc.) - don't penalize user
-      console.warn(`[access-request] Spotify username check returned ${response.status}`);
-      return null;
-    }
-  } catch (error) {
-    console.error('[access-request] Error verifying Spotify username:', error);
-    return null; // Network error - don't penalize user
-  }
-}
+import { createEmailTransporter, getDefaultSender } from '@/lib/email/transporter';
+import { escapeHtml } from '@/lib/email/templates';
 
 /**
  * POST /api/access-request
@@ -55,7 +17,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, email, spotifyUsername, motivation } = body;
+    const { name, email, spotifyUsername, motivation, verificationToken } = body;
 
     // Validate input
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
@@ -64,6 +26,34 @@ export async function POST(request: NextRequest) {
 
     if (!email || typeof email !== 'string' || !email.includes('@')) {
       return NextResponse.json({ error: 'Valid email is required' }, { status: 400 });
+    }
+
+    // Check email verification if enabled
+    if (serverEnv.ACCESS_REQUEST_EMAIL_VERIFICATION_ENABLED) {
+      if (!verificationToken) {
+        return NextResponse.json({ error: 'Email verification required' }, { status: 400 });
+      }
+
+      const db = getDb();
+      if (db) {
+        const verification = db.prepare(`
+          SELECT verified, email
+          FROM email_verification_codes
+          WHERE verification_token = ? AND verified = 1
+          LIMIT 1
+        `).get(verificationToken) as { verified: number; email: string } | undefined;
+
+        if (!verification) {
+          return NextResponse.json({ error: 'Invalid or unverified email' }, { status: 400 });
+        }
+
+        // Ensure email matches the verified one
+        if (verification.email !== email.trim().toLowerCase()) {
+          return NextResponse.json({ error: 'Email does not match verified email' }, { status: 400 });
+        }
+      } else {
+        console.warn('[access-request] Email verification enabled but database not available');
+      }
     }
 
     // Detect suspicious patterns (red flags)
@@ -79,14 +69,6 @@ export async function POST(request: NextRequest) {
     // Red flag: Spotify username contains spaces (invalid format)
     if (spotifyUsernameTrimmed && spotifyUsernameTrimmed.includes(' ')) {
       redFlags.push('Spotify username contains spaces (invalid)');
-    }
-
-    // Red flag: Verify Spotify username exists (if provided)
-    if (spotifyUsernameTrimmed && !spotifyUsernameTrimmed.includes(' ')) {
-      const usernameExists = await verifySpotifyUsername(spotifyUsernameTrimmed);
-      if (usernameExists === false) {
-        redFlags.push('Spotify username does not exist');
-      }
     }
 
     // Red flag: Very short name (likely fake)
@@ -111,21 +93,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Red flag: Email and name mismatch (email prefix doesn't match name)
-    const emailPrefix = email.split('@')[0]?.toLowerCase() ?? '';
-    const nameNormalized = nameTrimmed.toLowerCase().replace(/\s+/g, '');
-    if (emailPrefix && !emailPrefix.includes(nameNormalized.substring(0, 4)) && !nameNormalized.includes(emailPrefix.substring(0, 4))) {
-      redFlags.push('Email and name mismatch');
-    }
-
     // Check if SMTP is configured
-    const smtpHost = process.env.SMTP_HOST;
-    const smtpPort = process.env.SMTP_PORT;
-    const smtpUser = process.env.SMTP_USER;
-    const smtpPass = process.env.SMTP_PASS;
     const contactEmail = process.env.CONTACT_EMAIL;
+    const transporter = createEmailTransporter();
 
-    if (!smtpHost || !contactEmail) {
+    if (!transporter || !contactEmail) {
       console.error('[access-request] SMTP not configured');
       return NextResponse.json(
         { error: 'Email service not configured. Please contact the administrator.' },
@@ -133,20 +105,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create transporter
-    const transporter = nodemailer.createTransport({
-      host: smtpHost,
-      port: parseInt(smtpPort || '587', 10),
-      secure: smtpPort === '465',
-      auth: smtpUser && smtpPass ? {
-        user: smtpUser,
-        pass: smtpPass,
-      } : undefined,
-    });
-
     // Send email to admin
     const mailOptions = {
-      from: smtpUser || `noreply@${smtpHost}`,
+      from: getDefaultSender(),
       to: contactEmail,
       subject: `[Listmagify] Access Request from ${name.trim()}${redFlags.length > 0 ? ' 🚩' : ''}${motivation && motivation.trim() ? ' ⭐' : ''}`,
       text: `New access request for Listmagify:
@@ -187,7 +148,7 @@ ${redFlags.length > 0 ? `
   ${spotifyUsername && spotifyUsername.trim() ? `
   <tr>
     <td style="padding: 8px; font-weight: bold;">Spotify Username:</td>
-    <td style="padding: 8px;">${escapeHtml(spotifyUsername.trim())}</td>
+    <td style=\"padding: 8px;\">${escapeHtml(spotifyUsername.trim())}</td>
   </tr>
   ` : ''}
   ${motivation && motivation.trim() ? `
@@ -243,14 +204,4 @@ ${redFlags.length > 0 ? `
       { status: 500 }
     );
   }
-}
-
-/** Escape HTML to prevent XSS in email */
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
 }

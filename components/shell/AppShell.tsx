@@ -189,7 +189,7 @@ function Header({ title: _title }: { title: string }) {
   
   const isPlaylistsActive = pathname === '/playlists' || pathname.startsWith('/playlists/');
   const isSplitEditorActive = pathname === '/split-editor';
-  const isStatsActive = pathname === '/stats' || pathname.startsWith('/stats/');
+  const isAdminActive = pathname === '/admin' || pathname.startsWith('/admin/');
   const isLandingPage = pathname === '/';
   
   // Pages that support player and compare mode
@@ -208,7 +208,7 @@ function Header({ title: _title }: { title: string }) {
             hasStatsAccess={hasStatsAccess}
             isBrowseOpen={isBrowseOpen}
             toggleBrowse={toggleBrowse}
-            supportsBrowse={!isLandingPage && !isPlaylistsActive && !isStatsActive}
+            supportsBrowse={!isLandingPage && !isPlaylistsActive && !isAdminActive}
             isPlayerVisible={isPlayerVisible}
             togglePlayerVisible={togglePlayerVisible}
             supportsPlayer={supportsPlayerAndCompare}

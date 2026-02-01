@@ -36,6 +36,11 @@ const serverSchema = z.object({
     .string()
     .optional()
     .transform((val) => val === 'true'),
+  // Optional: require email verification for access requests
+  ACCESS_REQUEST_EMAIL_VERIFICATION_ENABLED: z
+    .string()
+    .optional()
+    .transform((val) => val === 'true'),
 });
 
 type ServerEnv = z.infer<typeof serverSchema>;
@@ -64,6 +69,7 @@ export const serverEnv: ServerEnv = (() => {
       PLAYLIST_POLL_INTERVAL_SECONDS: undefined,
       BYOK_ENABLED: false,
       ACCESS_REQUEST_ENABLED: false,
+      ACCESS_REQUEST_EMAIL_VERIFICATION_ENABLED: false,
     };
   }
   return serverSchema.parse({
@@ -74,6 +80,7 @@ export const serverEnv: ServerEnv = (() => {
     PLAYLIST_POLL_INTERVAL_SECONDS: process.env.PLAYLIST_POLL_INTERVAL_SECONDS,
     BYOK_ENABLED: process.env.BYOK_ENABLED,
     ACCESS_REQUEST_ENABLED: process.env.ACCESS_REQUEST_ENABLED,
+    ACCESS_REQUEST_EMAIL_VERIFICATION_ENABLED: process.env.ACCESS_REQUEST_EMAIL_VERIFICATION_ENABLED,
   });
 })();
 

@@ -1,9 +1,10 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { CheckCircle, XCircle, Mail, AlertTriangle } from 'lucide-react';
+import { CheckCircle, XCircle, Mail, AlertTriangle, Copy, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { AccessRequest } from '../types';
+import { useState } from 'react';
 
 interface AccessRequestDetailsDialogProps {
   request: AccessRequest;
@@ -18,14 +19,28 @@ export function AccessRequestDetailsDialog({
   onOpenChange,
   onUpdateStatus,
 }: AccessRequestDetailsDialogProps) {
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
+  
   if (!open) return null;
 
   const redFlags = request.red_flags ? JSON.parse(request.red_flags) as string[] : [];
+  
+  const copyToClipboard = async (text: string, fieldName: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedField(fieldName);
+      setTimeout(() => setCopiedField(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'approved': return 'bg-green-100 text-green-800';
       case 'rejected': return 'bg-red-100 text-red-800';
+      case 'removed': return 'bg-gray-100 text-gray-800';
       default: return 'bg-yellow-100 text-yellow-800';
     }
   };
@@ -74,21 +89,66 @@ export function AccessRequestDetailsDialog({
 
             <div>
               <div className="text-sm font-medium text-muted-foreground">Name</div>
-              <div className="font-medium">{request.name}</div>
+              <div className="flex items-center gap-2">
+                <div className="font-medium">{request.name}</div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 w-6 p-0"
+                  onClick={() => copyToClipboard(request.name, 'name')}
+                  title="Copy name"
+                >
+                  {copiedField === 'name' ? (
+                    <Check className="h-3 w-3 text-green-500" />
+                  ) : (
+                    <Copy className="h-3 w-3" />
+                  )}
+                </Button>
+              </div>
             </div>
 
             <div>
               <div className="text-sm font-medium text-muted-foreground">Email</div>
-              <div className="font-mono text-sm flex items-center gap-2">
-                <Mail className="h-4 w-4" />
-                {request.email}
+              <div className="flex items-center gap-2">
+                <div className="font-mono text-sm flex items-center gap-2">
+                  <Mail className="h-4 w-4" />
+                  {request.email}
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 w-6 p-0"
+                  onClick={() => copyToClipboard(request.email, 'email')}
+                  title="Copy email"
+                >
+                  {copiedField === 'email' ? (
+                    <Check className="h-3 w-3 text-green-500" />
+                  ) : (
+                    <Copy className="h-3 w-3" />
+                  )}
+                </Button>
               </div>
             </div>
 
             {request.spotify_username && (
               <div>
                 <div className="text-sm font-medium text-muted-foreground">Spotify Username</div>
-                <div className="font-medium">{request.spotify_username}</div>
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">{request.spotify_username}</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0"
+                    onClick={() => copyToClipboard(request.spotify_username!, 'username')}
+                    title="Copy username"
+                  >
+                    {copiedField === 'username' ? (
+                      <Check className="h-3 w-3 text-green-500" />
+                    ) : (
+                      <Copy className="h-3 w-3" />
+                    )}
+                  </Button>
+                </div>
               </div>
             )}
 
@@ -119,26 +179,59 @@ export function AccessRequestDetailsDialog({
               {request.status === 'pending' && (
                 <>
                   <Button
-                    onClick={() => {
-                      onUpdateStatus(request.id, 'approved');
+                    onClick={async () => {
+                      await onUpdateStatus(request.id, 'approved');
                       onOpenChange(false);
                     }}
                     className="bg-green-600 hover:bg-green-700"
                   >
-                    <CheckCircle className="h-4 w-4 mr-2" />
-                    Approve
+                    <div className="flex items-center gap-1.5">
+                      <CheckCircle className="h-4 w-4" />
+                      <span>Approve</span>
+                      <Mail className="h-3.5 w-3.5" />
+                    </div>
                   </Button>
                   <Button
-                    onClick={() => {
-                      onUpdateStatus(request.id, 'rejected');
+                    onClick={async () => {
+                      await onUpdateStatus(request.id, 'rejected');
                       onOpenChange(false);
                     }}
                     variant="destructive"
                   >
-                    <XCircle className="h-4 w-4 mr-2" />
-                    Reject
+                    <div className="flex items-center gap-1.5">
+                      <XCircle className="h-4 w-4" />
+                      <span>Reject</span>
+                      <Mail className="h-3.5 w-3.5" />
+                    </div>
                   </Button>
                 </>
+              )}
+              {request.status === 'approved' && (
+                <Button
+                  onClick={() => setShowRemoveConfirm(true)}
+                  variant="destructive"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <XCircle className="h-4 w-4" />
+                    <span>Remove Access</span>
+                    <Mail className="h-3.5 w-3.5" />
+                  </div>
+                </Button>
+              )}
+              {request.status === 'removed' && (
+                <Button
+                  onClick={async () => {
+                    await onUpdateStatus(request.id, 'approved');
+                    onOpenChange(false);
+                  }}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <CheckCircle className="h-4 w-4" />
+                    <span>Re-activate Access</span>
+                    <Mail className="h-3.5 w-3.5" />
+                  </div>
+                </Button>
               )}
               <Button variant="outline" onClick={() => onOpenChange(false)}>
                 Close
@@ -147,6 +240,60 @@ export function AccessRequestDetailsDialog({
           </div>
         </div>
       </div>
+
+      {/* Remove Access Confirmation Dialog */}
+      {showRemoveConfirm && (
+        <div 
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50" 
+          onClick={() => setShowRemoveConfirm(false)}
+        >
+          <div 
+            className="bg-background rounded-lg shadow-lg max-w-md w-full m-4 p-6" 
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-3 mb-4">
+              <div className="bg-red-100 dark:bg-red-900/20 p-2 rounded-full">
+                <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-500" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold mb-2">Remove Access</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Are you sure you want to remove access for <strong>{request.name}</strong>?
+                </p>
+                <div className="bg-muted rounded-lg p-3 text-sm space-y-2">
+                  <p className="flex items-center gap-2">
+                    <Mail className="h-4 w-4 text-muted-foreground" />
+                    <span>User will receive an email notification</span>
+                  </p>
+                  <p className="text-muted-foreground">
+                    They can request access again later if needed.
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => setShowRemoveConfirm(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={async () => {
+                  await onUpdateStatus(request.id, 'removed');
+                  setShowRemoveConfirm(false);
+                  onOpenChange(false);
+                }}
+              >
+                <XCircle className="h-4 w-4 mr-2" />
+                Remove Access
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { UserPlus, Loader2, CheckCircle, AlertTriangle } from 'lucide-react';
+import { UserPlus, Loader2, CheckCircle, AlertTriangle, Mail } from 'lucide-react';
 
 interface AccessRequestDialogProps {
   trigger?: React.ReactNode | null;
@@ -31,9 +31,12 @@ export function AccessRequestDialog({ trigger, defaultOpen = false }: AccessRequ
   const [email, setEmail] = useState('');
   const [spotifyUsername, setSpotifyUsername] = useState('');
   const [motivation, setMotivation] = useState('');
+  const [verificationCode, setVerificationCode] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
+  const [isVerifyingCode, setIsVerifyingCode] = useState(false);
+  const [step, setStep] = useState<'form' | 'verify' | 'success'>('form');
   const [error, setError] = useState<string | null>(null);
+  const [verificationError, setVerificationError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,22 +44,87 @@ export function AccessRequestDialog({ trigger, defaultOpen = false }: AccessRequ
     setError(null);
 
     try {
+      // Step 1: Send verification code
+      const verifyResponse = await fetch('/api/access-request/verify-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+
+      const verifyData = await verifyResponse.json();
+
+      if (!verifyResponse.ok) {
+        // If verification is not enabled on server, submit directly
+        if (verifyResponse.status === 404) {
+          await submitRequest(null);
+          return;
+        }
+        throw new Error(verifyData.error || 'Failed to send verification code');
+      }
+
+      // Move to verification step
+      setStep('verify');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to send request');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const submitRequest = async (verificationToken: string | null) => {
+    try {
       const response = await fetch('/api/access-request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, spotifyUsername, motivation }),
+        body: JSON.stringify({ 
+          name, 
+          email, 
+          spotifyUsername, 
+          motivation,
+          verificationToken,
+        }),
       });
 
       if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to send request');
+        const responseData = await response.json();
+        throw new Error(responseData.error || 'Failed to send request');
       }
 
-      setIsSuccess(true);
+      setStep('success');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
-    } finally {
-      setIsSubmitting(false);
+      throw err;
+    }
+  };
+
+  // Auto-verify when code is complete
+  const handleCodeChange = async (code: string) => {
+    setVerificationCode(code);
+    setVerificationError(null);
+
+    if (code.length === 6) {
+      setIsVerifyingCode(true);
+      
+      try {
+        const response = await fetch('/api/access-request/verify-email', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, code }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Invalid verification code');
+        }
+
+        // Code verified, submit the request
+        await submitRequest(data.verificationToken);
+      } catch (err) {
+        setVerificationError(err instanceof Error ? err.message : 'Verification failed');
+      } finally {
+        setIsVerifyingCode(false);
+      }
     }
   };
 
@@ -69,8 +137,10 @@ export function AccessRequestDialog({ trigger, defaultOpen = false }: AccessRequ
         setEmail('');
         setSpotifyUsername('');
         setMotivation('');
-        setIsSuccess(false);
+        setVerificationCode('');
+        setStep('form');
         setError(null);
+        setVerificationError(null);
       }, 200);
     }
   };
@@ -88,7 +158,7 @@ export function AccessRequestDialog({ trigger, defaultOpen = false }: AccessRequ
         </DialogTrigger>
       )}
       <DialogContent className="sm:max-w-md">
-        {isSuccess ? (
+        {step === 'success' ? (
           <>
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
@@ -101,6 +171,52 @@ export function AccessRequestDialog({ trigger, defaultOpen = false }: AccessRequ
             </DialogHeader>
             <DialogFooter>
               <Button onClick={() => setOpen(false)}>Close</Button>
+            </DialogFooter>
+          </>
+        ) : step === 'verify' ? (
+          <>
+            <DialogHeader>
+              <DialogTitle>Verify Your Email</DialogTitle>
+              <DialogDescription>
+                We've sent a 6-digit code to <strong>{email}</strong>
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="flex items-start gap-2 text-sm bg-amber-500/10 border border-amber-500/20 rounded-lg p-3">
+                <Mail className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                <div className="text-amber-900 dark:text-amber-100">
+                  Check your spam folder if you don't see the email. The code expires in 15 minutes.
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="verificationCode">Verification Code</Label>
+                <Input
+                  id="verificationCode"
+                  type="text"
+                  placeholder="000000"
+                  value={verificationCode}
+                  onChange={(e) => handleCodeChange(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  maxLength={6}
+                  disabled={isVerifyingCode}
+                  className="font-mono text-2xl tracking-[0.5em] text-center"
+                  autoFocus
+                />
+                {isVerifyingCode && (
+                  <p className="text-sm text-muted-foreground flex items-center gap-2">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Verifying...
+                  </p>
+                )}
+                {verificationError && (
+                  <p className="text-sm text-destructive">{verificationError}</p>
+                )}
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setStep('form')}>
+                Back
+              </Button>
             </DialogFooter>
           </>
         ) : (

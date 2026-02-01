@@ -9,7 +9,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { ExternalLink, User, Mail, Calendar, Activity, Plus, Minus } from 'lucide-react';
+import { ExternalLink, User, Mail, Calendar, Activity, Plus, Minus, Copy, Check } from 'lucide-react';
+import { useState } from 'react';
 
 interface UserDetailDialogProps {
   userId: string | null;
@@ -47,6 +48,8 @@ export function UserDetailDialog({
   open,
   onOpenChange,
 }: UserDetailDialogProps) {
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+
   // Fetch user profile from Spotify API on-demand
   const { data: profileData, isLoading } = useQuery({
     queryKey: ['user-profile', userId],
@@ -68,6 +71,16 @@ export function UserDetailDialog({
   const profile = profileData;
   const displayName = profile?.displayName || userId || 'Unknown User';
   const spotifyUrl = profile?.external_urls?.spotify;
+
+  const copyToClipboard = async (text: string, fieldName: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedField(fieldName);
+      setTimeout(() => setCopiedField(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -98,7 +111,44 @@ export function UserDetailDialog({
                     <div className="text-xs text-muted-foreground mb-0.5">Display Name</div>
                     <div className="font-medium break-words">{displayName}</div>
                   </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0 shrink-0"
+                    onClick={() => copyToClipboard(displayName, 'displayName')}
+                    title="Copy display name"
+                  >
+                    {copiedField === 'displayName' ? (
+                      <Check className="h-4 w-4 text-green-500" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )}
+                  </Button>
                 </div>
+
+                {/* User ID (if available) */}
+                {userId && (
+                  <div className="flex items-start gap-3">
+                    <User className="h-4 w-4 text-muted-foreground mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs text-muted-foreground mb-0.5">User ID</div>
+                      <div className="font-mono text-xs break-all text-muted-foreground">{userId}</div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0 shrink-0"
+                      onClick={() => copyToClipboard(userId, 'userId')}
+                      title="Copy user ID"
+                    >
+                      {copiedField === 'userId' ? (
+                        <Check className="h-4 w-4 text-green-500" />
+                      ) : (
+                        <Copy className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                )}
 
                 {/* Spotify Profile Link */}
                 {spotifyUrl && (
@@ -126,6 +176,19 @@ export function UserDetailDialog({
                       <div className="text-xs text-muted-foreground mb-0.5">Email</div>
                       <div className="font-medium break-words">{profile.email}</div>
                     </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0 shrink-0"
+                      onClick={() => copyToClipboard(profile.email!, 'email')}
+                      title="Copy email"
+                    >
+                      {copiedField === 'email' ? (
+                        <Check className="h-4 w-4 text-green-500" />
+                      ) : (
+                        <Copy className="h-4 w-4" />
+                      )}
+                    </Button>
                   </div>
                 )}
               </>
@@ -140,6 +203,19 @@ export function UserDetailDialog({
                   {userHash}
                 </div>
               </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0 shrink-0"
+                onClick={() => copyToClipboard(userHash, 'userHash')}
+                title="Copy user hash"
+              >
+                {copiedField === 'userHash' ? (
+                  <Check className="h-4 w-4 text-green-500" />
+                ) : (
+                  <Copy className="h-4 w-4" />
+                )}
+              </Button>
             </div>
           </div>
 

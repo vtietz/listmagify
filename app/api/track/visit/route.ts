@@ -18,7 +18,7 @@ import {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { path } = body;
+    const { path, referrer: clientReferrer } = body;
 
     if (!path || typeof path !== 'string') {
       return NextResponse.json(
@@ -29,7 +29,9 @@ export async function POST(req: NextRequest) {
 
     // Extract tracking data from request
     const headers = req.headers;
-    const referrer = headers.get('referer') || headers.get('referrer');
+    // Use client-provided referrer (from document.referrer) instead of HTTP referer header
+    // The HTTP referer header in a fetch() call is always the current page, not the external referrer
+    const referrer = clientReferrer || null;
     const host = headers.get('host') || '';
     
     // Get country from headers (Cloudflare/Vercel)

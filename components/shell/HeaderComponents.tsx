@@ -116,7 +116,7 @@ export function AdaptiveNav({
   
   const isPlaylistsActive = pathname === '/playlists' || pathname.startsWith('/playlists/');
   const isSplitEditorActive = pathname === '/split-editor';
-  const isStatsActive = pathname === '/stats' || pathname.startsWith('/stats/');
+  const isStatsActive = pathname === '/admin' || pathname.startsWith('/admin/');
 
   // Build navigation items array with groups
   const navItems: NavItem[] = useMemo(() => [
@@ -140,10 +140,10 @@ export function AdaptiveNav({
       neverOverflow: true,
     },
     ...(hasStatsAccess ? [{
-      id: 'stats',
+      id: 'admin',
       icon: <BarChart3 className="h-3.5 w-3.5" />,
-      label: 'Stats',
-      href: '/stats',
+      label: 'Admin',
+      href: '/admin',
       isActive: isStatsActive,
       group: 'main',
     }] : []),
