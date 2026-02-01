@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { CheckCircle, XCircle, Mail, AlertTriangle, Copy, Check } from 'lucide-react';
+import { CheckCircle, XCircle, Mail, AlertTriangle, Copy, Check, Activity } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { AccessRequest } from '../types';
 import { useState } from 'react';
@@ -11,6 +11,8 @@ interface AccessRequestDetailsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onUpdateStatus: (id: number, status: string, notes?: string) => Promise<void>;
+  activityLevel?: { label: string; color: string; icon: string; percentile: number } | null;
+  eventCount?: number;
 }
 
 export function AccessRequestDetailsDialog({
@@ -18,6 +20,8 @@ export function AccessRequestDetailsDialog({
   open,
   onOpenChange,
   onUpdateStatus,
+  activityLevel,
+  eventCount,
 }: AccessRequestDetailsDialogProps) {
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
@@ -154,9 +158,20 @@ export function AccessRequestDetailsDialog({
 
             <div>
               <div className="text-sm font-medium text-muted-foreground">Status</div>
-              <span className={cn("inline-block px-2 py-0.5 rounded text-xs font-medium mt-1", getStatusColor(request.status))}>
-                {request.status}
-              </span>
+              <div className="flex items-center gap-3 mt-1">
+                <span className={cn("inline-block px-3 py-1 rounded text-sm font-medium", getStatusColor(request.status))}>
+                  {request.status}
+                </span>
+                {(request.status === 'approved' || request.status === 'removed') && activityLevel && (
+                  <div className={cn("flex items-center gap-1.5 text-sm", activityLevel.color)}>
+                    <Activity className="h-4 w-4" />
+                    <span className="font-medium">
+                      {eventCount !== undefined && eventCount > 0 ? `${eventCount} events` : 'No activity'}
+                    </span>
+                    <span className="text-xs text-muted-foreground">({activityLevel.label})</span>
+                  </div>
+                )}
+              </div>
             </div>
 
             {request.motivation && (

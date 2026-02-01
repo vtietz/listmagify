@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { UserPlus, Mail, AlertTriangle } from 'lucide-react';
+import { UserPlus, Mail, AlertTriangle, ExternalLink, Activity } from 'lucide-react';
 import { AccessRequestDetailsDialog } from '../dialogs/AccessRequestDetailsDialog';
 import { cn } from '@/lib/utils';
 import type { AccessRequest, AccessRequestsResponse } from '../types';
@@ -30,7 +30,40 @@ export function AccessRequestsCard({ dateRange }: AccessRequestsCardProps) {
     refetchOnMount: true,
   });
 
+  // Fetch user activity (all-time) to show activity indicators
+  const { data: userActivityData } = useQuery<{ data: Array<{ userId: string; eventCount: number }> }>({
+    queryKey: ['stats', 'users-activity-all'],
+    queryFn: async ({ signal }: { signal: AbortSignal }) => {
+      const res = await fetch(
+        `/api/stats/users?from=1970-01-01&to=2099-12-31&limit=1000&sortBy=eventCount&sortDirection=desc`,
+        { signal }
+      );
+      if (!res.ok) throw new Error('Failed to fetch user activity');
+      return res.json();
+    },
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+  });
+
   const requests = data?.data ?? [];
+  const userActivity = userActivityData?.data ?? [];
+  
+  // Create a map of userId -> eventCount for quick lookup
+  const activityMap = new Map<string, number>(userActivity.map((u: { userId: string; eventCount: number }) => [u.userId, u.eventCount]));
+  
+  // Calculate activity percentiles for relative comparison
+  const allEventCounts = userActivity.map((u: { userId: string; eventCount: number }) => u.eventCount).filter((c: number) => c > 0).sort((a: number, b: number) => a - b);
+  const p33 = allEventCounts[Math.floor(allEventCounts.length * 0.33)] || 0;
+  const p66 = allEventCounts[Math.floor(allEventCounts.length * 0.66)] || 0;
+  
+  // Helper to get activity level (relative to other users)
+  const getActivityLevel = (userId: string | null) => {
+    if (!userId) return null;
+    const count = activityMap.get(userId) ?? 0;
+    if (count === 0) return { label: 'No activity', color: 'text-gray-400', icon: '○', percentile: 0 };
+    if (count < p33) return { label: 'Low activity (bottom 33%)', color: 'text-yellow-600 dark:text-yellow-500', icon: '◔', percentile: 33 };
+    if (count < p66) return { label: 'Medium activity (middle 33%)', color: 'text-blue-600 dark:text-blue-400', icon: '◑', percentile: 66 };
+    return { label: 'High activity (top 33%)', color: 'text-green-600 dark:text-green-400', icon: '●', percentile: 100 };
+  };
   const pendingCount = requests.filter((r: AccessRequest) => r.status === 'pending').length;
 
   const handleUpdateStatus = async (id: number, status: string, notes?: string) => {
@@ -63,6 +96,15 @@ export function AccessRequestsCard({ dateRange }: AccessRequestsCardProps) {
           <CardTitle className="flex items-center gap-2">
             <UserPlus className="h-4 w-4" />
             Access Requests
+            <a
+              href="https://developer.spotify.com/dashboard"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-muted-foreground hover:text-foreground transition-colors"
+              title="Open Spotify Developer Dashboard"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+            </a>
             {pendingCount > 0 && (
               <span className="ml-auto text-sm bg-yellow-100 text-yellow-800 px-2 py-1 rounded">
                 {pendingCount} pending
@@ -88,10 +130,7 @@ export function AccessRequestsCard({ dateRange }: AccessRequestsCardProps) {
                 return (
                   <div
                     key={request.id}
-                    className={cn(
-                      "p-3 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors",
-                      hasRedFlags && "border-red-300 dark:border-red-800 bg-red-50/50 dark:bg-red-950/30"
-                    )}
+                    className="p-3 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors"
                     onClick={() => {
                       setSelectedRequest(request);
                       setShowDetailsDialog(true);
@@ -105,13 +144,31 @@ export function AccessRequestsCard({ dateRange }: AccessRequestsCardProps) {
                           </span>
                           <Mail className="h-3 w-3 text-muted-foreground" />
                           {hasRedFlags && (
-                            <span className="flex items-center gap-1 text-xs text-red-600 dark:text-red-400 font-medium">
+                            <span className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 font-medium">
                               <AlertTriangle className="h-3 w-3" />
-                              Suspicious
+                              Review
                             </span>
                           )}
                         </div>
-                        <p className="text-sm font-medium">{request.name}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium">{request.name}</p>
+                          {(request.status === 'approved' || request.status === 'removed') && (() => {
+                            const activity = getActivityLevel(request.spotify_username);
+                            if (activity) {
+                              const eventCount: number = activityMap.get(request.spotify_username!) ?? 0;
+                              return (
+                                <span 
+                                  className={cn("text-xs flex items-center gap-1", activity.color)}
+                                  title={`${activity.label} (${eventCount} events)`}
+                                >
+                                  <Activity className="h-3 w-3" />
+                                  {eventCount > 0 && <span className="font-medium">{eventCount}</span>}
+                                </span>
+                              );
+                            }
+                            return null;
+                          })()}
+                        </div>
                         <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
                           <span>{new Date(request.ts).toLocaleDateString()}</span>
                           <span className="truncate">{request.email}</span>
@@ -136,6 +193,8 @@ export function AccessRequestsCard({ dateRange }: AccessRequestsCardProps) {
           open={showDetailsDialog}
           onOpenChange={setShowDetailsDialog}
           onUpdateStatus={handleUpdateStatus}
+          activityLevel={getActivityLevel(selectedRequest.spotify_username)}
+          eventCount={(activityMap.get(selectedRequest.spotify_username!) ?? 0) as number}
         />
       )}
     </>
