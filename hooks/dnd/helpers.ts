@@ -66,6 +66,12 @@ export function buildTracksWithPositions(
 /**
  * Compute adjusted target index when moving within the same playlist.
  * Accounts for the fact that removed items affect target position.
+ * 
+ * @param targetIdx - The global playlist position where items will be inserted
+ * @param dragList - The tracks being dragged
+ * @param ordered - The ordered tracks array (for looking up positions)
+ * @param sourcePlId - Source playlist ID
+ * @param targetPlId - Target playlist ID
  */
 export function computeAdjustedTargetIndex(
   targetIdx: number,
@@ -78,11 +84,20 @@ export function computeAdjustedTargetIndex(
   if (sourcePlId !== targetPlId) return targetIdx;
   if (!dragList.length) return targetIdx;
 
-  const indices = dragList
-    .map((t) => ordered.findIndex((ot) => (ot.id || ot.uri) === (t.id || t.uri)))
-    .filter((i) => i >= 0)
+  // Get the global playlist positions of tracks being dragged
+  // We need positions, not array indices, because targetIdx is a global position
+  const positions = dragList
+    .map((t) => {
+      const idx = ordered.findIndex((ot) => (ot.id || ot.uri) === (t.id || t.uri));
+      if (idx < 0) return -1;
+      // Use the track's position property (global playlist position)
+      return ordered[idx]?.position ?? idx;
+    })
+    .filter((p) => p >= 0)
     .sort((a, b) => a - b);
-  const removedBefore = indices.filter((i) => i < targetIdx).length;
+  
+  // Count how many dragged tracks are positioned BEFORE the target position
+  const removedBefore = positions.filter((p) => p < targetIdx).length;
   return Math.max(0, targetIdx - removedBefore);
 }
 
