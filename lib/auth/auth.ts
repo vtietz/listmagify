@@ -2,6 +2,7 @@ import SpotifyProvider from "next-auth/providers/spotify";
 import type { AuthOptions } from "next-auth";
 import { serverEnv, summarizeEnv } from "@/lib/env";
 import { logAuthEvent, startSession } from "@/lib/metrics";
+import { getDb } from "@/lib/metrics/db";
 
 console.debug(
   `[auth] env=${summarizeEnv()} | CALLBACK=${new URL(
@@ -277,6 +278,23 @@ export const authOptions: AuthOptions = {
         if (spotifyUserId) {
           logAuthEvent('login_success', spotifyUserId);
           startSession(spotifyUserId, message?.user?.userAgent);
+          
+          // Link user_id to access request (if exists)
+          try {
+            const db = getDb();
+            if (db && message?.user?.email) {
+              // Find approved access request by email and update with user_id
+              db.prepare(`
+                UPDATE access_requests 
+                SET user_id = ? 
+                WHERE email = ? 
+                  AND status = 'approved' 
+                  AND user_id IS NULL
+              `).run(spotifyUserId, message.user.email);
+            }
+          } catch (err) {
+            console.error('[auth] Failed to link user_id to access request:', err);
+          }
         }
       } catch {
         // noop

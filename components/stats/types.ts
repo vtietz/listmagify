@@ -194,6 +194,7 @@ export interface AccessRequest {
   status: string;
   notes: string | null;
   red_flags: string | null; // JSON array of red flag strings
+  user_id?: string | null; // Actual Spotify user ID (populated after login)
 }
 
 export interface AccessRequestsResponse {

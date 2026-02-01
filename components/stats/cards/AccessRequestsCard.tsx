@@ -153,9 +153,11 @@ export function AccessRequestsCard({ dateRange }: AccessRequestsCardProps) {
                         <div className="flex items-center gap-2">
                           <p className="text-sm font-medium">{request.name}</p>
                           {(request.status === 'approved' || request.status === 'removed') && (() => {
-                            const activity = getActivityLevel(request.spotify_username);
+                            // Try to get activity by user_id first, fallback to spotify_username
+                            const lookupId = (request as any).user_id || request.spotify_username;
+                            const activity = getActivityLevel(lookupId);
                             if (activity) {
-                              const eventCount: number = activityMap.get(request.spotify_username!) ?? 0;
+                              const eventCount: number = activityMap.get(lookupId!) ?? 0;
                               return (
                                 <span 
                                   className={cn("text-xs flex items-center gap-1", activity.color)}
@@ -193,8 +195,8 @@ export function AccessRequestsCard({ dateRange }: AccessRequestsCardProps) {
           open={showDetailsDialog}
           onOpenChange={setShowDetailsDialog}
           onUpdateStatus={handleUpdateStatus}
-          activityLevel={getActivityLevel(selectedRequest.spotify_username)}
-          eventCount={(activityMap.get(selectedRequest.spotify_username!) ?? 0) as number}
+          activityLevel={getActivityLevel((selectedRequest as any).user_id || selectedRequest.spotify_username)}
+          eventCount={(activityMap.get((selectedRequest as any).user_id || selectedRequest.spotify_username!) ?? 0) as number}
         />
       )}
     </>

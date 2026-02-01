@@ -334,4 +334,15 @@ export const metricsMigrations: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_email_verification_expires ON email_verification_codes(expires_at);
     `,
   },
+  {
+    version: 14,
+    name: 'add_user_id_to_access_requests',
+    sql: `
+      -- Add user_id to link access requests to actual Spotify user IDs
+      -- This gets populated when an approved user logs in for the first time
+      ALTER TABLE access_requests ADD COLUMN user_id TEXT;
+      
+      CREATE INDEX IF NOT EXISTS idx_access_requests_user_id ON access_requests(user_id);
+    `,
+  },
 ];
