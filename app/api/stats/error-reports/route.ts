@@ -34,6 +34,7 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '50', 10);
     const offset = parseInt(searchParams.get('offset') || '0', 10);
     const resolved = searchParams.get('resolved'); // null = all, 'true' = resolved only, 'false' = unresolved only
+    const search = searchParams.get('search'); // search across error_message, error_category, user_name
 
     let query = `
       SELECT 
@@ -62,6 +63,12 @@ export async function GET(request: NextRequest) {
       query += ` AND resolved = 0`;
     }
 
+    if (search) {
+      query += ` AND (error_message LIKE ? OR error_category LIKE ? OR user_name LIKE ?)`;
+      const searchPattern = `%${search}%`;
+      params.push(searchPattern, searchPattern, searchPattern);
+    }
+
     // Get total count using a simple count query with the same WHERE clause
     let countQuery = `SELECT COUNT(*) as total FROM error_reports WHERE 1=1`;
     const countParams: (string | number)[] = [];
@@ -78,6 +85,11 @@ export async function GET(request: NextRequest) {
       countQuery += ` AND resolved = 1`;
     } else if (resolved === 'false') {
       countQuery += ` AND resolved = 0`;
+    }
+    if (search) {
+      countQuery += ` AND (error_message LIKE ? OR error_category LIKE ? OR user_name LIKE ?)`;
+      const searchPattern = `%${search}%`;
+      countParams.push(searchPattern, searchPattern, searchPattern);
     }
     
     const countResult = db.prepare(countQuery).get(...countParams) as { total: number };

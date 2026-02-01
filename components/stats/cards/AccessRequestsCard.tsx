@@ -3,7 +3,9 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { UserPlus, Mail, AlertTriangle, ExternalLink, Activity } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { UserPlus, Mail, AlertTriangle, ExternalLink, Activity, ChevronLeft, ChevronRight, Search, Clock } from 'lucide-react';
 import { AccessRequestDetailsDialog } from '../dialogs/AccessRequestDetailsDialog';
 import { cn } from '@/lib/utils';
 import type { AccessRequest, AccessRequestsResponse } from '../types';
@@ -15,15 +17,28 @@ interface AccessRequestsCardProps {
 export function AccessRequestsCard({ dateRange }: AccessRequestsCardProps) {
   const [selectedRequest, setSelectedRequest] = useState<AccessRequest | null>(null);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
+  const [page, setPage] = useState(0);
+  const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState<'date' | 'activity'>('date');
+  
+  const pageSize = 10;
   const dateRangeKey = `${dateRange.from}_${dateRange.to}`;
 
   const { data, isLoading, refetch } = useQuery<AccessRequestsResponse>({
-    queryKey: ['stats', 'access-requests', dateRangeKey],
+    queryKey: ['stats', 'access-requests', dateRangeKey, page, filter, searchQuery, sortBy],
     queryFn: async ({ signal }: { signal: AbortSignal }) => {
-      const res = await fetch(
-        `/api/stats/access-requests?from=${dateRange.from}&to=${dateRange.to}&limit=10`,
-        { signal }
-      );
+      const offset = page * pageSize;
+      const params = new URLSearchParams({
+        from: dateRange.from,
+        to: dateRange.to,
+        limit: String(pageSize),
+        offset: String(offset),
+        sortBy,
+        ...(filter !== 'all' && { status: filter }),
+        ...(searchQuery && { search: searchQuery }),
+      });
+      const res = await fetch(`/api/stats/access-requests?${params}`, { signal });
       if (!res.ok) throw new Error('Failed to fetch access requests');
       return res.json();
     },
@@ -93,27 +108,101 @@ export function AccessRequestsCard({ dateRange }: AccessRequestsCardProps) {
     <>
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <UserPlus className="h-4 w-4" />
-            Access Requests
-            <a
-              href="https://developer.spotify.com/dashboard"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-muted-foreground hover:text-foreground transition-colors"
-              title="Open Spotify Developer Dashboard"
-            >
-              <ExternalLink className="h-3.5 w-3.5" />
-            </a>
-            {pendingCount > 0 && (
-              <span className="ml-auto text-sm bg-yellow-100 text-yellow-800 px-2 py-1 rounded">
-                {pendingCount} pending
-              </span>
-            )}
-          </CardTitle>
-          <CardDescription>
-            User access requests from the landing page
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <UserPlus className="h-4 w-4" />
+                Access Requests
+                <a
+                  href="https://developer.spotify.com/dashboard"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                  title="Open Spotify Developer Dashboard"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </a>
+                {pendingCount > 0 && (
+                  <span className="text-sm bg-yellow-100 text-yellow-800 px-2 py-1 rounded">
+                    {pendingCount} pending
+                  </span>
+                )}
+              </CardTitle>
+              <CardDescription>
+                User access requests from the landing page
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search..."
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setPage(0);
+                  }}
+                  className="pl-9 h-8 w-40"
+                />
+              </div>
+              <div className="flex items-center gap-1 border rounded-md">
+                <Button
+                  size="sm"
+                  variant={filter === 'all' ? 'default' : 'ghost'}
+                  onClick={() => { setFilter('all'); setPage(0); }}
+                  className="h-8"
+                >
+                  All
+                </Button>
+                <Button
+                  size="sm"
+                  variant={filter === 'pending' ? 'default' : 'ghost'}
+                  onClick={() => { setFilter('pending'); setPage(0); }}
+                  className="h-8"
+                >
+                  Pending
+                </Button>
+                <Button
+                  size="sm"
+                  variant={filter === 'approved' ? 'default' : 'ghost'}
+                  onClick={() => { setFilter('approved'); setPage(0); }}
+                  className="h-8"
+                >
+                  Approved
+                </Button>
+                <Button
+                  size="sm"
+                  variant={filter === 'rejected' ? 'default' : 'ghost'}
+                  onClick={() => { setFilter('rejected'); setPage(0); }}
+                  className="h-8"
+                >
+                  Rejected
+                </Button>
+              </div>
+              <div className="flex items-center gap-1 border rounded-md">
+                <Button
+                  size="sm"
+                  variant={sortBy === 'date' ? 'default' : 'ghost'}
+                  onClick={() => { setSortBy('date'); setPage(0); }}
+                  className="h-8 gap-1"
+                  title="Sort by request date"
+                >
+                  <Clock className="h-3.5 w-3.5" />
+                  Date
+                </Button>
+                <Button
+                  size="sm"
+                  variant={sortBy === 'activity' ? 'default' : 'ghost'}
+                  onClick={() => { setSortBy('activity'); setPage(0); }}
+                  className="h-8 gap-1"
+                  title="Sort by user activity"
+                >
+                  <Activity className="h-3.5 w-3.5" />
+                  Activity
+                </Button>
+              </div>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -184,6 +273,36 @@ export function AccessRequestsCard({ dateRange }: AccessRequestsCardProps) {
                   </div>
                 );
               })}
+            </div>
+          )}
+          
+          {data && data.total > pageSize && (
+            <div className="flex items-center justify-between border-t pt-4 mt-4">
+              <p className="text-sm text-muted-foreground">
+                Showing {page * pageSize + 1}–{Math.min((page + 1) * pageSize, data.total)} of {data.total}
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(p => Math.max(0, p - 1))}
+                  disabled={page === 0}
+                  className="gap-1"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Previous
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(p => p + 1)}
+                  disabled={(page + 1) * pageSize >= data.total}
+                  className="gap-1"
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           )}
         </CardContent>

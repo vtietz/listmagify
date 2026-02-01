@@ -105,7 +105,36 @@ ${Object.keys(env).length > 0 ? `## Environment
         <div className="p-6">
           <div className="flex items-start justify-between mb-4">
             <h2 className="text-2xl font-bold">Error Report Details</h2>
-            <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>✕</Button>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                onClick={() => {
+                  onMarkResolved(report.report_id, !report.resolved);
+                  onOpenChange(false);
+                }}
+              >
+                {report.resolved ? 'Mark as Unresolved' : 'Mark as Resolved'}
+              </Button>
+              <Button 
+                size="sm"
+                variant="outline" 
+                onClick={handleCopySummary}
+                className="gap-2"
+              >
+                {copied ? (
+                  <>
+                    <Check className="h-4 w-4" />
+                    Copied!
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-4 w-4" />
+                    Copy
+                  </>
+                )}
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>✕</Button>
+            </div>
           </div>
           
           <div className="space-y-4">
@@ -177,37 +206,6 @@ ${Object.keys(env).length > 0 ? `## Environment
                 </pre>
               </div>
             )}
-
-            <div className="flex gap-2 pt-4 border-t">
-              <Button
-                onClick={() => {
-                  onMarkResolved(report.report_id, !report.resolved);
-                  onOpenChange(false);
-                }}
-              >
-                {report.resolved ? 'Mark as Unresolved' : 'Mark as Resolved'}
-              </Button>
-              <Button 
-                variant="outline" 
-                onClick={handleCopySummary}
-                className="gap-2"
-              >
-                {copied ? (
-                  <>
-                    <Check className="h-4 w-4" />
-                    Copied!
-                  </>
-                ) : (
-                  <>
-                    <Copy className="h-4 w-4" />
-                    Copy Summary
-                  </>
-                )}
-              </Button>
-              <Button variant="outline" onClick={() => onOpenChange(false)}>
-                Close
-              </Button>
-            </div>
           </div>
         </div>
       </div>
