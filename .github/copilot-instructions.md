@@ -179,29 +179,35 @@ Follow these best practices when writing or modifying code:
 
 ## 📝 Commit Message Guidelines
 
-**Always generate a concise commit message summarizing uncommitted changes:**
+**MANDATORY: Always generate a commit message after making ANY code changes.**
 
-- **Format**: Single line, imperative mood (e.g., "Add feature" not "Added feature")
+This is a required step - never skip it. After editing files, always:
+1. Use `get_changed_files` tool to examine all uncommitted changes
+2. Review the diffs to understand the scope of changes
+3. Generate a concise commit message (even if the user didn't explicitly ask for it)
+
+**Format requirements:**
+- **Style**: Single line, imperative mood (e.g., "Add feature" not "Added feature")
 - **Length**: 50-72 characters preferred
 - **Content**: Summarize what changed and why, not how
-- **Process**: 
-  1. Use `get_changed_files` tool to examine all uncommitted changes
-  2. Review the diffs to understand the scope of changes
-  3. Identify the primary purpose (feature, refactor, fix, chore, etc.)
-  4. Summarize all significant changes in one concise message
-- **Examples**:
-  - ✅ `Add auto-load pagination hook with comprehensive tests`
-  - ✅ `Refactor playlist components to use useAutoLoadPaginated`
-  - ✅ `Fix OAuth redirect URI to use 127.0.0.1`
-  - ❌ `Updated some files` (too vague)
-  - ❌ `Changed PlaylistDetail.tsx and PlaylistsGrid.tsx to use the new hook and also added tests` (too long)
+- **Completeness**: Include ALL modified files in your analysis, not just the most recent changes
 
-**When to generate commit messages:**
-- After completing a task or feature
-- Before the user commits changes
-- When explicitly requested
+**Good examples:**
+- ✅ `Add auto-load pagination hook with comprehensive tests`
+- ✅ `Refactor playlist components to use useAutoLoadPaginated`
+- ✅ `Fix OAuth redirect URI to use 127.0.0.1`
+- ✅ `Improve premium required error message clarity`
 
-**Important**: Always examine the full list of changed files before generating a commit message to ensure you capture all modifications, not just the most recent changes.
+**Bad examples:**
+- ❌ `Updated some files` (too vague)
+- ❌ `Changed PlaylistDetail.tsx and PlaylistsGrid.tsx to use the new hook and also added tests` (too long)
+- ❌ Not providing a commit message at all (NEVER skip this step)
+
+**When to generate (ALWAYS):**
+- After completing any task that modified files
+- After bug fixes, refactoring, or feature additions
+- Even for small changes like typo fixes or comment updates
+- Before ending your response if any files were modified
 
 ## ✅ Before Completing a Task
 
@@ -213,5 +219,7 @@ Ensure you have:
 4. ✅ Followed clean code principles and project conventions
 5. ✅ Verified no unrequested files were created
 6. ✅ Removed any debug code or unnecessary comments
-7. ✅ Always generate a one-line commit message summarizing all changes
+7. ✅ **MANDATORY**: Generated a one-line commit message summarizing all changes (NEVER skip this!)
+
+**The commit message is not optional** - it must be provided for every code change, no exceptions.
 

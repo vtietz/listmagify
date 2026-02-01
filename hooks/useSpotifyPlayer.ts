@@ -268,7 +268,9 @@ export function useSpotifyPlayer() {
         // Refresh devices list
         queryClient.invalidateQueries({ queryKey: ['spotify-devices'] });
       } else if (message.includes('premium_required')) {
-        toast.error('Spotify Premium is required for playback control.');
+        toast.error('Spotify Premium is required to control playback. You can still use this app to organize playlists!');
+      } else if (message.includes('token_expired') || message.includes('Authentication required')) {
+        toast.error('Session expired. Please refresh the page.');
       } else {
         toast.error(message);
       }

@@ -144,7 +144,10 @@ export async function POST(request: NextRequest) {
     // Premium required
     if (response.status === 403) {
       return NextResponse.json(
-        { error: 'premium_required', message: 'Spotify Premium is required for playback control.' },
+        { 
+          error: 'premium_required', 
+          message: 'Spotify Premium is required to control playback. You can still use this app to organize your playlists!' 
+        },
         { status: 403 }
       );
     }
