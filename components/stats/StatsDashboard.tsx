@@ -45,6 +45,7 @@ import { FeedbackStatsCard } from './cards/FeedbackStatsCard';
 import { UserRegistrationChart } from './cards/UserRegistrationChart';
 import { ErrorReportsCard } from './cards/ErrorReportsCard';
 import { AccessRequestsCard } from './cards/AccessRequestsCard';
+import { AccessRequestsTimeline } from './cards/AccessRequestsTimeline';
 import { TrafficStatsCard } from './cards/TrafficStatsCard';
 import { getDateRange } from './utils';
 import type { TimeRange, OverviewKPIs, RecsStats, EventsData } from './types';
@@ -432,6 +433,8 @@ export function StatsDashboard() {
             </Card>
 
             <UserRegistrationChart dateRange={dateRange} />
+            
+            <AccessRequestsTimeline dateRange={dateRange} />
             
             <Card>
               <CardHeader>
