@@ -79,8 +79,8 @@ export async function GET(request: NextRequest) {
 
     // For activity sorting, we need to use a different query with LEFT JOIN
     if (sortBy === 'activity') {
-      // Get ALL matching records (before pagination) to sort by activity globally
-      const allQuery = `
+      // Build the query properly
+      let allQuery = `
         SELECT ar.*, COALESCE(ue.event_count, 0) as activity_count
         FROM access_requests ar
         LEFT JOIN (
@@ -89,17 +89,22 @@ export async function GET(request: NextRequest) {
           GROUP BY user_id
         ) ue ON ar.spotify_username = ue.user_id
         WHERE 1=1
-        ${status ? 'AND ar.status = ?' : ''}
-        ${search ? 'AND (ar.name LIKE ? OR ar.email LIKE ? OR ar.spotify_username LIKE ?)' : ''}
-        ORDER BY activity_count DESC, ar.ts DESC
       `;
       
       const allParams: (string | number)[] = [];
-      if (status) allParams.push(status);
+      
+      if (status) {
+        allQuery += ' AND ar.status = ?';
+        allParams.push(status);
+      }
+      
       if (search) {
+        allQuery += ' AND (ar.name LIKE ? OR ar.email LIKE ? OR ar.spotify_username LIKE ?)';
         const searchPattern = `%${search}%`;
         allParams.push(searchPattern, searchPattern, searchPattern);
       }
+      
+      allQuery += ' ORDER BY activity_count DESC, ar.ts DESC';
       
       const allRequests = db.prepare(allQuery).all(...allParams) as any[];
       
