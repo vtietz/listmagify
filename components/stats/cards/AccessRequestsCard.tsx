@@ -101,9 +101,9 @@ export function AccessRequestsCard() {
     <>
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="space-y-4">
             <div>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2 flex-wrap">
                 <UserPlus className="h-4 w-4" />
                 Access Requests
                 <a
@@ -125,8 +125,8 @@ export function AccessRequestsCard() {
                 User access requests from the landing page
               </CardDescription>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="relative">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+              <div className="relative flex-1 sm:flex-initial">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search..."
@@ -135,15 +135,15 @@ export function AccessRequestsCard() {
                     setSearchQuery(e.target.value);
                     setPage(0);
                   }}
-                  className="pl-9 h-8 w-40"
+                  className="pl-9 h-8 w-full sm:w-40"
                 />
               </div>
-              <div className="flex items-center gap-1 border rounded-md">
+              <div className="flex items-center gap-1 border rounded-md overflow-x-auto">
                 <Button
                   size="sm"
                   variant={filter === 'all' ? 'default' : 'ghost'}
                   onClick={() => { setFilter('all'); setPage(0); }}
-                  className="h-8"
+                  className="h-8 whitespace-nowrap"
                 >
                   All
                 </Button>
@@ -151,7 +151,7 @@ export function AccessRequestsCard() {
                   size="sm"
                   variant={filter === 'pending' ? 'default' : 'ghost'}
                   onClick={() => { setFilter('pending'); setPage(0); }}
-                  className="h-8"
+                  className="h-8 whitespace-nowrap"
                 >
                   Pending
                 </Button>
@@ -159,7 +159,7 @@ export function AccessRequestsCard() {
                   size="sm"
                   variant={filter === 'approved' ? 'default' : 'ghost'}
                   onClick={() => { setFilter('approved'); setPage(0); }}
-                  className="h-8"
+                  className="h-8 whitespace-nowrap"
                 >
                   Approved
                 </Button>
@@ -167,7 +167,7 @@ export function AccessRequestsCard() {
                   size="sm"
                   variant={filter === 'rejected' ? 'default' : 'ghost'}
                   onClick={() => { setFilter('rejected'); setPage(0); }}
-                  className="h-8"
+                  className="h-8 whitespace-nowrap"
                 >
                   Rejected
                 </Button>
@@ -177,21 +177,21 @@ export function AccessRequestsCard() {
                   size="sm"
                   variant={sortBy === 'date' ? 'default' : 'ghost'}
                   onClick={() => { setSortBy('date'); setPage(0); }}
-                  className="h-8 gap-1"
+                  className="h-8 gap-1 flex-1 sm:flex-initial whitespace-nowrap"
                   title="Sort by request date"
                 >
                   <Clock className="h-3.5 w-3.5" />
-                  Date
+                  <span className="hidden sm:inline">Date</span>
                 </Button>
                 <Button
                   size="sm"
                   variant={sortBy === 'activity' ? 'default' : 'ghost'}
                   onClick={() => { setSortBy('activity'); setPage(0); }}
-                  className="h-8 gap-1"
+                  className="h-8 gap-1 flex-1 sm:flex-initial whitespace-nowrap"
                   title="Sort by user activity"
                 >
                   <Activity className="h-3.5 w-3.5" />
-                  Activity
+                  <span className="hidden sm:inline">Activity</span>
                 </Button>
               </div>
             </div>

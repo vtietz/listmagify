@@ -106,9 +106,9 @@ export function ErrorReportsCard({ dateRange }: ErrorReportsCardProps) {
     <>
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="space-y-4">
             <div>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2 flex-wrap">
                 <AlertTriangle className="h-4 w-4" />
                 Error Reports
                 {unresolvedCount > 0 && (
@@ -121,8 +121,8 @@ export function ErrorReportsCard({ dateRange }: ErrorReportsCardProps) {
                 User-submitted error reports from the application
               </CardDescription>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="relative">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+              <div className="relative flex-1 sm:flex-initial">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search errors..."
@@ -131,7 +131,7 @@ export function ErrorReportsCard({ dateRange }: ErrorReportsCardProps) {
                     setSearchQuery(e.target.value);
                     setPage(0);
                   }}
-                  className="pl-9 h-8 w-48"
+                  className="pl-9 h-8 w-full sm:w-48"
                 />
               </div>
               <div className="flex items-center gap-1 border rounded-md">
@@ -139,7 +139,7 @@ export function ErrorReportsCard({ dateRange }: ErrorReportsCardProps) {
                   size="sm"
                   variant={filter === 'all' ? 'default' : 'ghost'}
                   onClick={() => { setFilter('all'); setPage(0); }}
-                  className="h-8"
+                  className="h-8 flex-1 sm:flex-initial whitespace-nowrap"
                 >
                   All
                 </Button>
@@ -147,7 +147,7 @@ export function ErrorReportsCard({ dateRange }: ErrorReportsCardProps) {
                   size="sm"
                   variant={filter === 'unresolved' ? 'default' : 'ghost'}
                   onClick={() => { setFilter('unresolved'); setPage(0); }}
-                  className="h-8"
+                  className="h-8 flex-1 sm:flex-initial whitespace-nowrap"
                 >
                   Unresolved
                 </Button>
@@ -155,7 +155,7 @@ export function ErrorReportsCard({ dateRange }: ErrorReportsCardProps) {
                   size="sm"
                   variant={filter === 'resolved' ? 'default' : 'ghost'}
                   onClick={() => { setFilter('resolved'); setPage(0); }}
-                  className="h-8"
+                  className="h-8 flex-1 sm:flex-initial whitespace-nowrap"
                 >
                   Resolved
                 </Button>
@@ -165,7 +165,7 @@ export function ErrorReportsCard({ dateRange }: ErrorReportsCardProps) {
                   size="sm"
                   variant="outline"
                   onClick={handleResolveAll}
-                  className="h-8"
+                  className="h-8 whitespace-nowrap"
                 >
                   Resolve All
                 </Button>
