@@ -1,6 +1,7 @@
 import type { Virtualizer } from '@tanstack/react-virtual';
 import type { Track } from '@/lib/spotify/types';
 import type { RefObject } from 'react';
+import { computeDropIntent } from './dnd/dropIntent';
 
 /**
  * Result of drop position calculation.
@@ -20,6 +21,8 @@ export interface DropPositionResult {
  * @param filteredTracks - Currently visible/filtered tracks
  * @param pointerY - Current Y position of the pointer (client coordinates)
  * @param headerOffset - Height of any fixed content (like TableHeader) before the virtualized list
+ * @param draggedTrackPositions - Global positions of tracks being dragged (to exclude from targeting)
+ * @param dragCount - Number of tracks being dragged (affects overlay height calculation)
  * @returns Drop position data or null if calculation fails
  * 
  * @example
@@ -29,7 +32,9 @@ export interface DropPositionResult {
  *   virtualizer,
  *   filteredTracks,
  *   pointerY,
- *   40 // header height
+ *   40, // header height
+ *   [4, 5, 6], // dragged track positions
+ *   3 // drag count
  * );
  * 
  * if (dropData) {
@@ -43,52 +48,31 @@ export function calculateDropPosition(
   virtualizer: Virtualizer<HTMLDivElement, Element>,
   filteredTracks: Track[],
   pointerY: number,
-  headerOffset: number = 0
+  headerOffset: number = 0,
+  draggedTrackPositions: number[] = [],
+  dragCount: number = 1
 ): DropPositionResult | null {
-  // Calculate relative Y position within the scrollable container
   const containerRect = scrollContainer.getBoundingClientRect();
   const scrollTop = scrollContainer.scrollTop;
-  // Subtract headerOffset to get position relative to virtualizer content start
-  const relativeY = pointerY - containerRect.top + scrollTop - headerOffset;
-
-  // Adjust pointer position to represent the top edge of the drag overlay
-  // The drag overlay is typically 48-60px tall, and the pointer is often in the middle/bottom
-  // By subtracting ~half a row height, we use the visual top edge for drop calculations
   const virtualItems = virtualizer.getVirtualItems();
-  const rowSize = virtualItems.length > 0 && virtualItems[0] ? virtualItems[0].size : 48;
-  const adjustedY = relativeY - (rowSize / 2);
+  const rowHeight = virtualItems.length > 0 && virtualItems[0] ? virtualItems[0].size : 48;
 
-  // Find the insertion index in the filtered view
-  // When pointer crosses the middle of a row, we insert BEFORE that row
-  let insertionIndexFiltered = filteredTracks.length; // Default: append to end
+  const intent = computeDropIntent({
+    pointerY,
+    headerOffset,
+    containerTop: containerRect.top,
+    scrollTop,
+    rowHeight,
+    virtualItems,
+    filteredTracks,
+    draggedTrackPositions,
+    dragCount,
+  });
 
-  for (let i = 0; i < virtualItems.length; i++) {
-    const item = virtualItems[i];
-    if (!item) continue;
-    
-    const itemMiddle = item.start + item.size / 2;
-
-    // If adjusted Y (top of drag overlay) is above the row's middle, insert before this row
-    if (adjustedY < itemMiddle) {
-      insertionIndexFiltered = item.index;
-      break;
-    }
-  }
-
-  // Map filtered index to global playlist position
-  if (filteredTracks.length === 0) return { filteredIndex: 0, globalPosition: 0 };
-  
-  if (insertionIndexFiltered >= filteredTracks.length) {
-    // Dropping after last visible track
-    const lastTrack = filteredTracks[filteredTracks.length - 1];
-    const globalPosition = (lastTrack?.position ?? 0) + 1;
-    return { filteredIndex: insertionIndexFiltered, globalPosition };
-  }
-
-  // Get the global position of the track at the insertion point
-  const targetTrack = filteredTracks[insertionIndexFiltered];
-  const globalPosition = targetTrack?.position ?? insertionIndexFiltered;
-  return { filteredIndex: insertionIndexFiltered, globalPosition };
+  return {
+    filteredIndex: intent.insertionIndexFiltered,
+    globalPosition: intent.insertBeforeGlobal,
+  };
 }
 
 /**
@@ -106,7 +90,7 @@ export function calculateDropPosition(
  * 
  * // In drag over handler
  * const { y } = pointerTracker.getPosition();
- * const dropData = calculateDrop(y);
+ * const dropData = calculateDrop(y, draggedPositions, dragCount);
  * ```
  */
 export function useDropPosition(
@@ -114,10 +98,22 @@ export function useDropPosition(
   virtualizer: Virtualizer<HTMLDivElement, Element> | null,
   filteredTracks: Track[]
 ) {
-  return (pointerY: number): DropPositionResult | null => {
+  return (
+    pointerY: number,
+    draggedTrackPositions: number[] = [],
+    dragCount: number = 1
+  ): DropPositionResult | null => {
     const scrollContainer = scrollContainerRef.current;
     if (!scrollContainer || !virtualizer) return null;
 
-    return calculateDropPosition(scrollContainer, virtualizer, filteredTracks, pointerY);
+    return calculateDropPosition(
+      scrollContainer,
+      virtualizer,
+      filteredTracks,
+      pointerY,
+      0,
+      draggedTrackPositions,
+      dragCount
+    );
   };
 }

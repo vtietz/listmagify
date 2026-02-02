@@ -233,9 +233,10 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
     headerOffset,
     activeId,
     sourcePanelId,
+    activeDragTracks,
     findPanelUnderPointer: findPanel,
     updateDropPosition,
-  }), [panels, pointerTracker, headerOffset, activeId, sourcePanelId, findPanel, updateDropPosition]);
+  }), [panels, pointerTracker, headerOffset, activeId, sourcePanelId, activeDragTracks, findPanel, updateDropPosition]);
 
   const handleDragEnd = useMemo(() => createDragEndHandler({
     panels,

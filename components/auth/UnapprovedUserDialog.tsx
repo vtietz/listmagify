@@ -60,13 +60,12 @@ export function UnapprovedUserDialog({ error, showRequestAccess: _showRequestAcc
               {errorTitle}
             </DialogTitle>
             <DialogDescription className="space-y-3 pt-2">
-              <p>
-                {errorDescription}
-              </p>
+              {errorDescription}
               {error !== 'Configuration' && (
-                <p>
+                <>
+                  <br />
                   This app is currently in Spotify development mode, which limits access to a specific list of approved users.
-                </p>
+                </>
               )}
             </DialogDescription>
           </DialogHeader>

@@ -8,7 +8,6 @@
  */
 
 import type { DragOverEvent } from '@dnd-kit/core';
-import type { Virtualizer } from '@tanstack/react-virtual';
 import type { Track } from '@/lib/spotify/types';
 import type { PanelConfig, PanelVirtualizerData, EphemeralInsertion } from '../types';
 import { calculateDropPosition } from '../../useDropPosition';
@@ -25,6 +24,7 @@ export interface DragOverContext {
   headerOffset: number;
   activeId: string | null;
   sourcePanelId: string | null;
+  activeDragTracks: Track[];
   findPanelUnderPointer: () => { panelId: string } | null;
   updateDropPosition: (params: {
     activePanelId: string | null;
@@ -56,39 +56,6 @@ function getTargetPanelId(
   // No collision detected - find panel under pointer as fallback
   const panelUnderPointer = findPanelUnderPointer();
   return panelUnderPointer?.panelId ?? null;
-}
-
-/**
- * Compute insertion index for "make room" animation
- */
-function computeInsertionIndex(
-  pointerY: number,
-  headerOffset: number,
-  scrollContainer: HTMLDivElement,
-  virtualizer: Virtualizer<HTMLDivElement, Element>,
-  filteredTracks: Track[]
-): number {
-  const containerRect = scrollContainer.getBoundingClientRect();
-  const scrollTop = scrollContainer.scrollTop;
-  const relativeY = pointerY - containerRect.top + scrollTop - headerOffset;
-
-  const virtualItems = virtualizer.getVirtualItems();
-  const rowSize = virtualItems.length > 0 && virtualItems[0] ? virtualItems[0].size : 48;
-  const adjustedY = relativeY - (rowSize / 2);
-  let insertionIndex = filteredTracks.length;
-
-  for (let i = 0; i < virtualItems.length; i++) {
-    const item = virtualItems[i];
-    if (!item) continue;
-    const itemMiddle = item.start + item.size / 2;
-
-    if (adjustedY < itemMiddle) {
-      insertionIndex = item.index;
-      break;
-    }
-  }
-
-  return insertionIndex;
 }
 
 /**
@@ -146,21 +113,24 @@ export function createDragOverHandler(ctx: DragOverContext) {
     const { virtualizer, scrollRef, filteredTracks } = panelData;
     const scrollContainer = scrollRef.current;
 
-    // Compute insertion index for "make room" animation
-    let insertionIndex = filteredTracks.length;
-    if (scrollContainer) {
-      insertionIndex = computeInsertionIndex(
-        pointerY,
-        ctx.headerOffset,
-        scrollContainer,
-        virtualizer,
-        filteredTracks
-      );
-    }
+    // Get dragged track positions for exclusion from targeting
+    const draggedTrackPositions = ctx.activeDragTracks
+      .map(t => t.position)
+      .filter((p): p is number => p != null);
+    const dragCount = ctx.activeDragTracks.length || 1;
 
     // Compute the global playlist position and filtered index
+    // This now accounts for multi-select overlay height and excludes dragged tracks
     const dropData = scrollContainer
-      ? calculateDropPosition(scrollContainer, virtualizer, filteredTracks, pointerY, ctx.headerOffset)
+      ? calculateDropPosition(
+          scrollContainer,
+          virtualizer,
+          filteredTracks,
+          pointerY,
+          ctx.headerOffset,
+          draggedTrackPositions,
+          dragCount
+        )
       : null;
 
     if (dropData) {
@@ -172,7 +142,7 @@ export function createDragOverHandler(ctx: DragOverContext) {
           activeId: ctx.activeId,
           sourcePanelId: ctx.sourcePanelId,
           targetPanelId,
-          insertionIndex,
+          insertionIndex: dropData.filteredIndex, // Use same index as drop indicator
         } : null,
       });
 
