@@ -127,6 +127,9 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
   const removeTracks = useRemoveTracks();
   const reorderTracks = useReorderTracks();
 
+  // Check if any mutations are pending
+  const isMutationPending = addTracks.isPending || removeTracks.isPending || reorderTracks.isPending;
+
   // === Configuration ===
   const isCompact = useHydratedCompactMode();
   const headerOffset = isCompact ? TABLE_HEADER_HEIGHT_COMPACT : TABLE_HEADER_HEIGHT;
@@ -211,10 +214,20 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
   }, [findPanel]);
 
   // === Sensors ===
+  // Disable drag initiation when mutations are pending to prevent race conditions
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 100, tolerance: 8 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+    useSensor(PointerSensor, { 
+      activationConstraint: { distance: 8 },
+      disabled: isMutationPending 
+    }),
+    useSensor(TouchSensor, { 
+      activationConstraint: { delay: 100, tolerance: 8 },
+      disabled: isMutationPending 
+    }),
+    useSensor(KeyboardSensor, { 
+      coordinateGetter: sortableKeyboardCoordinates,
+      disabled: isMutationPending 
+    })
   );
 
   // === Event Handlers ===

@@ -18,6 +18,8 @@ services:
       - PORT=${PORT:-3000}
       # Fix HMR WebSocket connection in Docker - tell Next.js the external hostname
       - HOSTNAME=0.0.0.0
+      # Disable strict SSL for local development (fixes proxy/VPN certificate issues)
+      - NODE_TLS_REJECT_UNAUTHORIZED=0
     volumes:
       - ..:/usr/src/app:cached
       # Bind mount node_modules so VS Code can see types on host

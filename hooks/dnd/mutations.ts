@@ -191,6 +191,18 @@ export function handleSamePanelDrop(
   // Build tracks with positions for precise removal (handles duplicate tracks)
   const tracksWithPositions = buildTracksWithPositions(dragTracks, orderedTracks);
 
+  // Adjust positions after add: if we add N tracks at position X, all tracks at position >= X shift by N
+  const adjustedTracksWithPositions = tracksWithPositions.map(track => ({
+    ...track,
+    positions: track.positions.map(pos => {
+      // If original position is >= insertion point, it shifts by the number of added tracks
+      if (pos >= effectiveTargetIndex) {
+        return pos + dragTrackUris.length;
+      }
+      return pos;
+    })
+  }));
+
   mutations.addTracks.mutate(
     {
       playlistId: targetPlaylistId,
@@ -201,7 +213,7 @@ export function handleSamePanelDrop(
       onSuccess: () => {
         mutations.removeTracks.mutate({
           playlistId: sourcePlaylistId,
-          tracks: tracksWithPositions,
+          tracks: adjustedTracksWithPositions,
         });
       },
     }
