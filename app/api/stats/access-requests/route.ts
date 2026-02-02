@@ -77,54 +77,57 @@ export async function GET(request: NextRequest) {
     const countResult = db.prepare(countQuery).get(...countParams) as { total: number };
     const total = countResult.total;
 
-    // Add ordering based on sortBy parameter
+    // For activity sorting, we need to use a different query with LEFT JOIN
+    if (sortBy === 'activity') {
+      // Get ALL matching records (before pagination) to sort by activity globally
+      const allQuery = `
+        SELECT ar.*, COALESCE(ue.event_count, 0) as activity_count
+        FROM access_requests ar
+        LEFT JOIN (
+          SELECT user_id, COUNT(*) as event_count
+          FROM user_events
+          GROUP BY user_id
+        ) ue ON ar.spotify_username = ue.user_id
+        WHERE 1=1
+        ${status ? 'AND ar.status = ?' : ''}
+        ${search ? 'AND (ar.name LIKE ? OR ar.email LIKE ? OR ar.spotify_username LIKE ?)' : ''}
+        ORDER BY activity_count DESC, ar.ts DESC
+      `;
+      
+      const allParams: (string | number)[] = [];
+      if (status) allParams.push(status);
+      if (search) {
+        const searchPattern = `%${search}%`;
+        allParams.push(searchPattern, searchPattern, searchPattern);
+      }
+      
+      const allRequests = db.prepare(allQuery).all(...allParams) as any[];
+      
+      // Apply pagination in-memory
+      const requests = allRequests.slice(offset, offset + limit);
+      
+      return NextResponse.json({
+        success: true,
+        data: requests,
+        pagination: {
+          total: allRequests.length,
+          limit,
+          offset,
+          hasMore: offset + limit < allRequests.length,
+        },
+      });
+    }
+
+    // Add ordering for date and name sorting
     let orderClause = 'ORDER BY ts DESC'; // default: date
     if (sortBy === 'name') {
       orderClause = 'ORDER BY name COLLATE NOCASE ASC';
-    } else if (sortBy === 'activity') {
-      // For activity sorting, we need to join with user_events
-      // This is more complex - we'll get user activity counts separately and sort in-memory
-      orderClause = 'ORDER BY ts DESC'; // fallback to date for now, sort in code
     }
 
     query += ` ${orderClause} LIMIT ? OFFSET ?`;
     params.push(limit, offset);
 
-    let requests = db.prepare(query).all(...params) as any[];
-
-    // If sorting by activity, fetch activity counts and sort
-    if (sortBy === 'activity') {
-      const userIds = requests
-        .map(r => r.spotify_username)
-        .filter(Boolean);
-
-      let activityMap = new Map<string, number>();
-      if (userIds.length > 0) {
-        const placeholders = userIds.map(() => '?').join(',');
-        const activityQuery = `
-          SELECT user_id, COUNT(*) as event_count
-          FROM user_events
-          WHERE user_id IN (${placeholders})
-          GROUP BY user_id
-        `;
-        const activityResults = db.prepare(activityQuery).all(...userIds) as { user_id: string; event_count: number }[];
-        activityMap = new Map(activityResults.map(r => [r.user_id, r.event_count]));
-      }
-
-      // Sort all requests by activity (descending), with users who have activity first
-      // Then by date for those with equal activity
-      requests.sort((a, b) => {
-        const aCount = activityMap.get(a.spotify_username) || 0;
-        const bCount = activityMap.get(b.spotify_username) || 0;
-        
-        if (bCount !== aCount) {
-          return bCount - aCount; // Higher activity first
-        }
-        
-        // Equal activity - sort by date (newest first)
-        return new Date(b.ts).getTime() - new Date(a.ts).getTime();
-      });
-    }
+    const requests = db.prepare(query).all(...params) as any[];
 
     return NextResponse.json({
       success: true,
