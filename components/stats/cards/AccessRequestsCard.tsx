@@ -10,11 +10,7 @@ import { AccessRequestDetailsDialog } from '../dialogs/AccessRequestDetailsDialo
 import { cn } from '@/lib/utils';
 import type { AccessRequest, AccessRequestsResponse } from '../types';
 
-interface AccessRequestsCardProps {
-  dateRange: { from: string; to: string };
-}
-
-export function AccessRequestsCard({ dateRange }: AccessRequestsCardProps) {
+export function AccessRequestsCard() {
   const [selectedRequest, setSelectedRequest] = useState<AccessRequest | null>(null);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [page, setPage] = useState(0);
@@ -23,15 +19,12 @@ export function AccessRequestsCard({ dateRange }: AccessRequestsCardProps) {
   const [sortBy, setSortBy] = useState<'date' | 'activity'>('date');
   
   const pageSize = 10;
-  const dateRangeKey = `${dateRange.from}_${dateRange.to}`;
 
   const { data, isLoading, refetch } = useQuery<AccessRequestsResponse>({
-    queryKey: ['stats', 'access-requests', dateRangeKey, page, filter, searchQuery, sortBy],
+    queryKey: ['stats', 'access-requests', page, filter, searchQuery, sortBy],
     queryFn: async ({ signal }: { signal: AbortSignal }) => {
       const offset = page * pageSize;
       const params = new URLSearchParams({
-        from: dateRange.from,
-        to: dateRange.to,
         limit: String(pageSize),
         offset: String(offset),
         sortBy,
@@ -210,7 +203,7 @@ export function AccessRequestsCard({ dateRange }: AccessRequestsCardProps) {
           ) : requests.length === 0 ? (
             <div className="text-center text-muted-foreground py-8">
               <UserPlus className="h-8 w-8 mx-auto mb-2 opacity-50" />
-              <p>No access requests in this period</p>
+              <p>No access requests</p>
             </div>
           ) : (
             <div className="space-y-2">

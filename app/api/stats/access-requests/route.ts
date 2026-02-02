@@ -33,8 +33,6 @@ export async function GET(request: NextRequest) {
     }
 
     const searchParams = request.nextUrl.searchParams;
-    const from = searchParams.get('from');
-    const to = searchParams.get('to');
     const limit = parseInt(searchParams.get('limit') || '50', 10);
     const offset = parseInt(searchParams.get('offset') || '0', 10);
     const status = searchParams.get('status'); // null = all, 'pending', 'approved', 'rejected'
@@ -48,15 +46,7 @@ export async function GET(request: NextRequest) {
     `;
     const params: (string | number)[] = [];
 
-    if (from) {
-      query += ` AND DATE(ts) >= ?`;
-      params.push(from);
-    }
-
-    if (to) {
-      query += ` AND DATE(ts) <= ?`;
-      params.push(to);
-    }
+    // Access requests are not time-filtered - always show all
 
     if (status) {
       query += ` AND status = ?`;
@@ -73,14 +63,7 @@ export async function GET(request: NextRequest) {
     let countQuery = `SELECT COUNT(*) as total FROM access_requests WHERE 1=1`;
     const countParams: (string | number)[] = [];
     
-    if (from) {
-      countQuery += ` AND DATE(ts) >= ?`;
-      countParams.push(from);
-    }
-    if (to) {
-      countQuery += ` AND DATE(ts) <= ?`;
-      countParams.push(to);
-    }
+    // Access requests are not time-filtered
     if (status) {
       countQuery += ` AND status = ?`;
       countParams.push(status);
@@ -112,10 +95,10 @@ export async function GET(request: NextRequest) {
     // If sorting by activity, fetch activity counts and sort
     if (sortBy === 'activity') {
       const userIds = requests
-        .filter(r => r.status === 'approved' || r.status === 'removed')
         .map(r => r.spotify_username)
         .filter(Boolean);
 
+      let activityMap = new Map<string, number>();
       if (userIds.length > 0) {
         const placeholders = userIds.map(() => '?').join(',');
         const activityQuery = `
@@ -125,15 +108,22 @@ export async function GET(request: NextRequest) {
           GROUP BY user_id
         `;
         const activityResults = db.prepare(activityQuery).all(...userIds) as { user_id: string; event_count: number }[];
-        const activityMap = new Map(activityResults.map(r => [r.user_id, r.event_count]));
-
-        // Sort requests by activity (descending)
-        requests.sort((a, b) => {
-          const aCount = activityMap.get(a.spotify_username) || 0;
-          const bCount = activityMap.get(b.spotify_username) || 0;
-          return bCount - aCount;
-        });
+        activityMap = new Map(activityResults.map(r => [r.user_id, r.event_count]));
       }
+
+      // Sort all requests by activity (descending), with users who have activity first
+      // Then by date for those with equal activity
+      requests.sort((a, b) => {
+        const aCount = activityMap.get(a.spotify_username) || 0;
+        const bCount = activityMap.get(b.spotify_username) || 0;
+        
+        if (bCount !== aCount) {
+          return bCount - aCount; // Higher activity first
+        }
+        
+        // Equal activity - sort by date (newest first)
+        return new Date(b.ts).getTime() - new Date(a.ts).getTime();
+      });
     }
 
     return NextResponse.json({

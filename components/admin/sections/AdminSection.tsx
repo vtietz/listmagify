@@ -39,7 +39,7 @@ export function AdminSection() {
           <UserPlus className="h-5 w-5" />
           Access Requests
         </h3>
-        <AccessRequestsCard dateRange={allTimeRange} />
+        <AccessRequestsCard />
       </div>
 
       {/* Error Reports */}

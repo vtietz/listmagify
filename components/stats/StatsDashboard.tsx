@@ -519,7 +519,7 @@ export function StatsDashboard() {
           </h2>
           <div className="space-y-4">
             <AuthenticationStatsCard dateRange={dateRange} />
-            <AccessRequestsCard dateRange={dateRange} />
+            <AccessRequestsCard />
           </div>
         </section>
 
