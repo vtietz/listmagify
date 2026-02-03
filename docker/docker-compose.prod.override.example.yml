@@ -18,7 +18,7 @@
 # App secrets (NEXTAUTH_URL, NEXTAUTH_SECRET, SPOTIFY_*) are loaded from .env via env_file
 
 services:
-  web:
+  spotify-web:
     # Custom network for nginx-proxy
     networks:
       - nginx-proxy

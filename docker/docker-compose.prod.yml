@@ -1,5 +1,7 @@
+name: spotify
+
 services:
-  web:
+  spotify-web:
     image: ${IMAGE:-ghcr.io/vtietz/listmagify:latest}
     build:
       context: ..
@@ -13,8 +15,6 @@ services:
         - CONTACT_CITY=${CONTACT_CITY}
         - CONTACT_COUNTRY=${CONTACT_COUNTRY}
         - CONTACT_EMAIL=${CONTACT_EMAIL}
-    ports:
-      - "${PORT:-3000}:3000"
     environment:
       - NODE_ENV=production
     env_file:
