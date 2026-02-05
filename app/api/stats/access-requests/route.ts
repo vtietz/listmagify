@@ -77,63 +77,46 @@ export async function GET(request: NextRequest) {
     const countResult = db.prepare(countQuery).get(...countParams) as { total: number };
     const total = countResult.total;
 
-    // For activity sorting, we need to use a different query with LEFT JOIN
+    // Always include activity count for client-side sorting
+    // Join with events table to get activity count
+    let allQuery = `
+      SELECT ar.*, COALESCE(e.event_count, 0) as activity_count
+      FROM access_requests ar
+      LEFT JOIN (
+        SELECT user_id, COUNT(*) as event_count
+        FROM events
+        WHERE user_id IS NOT NULL
+        GROUP BY user_id
+      ) e ON COALESCE(ar.user_id, ar.spotify_username) = e.user_id
+      WHERE 1=1
+    `;
+    
+    const allParams: (string | number)[] = [];
+    
+    if (status) {
+      allQuery += ' AND ar.status = ?';
+      allParams.push(status);
+    }
+    
+    if (search) {
+      allQuery += ' AND (ar.name LIKE ? OR ar.email LIKE ? OR ar.spotify_username LIKE ?)';
+      const searchPattern = `%${search}%`;
+      allParams.push(searchPattern, searchPattern, searchPattern);
+    }
+    
+    // Add ordering based on sortBy
     if (sortBy === 'activity') {
-      // Build the query properly
-      // Join on user_id if available (populated after login), fallback to spotify_username
-      let allQuery = `
-        SELECT ar.*, COALESCE(ue.event_count, 0) as activity_count
-        FROM access_requests ar
-        LEFT JOIN (
-          SELECT user_id, COUNT(*) as event_count
-          FROM user_events
-          GROUP BY user_id
-        ) ue ON COALESCE(ar.user_id, ar.spotify_username) = ue.user_id
-        WHERE 1=1
-      `;
-      
-      const allParams: (string | number)[] = [];
-      
-      if (status) {
-        allQuery += ' AND ar.status = ?';
-        allParams.push(status);
-      }
-      
-      if (search) {
-        allQuery += ' AND (ar.name LIKE ? OR ar.email LIKE ? OR ar.spotify_username LIKE ?)';
-        const searchPattern = `%${search}%`;
-        allParams.push(searchPattern, searchPattern, searchPattern);
-      }
-      
       allQuery += ' ORDER BY activity_count DESC, ar.ts DESC';
-      
-      const allRequests = db.prepare(allQuery).all(...allParams) as any[];
-      
-      // Apply pagination in-memory
-      const requests = allRequests.slice(offset, offset + limit);
-      
-      return NextResponse.json({
-        success: true,
-        data: requests,
-        pagination: {
-          total: allRequests.length,
-          limit,
-          offset,
-          hasMore: offset + limit < allRequests.length,
-        },
-      });
+    } else if (sortBy === 'name') {
+      allQuery += ' ORDER BY ar.name COLLATE NOCASE ASC';
+    } else {
+      allQuery += ' ORDER BY ar.ts DESC'; // default: date
     }
-
-    // Add ordering for date and name sorting
-    let orderClause = 'ORDER BY ts DESC'; // default: date
-    if (sortBy === 'name') {
-      orderClause = 'ORDER BY name COLLATE NOCASE ASC';
-    }
-
-    query += ` ${orderClause} LIMIT ? OFFSET ?`;
-    params.push(limit, offset);
-
-    const requests = db.prepare(query).all(...params) as any[];
+    
+    allQuery += ' LIMIT ? OFFSET ?';
+    allParams.push(limit, offset);
+    
+    const requests = db.prepare(allQuery).all(...allParams) as any[];
 
     return NextResponse.json({
       success: true,
