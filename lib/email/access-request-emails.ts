@@ -1,4 +1,4 @@
-import { createEmailTransporter, getDefaultSender } from './transporter';
+import { createEmailTransporter, getDefaultSender, getBccRecipients } from './transporter';
 import { replacePlaceholders, textToHtml } from './templates';
 
 /**
@@ -28,6 +28,7 @@ Your Listmagify Team`;
     await transporter.sendMail({
       from: getDefaultSender(),
       to: email,
+      bcc: getBccRecipients(),
       subject: '[Listmagify] Access Approved',
       text,
       html,
@@ -65,6 +66,7 @@ Your Listmagify Team`;
     await transporter.sendMail({
       from: getDefaultSender(),
       to: email,
+      bcc: getBccRecipients(),
       subject: '[Listmagify] Access Request Update',
       text,
       html,
@@ -102,6 +104,7 @@ Your Listmagify Team`;
     await transporter.sendMail({
       from: getDefaultSender(),
       to: email,
+      bcc: getBccRecipients(),
       subject: '[Listmagify] Access Revoked',
       text,
       html,

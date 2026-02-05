@@ -1,4 +1,4 @@
-import { createEmailTransporter, getDefaultSender } from './transporter';
+import { createEmailTransporter, getDefaultSender, getBccRecipients } from './transporter';
 import { escapeHtml } from './templates';
 
 interface ErrorReportEmailParams {
@@ -170,6 +170,7 @@ export async function sendErrorReportEmail(params: ErrorReportEmailParams): Prom
     await transporter.sendMail({
       from: getDefaultSender(),
       to,
+      bcc: getBccRecipients(),
       subject,
       text: textBody,
       html: htmlBody,

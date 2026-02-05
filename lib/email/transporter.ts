@@ -34,3 +34,12 @@ export function getDefaultSender(): string {
   const smtpUser = process.env.SMTP_USER;
   return smtpUser || `noreply@${smtpHost}`;
 }
+
+/**
+ * Gets BCC recipients from environment variable
+ * Can be a single email or comma-separated list
+ */
+export function getBccRecipients(): string | undefined {
+  const bcc = process.env.EMAIL_BCC;
+  return bcc?.trim() || undefined;
+}

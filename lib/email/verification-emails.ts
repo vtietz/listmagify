@@ -1,4 +1,4 @@
-import { createEmailTransporter, getDefaultSender } from './transporter';
+import { createEmailTransporter, getDefaultSender, getBccRecipients } from './transporter';
 
 /**
  * Send email verification code for access requests
@@ -14,6 +14,7 @@ export async function sendVerificationCodeEmail(email: string, code: string): Pr
   const mailOptions = {
     from: getDefaultSender(),
     to: email,
+    bcc: getBccRecipients(),
     subject: '[Listmagify] Verify your email address',
     text: `Your verification code is: ${code}
 

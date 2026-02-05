@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { serverEnv } from '@/lib/env';
 import { getDb } from '@/lib/metrics/db';
-import { createEmailTransporter, getDefaultSender } from '@/lib/email/transporter';
+import { createEmailTransporter, getDefaultSender, getBccRecipients } from '@/lib/email/transporter';
 import { escapeHtml } from '@/lib/email/templates';
 
 /**
@@ -109,6 +109,7 @@ export async function POST(request: NextRequest) {
     const mailOptions = {
       from: getDefaultSender(),
       to: contactEmail,
+      bcc: getBccRecipients(),
       subject: `[Listmagify] Access Request from ${name.trim()}${redFlags.length > 0 ? ' 🚩' : ''}${motivation && motivation.trim() ? ' ⭐' : ''}`,
       text: `New access request for Listmagify:
 

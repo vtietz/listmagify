@@ -1,4 +1,4 @@
-import { createEmailTransporter, getDefaultSender } from './transporter';
+import { createEmailTransporter, getDefaultSender, getBccRecipients } from './transporter';
 import { escapeHtml } from './templates';
 
 interface FeedbackEmailParams {
@@ -103,6 +103,7 @@ export async function sendFeedbackEmail(params: FeedbackEmailParams): Promise<vo
     await transporter.sendMail({
       from: getDefaultSender(),
       to,
+      bcc: getBccRecipients(),
       subject,
       text: textBody,
       html: htmlBody,
