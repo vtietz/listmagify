@@ -80,6 +80,7 @@ export async function GET(request: NextRequest) {
     // For activity sorting, we need to use a different query with LEFT JOIN
     if (sortBy === 'activity') {
       // Build the query properly
+      // Join on user_id if available (populated after login), fallback to spotify_username
       let allQuery = `
         SELECT ar.*, COALESCE(ue.event_count, 0) as activity_count
         FROM access_requests ar
@@ -87,7 +88,7 @@ export async function GET(request: NextRequest) {
           SELECT user_id, COUNT(*) as event_count
           FROM user_events
           GROUP BY user_id
-        ) ue ON ar.spotify_username = ue.user_id
+        ) ue ON COALESCE(ar.user_id, ar.spotify_username) = ue.user_id
         WHERE 1=1
       `;
       
