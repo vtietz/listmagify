@@ -53,9 +53,12 @@ export async function sendRejectionEmail(name: string, email: string): Promise<v
 
   const rejectTemplate = process.env.ACCESS_REQUEST_REJECT_EMAIL || `Hi {name},
 
-Thank you for your interest in Listmagify. Unfortunately, we're unable to approve your access request at this time due to limited user slots in Spotify's development mode.
+Thank you for your interest in Listmagify. 
 
-Please feel free to try again later.
+Unfortunately, we're unable to approve your access request at this time due to limited user slots in Spotify's development mode.
+
+You can find more information about this limitation in Spotify's developer documentation: 
+https://developer.spotify.com/documentation/web-api/concepts/quota-modes
 
 Your Listmagify Team`;
 
