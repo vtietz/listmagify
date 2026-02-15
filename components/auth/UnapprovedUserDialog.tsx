@@ -64,7 +64,16 @@ export function UnapprovedUserDialog({ error, showRequestAccess: _showRequestAcc
               {error !== 'Configuration' && (
                 <>
                   <br />
-                  This app is currently in Spotify development mode, which limits access to a specific list of approved users.
+                  This app is currently in Spotify{' '}
+                  <a
+                    href="https://developer.spotify.com/documentation/web-api/concepts/quota-modes"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline underline-offset-2 hover:text-foreground transition-colors"
+                  >
+                    development mode
+                  </a>
+                  , which limits access to a specific list of approved users.
                 </>
               )}
             </DialogDescription>

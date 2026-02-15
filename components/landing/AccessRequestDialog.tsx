@@ -224,7 +224,16 @@ export function AccessRequestDialog({ trigger, defaultOpen = false }: AccessRequ
             <DialogHeader>
               <DialogTitle>Request Access</DialogTitle>
               <DialogDescription>
-                This app is currently in development mode with limited user slots. 
+                This app is currently in{' '}
+                <a
+                  href="https://developer.spotify.com/documentation/web-api/concepts/quota-modes"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline underline-offset-2 hover:text-foreground transition-colors"
+                >
+                  development mode
+                </a>{' '}
+                with limited user slots. 
                 Enter your details below to request access. Filling out the motivation field increases your chances of approval.
               </DialogDescription>
             </DialogHeader>
