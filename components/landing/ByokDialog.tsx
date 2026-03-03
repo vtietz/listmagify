@@ -13,8 +13,9 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Key, Eye, EyeOff, ExternalLink, AlertTriangle, Trash2 } from 'lucide-react';
+import { Key, Eye, EyeOff, ExternalLink, AlertTriangle, Trash2, Copy, Check } from 'lucide-react';
 import { useByokCredentials } from '@/hooks/useByokCredentials';
+import { toast } from '@/lib/ui/toast';
 
 interface ByokDialogProps {
   trigger?: React.ReactNode;
@@ -31,6 +32,7 @@ export function ByokDialog({ trigger, onCredentialsSaved }: ByokDialogProps) {
   const [clientSecret, setClientSecret] = useState('');
   const [showClientId, setShowClientId] = useState(false);
   const [showClientSecret, setShowClientSecret] = useState(false);
+  const [redirectUriCopied, setRedirectUriCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const { credentials, hasCredentials, saveCredentials, clearCredentials } = useByokCredentials();
@@ -104,6 +106,19 @@ export function ByokDialog({ trigger, onCredentialsSaved }: ByokDialogProps) {
     }
   };
 
+  const handleCopyRedirectUri = async () => {
+    if (!redirectUri) return;
+
+    try {
+      await navigator.clipboard.writeText(redirectUri);
+      setRedirectUriCopied(true);
+      toast.success('Redirect URI copied');
+      setTimeout(() => setRedirectUriCopied(false), 2000);
+    } catch {
+      toast.error('Failed to copy Redirect URI');
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
@@ -148,7 +163,26 @@ export function ByokDialog({ trigger, onCredentialsSaved }: ByokDialogProps) {
                 <li>App name: anything (e.g., &quot;My Listmagify&quot;)</li>
                 <li>App description: anything</li>
                 <li className="break-all">
-                  Redirect URI: <code className="text-xs bg-background px-1 py-0.5 rounded break-all">{redirectUri || 'Loading...'}</code>
+                  <span className="inline-flex items-center gap-1.5 flex-wrap">
+                    <span>Redirect URI:</span>
+                    <code className="text-xs bg-background px-1 py-0.5 rounded break-all">{redirectUri || 'Loading...'}</code>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0"
+                      onClick={handleCopyRedirectUri}
+                      disabled={!redirectUri}
+                      aria-label="Copy Redirect URI"
+                      title="Copy Redirect URI"
+                    >
+                      {redirectUriCopied ? (
+                        <Check className="h-3.5 w-3.5 text-green-500" />
+                      ) : (
+                        <Copy className="h-3.5 w-3.5" />
+                      )}
+                    </Button>
+                  </span>
                 </li>
                 <li className="font-medium text-foreground">
                   APIs: Check <strong>Web API</strong> and <strong>Web Playback SDK</strong>
