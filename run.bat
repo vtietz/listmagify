@@ -21,6 +21,10 @@ if "%1"=="dev" (
   docker compose -f docker\docker-compose.yml run --rm web %2 %3 %4 %5 %6 %7 %8 %9
   goto :eof
 )
+if "%1"=="exec" (
+  docker compose -f docker\docker-compose.yml run --rm web %2 %3 %4 %5 %6 %7 %8 %9
+  goto :eof
+)
 if "%1"=="prod" (
   docker compose -f docker\docker-compose.yml run --rm prod %2 %3 %4 %5 %6 %7 %8 %9
   goto :eof
@@ -57,6 +61,27 @@ if "%1"=="prod-build" (
   )
   goto :eof
 )
+if "%1"=="preview" (
+  rem Build production image using the same compose setup as production
+  if exist "docker\docker-compose.prod.override.yml" (
+    echo Building production image for local preview with override...
+    docker compose -f docker\docker-compose.prod.yml -f docker\docker-compose.prod.override.yml build %2 %3 %4 %5 %6 %7 %8 %9
+  ) else (
+    echo Building production image for local preview...
+    docker compose -f docker\docker-compose.prod.yml build %2 %3 %4 %5 %6 %7 %8 %9
+  )
+
+  rem Run the built production image on a local port for preview
+  if defined IMAGE (
+    set "PREVIEW_IMAGE=%IMAGE%"
+  ) else (
+    set "PREVIEW_IMAGE=ghcr.io/vtietz/listmagify:latest"
+  )
+  docker rm -f spotify-preview >nul 2>nul
+  echo Starting local preview on http://127.0.0.1:%PORT%
+  docker run --rm --name spotify-preview --env-file .env -e NODE_ENV=production -p %PORT%:3000 -v "%cd%\data:/usr/src/app/data" %PREVIEW_IMAGE%
+  goto :eof
+)
 if "%1"=="prod-up" (
   rem Check for override file
   if exist "docker\docker-compose.prod.override.yml" (
@@ -64,6 +89,33 @@ if "%1"=="prod-up" (
     docker compose -f docker\docker-compose.prod.yml -f docker\docker-compose.prod.override.yml up -d %2 %3 %4 %5 %6 %7 %8 %9
   ) else (
     docker compose -f docker\docker-compose.prod.yml up -d %2 %3 %4 %5 %6 %7 %8 %9
+  )
+  goto :eof
+)
+if "%1"=="prod-logs" (
+  rem View production logs
+  if exist "docker\docker-compose.prod.override.yml" (
+    docker compose -f docker\docker-compose.prod.yml -f docker\docker-compose.prod.override.yml logs %2 %3 %4 %5 %6 %7 %8 %9
+  ) else (
+    docker compose -f docker\docker-compose.prod.yml logs %2 %3 %4 %5 %6 %7 %8 %9
+  )
+  goto :eof
+)
+if "%1"=="prod-pull" (
+  rem Pull pre-built production image from registry
+  if exist "docker\docker-compose.prod.override.yml" (
+    docker compose -f docker\docker-compose.prod.yml -f docker\docker-compose.prod.override.yml pull %2 %3 %4 %5 %6 %7 %8 %9
+  ) else (
+    docker compose -f docker\docker-compose.prod.yml pull %2 %3 %4 %5 %6 %7 %8 %9
+  )
+  goto :eof
+)
+if "%1"=="prod-push" (
+  rem Push production image to registry
+  if exist "docker\docker-compose.prod.override.yml" (
+    docker compose -f docker\docker-compose.prod.yml -f docker\docker-compose.prod.override.yml push %2 %3 %4 %5 %6 %7 %8 %9
+  ) else (
+    docker compose -f docker\docker-compose.prod.yml push %2 %3 %4 %5 %6 %7 %8 %9
   )
   goto :eof
 )
@@ -181,22 +233,28 @@ if "%1"=="init-env" (
 :show_help
 echo Usage:
 echo.
-echo   run.bat up/down         - Start/stop dev services
- echo   run.bat install         - Install dependencies in the container
- echo   run.bat build           - Create a production build
- echo   run.bat start-prod      - Start the production server (dev compose)
- echo   run.bat prod-build      - Build production image (use --no-cache to force rebuild)
- echo   run.bat prod-up         - Start production deployment (prod compose)
- echo   run.bat prod-down       - Stop production deploymentecho   run.bat prod-update     - Pull latest code, pull latest image, and restart production echo   run.bat prod-clean      - Clean up Docker images, containers, and build cache (use --volumes to also remove volumes)echo   run.bat dev ^<cmd^>      - Execute a command in a temporary dev container (e.g., run pnpm lint)
-echo   run.bat prod ^<cmd^>     - Execute a command in a temporary prod container
-echo   run.bat test [args]     - Run tests (default: unit, args: --watch, ui, e2e, e2e:ui, e2e:ci)
-echo   run.bat test stack:up   - Start E2E test stack (web-test + spotify-mock)
-echo   run.bat test stack:down - Stop E2E test stack
-echo   run.bat test stack:logs - View E2E test stack logs
+echo   run.bat up                - Start dev server (docker compose up)
+echo   run.bat down              - Stop dev server (docker compose down)
+echo   run.bat install           - Install dependencies
+echo   run.bat test [args]       - Run tests
+echo   run.bat exec ^<cmd^>       - Run command in web container
+echo   run.bat compose ^<cmd^>    - Run docker compose command
+echo   run.bat init-env          - Create .env from .env.example
+echo   run.bat preview [args]    - Build production image and run local preview
+echo   run.bat prod-build [args] - Build production image
+echo   run.bat prod-up [args]    - Start production deployment
+echo   run.bat prod-down [args]  - Stop production deployment
+echo   run.bat prod-logs [args]  - View production logs
+echo   run.bat prod-pull [args]  - Pull pre-built production image
+echo   run.bat prod-push [args]  - Push production image to registry
+echo   run.bat prod-update       - Pull latest code/image and restart production
+echo   run.bat prod-clean        - Clean Docker artifacts (use --volumes too)
 echo.
-echo Utility Commands:
-echo   run.bat compose ^<cmd^>  - Run a raw docker compose command
-echo   run.bat init-env        - Create .env from .env.example
+echo Backward-compatible aliases:
+echo   run.bat dev ^<cmd^>       - Same as exec
+echo   run.bat prod ^<cmd^>      - Run command in prod container
+echo   run.bat build             - Legacy prod image build command
+echo   run.bat start-prod        - Legacy prod service start command
 echo.
 goto :end
 

@@ -14,6 +14,7 @@ Commands:
   exec            Run command in container (e.g., exec pnpm add package)
   compose         Run docker compose command (e.g., compose logs -f)
   init-env        Create .env from .env.example
+  preview         Build production image and run it locally for preview
   prod-build      Build production image (use --no-cache to force rebuild)
   prod-up         Start production deployment
   prod-down       Stop production deployment
@@ -32,6 +33,8 @@ Examples:
   ./run.sh exec pnpm add lodash
   ./run.sh compose logs -f
   ./run.sh init-env
+  ./run.sh preview
+  ./run.sh preview --no-cache
   ./run.sh prod-build --no-cache
   ./run.sh prod-logs -f
   ./run.sh prod-pull
@@ -88,6 +91,30 @@ case "${1:-}" in
     else
       echo ".env already exists. Edit it to set your secrets."
     fi
+    ;;
+  preview)
+    shift
+    # Build production image using the same compose setup as production
+    if [ -f docker/docker-compose.prod.override.yml ]; then
+      echo "Building production image for local preview with override..."
+      docker compose --env-file .env -f docker/docker-compose.prod.yml -f docker/docker-compose.prod.override.yml build "$@"
+    else
+      echo "Building production image for local preview..."
+      docker compose --env-file .env -f docker/docker-compose.prod.yml build "$@"
+    fi
+
+    # Run the built production image on a local port for preview
+    PREVIEW_IMAGE="${IMAGE:-ghcr.io/vtietz/listmagify:latest}"
+    PREVIEW_PORT="${PORT:-3000}"
+    docker rm -f spotify-preview >/dev/null 2>&1 || true
+    echo "Starting local preview on http://127.0.0.1:${PREVIEW_PORT}"
+    docker run --rm \
+      --name spotify-preview \
+      --env-file .env \
+      -e NODE_ENV=production \
+      -p "${PREVIEW_PORT}:3000" \
+      -v "$(pwd)/data:/usr/src/app/data" \
+      "${PREVIEW_IMAGE}"
     ;;
   prod-build)
     shift
