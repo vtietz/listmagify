@@ -5,11 +5,13 @@
 
 'use client';
 
+import { useMemo } from 'react';
 import type { VirtualItem } from '@tanstack/react-virtual';
 import { DropIndicator } from './DropIndicator';
 import { InsertionMarkersOverlay } from './InsertionMarker';
-import { TrackRowInner } from './TrackRow';
+import { TrackRowInner } from './track-row';
 import { TrackContextMenu, type TrackActions } from './TrackContextMenu';
+import type { MarkerActions } from './context-menu/types';
 import { useContextMenuStore } from '@/hooks/useContextMenuStore';
 import { useCompactModeStore } from '@/hooks/useCompactModeStore';
 import { useAutoScrollTextStore } from '@/hooks/useAutoScrollTextStore';
@@ -97,6 +99,27 @@ interface VirtualizedTrackListContainerProps {
   buildReorderActions?: (trackPosition: number) => Record<string, (() => void) | undefined>;
 }
 
+// ── Helpers ────────────────────────────────────────────────────────────
+
+/** Build per-row context track actions, merging panel-level base with row-specific duplicate handler */
+function buildRowContextActions(
+  base: Partial<TrackActions> | undefined,
+  onDeleteTrackDuplicates: ((track: Track, position: number) => void | Promise<void>) | undefined,
+  track: Track,
+  position: number,
+  isRowDuplicate: boolean,
+): TrackActions | undefined {
+  if (!onDeleteTrackDuplicates && !base) return undefined;
+  return {
+    ...base,
+    ...(onDeleteTrackDuplicates && isRowDuplicate
+      ? { onDeleteTrackDuplicates: () => onDeleteTrackDuplicates(track, position) }
+      : undefined),
+  };
+}
+
+// ── Component ──────────────────────────────────────────────────────────
+
 export function VirtualizedTrackListContainer({
   panelId,
   playlistId,
@@ -136,13 +159,13 @@ export function VirtualizedTrackListContainer({
   hasAnyMarkers,
   buildReorderActions,
 }: VirtualizedTrackListContainerProps) {
-  // Get context menu state from global store
+  // ── Context menu (global store) ──────────────────────────────────────
   const contextMenu = useContextMenuStore();
   const closeContextMenu = useContextMenuStore((s) => s.closeMenu);
 
-  // Subscribe to shared stores ONCE per panel, not per row.
-  // These values are identical for every TrackRow but previously each row
-  // created its own Zustand/externalStore subscriptions (~10 per row × 50 rows = 500 subs).
+  // ── Shared store subscriptions (once per panel, not per row) ─────────
+  // Every TrackRow previously created ~10 Zustand/externalStore
+  // subscriptions for values identical across all rows.
   const isCompact = useCompactModeStore((s) => s.isCompact);
   const isAutoScrollEnabled = useAutoScrollTextStore((s) => s.isEnabled);
   const openBrowsePanel = useBrowsePanelStore((s) => s.open);
@@ -157,7 +180,26 @@ export function VirtualizedTrackListContainer({
   const showHandle = hasTouch || !isDesktop;
   const handleOnlyDrag = hasTouch;
 
-  // Only render context menu if it belongs to this panel
+  // Stable values computed once, not per row
+  const allowMarkerToggle = !searchQuery && !isSorted;
+  const isPlayingFromThisPanel = playbackContext?.sourceId === panelId;
+  const profileGetter = hasMultipleContributors ? getProfile : undefined;
+
+  const panelMarkerActions: MarkerActions = useMemo(() => ({
+    ...(hasAnyMarkers ? { hasAnyMarkers } : undefined),
+    ...(onAddToAllMarkers ? { onAddToAllMarkers } : undefined),
+  }), [hasAnyMarkers, onAddToAllMarkers]);
+
+  const sharedCtx = useMemo(() => ({
+    isCompact, isAutoScrollEnabled, openBrowsePanel, setSearchQuery,
+    togglePoint, hasAnyMarkersGlobal: hasAnyMarkersGlobal, isPhone,
+    setMobileOverlay, isDndActive, openContextMenu, showHandle, handleOnlyDrag,
+  }), [
+    isCompact, isAutoScrollEnabled, openBrowsePanel, setSearchQuery,
+    togglePoint, hasAnyMarkersGlobal, isPhone, setMobileOverlay,
+    isDndActive, openContextMenu, showHandle, handleOnlyDrag,
+  ]);
+
   const shouldShowContextMenu = contextMenu.isOpen && contextMenu.panelId === panelId;
 
   return (
@@ -174,7 +216,7 @@ export function VirtualizedTrackListContainer({
           filteredTracksCount={filteredTracks.length}
         />
 
-        {/* Insertion point markers - hidden when sorted since positions don't match visual order */}
+        {/* Insertion point markers — hidden when sorted since positions don't match visual order */}
         {playlistId && isEditable && activeMarkerIndices.size > 0 && !searchQuery && !isSorted && (
           <InsertionMarkersOverlay
             playlistId={playlistId}
@@ -188,9 +230,12 @@ export function VirtualizedTrackListContainer({
         {virtualItems.map((virtualRow) => {
           const track = filteredTracks[virtualRow.index];
           if (!track) return null;
-          
-          const selectionId = selectionKey(track, virtualRow.index);
-          const positionActual = track.position ?? virtualRow.index;
+
+          const idx = virtualRow.index;
+          const selectionId = selectionKey(track, idx);
+          const pos = track.position ?? idx;
+          const trackUri = track.uri;
+          const isRowDuplicate = isDuplicate(trackUri);
 
           return (
             <div
@@ -207,84 +252,67 @@ export function VirtualizedTrackListContainer({
               }}
             >
               <TrackRowInner
+                ctx={sharedCtx}
                 track={track}
-                index={virtualRow.index}
+                index={idx}
                 selectionKey={selectionId}
                 isSelected={selection.has(selectionId)}
                 isEditable={isEditable}
                 locked={!canDrag}
-                onSelect={handleTrackSelect}
-                onClick={handleTrackClick}
                 panelId={panelId}
                 playlistId={playlistId}
                 dndMode={dndMode}
                 isDragSourceSelected={Boolean(isDragSource && selection.has(selectionId))}
-                showLikedColumn={true}
-                isLiked={track.id ? isLiked(track.id) : false}
-                onToggleLiked={handleToggleLiked}
-                isPlaying={track.id ? isTrackPlaying(track.id) : false}
-                isPlaybackLoading={isTrackLoading(track.uri)}
-                onPlay={playTrack}
-                onPause={pausePlayback}
-                isPlayingFromThisPanel={playbackContext?.sourceId === panelId}
-                hasInsertionMarker={!searchQuery && !isSorted && activeMarkerIndices.has(positionActual)}
-                hasInsertionMarkerAfter={!searchQuery && !isSorted && activeMarkerIndices.has(positionActual + 1)}
-                allowInsertionMarkerToggle={!searchQuery && !isSorted}
-                isCollaborative={hasMultipleContributors}
-                getProfile={hasMultipleContributors ? getProfile : undefined}
-                cumulativeDurationMs={cumulativeDurations[virtualRow.index] || 0}
-                crossesHourBoundary={hourBoundaries.has(virtualRow.index)}
-                hourNumber={hourBoundaries.get(virtualRow.index) || 0}
-                isDuplicate={isDuplicate(track.uri)}
-                isSoftDuplicate={isSoftDuplicate ? isSoftDuplicate(track.uri) : false}
-                isOtherInstanceSelected={isOtherInstanceSelected(track.uri)}
-                compareColor={getCompareColorForTrack(track.uri)}
+                onSelect={handleTrackSelect}
+                onClick={handleTrackClick}
                 isMultiSelect={selection.size > 1}
                 selectedCount={selection.size}
-                markerActions={{
-                  ...(hasAnyMarkers ? { hasAnyMarkers } : {}),
-                  ...(onAddToAllMarkers ? { onAddToAllMarkers } : {}),
-                }}
-                {...(buildReorderActions ? { reorderActions: buildReorderActions(positionActual) } : {})}
-                {...(onDeleteTrackDuplicates || contextTrackActions ? { contextTrackActions: {
-                  ...contextTrackActions,
-                  ...(onDeleteTrackDuplicates && isDuplicate(track.uri)
-                    ? { onDeleteTrackDuplicates: () => onDeleteTrackDuplicates(track, positionActual) }
-                    : {}),
-                } } : {})}
-                isCompact={isCompact}
-                isAutoScrollEnabled={isAutoScrollEnabled}
-                openBrowsePanel={openBrowsePanel}
-                setSearchQuery={setSearchQuery}
-                togglePoint={togglePoint}
-                hasAnyMarkersGlobal={hasAnyMarkersGlobal}
-                isPhone={isPhone}
-                setMobileOverlay={setMobileOverlay}
-                isDndActive={isDndActive}
-                openContextMenu={openContextMenu}
-                showHandle={showHandle}
-                handleOnlyDrag={handleOnlyDrag}
+                isPlaying={track.id ? isTrackPlaying(track.id) : false}
+                isPlaybackLoading={isTrackLoading(trackUri)}
+                onPlay={playTrack}
+                onPause={pausePlayback}
+                isPlayingFromThisPanel={isPlayingFromThisPanel}
+                showLikedColumn
+                isLiked={track.id ? isLiked(track.id) : false}
+                onToggleLiked={handleToggleLiked}
+                hasInsertionMarker={allowMarkerToggle && activeMarkerIndices.has(pos)}
+                hasInsertionMarkerAfter={allowMarkerToggle && activeMarkerIndices.has(pos + 1)}
+                allowInsertionMarkerToggle={allowMarkerToggle}
+                isDuplicate={isRowDuplicate}
+                isSoftDuplicate={isSoftDuplicate ? isSoftDuplicate(trackUri) : false}
+                isOtherInstanceSelected={isOtherInstanceSelected(trackUri)}
+                compareColor={getCompareColorForTrack(trackUri)}
+                isCollaborative={hasMultipleContributors}
+                getProfile={profileGetter}
+                cumulativeDurationMs={cumulativeDurations[idx] || 0}
+                crossesHourBoundary={hourBoundaries.has(idx)}
+                hourNumber={hourBoundaries.get(idx) || 0}
+                markerActions={panelMarkerActions}
+                {...(buildReorderActions ? { reorderActions: buildReorderActions(pos) } : {})}
+                {...(contextTrackActions || onDeleteTrackDuplicates ? { contextTrackActions: buildRowContextActions(
+                  contextTrackActions, onDeleteTrackDuplicates, track, pos, isRowDuplicate,
+                )! } : {})}
               />
             </div>
           );
         })}
       </div>
 
-    {/* Global context menu for this panel */}
-    {shouldShowContextMenu && contextMenu.track && (
-      <TrackContextMenu
-        track={contextMenu.track}
-        isOpen={true}
-        onClose={closeContextMenu}
-        {...(contextMenu.position ? { position: contextMenu.position } : {})}
-        {...(contextMenu.reorderActions ? { reorderActions: contextMenu.reorderActions } : {})}
-        {...(contextMenu.markerActions ? { markerActions: contextMenu.markerActions } : {})}
-        {...(contextMenu.trackActions ? { trackActions: contextMenu.trackActions } : {})}
-        isMultiSelect={contextMenu.isMultiSelect}
-        selectedCount={contextMenu.selectedCount}
-        isEditable={contextMenu.isEditable}
-      />
-    )}
+      {/* Global context menu for this panel */}
+      {shouldShowContextMenu && contextMenu.track && (
+        <TrackContextMenu
+          track={contextMenu.track}
+          isOpen
+          onClose={closeContextMenu}
+          {...(contextMenu.position ? { position: contextMenu.position } : {})}
+          {...(contextMenu.reorderActions ? { reorderActions: contextMenu.reorderActions } : {})}
+          {...(contextMenu.markerActions ? { markerActions: contextMenu.markerActions } : {})}
+          {...(contextMenu.trackActions ? { trackActions: contextMenu.trackActions } : {})}
+          isMultiSelect={contextMenu.isMultiSelect}
+          selectedCount={contextMenu.selectedCount}
+          isEditable={contextMenu.isEditable}
+        />
+      )}
     </>
   );
 }
