@@ -20,7 +20,7 @@ import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
 import { useContextMenuStore } from '@/hooks/useContextMenuStore';
 import { useDeviceType } from '@/hooks/useDeviceType';
 import { useDndStateStore } from '@/hooks/dnd';
-import { useMobileOverlayStore } from './MobileBottomNav';
+import { useMobileOverlayStore, type MobileOverlay } from './MobileBottomNav';
 import { useInsertionMarkerToggle } from '@/hooks/useInsertionMarkerToggle';
 import { useRowSortable } from '@/hooks/useRowSortable';
 import { useLongPress } from '@/hooks/useLongPress';
@@ -149,7 +149,35 @@ interface TrackRowProps {
   selectedTracks?: Track[] | undefined;
 }
 
-function TrackRowComponent({
+/**
+ * Shared global state that the container subscribes to once and passes
+ * to every TrackRowInner, eliminating ~10 Zustand/external-store
+ * subscriptions per row.
+ */
+export interface TrackRowSharedContext {
+  isCompact: boolean;
+  isAutoScrollEnabled: boolean;
+  openBrowsePanel: () => void;
+  setSearchQuery: (q: string) => void;
+  togglePoint: (playlistId: string, position: number) => void;
+  hasAnyMarkersGlobal: boolean;
+  isPhone: boolean;
+  setMobileOverlay: (overlay: MobileOverlay) => void;
+  isDndActive: boolean;
+  openContextMenu: ReturnType<typeof useContextMenuStore.getState>['openMenu'];
+  showHandle: boolean;
+  handleOnlyDrag: boolean;
+}
+
+/** Props for the inner (pure) TrackRow that has no store subscriptions */
+type TrackRowInnerProps = TrackRowProps & TrackRowSharedContext;
+
+/**
+ * Pure inner component — receives all shared global state as props.
+ * Has zero Zustand/externalStore subscriptions for shared state,
+ * making mount/unmount during scroll virtualization much cheaper.
+ */
+function TrackRowInnerComponent({
   track,
   index,
   selectionKey,
@@ -199,31 +227,25 @@ function TrackRowComponent({
   isMultiSelect = false,
   selectedCount = 1,
   selectedTracks,
-}: TrackRowProps) {
-  // Store hooks
-  const { isCompact } = useCompactModeStore();
-  const { isEnabled: isAutoScrollEnabled } = useAutoScrollTextStore();
-  const { open: openBrowsePanel, setSearchQuery } = useBrowsePanelStore();
-  const togglePoint = useInsertionPointsStore((s) => s.togglePoint);
-  const hasActiveMarkers = useInsertionPointsStore((s) => s.hasActiveMarkers);
-  const { isPhone } = useDeviceType();
-  const setMobileOverlay = useMobileOverlayStore((s) => s.setActiveOverlay);
-  const isDndActive = useDndStateStore((s) => s.activeId !== null);
-  
+  // Shared context — provided as props (no store hooks)
+  isCompact,
+  isAutoScrollEnabled,
+  openBrowsePanel,
+  setSearchQuery,
+  togglePoint,
+  hasAnyMarkersGlobal: hasAnyMarkers,
+  isPhone,
+  setMobileOverlay,
+  isDndActive,
+  openContextMenu,
+  showHandle,
+  handleOnlyDrag,
+}: TrackRowInnerProps) {
   // Always show play button regardless of player visibility
   const shouldShowPlayButton = true;
   
-  // Global context menu store
-  const openContextMenu = useContextMenuStore((s) => s.openMenu);
-  
-  // Check if any markers exist across all playlists using the narrowed selector
-  const hasAnyMarkers = hasActiveMarkers();
-  
   // Always show standard add column (unless using custom add column for Last.fm)
   const showStandardAddColumn = !showCustomAddColumn;
-  
-  // Mobile drag handle visibility - must be called before getTrackGridStyle
-  const { showHandle, handleOnlyDrag } = useDragHandle();
   
   // Long-press handler for mobile multi-select (toggle selection)
   const { wasLongPress, resetLongPress, ...longPressTouchHandlers } = useLongPress({
@@ -676,5 +698,44 @@ function TrackRowComponent({
   );
 }
 
-/** Memoized TrackRow to prevent re-renders during scroll */
-export const TrackRow = memo(TrackRowComponent);
+/** Memoized pure TrackRow — no store subscriptions, for use by containers that lift shared state */
+export const TrackRowInner = memo(TrackRowInnerComponent);
+
+/**
+ * Convenience wrapper that subscribes to shared stores internally.
+ * Used by SearchPanel, LastfmBrowseList, and other callers that don't
+ * lift shared state to a container.
+ */
+function TrackRowWithHooks(props: TrackRowProps) {
+  const { isCompact } = useCompactModeStore();
+  const { isEnabled: isAutoScrollEnabled } = useAutoScrollTextStore();
+  const { open: openBrowsePanel, setSearchQuery } = useBrowsePanelStore();
+  const togglePoint = useInsertionPointsStore((s) => s.togglePoint);
+  const hasActiveMarkers = useInsertionPointsStore((s) => s.hasActiveMarkers);
+  const { isPhone } = useDeviceType();
+  const setMobileOverlay = useMobileOverlayStore((s) => s.setActiveOverlay);
+  const isDndActive = useDndStateStore((s) => s.activeId !== null);
+  const openContextMenu = useContextMenuStore((s) => s.openMenu);
+  const { showHandle, handleOnlyDrag } = useDragHandle();
+
+  return (
+    <TrackRowInner
+      {...props}
+      isCompact={isCompact}
+      isAutoScrollEnabled={isAutoScrollEnabled}
+      openBrowsePanel={openBrowsePanel}
+      setSearchQuery={setSearchQuery}
+      togglePoint={togglePoint}
+      hasAnyMarkersGlobal={hasActiveMarkers()}
+      isPhone={isPhone}
+      setMobileOverlay={setMobileOverlay}
+      isDndActive={isDndActive}
+      openContextMenu={openContextMenu}
+      showHandle={showHandle}
+      handleOnlyDrag={handleOnlyDrag}
+    />
+  );
+}
+
+/** Default export — subscribes to all stores. Use TrackRowInner for optimized virtualized lists. */
+export const TrackRow = memo(TrackRowWithHooks);

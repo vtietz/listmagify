@@ -8,9 +8,16 @@
 import type { VirtualItem } from '@tanstack/react-virtual';
 import { DropIndicator } from './DropIndicator';
 import { InsertionMarkersOverlay } from './InsertionMarker';
-import { TrackRow } from './TrackRow';
+import { TrackRowInner } from './TrackRow';
 import { TrackContextMenu, type TrackActions } from './TrackContextMenu';
 import { useContextMenuStore } from '@/hooks/useContextMenuStore';
+import { useCompactModeStore } from '@/hooks/useCompactModeStore';
+import { useAutoScrollTextStore } from '@/hooks/useAutoScrollTextStore';
+import { useBrowsePanelStore } from '@/hooks/useBrowsePanelStore';
+import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
+import { useDeviceType } from '@/hooks/useDeviceType';
+import { useMobileOverlayStore } from './MobileBottomNav';
+import { useDndStateStore } from '@/hooks/dnd/state';
 import type { Track } from '@/lib/spotify/types';
 
 interface VirtualizedTrackListContainerProps {
@@ -133,6 +140,23 @@ export function VirtualizedTrackListContainer({
   const contextMenu = useContextMenuStore();
   const closeContextMenu = useContextMenuStore((s) => s.closeMenu);
 
+  // Subscribe to shared stores ONCE per panel, not per row.
+  // These values are identical for every TrackRow but previously each row
+  // created its own Zustand/externalStore subscriptions (~10 per row × 50 rows = 500 subs).
+  const isCompact = useCompactModeStore((s) => s.isCompact);
+  const isAutoScrollEnabled = useAutoScrollTextStore((s) => s.isEnabled);
+  const openBrowsePanel = useBrowsePanelStore((s) => s.open);
+  const setSearchQuery = useBrowsePanelStore((s) => s.setSearchQuery);
+  const togglePoint = useInsertionPointsStore((s) => s.togglePoint);
+  const hasActiveMarkersSelector = useInsertionPointsStore((s) => s.hasActiveMarkers);
+  const hasAnyMarkersGlobal = hasActiveMarkersSelector();
+  const { isPhone, hasTouch, isDesktop } = useDeviceType();
+  const setMobileOverlay = useMobileOverlayStore((s) => s.setActiveOverlay);
+  const isDndActive = useDndStateStore((s) => s.activeId !== null);
+  const openContextMenu = useContextMenuStore((s) => s.openMenu);
+  const showHandle = hasTouch || !isDesktop;
+  const handleOnlyDrag = hasTouch;
+
   // Only render context menu if it belongs to this panel
   const shouldShowContextMenu = contextMenu.isOpen && contextMenu.panelId === panelId;
 
@@ -182,7 +206,7 @@ export function VirtualizedTrackListContainer({
                 contentVisibility: 'auto',
               }}
             >
-              <TrackRow
+              <TrackRowInner
                 track={track}
                 index={virtualRow.index}
                 selectionKey={selectionId}
@@ -228,6 +252,18 @@ export function VirtualizedTrackListContainer({
                     ? { onDeleteTrackDuplicates: () => onDeleteTrackDuplicates(track, positionActual) }
                     : {}),
                 } } : {})}
+                isCompact={isCompact}
+                isAutoScrollEnabled={isAutoScrollEnabled}
+                openBrowsePanel={openBrowsePanel}
+                setSearchQuery={setSearchQuery}
+                togglePoint={togglePoint}
+                hasAnyMarkersGlobal={hasAnyMarkersGlobal}
+                isPhone={isPhone}
+                setMobileOverlay={setMobileOverlay}
+                isDndActive={isDndActive}
+                openContextMenu={openContextMenu}
+                showHandle={showHandle}
+                handleOnlyDrag={handleOnlyDrag}
               />
             </div>
           );
