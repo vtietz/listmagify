@@ -195,6 +195,22 @@ describe('PlaylistSelector', () => {
     expect(checkIcon).toHaveClass('opacity-100');
   });
 
+  it('should highlight currently selected playlist when dropdown opens', async () => {
+    const user = userEvent.setup();
+    renderComponent({
+      selectedPlaylistId: 'playlist2',
+    });
+
+    const button = screen.getByRole('combobox', { name: /select playlist/i });
+    await user.click(button);
+
+    await waitFor(() => {
+      const playlist2Entries = screen.getAllByText('My Playlist 2');
+      const playlist2Button = playlist2Entries[playlist2Entries.length - 1]?.closest('button');
+      expect(playlist2Button).toHaveClass('bg-accent');
+    });
+  });
+
   it('should handle keyboard navigation (ArrowDown)', async () => {
     const user = userEvent.setup();
     renderComponent();

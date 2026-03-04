@@ -153,6 +153,28 @@ export function PlaylistSelector({ selectedPlaylistId, selectedPlaylistName, onS
     setActiveIndex(0);
   }, [query]);
 
+  useEffect(() => {
+    if (!open) return;
+
+    if (isLikedSongsPlaylist(selectedPlaylistId) && showLikedSongs) {
+      setActiveIndex(0);
+      return;
+    }
+
+    const playlistIndex = filtered.findIndex((playlist) => playlist.id === selectedPlaylistId);
+    if (playlistIndex >= 0) {
+      setActiveIndex(showLikedSongs ? playlistIndex + 1 : playlistIndex);
+    }
+  }, [open, selectedPlaylistId, filtered, showLikedSongs]);
+
+  useEffect(() => {
+    if (!open || !dropdownRef.current) return;
+    const activeItem = dropdownRef.current.querySelector<HTMLElement>(`[data-playlist-index="${activeIndex}"]`);
+    if (activeItem && typeof activeItem.scrollIntoView === 'function') {
+      activeItem.scrollIntoView({ block: 'nearest' });
+    }
+  }, [open, activeIndex]);
+
   const handleToggle = useCallback(() => {
     setOpen((o) => {
       const next = !o;
@@ -270,6 +292,7 @@ export function PlaylistSelector({ selectedPlaylistId, selectedPlaylistName, onS
                   <button
                     key={LIKED_SONGS_PLAYLIST_ID}
                     type="button"
+                    data-playlist-index={0}
                     onClick={() => handleSelect(LIKED_SONGS_PLAYLIST_ID)}
                     className={cn(
                       'w-full text-left px-2 py-1 rounded hover:bg-accent hover:text-accent-foreground',
@@ -299,6 +322,7 @@ export function PlaylistSelector({ selectedPlaylistId, selectedPlaylistName, onS
                     <button
                       key={p.id}
                       type="button"
+                      data-playlist-index={adjustedIndex}
                       onClick={() => handleSelect(p.id)}
                       className={cn(
                         'w-full text-left px-2 py-1 rounded hover:bg-accent hover:text-accent-foreground',
