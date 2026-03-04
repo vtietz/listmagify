@@ -15,7 +15,7 @@ export function middleware(request: NextRequest): NextResponse {
   const width = requestUrl.searchParams.get('w') ?? '';
   const quality = requestUrl.searchParams.get('q') ?? '';
 
-  console.info(
+  console.debug(
     JSON.stringify({
       event: 'image_optimizer_request',
       traceId,

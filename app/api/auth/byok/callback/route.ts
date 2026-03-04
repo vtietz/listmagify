@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { encode } from 'next-auth/jwt';
-import { cookies } from 'next/headers';
 import { serverEnv } from '@/lib/env';
 import { logAuthEvent, startSession } from '@/lib/metrics';
 
@@ -119,13 +118,21 @@ export async function GET(request: NextRequest) {
       maxAge: 30 * 24 * 60 * 60, // 30 days
     });
 
-    // Set the session cookie
-    const cookieStore = await cookies();
-    cookieStore.set('next-auth.session-token', token, {
+    const isSecure = serverEnv.NEXTAUTH_URL.startsWith('https://');
+    const sessionCookieName = isSecure
+      ? '__Secure-next-auth.session-token'
+      : 'next-auth.session-token';
+
+    const redirectResponse = NextResponse.redirect(
+      new URL(callbackUrl || '/playlists', serverEnv.NEXTAUTH_URL)
+    );
+
+    // Set session cookie on redirect response using NextAuth's expected cookie name
+    redirectResponse.cookies.set(sessionCookieName, token, {
       httpOnly: true,
       sameSite: 'lax',
       path: '/',
-      secure: serverEnv.NEXTAUTH_URL.startsWith('https'),
+      secure: isSecure,
       maxAge: 30 * 24 * 60 * 60, // 30 days
     });
 
@@ -139,8 +146,8 @@ export async function GET(request: NextRequest) {
       // Don't fail auth if metrics fail
     }
 
-    // Redirect to the callback URL
-    return NextResponse.redirect(new URL(callbackUrl || '/playlists', serverEnv.NEXTAUTH_URL));
+    // Redirect to the callback URL with session cookie set
+    return redirectResponse;
   } catch (error) {
     console.error('[byok] Callback error:', error);
     return NextResponse.redirect(new URL('/?error=callback_failed', serverEnv.NEXTAUTH_URL));
