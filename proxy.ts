@@ -6,7 +6,7 @@ function createTraceId(): string {
   return `${Date.now().toString(36)}-${randomPart}`;
 }
 
-export function middleware(request: NextRequest): NextResponse {
+export function proxy(request: NextRequest): NextResponse {
   const traceId = createTraceId();
   const requestUrl = request.nextUrl;
   const accept = request.headers.get('accept') ?? '';
@@ -15,7 +15,7 @@ export function middleware(request: NextRequest): NextResponse {
   const width = requestUrl.searchParams.get('w') ?? '';
   const quality = requestUrl.searchParams.get('q') ?? '';
 
-  console.debug(
+  console.info(
     JSON.stringify({
       event: 'image_optimizer_request',
       traceId,
