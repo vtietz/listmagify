@@ -232,6 +232,26 @@ For production deployments requiring custom networks, SSL certificates, or rever
 
 **Note:** The override file is git-ignored, so it won't be overwritten when pulling updates from the repo.
 
+### Image Optimizer Diagnostics
+
+To debug intermittent `/_next/image` timeouts in production, enable request diagnostics:
+
+```env
+IMAGE_DIAGNOSTICS_ENABLED=true
+```
+
+When enabled, each `/_next/image` request logs a structured `image_optimizer_request` entry with:
+- `traceId` (also returned as `x-image-diag-id` response header)
+- `url`, `w`, `q` query values
+- Accept negotiation (`acceptsWebp`, `acceptsAvif`)
+- User agent and host
+
+Use production logs to correlate slow or failed image requests:
+
+```bash
+./run.sh prod-logs -f | grep image_optimizer_request
+```
+
 ## Tech Stack
 
 - Next.js 16, React 19, TypeScript

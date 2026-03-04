@@ -157,6 +157,7 @@ export function LandingPageContent({
               height={1080}
               className="w-full h-auto"
               priority
+              unoptimized
             />
           </div>
           <p className="text-center text-sm text-muted-foreground">
@@ -269,6 +270,7 @@ export function LandingPageContent({
                 width={1920}
                 height={1080}
                 className="w-full h-auto"
+                unoptimized
               />
             </div>
           </div>
@@ -282,6 +284,7 @@ export function LandingPageContent({
                 width={1920}
                 height={1080}
                 className="w-full h-auto"
+                unoptimized
               />
             </div>
             <div>
@@ -316,6 +319,7 @@ export function LandingPageContent({
                 width={1920}
                 height={1080}
                 className="w-full h-auto"
+                unoptimized
               />
             </div>
           </div>
@@ -338,6 +342,7 @@ export function LandingPageContent({
                   width={1080}
                   height={1920}
                   className="w-full h-auto"
+                  unoptimized
                 />
               </div>
               <div className="rounded-xl overflow-hidden border border-border shadow-lg w-full max-w-[500px]">
@@ -347,6 +352,7 @@ export function LandingPageContent({
                   width={1920}
                   height={1080}
                   className="w-full h-auto"
+                  unoptimized
                 />
               </div>
             </div>
