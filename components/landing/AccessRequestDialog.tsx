@@ -178,14 +178,14 @@ export function AccessRequestDialog({ trigger, defaultOpen = false }: AccessRequ
             <DialogHeader>
               <DialogTitle>Verify Your Email</DialogTitle>
               <DialogDescription>
-                We've sent a 6-digit code to <strong>{email}</strong>
+                We&apos;ve sent a 6-digit code to <strong>{email}</strong>
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div className="flex items-start gap-2 text-sm bg-amber-500/10 border border-amber-500/20 rounded-lg p-3">
                 <Mail className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
                 <div className="text-amber-900 dark:text-amber-100">
-                  Check your spam folder if you don't see the email. The code expires in 15 minutes.
+                  Check your spam folder if you don&apos;t see the email. The code expires in 15 minutes.
                 </div>
               </div>
 

@@ -185,6 +185,7 @@ export function SearchPanel({ isActive = true, inputRef: externalInputRef }: Sea
   const deferredCount = useDeferredValue(sortedTracks.length);
   
   // Virtualizer for efficient rendering
+  // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer({
     count: deferredCount,
     getScrollElement: () => scrollRef.current,

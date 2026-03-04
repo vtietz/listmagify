@@ -39,26 +39,6 @@ export async function GET(request: NextRequest) {
     const sortBy = searchParams.get('sortBy') || 'date'; // 'date', 'activity', 'name'
     const search = searchParams.get('search'); // search across name, email, spotify_username
 
-    let query = `
-      SELECT id, ts, name, email, spotify_username, motivation, status, notes, red_flags
-      FROM access_requests
-      WHERE 1=1
-    `;
-    const params: (string | number)[] = [];
-
-    // Access requests are not time-filtered - always show all
-
-    if (status) {
-      query += ` AND status = ?`;
-      params.push(status);
-    }
-
-    if (search) {
-      query += ` AND (name LIKE ? OR email LIKE ? OR spotify_username LIKE ?)`;
-      const searchPattern = `%${search}%`;
-      params.push(searchPattern, searchPattern, searchPattern);
-    }
-
     // Get total count using a simple count query with the same WHERE clause
     let countQuery = `SELECT COUNT(*) as total FROM access_requests WHERE 1=1`;
     const countParams: (string | number)[] = [];
