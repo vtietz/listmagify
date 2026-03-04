@@ -234,13 +234,9 @@ For production deployments requiring custom networks, SSL certificates, or rever
 
 ### Image Optimizer Diagnostics
 
-To debug intermittent `/_next/image` timeouts in production, enable request diagnostics:
+To debug intermittent `/_next/image` timeouts in production, request diagnostics are always enabled for this endpoint.
 
-```env
-IMAGE_DIAGNOSTICS_ENABLED=true
-```
-
-When enabled, each `/_next/image` request logs a structured `image_optimizer_request` entry with:
+Each `/_next/image` request logs a structured `image_optimizer_request` entry with:
 - `traceId` (also returned as `x-image-diag-id` response header)
 - `url`, `w`, `q` query values
 - Accept negotiation (`acceptsWebp`, `acceptsAvif`)

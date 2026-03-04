@@ -7,10 +7,6 @@ function createTraceId(): string {
 }
 
 export function middleware(request: NextRequest): NextResponse {
-  if (process.env.IMAGE_DIAGNOSTICS_ENABLED !== 'true') {
-    return NextResponse.next();
-  }
-
   const traceId = createTraceId();
   const requestUrl = request.nextUrl;
   const accept = request.headers.get('accept') ?? '';
