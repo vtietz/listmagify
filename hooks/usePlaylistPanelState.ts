@@ -159,7 +159,6 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
     virtualizer,
     virtualizerRef,
     items,
-    contextItems,
     rowHeight,
     isCompact,
   } = useVirtualizerState(filteredTracks, scrollRef, panelId, scrollOffset);
@@ -348,7 +347,6 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
     // Virtualization
     virtualizer,
     items,
-    contextItems,
     rowHeight,
     activeMarkerIndices,
 

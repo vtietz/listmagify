@@ -19,6 +19,7 @@ import { useBrowsePanelStore } from '@/hooks/useBrowsePanelStore';
 import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
 import { useContextMenuStore } from '@/hooks/useContextMenuStore';
 import { useDeviceType } from '@/hooks/useDeviceType';
+import { useDndStateStore } from '@/hooks/dnd';
 import { useMobileOverlayStore } from './MobileBottomNav';
 import { useInsertionMarkerToggle } from '@/hooks/useInsertionMarkerToggle';
 import { useRowSortable } from '@/hooks/useRowSortable';
@@ -207,6 +208,7 @@ function TrackRowComponent({
   const hasActiveMarkers = useInsertionPointsStore((s) => s.hasActiveMarkers);
   const { isPhone } = useDeviceType();
   const setMobileOverlay = useMobileOverlayStore((s) => s.setActiveOverlay);
+  const isDndActive = useDndStateStore((s) => s.activeId !== null);
   
   // Always show play button regardless of player visibility
   const shouldShowPlayButton = true;
@@ -280,7 +282,7 @@ function TrackRowComponent({
     playlistId,
     isEditable,
     locked,
-    allowToggle: allowInsertionMarkerToggle,
+    allowToggle: allowInsertionMarkerToggle && !isDndActive,
     trackPosition: track.position ?? index,
     visualIndex: index,
     togglePoint,
@@ -504,8 +506,8 @@ function TrackRowComponent({
       role="option"
       onClick={handleClick}
       onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
+      onMouseMove={isDndActive ? undefined : handleMouseMove}
+      onMouseLeave={isDndActive ? undefined : handleMouseLeave}
       onContextMenu={handleContextMenu}
       aria-selected={isSelected}
       title={

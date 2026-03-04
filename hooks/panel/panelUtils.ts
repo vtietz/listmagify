@@ -3,7 +3,6 @@
  * These are extracted to enable unit testing without hook overhead.
  */
 
-import { makeCompositeId, getTrackPosition } from '@/lib/dnd/id';
 import { getTrackSelectionKey } from '@/lib/dnd/selection';
 import type { Track } from '@/lib/spotify/types';
 
@@ -124,15 +123,6 @@ export function computeCumulativeDurationsAndHourBoundaries(filteredTracks: Trac
   }
   
   return { cumulativeDurations, hourBoundaries };
-}
-
-/**
- * Build context item IDs for DnD operations.
- */
-export function buildContextItems(filteredTracks: Track[], panelId: string): string[] {
-  return filteredTracks.map((t: Track, index: number) =>
-    makeCompositeId(panelId, t.id || t.uri, getTrackPosition(t, index))
-  );
 }
 
 /**

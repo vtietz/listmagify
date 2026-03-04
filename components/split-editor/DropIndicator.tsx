@@ -8,13 +8,12 @@
 import { logDebug } from '@/lib/utils/debug';
 import type { VirtualItem } from '@tanstack/react-virtual';
 import { useHydratedCompactMode } from '@/hooks/useCompactModeStore';
+import { useDndStateStore } from '@/hooks/dnd';
 import { TRACK_ROW_HEIGHT, TRACK_ROW_HEIGHT_COMPACT } from './constants';
 
 interface DropIndicatorProps {
   /** Panel ID for debug logging */
   panelId: string;
-  /** Filtered index where drop will occur */
-  dropIndicatorIndex: number | null | undefined;
   /** Virtual items from virtualizer.getVirtualItems() */
   virtualItems: VirtualItem[];
   /** Total filtered tracks count */
@@ -32,7 +31,6 @@ interface DropIndicatorProps {
  * ```tsx
  * <DropIndicator
  *   panelId={panelId}
- *   dropIndicatorIndex={dropIndicatorIndex}
  *   virtualItems={virtualizer.getVirtualItems()}
  *   filteredTracksCount={filteredTracks.length}
  * />
@@ -40,12 +38,14 @@ interface DropIndicatorProps {
  */
 export function DropIndicator({
   panelId,
-  dropIndicatorIndex,
   virtualItems,
   filteredTracksCount,
 }: DropIndicatorProps) {
   const isCompact = useHydratedCompactMode();
   const rowHeight = isCompact ? TRACK_ROW_HEIGHT_COMPACT : TRACK_ROW_HEIGHT;
+  const dropIndicatorIndex = useDndStateStore((state) =>
+    state.activePanelId === panelId ? state.dropIndicatorIndex : null
+  );
 
   // Don't render if no valid drop index
   if (dropIndicatorIndex === null || dropIndicatorIndex === undefined) {

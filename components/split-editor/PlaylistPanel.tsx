@@ -17,6 +17,7 @@ import { usePlaylistSelectionMenu } from '@/hooks/usePlaylistSelectionMenu';
 import { useVirtualizerRegistration } from '@/hooks/useVirtualizerRegistration';
 import { usePlayerStore } from '@/hooks/usePlayerStore';
 import { useHydratedAutoScrollPlay } from '@/hooks/useAutoScrollPlayStore';
+import { useDndStateStore } from '@/hooks/dnd';
 import { PanelToolbar } from './PanelToolbar';
 import { TableHeader } from './TableHeader';
 import { VirtualizedTrackListContainer } from './VirtualizedTrackListContainer';
@@ -42,28 +43,15 @@ interface PlaylistPanelProps {
       ) => void)
     | undefined;
   onUnregisterVirtualizer: ((panelId: string) => void) | undefined;
-  isActiveDropTarget?: boolean | undefined;
-  isDragSource?: boolean | undefined;
-  dropIndicatorIndex?: number | null | undefined;
-  ephemeralInsertion?:
-    | {
-        activeId: string;
-        sourcePanelId: string;
-        targetPanelId: string;
-        insertionIndex: number;
-      }
-    | null
-    | undefined;
 }
 
 export function PlaylistPanel({
   panelId,
   onRegisterVirtualizer,
   onUnregisterVirtualizer,
-  isActiveDropTarget,
-  isDragSource,
-  dropIndicatorIndex,
 }: PlaylistPanelProps) {
+  const isActiveDropTarget = useDndStateStore((s) => s.activePanelId === panelId);
+  const isDragSource = useDndStateStore((s) => s.sourcePanelId === panelId);
   const panelState = usePlaylistPanelState({ panelId, isDragSource });
   const { scrollRef, scrollDroppableRef, virtualizerRef: _virtualizerRef, ...state } = panelState;
   const openContextMenu = useContextMenuStore((s) => s.openMenu);
@@ -284,14 +272,12 @@ export function PlaylistPanel({
                 canDrag={state.canDrag}
                 dndMode={state.dndMode}
                 {...(isDragSource !== undefined ? { isDragSource } : {})}
-                dropIndicatorIndex={dropIndicatorIndex ?? null}
                 searchQuery={state.searchQuery}
                 isSorted={state.isSorted}
                 totalSize={state.virtualizer.getTotalSize()}
                 rowHeight={state.rowHeight}
                 virtualItems={state.items}
                 filteredTracks={state.filteredTracks}
-                contextItems={state.contextItems}
                 selection={state.selection}
                 activeMarkerIndices={state.activeMarkerIndices}
                 hasMultipleContributors={state.hasMultipleContributors}

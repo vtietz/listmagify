@@ -5,7 +5,6 @@
 
 'use client';
 
-import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import type { VirtualItem } from '@tanstack/react-virtual';
 import { DropIndicator } from './DropIndicator';
 import { InsertionMarkersOverlay } from './InsertionMarker';
@@ -27,8 +26,6 @@ interface VirtualizedTrackListContainerProps {
   dndMode: 'copy' | 'move';
   /** Whether this panel is the source of an active drag */
   isDragSource?: boolean | undefined;
-  /** Index where to show drop indicator */
-  dropIndicatorIndex?: number | null;
   /** Search query (used to disable markers during search) */
   searchQuery: string;
   /** Whether the list is sorted (used to disable markers during sort) */
@@ -41,8 +38,6 @@ interface VirtualizedTrackListContainerProps {
   virtualItems: VirtualItem[];
   /** Filtered tracks being displayed */
   filteredTracks: Track[];
-  /** Context items for SortableContext */
-  contextItems: string[];
   /** Set of selection IDs that are selected */
   selection: Set<string>;
   /** Set of active insertion marker indices */
@@ -102,14 +97,12 @@ export function VirtualizedTrackListContainer({
   canDrag,
   dndMode,
   isDragSource,
-  dropIndicatorIndex,
   searchQuery,
   isSorted,
   totalSize,
   rowHeight,
   virtualItems,
   filteredTracks,
-  contextItems,
   selection,
   activeMarkerIndices,
   hasMultipleContributors,
@@ -145,10 +138,6 @@ export function VirtualizedTrackListContainer({
 
   return (
     <>
-      <SortableContext
-      items={contextItems}
-      strategy={verticalListSortingStrategy}
-    >
       <div
         style={{
           height: `${totalSize}px`,
@@ -158,7 +147,6 @@ export function VirtualizedTrackListContainer({
         {/* Visual drop indicator line */}
         <DropIndicator
           panelId={panelId}
-          dropIndicatorIndex={dropIndicatorIndex}
           virtualItems={virtualItems}
           filteredTracksCount={filteredTracks.length}
         />
@@ -246,7 +234,6 @@ export function VirtualizedTrackListContainer({
           );
         })}
       </div>
-    </SortableContext>
 
     {/* Global context menu for this panel */}
     {shouldShowContextMenu && contextMenu.track && (

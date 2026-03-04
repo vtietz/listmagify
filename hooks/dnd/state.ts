@@ -101,6 +101,24 @@ export const useDndStateStore = create<DndStore>((set, get) => ({
   },
 
   updateDropPosition: (params) => {
+    const state = get();
+    const prevEphemeral = state.ephemeralInsertion;
+    const nextEphemeral = params.ephemeralInsertion;
+    const isEphemeralEqual =
+      prevEphemeral?.activeId === nextEphemeral?.activeId &&
+      prevEphemeral?.sourcePanelId === nextEphemeral?.sourcePanelId &&
+      prevEphemeral?.targetPanelId === nextEphemeral?.targetPanelId &&
+      prevEphemeral?.insertionIndex === nextEphemeral?.insertionIndex;
+
+    if (
+      state.activePanelId === params.activePanelId &&
+      state.computedDropPosition === params.computedDropPosition &&
+      state.dropIndicatorIndex === params.dropIndicatorIndex &&
+      isEphemeralEqual
+    ) {
+      return;
+    }
+
     set({
       activePanelId: params.activePanelId,
       computedDropPosition: params.computedDropPosition,

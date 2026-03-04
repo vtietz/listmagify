@@ -32,15 +32,6 @@ interface SplitNodeViewProps {
       ) => void)
     | undefined;
   onUnregisterVirtualizer: ((panelId: string) => void) | undefined;
-  activePanelId: string | null;
-  sourcePanelId: string | null;
-  dropIndicatorIndex: number | null;
-  ephemeralInsertion: {
-    activeId: string;
-    sourcePanelId: string;
-    targetPanelId: string;
-    insertionIndex: number;
-  } | null;
   /** Whether this is the root node (for responsive layout application) */
   isRoot?: boolean;
   /** Mobile: only show the first panel */
@@ -53,10 +44,6 @@ export function SplitNodeView({
   node,
   onRegisterVirtualizer,
   onUnregisterVirtualizer,
-  activePanelId,
-  sourcePanelId,
-  dropIndicatorIndex,
-  ephemeralInsertion,
   isRoot = false,
   mobileShowOnlyFirst = false,
   mobileShowOnlySecond = false,
@@ -121,13 +108,6 @@ export function SplitNodeView({
           panelId={node.panel.id}
           onRegisterVirtualizer={onRegisterVirtualizer}
           onUnregisterVirtualizer={onUnregisterVirtualizer}
-          isActiveDropTarget={activePanelId === node.panel.id}
-          isDragSource={sourcePanelId === node.panel.id}
-          dropIndicatorIndex={
-            // Only show drop indicator in the panel being hovered (target), not in source panel
-            activePanelId === node.panel.id ? dropIndicatorIndex : null
-          }
-          ephemeralInsertion={ephemeralInsertion}
         />
       </div>
     );
@@ -170,10 +150,6 @@ export function SplitNodeView({
             node={child}
             onRegisterVirtualizer={onRegisterVirtualizer}
             onUnregisterVirtualizer={onUnregisterVirtualizer}
-            activePanelId={activePanelId}
-            sourcePanelId={sourcePanelId}
-            dropIndicatorIndex={dropIndicatorIndex}
-            ephemeralInsertion={ephemeralInsertion}
             mobileShowOnlyFirst={mobileShowOnlyFirst}
             mobileShowOnlySecond={mobileShowOnlySecond}
           />
@@ -210,10 +186,6 @@ export function SplitNodeView({
               node={child}
               onRegisterVirtualizer={onRegisterVirtualizer}
               onUnregisterVirtualizer={onUnregisterVirtualizer}
-              activePanelId={activePanelId}
-              sourcePanelId={sourcePanelId}
-              dropIndicatorIndex={dropIndicatorIndex}
-              ephemeralInsertion={ephemeralInsertion}
             />
           </Panel>
           {index < visibleChildren.length - 1 && (

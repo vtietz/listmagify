@@ -14,7 +14,6 @@
 'use client';
 
 import type { SplitNode, PanelConfig } from '@/hooks/useSplitGridStore';
-import type { EphemeralInsertion } from '@/hooks/dnd';
 import type { Virtualizer } from '@tanstack/react-virtual';
 import type { Track } from '@/lib/spotify/types';
 import type { MobileOverlay } from './MobileBottomNav';
@@ -49,14 +48,6 @@ interface MobileLayoutProps {
   ) => void;
   /** Unregister virtualizer callback */
   onUnregisterVirtualizer: (panelId: string) => void;
-  /** Panel being dragged over */
-  activePanelId: string | null;
-  /** Source panel of drag operation */
-  sourcePanelId: string | null;
-  /** Drop indicator index */
-  dropIndicatorIndex: number | null;
-  /** Ephemeral insertion state */
-  ephemeralInsertion: EphemeralInsertion | null;
 }
 
 export function MobileLayout({
@@ -68,10 +59,6 @@ export function MobileLayout({
   onSplitFirstPanel,
   onRegisterVirtualizer,
   onUnregisterVirtualizer,
-  activePanelId,
-  sourcePanelId,
-  dropIndicatorIndex,
-  ephemeralInsertion,
 }: MobileLayoutProps) {
   // Mobile layout logic:
   // - panel2 active: show 50/50 split (Panel 1 in main, Panel 2 in overlay)
@@ -96,10 +83,6 @@ export function MobileLayout({
             node={root}
             onRegisterVirtualizer={onRegisterVirtualizer}
             onUnregisterVirtualizer={onUnregisterVirtualizer}
-            activePanelId={activePanelId}
-            sourcePanelId={sourcePanelId}
-            dropIndicatorIndex={dropIndicatorIndex}
-            ephemeralInsertion={ephemeralInsertion}
             isRoot={true}
             // On mobile, always show only first panel in main area
             mobileShowOnlyFirst={true}
@@ -116,10 +99,6 @@ export function MobileLayout({
                   node={root}
                   onRegisterVirtualizer={onRegisterVirtualizer}
                   onUnregisterVirtualizer={onUnregisterVirtualizer}
-                  activePanelId={activePanelId}
-                  sourcePanelId={sourcePanelId}
-                  dropIndicatorIndex={dropIndicatorIndex}
-                  ephemeralInsertion={ephemeralInsertion}
                   isRoot={true}
                   // On mobile, only show second panel in overlay
                   mobileShowOnlySecond={true}

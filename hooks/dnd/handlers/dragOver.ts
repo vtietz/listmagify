@@ -22,9 +22,11 @@ export interface DragOverContext {
     getPosition: () => { x: number; y: number };
   };
   headerOffset: number;
-  activeId: string | null;
-  sourcePanelId: string | null;
-  activeDragTracks: Track[];
+  getActiveDragState: () => {
+    activeId: string | null;
+    sourcePanelId: string | null;
+    activeDragTracks: Track[];
+  };
   findPanelUnderPointer: () => { panelId: string } | null;
   updateDropPosition: (params: {
     activePanelId: string | null;
@@ -63,7 +65,9 @@ function getTargetPanelId(
  */
 export function createDragOverHandler(ctx: DragOverContext) {
   return (event: DragOverEvent): void => {
-    if (!ctx.activeId) {
+    const { activeId, sourcePanelId, activeDragTracks } = ctx.getActiveDragState();
+
+    if (!activeId) {
       ctx.updateDropPosition({
         activePanelId: null,
         computedDropPosition: null,
@@ -114,10 +118,10 @@ export function createDragOverHandler(ctx: DragOverContext) {
     const scrollContainer = scrollRef.current;
 
     // Get dragged track positions for exclusion from targeting
-    const draggedTrackPositions = ctx.activeDragTracks
+    const draggedTrackPositions = activeDragTracks
       .map(t => t.position)
       .filter((p): p is number => p != null);
-    const dragCount = ctx.activeDragTracks.length || 1;
+    const dragCount = activeDragTracks.length || 1;
 
     // Compute the global playlist position and filtered index
     // This now accounts for multi-select overlay height and excludes dragged tracks
@@ -138,19 +142,12 @@ export function createDragOverHandler(ctx: DragOverContext) {
         activePanelId: targetPanelId,
         computedDropPosition: dropData.globalPosition,
         dropIndicatorIndex: dropData.filteredIndex,
-        ephemeralInsertion: ctx.sourcePanelId ? {
-          activeId: ctx.activeId,
-          sourcePanelId: ctx.sourcePanelId,
+        ephemeralInsertion: sourcePanelId ? {
+          activeId,
+          sourcePanelId,
           targetPanelId,
           insertionIndex: dropData.filteredIndex, // Use same index as drop indicator
         } : null,
-      });
-
-      console.debug('[DND] over', {
-        targetPanelId,
-        insertionIdxFiltered: dropData.filteredIndex,
-        dropIndicatorIndex: dropData.filteredIndex,
-        computedDropPosition: dropData.globalPosition
       });
     } else {
       ctx.updateDropPosition({

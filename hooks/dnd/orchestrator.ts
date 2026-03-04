@@ -100,22 +100,21 @@ interface UseDndOrchestratorReturn {
  */
 export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorReturn {
   // === State Management ===
-  const {
-    activeTrack,
-    activeId,
-    sourcePanelId,
-    activePanelId,
-    activeSelectionCount,
-    activeDragTracks,
-    dropIndicatorIndex,
-    ephemeralInsertion,
-    startDrag,
-    updateDropPosition,
-    endDrag,
-    getFinalDropPosition,
-    getSelectedIndices,
-    getOrderedTracksSnapshot,
-  } = useDndStateStore();
+  const activeTrack = useDndStateStore((s) => s.activeTrack);
+  const activeId = useDndStateStore((s) => s.activeId);
+  const sourcePanelId = useDndStateStore((s) => s.sourcePanelId);
+  const activePanelId = useDndStateStore((s) => s.activePanelId);
+  const activeSelectionCount = useDndStateStore((s) => s.activeSelectionCount);
+  const activeDragTracks = useDndStateStore((s) => s.activeDragTracks);
+
+  const startDrag = useDndStateStore((s) => s.startDrag);
+  const updateDropPosition = useDndStateStore((s) => s.updateDropPosition);
+  const endDrag = useDndStateStore((s) => s.endDrag);
+  const getFinalDropPosition = useDndStateStore((s) => s.getFinalDropPosition);
+  const getSelectedIndices = useDndStateStore((s) => s.getSelectedIndices);
+  const getOrderedTracksSnapshot = useDndStateStore((s) => s.getOrderedTracksSnapshot);
+  const dropIndicatorIndex = useDndStateStore.getState().dropIndicatorIndex;
+  const ephemeralInsertion = useDndStateStore.getState().ephemeralInsertion;
 
   // === Infrastructure ===
   const pointerTracker = usePointerTracker();
@@ -154,6 +153,18 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
   const findPanel = useCallback(() => {
     return findPanelUnderPointer(pointerTracker, panelVirtualizersRef);
   }, [pointerTracker]);
+
+  const dragOverFrameRef = useRef<number | null>(null);
+  const queuedDragOverRef = useRef<DragOverEvent | null>(null);
+
+  const getActiveDragState = useCallback(() => {
+    const state = useDndStateStore.getState();
+    return {
+      activeId: state.activeId,
+      sourcePanelId: state.sourcePanelId,
+      activeDragTracks: state.activeDragTracks,
+    };
+  }, []);
 
   // === Collision Detection ===
   const collisionDetection: CollisionDetection = useCallback((args) => {
@@ -239,19 +250,35 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
     startDrag,
   }), [panels, pointerTracker, autoScroller, startDrag]);
 
-  const handleDragOver = useMemo(() => createDragOverHandler({
+  const processDragOver = useMemo(() => createDragOverHandler({
     panels,
     panelVirtualizersRef,
     pointerTracker: pointerTracker as DragOverContext['pointerTracker'],
     headerOffset,
-    activeId,
-    sourcePanelId,
-    activeDragTracks,
+    getActiveDragState,
     findPanelUnderPointer: findPanel,
     updateDropPosition,
-  }), [panels, pointerTracker, headerOffset, activeId, sourcePanelId, activeDragTracks, findPanel, updateDropPosition]);
+  }), [panels, pointerTracker, headerOffset, getActiveDragState, findPanel, updateDropPosition]);
 
-  const handleDragEnd = useMemo(() => createDragEndHandler({
+  const handleDragOver = useCallback((event: DragOverEvent) => {
+    queuedDragOverRef.current = event;
+
+    if (dragOverFrameRef.current !== null) {
+      return;
+    }
+
+    dragOverFrameRef.current = requestAnimationFrame(() => {
+      dragOverFrameRef.current = null;
+      const queuedEvent = queuedDragOverRef.current;
+      queuedDragOverRef.current = null;
+
+      if (queuedEvent) {
+        processDragOver(queuedEvent);
+      }
+    });
+  }, [processDragOver]);
+
+  const processDragEnd = useMemo(() => createDragEndHandler({
     panels,
     panelVirtualizersRef,
     pointerTracker: pointerTracker as DragEndContext['pointerTracker'],
@@ -262,7 +289,21 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
     endDrag,
   }), [panels, pointerTracker, addTracks, removeTracks, reorderTracks, getFinalDropPosition, getSelectedIndices, getOrderedTracksSnapshot, endDrag]);
 
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    if (dragOverFrameRef.current !== null) {
+      cancelAnimationFrame(dragOverFrameRef.current);
+      dragOverFrameRef.current = null;
+      queuedDragOverRef.current = null;
+    }
+    processDragEnd(event);
+  }, [processDragEnd]);
+
   const handleDragCancel = useCallback(() => {
+    if (dragOverFrameRef.current !== null) {
+      cancelAnimationFrame(dragOverFrameRef.current);
+      dragOverFrameRef.current = null;
+      queuedDragOverRef.current = null;
+    }
     endDrag();
     pointerTracker.stopTracking();
     autoScroller.stop();

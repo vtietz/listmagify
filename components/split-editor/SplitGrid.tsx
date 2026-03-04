@@ -117,10 +117,6 @@ export function SplitGrid() {
 
   // IMPORTANT: All hooks must be called before any conditional returns (Rules of Hooks)
   const {
-    sourcePanelId,
-    activePanelId,
-    dropIndicatorIndex,
-    ephemeralInsertion,
     activeDragTracks,
     sensors,
     collisionDetection,
@@ -218,10 +214,6 @@ export function SplitGrid() {
               node={root}
               onRegisterVirtualizer={registerVirtualizer}
               onUnregisterVirtualizer={unregisterVirtualizer}
-              activePanelId={activePanelId}
-              sourcePanelId={sourcePanelId}
-              dropIndicatorIndex={dropIndicatorIndex}
-              ephemeralInsertion={ephemeralInsertion}
               isRoot={true}
               // Phone: show only first panel in primary area
               mobileShowOnlyFirst={isPhone}
@@ -241,10 +233,6 @@ export function SplitGrid() {
                     node={root}
                     onRegisterVirtualizer={registerVirtualizer}
                     onUnregisterVirtualizer={unregisterVirtualizer}
-                    activePanelId={activePanelId}
-                    sourcePanelId={sourcePanelId}
-                    dropIndicatorIndex={dropIndicatorIndex}
-                    ephemeralInsertion={ephemeralInsertion}
                     isRoot={true}
                     mobileShowOnlySecond={true}
                   />

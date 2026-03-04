@@ -1,12 +1,12 @@
 /**
- * Hook for managing sortable row state and drag data.
- * Wraps @dnd-kit/sortable's useSortable with track-specific logic.
+ * Hook for managing draggable row state and drag data.
+ * Wraps @dnd-kit/core's useDraggable with track-specific logic.
  */
 
 'use client';
 
 import { useMemo } from 'react';
-import { useSortable } from '@dnd-kit/sortable';
+import { useDraggable } from '@dnd-kit/core';
 import { makeCompositeId, getTrackPosition } from '@/lib/dnd/id';
 import type { Track } from '@/lib/spotify/types';
 
@@ -74,14 +74,14 @@ interface UseRowSortableReturn {
   isDragging: boolean;
   /** Ref to attach to the sortable element */
   setNodeRef: (node: HTMLElement | null) => void;
-  /** Spread these on the sortable element (excluding role) */
-  attributes: Omit<ReturnType<typeof useSortable>['attributes'], 'role'>;
-  /** Spread these on the sortable element for drag events (wrapped with onDragStart if provided) */
-  listeners: ReturnType<typeof useSortable>['listeners'];
+  /** Spread these on the draggable element (excluding role) */
+  attributes: Omit<ReturnType<typeof useDraggable>['attributes'], 'role'>;
+  /** Spread these on the draggable element for drag events (wrapped with onDragStart if provided) */
+  listeners: ReturnType<typeof useDraggable>['listeners'];
 }
 
 /**
- * Hook to manage sortable row state and generate appropriate drag data.
+ * Hook to manage draggable row state and generate appropriate drag data.
  * Creates a globally unique composite ID scoped by panel and position to
  * distinguish duplicate tracks (same song multiple times in a playlist).
  */
@@ -132,10 +132,9 @@ export function useRowSortable({
     listeners,
     setNodeRef,
     isDragging,
-  } = useSortable({
+  } = useDraggable({
     id: compositeId,
     disabled,
-    animateLayoutChanges: () => false, // Disable "make room" animation
     data: dragData,
   });
 

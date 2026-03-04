@@ -5,21 +5,21 @@
 
 'use client';
 
-import { useRef, useEffect, useMemo, useDeferredValue } from 'react';
+import { useRef, useEffect, useDeferredValue } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useHydratedCompactMode } from '@/hooks/useCompactModeStore';
+import { useDndStateStore } from '@/hooks/dnd';
 import {
   TRACK_ROW_HEIGHT,
   TRACK_ROW_HEIGHT_COMPACT,
   VIRTUALIZATION_OVERSCAN,
 } from '@/components/split-editor/constants';
-import { buildContextItems } from './panelUtils';
 import type { Track } from '@/lib/spotify/types';
 
 export function useVirtualizerState(
   filteredTracks: Track[],
   scrollRef: React.RefObject<HTMLDivElement | null>,
-  panelId: string,
+  _panelId: string,
   initialScrollOffset?: number
 ) {
   // Capture the initial scroll offset once per mount so we don't accidentally
@@ -27,14 +27,16 @@ export function useVirtualizerState(
   const initialOffsetRef = useRef<number | undefined>(initialScrollOffset);
 
   const isCompact = useHydratedCompactMode();
+  const isDragging = useDndStateStore((s) => s.activeId !== null);
   const rowHeight = isCompact ? TRACK_ROW_HEIGHT_COMPACT : TRACK_ROW_HEIGHT;
   const deferredCount = useDeferredValue(filteredTracks.length);
+  const overscan = isDragging ? Math.max(2, Math.floor(VIRTUALIZATION_OVERSCAN / 2)) : VIRTUALIZATION_OVERSCAN;
 
   const virtualizer = useVirtualizer({
     count: deferredCount,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => rowHeight,
-    overscan: VIRTUALIZATION_OVERSCAN,
+    overscan,
     // Ensure the first paint after mount/remount starts at the stored scroll position.
     // This avoids the visible "jump" from 0 -> restored offset.
     initialOffset: () => initialOffsetRef.current ?? 0,
@@ -56,17 +58,10 @@ export function useVirtualizerState(
   // Note: getVirtualItems() must be called during render (not memoized with stable deps)
   const items = virtualizer.getVirtualItems();
 
-  // Build context items for DnD operations
-  const contextItems = useMemo(
-    () => buildContextItems(filteredTracks, panelId),
-    [filteredTracks, panelId]
-  );
-
   return {
     virtualizer,
     virtualizerRef,
     items,
-    contextItems,
     rowHeight,
     isCompact,
   };
