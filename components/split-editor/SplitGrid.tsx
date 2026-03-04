@@ -121,6 +121,7 @@ export function SplitGrid() {
     sensors,
     collisionDetection,
     onDragStart,
+    onDragMove,
     onDragOver,
     onDragEnd,
     onDragCancel,
@@ -180,6 +181,7 @@ export function SplitGrid() {
       sensors={sensors}
       collisionDetection={collisionDetection}
       onDragStart={onDragStart}
+      onDragMove={onDragMove}
       onDragOver={onDragOver}
       onDragEnd={onDragEnd}
       onDragCancel={onDragCancel}

@@ -147,7 +147,6 @@ export function VirtualizedTrackListContainer({
         {/* Visual drop indicator line */}
         <DropIndicator
           panelId={panelId}
-          virtualItems={virtualItems}
           filteredTracksCount={filteredTracks.length}
         />
 

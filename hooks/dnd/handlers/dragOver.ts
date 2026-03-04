@@ -7,7 +7,7 @@
  * - Managing ephemeral insertion state for animations
  */
 
-import type { DragOverEvent } from '@dnd-kit/core';
+import type { DragMoveEvent } from '@dnd-kit/core';
 import type { Track } from '@/lib/spotify/types';
 import type { PanelConfig, PanelVirtualizerData, EphemeralInsertion } from '../types';
 import { calculateDropPosition } from '../../useDropPosition';
@@ -40,7 +40,7 @@ export interface DragOverContext {
  * Get target panel ID from drag over event
  */
 function getTargetPanelId(
-  event: DragOverEvent,
+  event: DragMoveEvent,
   findPanelUnderPointer: () => { panelId: string } | null
 ): string | null {
   const { over } = event;
@@ -64,7 +64,7 @@ function getTargetPanelId(
  * Create drag over handler
  */
 export function createDragOverHandler(ctx: DragOverContext) {
-  return (event: DragOverEvent): void => {
+  return (event: DragMoveEvent): void => {
     const { activeId, sourcePanelId, activeDragTracks } = ctx.getActiveDragState();
 
     if (!activeId) {

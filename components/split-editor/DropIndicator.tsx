@@ -6,7 +6,6 @@
 'use client';
 
 import { logDebug } from '@/lib/utils/debug';
-import type { VirtualItem } from '@tanstack/react-virtual';
 import { useHydratedCompactMode } from '@/hooks/useCompactModeStore';
 import { useDndStateStore } from '@/hooks/dnd';
 import { TRACK_ROW_HEIGHT, TRACK_ROW_HEIGHT_COMPACT } from './constants';
@@ -14,8 +13,6 @@ import { TRACK_ROW_HEIGHT, TRACK_ROW_HEIGHT_COMPACT } from './constants';
 interface DropIndicatorProps {
   /** Panel ID for debug logging */
   panelId: string;
-  /** Virtual items from virtualizer.getVirtualItems() */
-  virtualItems: VirtualItem[];
   /** Total filtered tracks count */
   filteredTracksCount: number;
 }
@@ -31,14 +28,12 @@ interface DropIndicatorProps {
  * ```tsx
  * <DropIndicator
  *   panelId={panelId}
- *   virtualItems={virtualizer.getVirtualItems()}
  *   filteredTracksCount={filteredTracks.length}
  * />
  * ```
  */
 export function DropIndicator({
   panelId,
-  virtualItems,
   filteredTracksCount,
 }: DropIndicatorProps) {
   const isCompact = useHydratedCompactMode();
@@ -55,48 +50,24 @@ export function DropIndicator({
   logDebug('[DropIndicator] Rendering:', {
     panelId,
     dropIndicatorIndex,
-    virtualItemsCount: virtualItems.length,
     filteredTracksCount,
     rowHeight,
   });
 
-  // Find the virtual item at the drop index
-  const virtualItem = virtualItems.find(item => item.index === dropIndicatorIndex);
+  // Compute absolute Y directly from index and row height to avoid stale virtual item snapshots
+  const clampedIndex = Math.max(0, Math.min(dropIndicatorIndex, filteredTracksCount));
+  const dropY = clampedIndex * rowHeight;
+  const indicatorType = clampedIndex >= filteredTracksCount ? 'after-last' : 'at-index';
 
-  if (!virtualItem) {
-    // Dropping after the last track.
-    // Use the absolute content end based on current row height to work even if
-    // the last row is not currently virtualized (e.g., due to extra bottom padding).
-    const dropY = Math.max(0, filteredTracksCount * rowHeight);
-    logDebug('[DropIndicator] After last track at absolute end Y:', dropY);
-
-    return (
-      <div
-        data-drop-indicator="after-last"
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          width: '100%',
-          height: '4px',
-          backgroundColor: '#3b82f6',
-          transform: `translateY(${dropY}px)`,
-          zIndex: 40,
-          pointerEvents: 'none',
-          boxShadow: '0 0 8px rgba(59, 130, 246, 0.8)',
-        }}
-      />
-    );
-  }
-
-  logDebug('[DropIndicator] At virtual item:', {
-    index: virtualItem.index,
-    start: virtualItem.start,
+  logDebug('[DropIndicator] Computed position:', {
+    index: clampedIndex,
+    dropY,
+    indicatorType,
   });
 
   return (
     <div
-      data-drop-indicator="at-index"
+      data-drop-indicator={indicatorType}
       style={{
         position: 'absolute',
         top: 0,
@@ -104,7 +75,7 @@ export function DropIndicator({
         width: '100%',
         height: '4px',
         backgroundColor: '#3b82f6',
-        transform: `translateY(${virtualItem.start}px)`,
+        transform: `translateY(${dropY}px)`,
         zIndex: 40,
         pointerEvents: 'none',
         boxShadow: '0 0 8px rgba(59, 130, 246, 0.8)',

@@ -27,6 +27,7 @@ import {
   pointerWithin,
   type DragEndEvent,
   type DragStartEvent,
+  type DragMoveEvent,
   type DragOverEvent,
   type CollisionDetection,
 } from '@dnd-kit/core';
@@ -75,6 +76,7 @@ interface UseDndOrchestratorReturn {
   sensors: ReturnType<typeof useSensors>;
   collisionDetection: CollisionDetection;
   onDragStart: (event: DragStartEvent) => void;
+  onDragMove: (event: DragMoveEvent) => void;
   onDragOver: (event: DragOverEvent) => void;
   onDragEnd: (event: DragEndEvent) => void;
   onDragCancel: () => void;
@@ -113,8 +115,8 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
   const getFinalDropPosition = useDndStateStore((s) => s.getFinalDropPosition);
   const getSelectedIndices = useDndStateStore((s) => s.getSelectedIndices);
   const getOrderedTracksSnapshot = useDndStateStore((s) => s.getOrderedTracksSnapshot);
-  const dropIndicatorIndex = useDndStateStore.getState().dropIndicatorIndex;
-  const ephemeralInsertion = useDndStateStore.getState().ephemeralInsertion;
+  const dropIndicatorIndex = useDndStateStore((s) => s.dropIndicatorIndex);
+  const ephemeralInsertion = useDndStateStore((s) => s.ephemeralInsertion);
 
   // === Infrastructure ===
   const pointerTracker = usePointerTracker();
@@ -155,7 +157,7 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
   }, [pointerTracker]);
 
   const dragOverFrameRef = useRef<number | null>(null);
-  const queuedDragOverRef = useRef<DragOverEvent | null>(null);
+  const queuedDragOverRef = useRef<DragMoveEvent | DragOverEvent | null>(null);
 
   const getActiveDragState = useCallback(() => {
     const state = useDndStateStore.getState();
@@ -260,7 +262,11 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
     updateDropPosition,
   }), [panels, pointerTracker, headerOffset, getActiveDragState, findPanel, updateDropPosition]);
 
-  const handleDragOver = useCallback((event: DragOverEvent) => {
+  // RAF-throttled position update — shared by onDragMove and onDragOver.
+  // With per-row droppables removed (useDraggable instead of useSortable),
+  // onDragOver only fires when the panel-level "over" target changes.
+  // onDragMove fires on every pointer movement, keeping the indicator current.
+  const throttledPositionUpdate = useCallback((event: DragMoveEvent | DragOverEvent) => {
     queuedDragOverRef.current = event;
 
     if (dragOverFrameRef.current !== null) {
@@ -277,6 +283,9 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
       }
     });
   }, [processDragOver]);
+
+  const handleDragMove = throttledPositionUpdate;
+  const handleDragOver = throttledPositionUpdate;
 
   const processDragEnd = useMemo(() => createDragEndHandler({
     panels,
@@ -341,6 +350,7 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
     sensors,
     collisionDetection,
     onDragStart: handleDragStart,
+    onDragMove: handleDragMove,
     onDragOver: handleDragOver,
     onDragEnd: handleDragEnd,
     onDragCancel: handleDragCancel,
