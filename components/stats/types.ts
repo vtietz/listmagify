@@ -4,7 +4,7 @@
 
 // Time range presets
 export type TimeRange = 'today' | '7d' | '30d' | '90d' | 'ytd' | 'all' | 'custom';
-export type UserSortField = 'eventCount' | 'tracksAdded' | 'tracksRemoved' | 'lastActive' | 'firstLoginAt';
+export type UserSortField = 'eventCount' | 'tracksAdded' | 'tracksRemoved' | 'byokLogins' | 'regularLogins' | 'lastActive' | 'firstLoginAt';
 export type SortDirection = 'asc' | 'desc';
 
 export interface DateRange {
@@ -85,6 +85,8 @@ export interface TopUser {
   eventCount: number;
   tracksAdded: number;
   tracksRemoved: number;
+  byokLogins: number;
+  regularLogins: number;
   lastActive: string;
   firstLoginAt: string | null;
 }

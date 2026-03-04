@@ -72,6 +72,13 @@ export function UserDetailDialog({
   const displayName = profile?.displayName || userId || 'Unknown User';
   const spotifyUrl = profile?.external_urls?.spotify;
 
+  const formatDate = (value: string | null) => {
+    if (!value) return 'N/A';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return 'N/A';
+    return date.toISOString().slice(0, 10);
+  };
+
   const copyToClipboard = async (text: string, fieldName: string) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -253,7 +260,7 @@ export function UserDetailDialog({
                   Last Active
                 </div>
                 <div className="text-sm font-medium">
-                  {new Date(lastActive).toLocaleDateString()}
+                  {formatDate(lastActive)}
                 </div>
               </div>
             </div>
@@ -266,11 +273,7 @@ export function UserDetailDialog({
                   First Login
                 </div>
                 <div className="text-sm font-medium text-blue-600">
-                  {new Date(firstLoginAt).toLocaleDateString('en-US', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                  })}
+                  {formatDate(firstLoginAt)}
                 </div>
               </div>
             )}

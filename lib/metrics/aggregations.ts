@@ -292,11 +292,13 @@ export interface TopUser {
   eventCount: number;
   tracksAdded: number;
   tracksRemoved: number;
+  byokLogins: number;
+  regularLogins: number;
   lastActive: string;
   firstLoginAt: string | null; // When user first logged in
 }
 
-export type UserSortField = 'eventCount' | 'tracksAdded' | 'tracksRemoved' | 'lastActive' | 'firstLoginAt';
+export type UserSortField = 'eventCount' | 'tracksAdded' | 'tracksRemoved' | 'byokLogins' | 'regularLogins' | 'lastActive' | 'firstLoginAt';
 export type SortDirection = 'asc' | 'desc';
 
 /**
@@ -314,6 +316,8 @@ export function getTopUsers(
     eventCount: 'eventCount',
     tracksAdded: 'tracksAdded',
     tracksRemoved: 'tracksRemoved',
+    byokLogins: 'byokLogins',
+    regularLogins: 'regularLogins',
     lastActive: 'lastActive',
     firstLoginAt: 'firstLoginAt',
   };
@@ -333,6 +337,8 @@ export function getTopUsers(
       COUNT(*) as eventCount,
       SUM(CASE WHEN e.event = 'track_add' THEN COALESCE(e.count, 1) ELSE 0 END) as tracksAdded,
       SUM(CASE WHEN e.event = 'track_remove' THEN COALESCE(e.count, 1) ELSE 0 END) as tracksRemoved,
+      SUM(CASE WHEN e.event = 'login_success' AND e.is_byok = 1 THEN 1 ELSE 0 END) as byokLogins,
+      SUM(CASE WHEN e.event = 'login_success' AND (e.is_byok IS NULL OR e.is_byok = 0) THEN 1 ELSE 0 END) as regularLogins,
       MAX(e.ts) as lastActive,
       r.registered_at as firstLoginAt
     FROM events e

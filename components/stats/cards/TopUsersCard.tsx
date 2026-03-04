@@ -9,7 +9,7 @@ import { UserDetailDialog } from '../UserDetailDialog';
 import { cn } from '@/lib/utils';
 import type { TopUser, TopUsersResponse } from '../types';
 
-type UserSortField = 'eventCount' | 'tracksAdded' | 'tracksRemoved' | 'lastActive' | 'firstLoginAt';
+type UserSortField = 'eventCount' | 'byokLogins' | 'regularLogins' | 'lastActive' | 'firstLoginAt';
 type SortDirection = 'asc' | 'desc';
 
 interface TopUsersCardProps {
@@ -58,6 +58,13 @@ export function TopUsersCard({ dateRange }: TopUsersCardProps) {
   const users: TopUser[] = data?.data ?? [];
   const pagination = data?.pagination;
   const totalPages = pagination ? Math.ceil(pagination.total / pageSize) : 0;
+
+  const formatDate = (value: string | null) => {
+    if (!value) return 'N/A';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return 'N/A';
+    return date.toISOString().slice(0, 10);
+  };
 
   const toggleSort = (field: UserSortField) => {
     if (sortBy === field) {
@@ -112,10 +119,10 @@ export function TopUsersCard({ dateRange }: TopUsersCardProps) {
                 </div>
                 <div className="col-span-1 text-right">
                   <button 
-                    onClick={() => toggleSort('tracksAdded')}
+                    onClick={() => toggleSort('byokLogins')}
                     className="hover:text-foreground flex items-center gap-1 ml-auto"
                   >
-                    Added {getSortIcon('tracksAdded')}
+                    BYOK/Std {getSortIcon('byokLogins')}
                   </button>
                 </div>
                 <div className="col-span-2 text-right">
@@ -150,12 +157,15 @@ export function TopUsersCard({ dateRange }: TopUsersCardProps) {
                     {user.userHash.slice(0, 12)}...
                   </div>
                   <div className="col-span-2 text-right font-medium">{user.eventCount}</div>
-                  <div className="col-span-1 text-right text-green-600">{user.tracksAdded}</div>
+                  <div className="col-span-1 text-right" title={`BYOK: ${user.byokLogins}, Standard: ${user.regularLogins}`}>
+                    <span className="text-cyan-600">{user.byokLogins}</span>
+                    <span className="text-muted-foreground">/{user.regularLogins}</span>
+                  </div>
                   <div className="col-span-2 text-right text-xs text-muted-foreground">
-                    {user.firstLoginAt ? new Date(user.firstLoginAt).toLocaleDateString() : 'N/A'}
+                    {formatDate(user.firstLoginAt)}
                   </div>
                   <div className="col-span-3 text-right text-xs text-muted-foreground">
-                    {new Date(user.lastActive).toLocaleDateString()}
+                    {formatDate(user.lastActive)}
                   </div>
                 </div>
               ))}

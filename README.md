@@ -318,6 +318,7 @@ Listmagify includes privacy-first usage analytics, disabled by default. When ena
 - **Retention**: Raw events auto-deleted after 180 days
 - **Access Control**: Stats dashboard restricted to allowlisted user IDs
 - **Traffic Analytics**: Aggregated page visits, referrers, search queries, and countries (no individual logs)
+- **Auth Insights**: Top Users table shows BYOK vs standard login counts per user
 
 ### Enable Metrics
 
