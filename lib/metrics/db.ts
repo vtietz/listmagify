@@ -40,7 +40,7 @@ export function getDb(): BetterSqlite3Database | null {
       fs.mkdirSync(dbDir, { recursive: true });
     }
 
-    console.log(`[metrics] Opening database at: ${config.dbPath}`);
+    console.debug(`[metrics] Opening database at: ${config.dbPath}`);
     
     // Open database (creates if doesn't exist)
     db = new Database(config.dbPath);
@@ -51,7 +51,7 @@ export function getDb(): BetterSqlite3Database | null {
     // Run migrations
     runMigrations(db, metricsMigrations, 'metrics');
     
-    console.log('[metrics] Database initialized successfully');
+    console.debug('[metrics] Database initialized successfully');
     return db;
   } catch (error) {
     console.error('[metrics] Failed to initialize database:', error);

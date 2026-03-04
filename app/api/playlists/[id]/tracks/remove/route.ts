@@ -110,7 +110,7 @@ async function handlePositionBasedRemoval(
     return NextResponse.json({ error: 'No positions specified for removal' }, { status: 400 });
   }
 
-  console.log('[api/playlists/tracks/remove] Position-based removal, positions:', Array.from(positionsToRemove));
+  console.debug('[api/playlists/tracks/remove] Position-based removal, positions:', Array.from(positionsToRemove));
 
   // Fetch all current playlist tracks
   const allTracks = await fetchAllPlaylistTracks(playlistId);
@@ -119,12 +119,12 @@ async function handlePositionBasedRemoval(
     return NextResponse.json({ error: 'Failed to fetch playlist tracks' }, { status: 500 });
   }
 
-  console.log(`[api/playlists/tracks/remove] Fetched ${allTracks.length} tracks from playlist`);
+  console.debug(`[api/playlists/tracks/remove] Fetched ${allTracks.length} tracks from playlist`);
 
   // Filter out the positions we want to remove
   const remainingTracks = allTracks.filter((_, index) => !positionsToRemove.has(index));
   
-  console.log(`[api/playlists/tracks/remove] After removal: ${remainingTracks.length} tracks remain`);
+  console.debug(`[api/playlists/tracks/remove] After removal: ${remainingTracks.length} tracks remain`);
 
   // Replace playlist contents
   const newSnapshotId = await replacePlaylistTracks(playlistId, remainingTracks);

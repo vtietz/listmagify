@@ -22,7 +22,7 @@ async function renderPng(inputSvg, outPath, size) {
     .resize(size, size, { fit: 'cover' })
     .png({ quality: 100 })
     .toFile(outPath);
-  console.log(`✓ ${path.basename(outPath)} (${size}x${size})`);
+  console.debug(`✓ ${path.basename(outPath)} (${size}x${size})`);
 }
 
 (async function main() {
@@ -41,7 +41,7 @@ async function renderPng(inputSvg, outPath, size) {
     await renderPng(iconSvg, path.join(publicDir, 'android-chrome-192x192.png'), 192);
     await renderPng(iconSvg, path.join(publicDir, 'android-chrome-512x512.png'), 512);
 
-    console.log('\nAll favicons generated to public/.');
+    console.debug('\nAll favicons generated to public/.');
   } catch (err) {
     console.error('Failed to build favicons:', err.message);
     process.exit(1);

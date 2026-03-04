@@ -161,8 +161,8 @@ export async function sendErrorReportEmail(params: ErrorReportEmailParams): Prom
 
   // If SMTP is not configured, just log the error report
   if (!transporter) {
-    console.log('[email] SMTP not configured. Error report notification:');
-    console.log(textBody);
+    console.debug('[email] SMTP not configured. Error report notification:');
+    console.debug(textBody);
     return;
   }
 
@@ -176,7 +176,7 @@ export async function sendErrorReportEmail(params: ErrorReportEmailParams): Prom
       html: htmlBody,
     });
 
-    console.log(`[email] Error report notification sent to ${to}`);
+    console.debug(`[email] Error report notification sent to ${to}`);
   } catch (error) {
     console.error('[email] Failed to send error report email:', error);
     throw error;

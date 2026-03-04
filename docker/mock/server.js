@@ -19,7 +19,7 @@ app.use((req, res, next) => {
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
   }
-  console.log(`[mock-spotify] ${req.method} ${req.path}`);
+  console.debug(`[mock-spotify] ${req.method} ${req.path}`);
   next();
 });
 
@@ -95,7 +95,7 @@ app.get('/v1/playlists/:id/tracks', (req, res) => {
 
 // PUT /v1/playlists/:id/tracks - Reorder tracks
 app.put('/v1/playlists/:id/tracks', (req, res) => {
-  console.log('[mock-spotify] Reorder tracks:', req.body);
+  console.debug('[mock-spotify] Reorder tracks:', req.body);
   
   // Return success with new snapshot_id
   res.json({
@@ -105,7 +105,7 @@ app.put('/v1/playlists/:id/tracks', (req, res) => {
 
 // POST /v1/playlists/:id/tracks - Add tracks
 app.post('/v1/playlists/:id/tracks', (req, res) => {
-  console.log('[mock-spotify] Add tracks:', req.body);
+  console.debug('[mock-spotify] Add tracks:', req.body);
   
   res.json({
     snapshot_id: `mock-snapshot-${Date.now()}`
@@ -114,7 +114,7 @@ app.post('/v1/playlists/:id/tracks', (req, res) => {
 
 // DELETE /v1/playlists/:id/tracks - Remove tracks
 app.delete('/v1/playlists/:id/tracks', (req, res) => {
-  console.log('[mock-spotify] Remove tracks:', req.body);
+  console.debug('[mock-spotify] Remove tracks:', req.body);
   
   res.json({
     snapshot_id: `mock-snapshot-${Date.now()}`
@@ -137,13 +137,13 @@ app.use((req, res) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`[mock-spotify] Mock Spotify API listening on http://0.0.0.0:${PORT}`);
-  console.log('[mock-spotify] Available endpoints:');
-  console.log('  GET  /v1/me');
-  console.log('  GET  /v1/me/playlists');
-  console.log('  GET  /v1/playlists/:id');
-  console.log('  GET  /v1/playlists/:id/tracks');
-  console.log('  PUT  /v1/playlists/:id/tracks');
-  console.log('  POST /v1/playlists/:id/tracks');
-  console.log('  DELETE /v1/playlists/:id/tracks');
+  console.debug(`[mock-spotify] Mock Spotify API listening on http://0.0.0.0:${PORT}`);
+  console.debug('[mock-spotify] Available endpoints:');
+  console.debug('  GET  /v1/me');
+  console.debug('  GET  /v1/me/playlists');
+  console.debug('  GET  /v1/playlists/:id');
+  console.debug('  GET  /v1/playlists/:id/tracks');
+  console.debug('  PUT  /v1/playlists/:id/tracks');
+  console.debug('  POST /v1/playlists/:id/tracks');
+  console.debug('  DELETE /v1/playlists/:id/tracks');
 });

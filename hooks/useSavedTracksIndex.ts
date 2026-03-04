@@ -230,7 +230,7 @@ export function useSavedTracksIndex() {
     
     // If we have valid cached data, skip prefetch
     if (!forceRefresh && isPrefetchComplete && !isCacheStale()) {
-      console.log('📦 Using cached liked tracks:', likedIds.length, 'tracks');
+      console.debug('📦 Using cached liked tracks:', likedIds.length, 'tracks');
       return;
     }
     
@@ -248,7 +248,7 @@ export function useSavedTracksIndex() {
       let hasMore = true;
       const allIds: string[] = [];
       
-      console.log('🔄 Fetching liked tracks from Spotify...');
+      console.debug('🔄 Fetching liked tracks from Spotify...');
       
       while (hasMore) {
         const url: string = nextCursor 
@@ -283,7 +283,7 @@ export function useSavedTracksIndex() {
       // Add all IDs at once for efficiency
       addToLikedSet(allIds);
       completePrefetch();
-      console.log('✅ Loaded', allIds.length, 'liked tracks');
+      console.debug('✅ Loaded', allIds.length, 'liked tracks');
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to prefetch saved tracks';
       setError(errorMsg);

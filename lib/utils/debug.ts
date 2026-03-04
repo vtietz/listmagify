@@ -25,6 +25,6 @@ export function isDebug(): boolean {
  */
 export function logDebug(...args: unknown[]): void {
   if (isDebug()) {
-    console.log(...args);
+    console.debug(...args);
   }
 }

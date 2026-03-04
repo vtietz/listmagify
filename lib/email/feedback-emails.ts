@@ -94,8 +94,8 @@ export async function sendFeedbackEmail(params: FeedbackEmailParams): Promise<vo
 
   // If SMTP is not configured, just log the feedback
   if (!transporter) {
-    console.log('[email] SMTP not configured. Feedback notification:');
-    console.log(textBody);
+    console.debug('[email] SMTP not configured. Feedback notification:');
+    console.debug(textBody);
     return;
   }
 
@@ -109,7 +109,7 @@ export async function sendFeedbackEmail(params: FeedbackEmailParams): Promise<vo
       html: htmlBody,
     });
 
-    console.log(`[email] Feedback notification sent to ${to}`);
+    console.debug(`[email] Feedback notification sent to ${to}`);
   } catch (error) {
     console.error('[email] Failed to send feedback email:', error);
     throw error;

@@ -56,11 +56,11 @@ export async function POST(request: Request): Promise<Response> {
     const reportId = `ERR-${Date.now().toString(36).toUpperCase()}`;
 
     // Log the report for console tracking
-    console.log(`[error-report] Report ${reportId} received:`);
-    console.log(`[error-report] Category: ${body.error.category}`);
-    console.log(`[error-report] Message: ${body.error.message}`);
-    console.log(`[error-report] Details: ${body.error.details || 'N/A'}`);
-    console.log(`[error-report] User Description: ${body.userDescription || 'N/A'}`);
+    console.debug(`[error-report] Report ${reportId} received:`);
+    console.debug(`[error-report] Category: ${body.error.category}`);
+    console.debug(`[error-report] Message: ${body.error.message}`);
+    console.debug(`[error-report] Details: ${body.error.details || 'N/A'}`);
+    console.debug(`[error-report] User Description: ${body.userDescription || 'N/A'}`);
     
     // Store in a simple log file (could be replaced with DB storage)
     const logEntry = {
@@ -74,7 +74,7 @@ export async function POST(request: Request): Promise<Response> {
     };
     
     // Log to console in structured format for easy parsing
-    console.log(`[error-report] FULL_REPORT: ${JSON.stringify(logEntry)}`);
+    console.debug(`[error-report] FULL_REPORT: ${JSON.stringify(logEntry)}`);
 
     // Store in database if metrics are enabled
     try {
@@ -103,7 +103,7 @@ export async function POST(request: Request): Promise<Response> {
           JSON.stringify(body.environment),
           body.appVersion
         );
-        console.log(`[error-report] Stored in database: ${reportId}`);
+        console.debug(`[error-report] Stored in database: ${reportId}`);
       }
     } catch (dbError) {
       console.error(`[error-report] Failed to store in database:`, dbError);
@@ -122,7 +122,7 @@ export async function POST(request: Request): Promise<Response> {
         environment: body.environment,
         appVersion: body.appVersion,
       });
-      console.log(`[error-report] Email sent successfully for report ${reportId}`);
+      console.debug(`[error-report] Email sent successfully for report ${reportId}`);
     } catch (emailError) {
       console.error(`[error-report] Failed to send email for report ${reportId}:`, emailError);
       // Don't fail the request if email fails

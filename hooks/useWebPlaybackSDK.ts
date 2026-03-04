@@ -155,7 +155,7 @@ export function useWebPlaybackSDK(): UseWebPlaybackSDKResult {
 
       // Handle ready event
       player.addListener('ready', ({ device_id }) => {
-        console.log('[WebPlaybackSDK] Ready with device ID:', device_id);
+        console.debug('[WebPlaybackSDK] Ready with device ID:', device_id);
         if (!mountedRef.current) return;
         
         deviceIdRef.current = device_id;
@@ -188,7 +188,7 @@ export function useWebPlaybackSDK(): UseWebPlaybackSDKResult {
 
       // Handle not ready event
       player.addListener('not_ready', ({ device_id }) => {
-        console.log('[WebPlaybackSDK] Device offline:', device_id);
+        console.debug('[WebPlaybackSDK] Device offline:', device_id);
         if (!mountedRef.current) return;
         setWebPlayerReady(false);
       });
@@ -239,7 +239,7 @@ export function useWebPlaybackSDK(): UseWebPlaybackSDKResult {
       }
 
       playerRef.current = player;
-      console.log('[WebPlaybackSDK] Player connected successfully');
+      console.debug('[WebPlaybackSDK] Player connected successfully');
     } catch (err: any) {
       console.error('[WebPlaybackSDK] Initialize error:', err);
       if (mountedRef.current) {
@@ -259,7 +259,7 @@ export function useWebPlaybackSDK(): UseWebPlaybackSDKResult {
       deviceIdRef.current = null;
       setWebPlayerDeviceId(null);
       setWebPlayerReady(false);
-      console.log('[WebPlaybackSDK] Disconnected');
+      console.debug('[WebPlaybackSDK] Disconnected');
     }
   }, [setWebPlayerDeviceId, setWebPlayerReady]);
 

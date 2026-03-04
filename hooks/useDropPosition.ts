@@ -38,8 +38,8 @@ export interface DropPositionResult {
  * );
  * 
  * if (dropData) {
- *   console.log(`Drop at filtered index ${dropData.filteredIndex}`);
- *   console.log(`Global playlist position ${dropData.globalPosition}`);
+ *   console.debug(`Drop at filtered index ${dropData.filteredIndex}`);
+ *   console.debug(`Global playlist position ${dropData.globalPosition}`);
  * }
  * ```
  */

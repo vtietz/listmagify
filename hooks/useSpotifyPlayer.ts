@@ -107,7 +107,7 @@ export function useSpotifyPlayer() {
     
     // Debug logging for auto-advance
     if (process.env.NODE_ENV === 'development') {
-      console.log('[auto-advance] Check:', {
+      console.debug('[auto-advance] Check:', {
         trackUri: track.uri,
         isPlaying: state.isPlaying,
         progress: state.progressMs,
@@ -149,7 +149,7 @@ export function useSpotifyPlayer() {
     lastProgressRef.current = state.progressMs;
     
     if (process.env.NODE_ENV === 'development' && hasEnded) {
-      console.log('[auto-advance] Track ended detected:', {
+      console.debug('[auto-advance] Track ended detected:', {
         lastProgress,
         currentProgress: state.progressMs,
         threshold: progressThreshold,
@@ -165,7 +165,7 @@ export function useSpotifyPlayer() {
       const nextTrackUri = playbackContext.trackUris[nextIndex];
       
       if (nextTrackUri) {
-        console.log('[auto-advance] Triggering next track:', {
+        console.debug('[auto-advance] Triggering next track:', {
           nextIndex,
           nextTrackUri,
           sourceId: playbackContext.sourceId,

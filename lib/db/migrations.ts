@@ -64,7 +64,7 @@ export function runMigrations(
     return 0;
   }
   
-  console.log(`[${dbName}] Running ${pending.length} migration(s) from v${currentVersion}...`);
+  console.debug(`[${dbName}] Running ${pending.length} migration(s) from v${currentVersion}...`);
   
   let applied = 0;
   
@@ -72,7 +72,7 @@ export function runMigrations(
     try {
       // Run migration in a transaction
       db.transaction(() => {
-        console.log(`[${dbName}] Applying migration ${migration.version}: ${migration.name}`);
+        console.debug(`[${dbName}] Applying migration ${migration.version}: ${migration.name}`);
         
         if (typeof migration.sql === 'string') {
           db.exec(migration.sql);
@@ -93,7 +93,7 @@ export function runMigrations(
     }
   }
   
-  console.log(`[${dbName}] Applied ${applied} migration(s), now at v${getCurrentVersion(db)}`);
+  console.debug(`[${dbName}] Applied ${applied} migration(s), now at v${getCurrentVersion(db)}`);
   return applied;
 }
 
