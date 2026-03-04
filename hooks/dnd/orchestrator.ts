@@ -46,7 +46,6 @@ import {
   useDndStateStore,
   type PanelConfig,
   type PanelVirtualizerData,
-  type EphemeralInsertion,
 } from './';
 import { createDragStartHandler, type DragStartContext } from './handlers/dragStart';
 import { createDragOverHandler, type DragOverContext } from './handlers/dragOver';
@@ -67,8 +66,6 @@ interface UseDndOrchestratorReturn {
   activeId: string | null;
   sourcePanelId: string | null;
   activePanelId: string | null;
-  dropIndicatorIndex: number | null;
-  ephemeralInsertion: EphemeralInsertion | null;
   activeSelectionCount: number;
   activeDragTracks: Track[];
 
@@ -115,8 +112,10 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
   const getFinalDropPosition = useDndStateStore((s) => s.getFinalDropPosition);
   const getSelectedIndices = useDndStateStore((s) => s.getSelectedIndices);
   const getOrderedTracksSnapshot = useDndStateStore((s) => s.getOrderedTracksSnapshot);
-  const dropIndicatorIndex = useDndStateStore((s) => s.dropIndicatorIndex);
-  const ephemeralInsertion = useDndStateStore((s) => s.ephemeralInsertion);
+
+  // NOTE: dropIndicatorIndex and ephemeralInsertion are NOT subscribed here.
+  // DropIndicator subscribes directly to the store, avoiding re-renders of the
+  // entire SplitGrid tree on every drop-position change during drag.
 
   // === Infrastructure ===
   const pointerTracker = usePointerTracker();
@@ -341,8 +340,6 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
     activeId,
     sourcePanelId,
     activePanelId,
-    dropIndicatorIndex,
-    ephemeralInsertion,
     activeSelectionCount,
     activeDragTracks,
 

@@ -84,8 +84,6 @@ describe('useDndOrchestrator', () => {
       expect(result.current.activeId).toBeNull();
       expect(result.current.sourcePanelId).toBeNull();
       expect(result.current.activePanelId).toBeNull();
-      expect(result.current.dropIndicatorIndex).toBeNull();
-      expect(result.current.ephemeralInsertion).toBeNull();
     });
 
     it('should provide DnD context props', () => {
@@ -94,6 +92,7 @@ describe('useDndOrchestrator', () => {
       expect(result.current.sensors).toBeDefined();
       expect(result.current.collisionDetection).toBeDefined();
       expect(typeof result.current.onDragStart).toBe('function');
+      expect(typeof result.current.onDragMove).toBe('function');
       expect(typeof result.current.onDragOver).toBe('function');
       expect(typeof result.current.onDragEnd).toBe('function');
     });
@@ -363,7 +362,6 @@ describe('useDndOrchestrator', () => {
       expect(result.current.activeId).toBeNull();
       expect(result.current.sourcePanelId).toBeNull();
       expect(result.current.activePanelId).toBeNull();
-      expect(result.current.dropIndicatorIndex).toBeNull();
     });
 
     it('handles multi-selection move within same playlist without errors', () => {
