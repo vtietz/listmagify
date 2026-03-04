@@ -11,10 +11,13 @@ Commands:
   down            Stop dev server (docker compose down)
   install         Install dependencies
   test            Run tests
+  quality         Run code quality checks (typecheck, lint, LOC, complexity)
   exec            Run command in container (e.g., exec pnpm add package)
   compose         Run docker compose command (e.g., compose logs -f)
   init-env        Create .env from .env.example
-  preview         Build production image and run it locally for preview
+  preview         Alias for preview-up
+  preview-up      Build production image and start local preview (detached)
+  preview-down    Stop local preview container
   prod-build      Build production image (use --no-cache to force rebuild)
   prod-up         Start production deployment
   prod-down       Stop production deployment
@@ -29,11 +32,14 @@ Examples:
   ./run.sh down
   ./run.sh install
   ./run.sh test
+  ./run.sh quality
   ./run.sh test -- --watch
   ./run.sh exec pnpm add lodash
   ./run.sh compose logs -f
   ./run.sh init-env
   ./run.sh preview
+  ./run.sh preview-up
+  ./run.sh preview-down
   ./run.sh preview --no-cache
   ./run.sh prod-build --no-cache
   ./run.sh prod-logs -f
@@ -84,6 +90,35 @@ case "${1:-}" in
     shift
     docker compose --env-file .env -f docker/docker-compose.yml run --rm web pnpm test "$@"
     ;;
+  quality)
+    shift
+    docker compose --env-file .env -f docker/docker-compose.yml run --rm web sh -lc "
+      set +e
+      pnpm typecheck
+      TYPECHECK_EXIT=\$?
+      pnpm lint
+      LINT_EXIT=\$?
+
+      echo ''
+      echo '[quality] Code metrics'
+      FILES=\$(git ls-files '*.ts' '*.tsx' '*.js' '*.jsx' | wc -l)
+      LOC=\$(git ls-files '*.ts' '*.tsx' '*.js' '*.jsx' | xargs -r wc -l | tail -n1 | awk '{print \$1}')
+      echo \"[quality] Source files: \$FILES\"
+      echo \"[quality] Total LOC (ts/js): \$LOC\"
+
+      echo ''
+      echo '[quality] Complexity check (cyclomatic complexity > 12)'
+      pnpm exec eslint . --rule 'complexity: [warn, 12]' --format stylish || true
+
+      echo ''
+      echo \"[quality] typecheck exit code: \$TYPECHECK_EXIT\"
+      echo \"[quality] lint exit code: \$LINT_EXIT\"
+
+      if [ \$TYPECHECK_EXIT -ne 0 ] || [ \$LINT_EXIT -ne 0 ]; then
+        exit 1
+      fi
+    "
+    ;;
   init-env)
     if [ ! -f .env ]; then
       cp .env.example .env
@@ -93,6 +128,11 @@ case "${1:-}" in
     fi
     ;;
   preview)
+    # Backwards-compatible alias
+    shift
+    "$0" preview-up "$@"
+    ;;
+  preview-up)
     shift
     # Build production image using the same compose setup as production
     if [ -f docker/docker-compose.prod.override.yml ]; then
@@ -108,13 +148,22 @@ case "${1:-}" in
     PREVIEW_PORT="${PORT:-3000}"
     docker rm -f spotify-preview >/dev/null 2>&1 || true
     echo "Starting local preview on http://127.0.0.1:${PREVIEW_PORT}"
-    docker run --rm \
+    docker run -d --rm \
       --name spotify-preview \
       --env-file .env \
       -e NODE_ENV=production \
       -p "${PREVIEW_PORT}:3000" \
       -v "$(pwd)/data:/usr/src/app/data" \
       "${PREVIEW_IMAGE}"
+    echo "Preview started in background. Use './run.sh preview-down' to stop."
+    ;;
+  preview-down)
+    shift
+    if docker rm -f spotify-preview >/dev/null 2>&1; then
+      echo "Stopped local preview container 'spotify-preview'."
+    else
+      echo "No running preview container found."
+    fi
     ;;
   prod-build)
     shift

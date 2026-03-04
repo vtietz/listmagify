@@ -34,8 +34,6 @@ export async function GET(
     const searchParams = request.nextUrl.searchParams;
     const nextCursorParam = searchParams.get("nextCursor");
 
-    console.log("[api/playlists/tracks] nextCursorParam:", nextCursorParam);
-
     // Fields parameter for consistent data fetching (includes added_by for collaborative playlists)
     const fields = "items(track(id,uri,name,artists(name),duration_ms,album(id,name,images,release_date,release_date_precision),popularity),added_at,added_by(id,display_name)),next,total,snapshot_id";
 
@@ -51,10 +49,8 @@ export async function GET(
         const limit = url.searchParams.get('limit') || '100';
         // Rebuild with our fields to ensure added_by is included
         path = `/playlists/${encodeURIComponent(playlistId)}/tracks?offset=${offset}&limit=${limit}&fields=${encodeURIComponent(fields)}`;
-        console.log("[api/playlists/tracks] Parsed cursor to path with fields:", path);
       } catch (_err) {
         // If not a full URL, assume it's already a path but add fields
-        console.log("[api/playlists/tracks] Not a URL, using as-is with fields");
         path = nextCursorParam.includes('fields=') 
           ? nextCursorParam 
           : `${nextCursorParam}&fields=${encodeURIComponent(fields)}`;
@@ -64,8 +60,6 @@ export async function GET(
       const limit = 100;
       path = `/playlists/${encodeURIComponent(playlistId)}/tracks?limit=${limit}&fields=${encodeURIComponent(fields)}`;
     }
-
-    console.log("[api/playlists/tracks] Final path:", path);
     const res = await spotifyFetch(path, { method: "GET" });
 
     if (!res.ok) {

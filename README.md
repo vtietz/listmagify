@@ -156,8 +156,10 @@ All commands run inside Docker:
 | Start dev server | `./run.sh up` |
 | Stop dev server | `./run.sh down` |
 | Run unit tests | `./run.sh test` |
+| Run code quality checks | `./run.sh quality` |
 | Run test in watch mode | `./run.sh test -- --watch` |
-| Preview production build locally | `./run.sh preview [--no-cache]` |
+| Start local production preview | `./run.sh preview-up [--no-cache]` |
+| Stop local production preview | `./run.sh preview-down` |
 | Add package | `./run.sh exec pnpm add <pkg>` |
 | Run arbitrary command | `./run.sh exec <cmd>` |
 | Run docker compose cmd | `./run.sh compose <cmd>` |
@@ -182,7 +184,8 @@ The production setup includes:
 | Task | Command |
 |------|----------|
 | Build production image | `./run.sh prod-build` |
-| Build + preview locally | `./run.sh preview [--no-cache]` |
+| Start preview locally | `./run.sh preview-up [--no-cache]` |
+| Stop preview locally | `./run.sh preview-down` |
 | Start production | `./run.sh prod-up` |
 | Stop production | `./run.sh prod-down` |
 | View production logs | `./run.sh prod-logs -f` |

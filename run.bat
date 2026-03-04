@@ -62,6 +62,11 @@ if "%1"=="prod-build" (
   goto :eof
 )
 if "%1"=="preview" (
+  rem Backward-compatible alias
+  call "%~f0" preview-up %2 %3 %4 %5 %6 %7 %8 %9
+  goto :eof
+)
+if "%1"=="preview-up" (
   rem Build production image using the same compose setup as production
   if exist "docker\docker-compose.prod.override.yml" (
     echo Building production image for local preview with override...
@@ -79,7 +84,17 @@ if "%1"=="preview" (
   )
   docker rm -f spotify-preview >nul 2>nul
   echo Starting local preview on http://127.0.0.1:%PORT%
-  docker run --rm --name spotify-preview --env-file .env -e NODE_ENV=production -p %PORT%:3000 -v "%cd%\data:/usr/src/app/data" %PREVIEW_IMAGE%
+  docker run -d --rm --name spotify-preview --env-file .env -e NODE_ENV=production -p %PORT%:3000 -v "%cd%\data:/usr/src/app/data" %PREVIEW_IMAGE%
+  echo Preview started in background. Use 'run.bat preview-down' to stop.
+  goto :eof
+)
+if "%1"=="preview-down" (
+  docker rm -f spotify-preview >nul 2>nul
+  if %errorlevel%==0 (
+    echo Stopped local preview container 'spotify-preview'.
+  ) else (
+    echo No running preview container found.
+  )
   goto :eof
 )
 if "%1"=="prod-up" (
@@ -213,6 +228,10 @@ if "%1"=="test" (
   )
   goto :eof
 )
+if "%1"=="quality" (
+  docker compose -f docker\docker-compose.yml run --rm web sh -lc "set +e; pnpm typecheck; TYPECHECK_EXIT=\$?; pnpm lint; LINT_EXIT=\$?; echo ''; echo '[quality] Code metrics'; FILES=\$(git ls-files '*.ts' '*.tsx' '*.js' '*.jsx' ^| wc -l); LOC=\$(git ls-files '*.ts' '*.tsx' '*.js' '*.jsx' ^| xargs -r wc -l ^| tail -n1 ^| awk '{print \$1}'); echo \"[quality] Source files: \$FILES\"; echo \"[quality] Total LOC (ts/js): \$LOC\"; echo ''; echo '[quality] Complexity check (cyclomatic complexity ^> 12)'; pnpm exec eslint . --rule 'complexity: [warn, 12]' --format stylish ^|^| true; echo ''; echo \"[quality] typecheck exit code: \$TYPECHECK_EXIT\"; echo \"[quality] lint exit code: \$LINT_EXIT\"; if [ \$TYPECHECK_EXIT -ne 0 ] ^|^| [ \$LINT_EXIT -ne 0 ]; then exit 1; fi"
+  goto :eof
+)
 
 REM --- Utility Commands ---
 
@@ -237,10 +256,13 @@ echo   run.bat up                - Start dev server (docker compose up)
 echo   run.bat down              - Stop dev server (docker compose down)
 echo   run.bat install           - Install dependencies
 echo   run.bat test [args]       - Run tests
+echo   run.bat quality           - Run typecheck, lint, LOC, complexity
 echo   run.bat exec ^<cmd^>       - Run command in web container
 echo   run.bat compose ^<cmd^>    - Run docker compose command
 echo   run.bat init-env          - Create .env from .env.example
-echo   run.bat preview [args]    - Build production image and run local preview
+echo   run.bat preview [args]    - Alias for preview-up
+echo   run.bat preview-up [args] - Build production image and start local preview
+echo   run.bat preview-down      - Stop local preview container
 echo   run.bat prod-build [args] - Build production image
 echo   run.bat prod-up [args]    - Start production deployment
 echo   run.bat prod-down [args]  - Stop production deployment
