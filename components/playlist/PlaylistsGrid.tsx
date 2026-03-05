@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import type { Playlist } from "@/lib/spotify/types";
 import { PlaylistCard } from "@/components/playlist/PlaylistCard";
 import { PlaylistListItem } from "@/components/playlist/PlaylistListItem";
@@ -40,6 +40,8 @@ export function PlaylistsGrid({
   onNewPlaylistAdded,
 }: PlaylistsGridProps) {
   const { isCompact } = useCompactModeStore();
+  const handledPlaylistIdRef = useRef<string | null>(null);
+  const refreshInFlightRef = useRef(false);
   
   // Auto-load all playlists for instant search
   const { items, isAutoLoading, setItems, setNextCursor } = useAutoLoadPaginated({
@@ -54,41 +56,58 @@ export function PlaylistsGrid({
 
   // Add newly created playlist to items immediately for instant feedback
   useEffect(() => {
-    if (newlyCreatedPlaylist) {
-      // Check if playlist already exists to prevent duplicates
-      const exists = items.some(item => item.id === newlyCreatedPlaylist.id);
-      if (!exists) {
-        // Add to the beginning of the list (after Liked Songs which is added in filteredItems)
-        setItems([newlyCreatedPlaylist, ...items]);
-      }
-      // Notify parent that we've incorporated the playlist
-      onNewPlaylistAdded?.();
+    if (!newlyCreatedPlaylist) {
+      handledPlaylistIdRef.current = null;
+      return;
     }
-  }, [newlyCreatedPlaylist]); // Intentionally limited deps to run only when newlyCreatedPlaylist changes
+
+    if (handledPlaylistIdRef.current === newlyCreatedPlaylist.id) {
+      return;
+    }
+
+    const exists = items.some((item) => item.id === newlyCreatedPlaylist.id);
+    if (!exists) {
+      setItems([newlyCreatedPlaylist, ...items]);
+    }
+
+    handledPlaylistIdRef.current = newlyCreatedPlaylist.id;
+    onNewPlaylistAdded?.();
+  }, [newlyCreatedPlaylist, items, setItems, onNewPlaylistAdded]);
 
   // Handle refresh from parent
   useEffect(() => {
-    if (isRefreshing) {
-      // Reset state and fetch from beginning
-      const fetchInitial = async () => {
-        try {
-          const data = await apiFetch<{ items: Playlist[]; nextCursor: string | null }>("/api/me/playlists");
-
-          setItems(data.items || []);
-          setNextCursor(data.nextCursor);
-          onRefreshComplete(data.items || [], data.nextCursor);
-        } catch (error) {
-          // apiFetch handles 401 automatically, just handle other errors
-          if (error instanceof ApiError && !error.isUnauthorized) {
-            // Keep existing data on error
-            onRefreshComplete(items, null);
-          }
-        }
-      };
-
-      fetchInitial();
+    if (!isRefreshing || refreshInFlightRef.current) {
+      return;
     }
-  }, [isRefreshing]); // Intentionally limited deps
+
+    refreshInFlightRef.current = true;
+    let cancelled = false;
+
+    const fetchInitial = async () => {
+      try {
+        const data = await apiFetch<{ items: Playlist[]; nextCursor: string | null }>("/api/me/playlists");
+        if (cancelled) return;
+
+        setItems(data.items || []);
+        setNextCursor(data.nextCursor);
+        onRefreshComplete(data.items || [], data.nextCursor);
+      } catch (error) {
+        if (cancelled) return;
+
+        if (error instanceof ApiError && !error.isUnauthorized) {
+          onRefreshComplete(items, null);
+        }
+      } finally {
+        refreshInFlightRef.current = false;
+      }
+    };
+
+    fetchInitial();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isRefreshing, items, setItems, setNextCursor, onRefreshComplete]);
 
   // Virtual playlist for Liked Songs (shown first)
   // Uses cached total from saved tracks index (populated when user visits split-editor)

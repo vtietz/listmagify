@@ -249,13 +249,13 @@ export function usePanelScrollSync({
 
   // --- Flush on unmount ---
   useEffect(() => {
+    const element = scrollRef.current;
+
     return () => {
       // Flush current scroll position on unmount (for page reload restoration)
-      const el = scrollRef.current;
-      if (el && !suspendSavesRef.current) {
-        setScroll(panelId, el.scrollTop);
+      if (element && !suspendSavesRef.current) {
+        setScroll(panelId, element.scrollTop);
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [panelId, setScroll]);
+  }, [panelId, scrollRef, setScroll]);
 }

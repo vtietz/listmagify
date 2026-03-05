@@ -27,6 +27,7 @@ import type { Track } from '@/lib/spotify/types';
 
 /** Virtual panel ID for recommendations (used in DnD composite IDs) */
 export const RECS_PANEL_ID = 'recs-panel';
+const EMPTY_RECOMMENDATIONS: Array<{ track?: Track }> = [];
 
 interface RecommendationsPanelProps {
   /** Selected track IDs from split panels */
@@ -113,7 +114,7 @@ export function RecommendationsPanel({
     50 // Fetch up to 50 for filtering headroom
   );
 
-  const allRecommendations = data?.recommendations ?? [];
+  const allRecommendations = data?.recommendations ?? EMPTY_RECOMMENDATIONS;
   const isEnabled = data?.enabled ?? true;
   
   // Filter recommendations by search query (words can match in any order)
