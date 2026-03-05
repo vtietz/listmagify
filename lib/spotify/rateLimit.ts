@@ -66,6 +66,19 @@ function expBackoff(attempt: number, base: number, cap: number): number {
   return Math.floor(Math.random() * (expo + 1));
 }
 
+function getBackoffDelayMs(attempt: number, cfg: Required<BackoffOptions>): number {
+  return expBackoff(attempt, cfg.baseDelayMs, cfg.maxDelayMs);
+}
+
+function getRetryAfterDelayMs(
+  retryAfter: string | null,
+  attempt: number,
+  cfg: Required<BackoffOptions>
+): number {
+  const waitSec = retryAfter ? Number(retryAfter) : NaN;
+  return Number.isFinite(waitSec) ? waitSec * 1000 : getBackoffDelayMs(attempt, cfg);
+}
+
 /**
  * Wrap a fetch-call factory with retry/backoff.
  * The factory is re-invoked for each retry to allow recalculating headers/etc.
@@ -78,19 +91,19 @@ export async function withRateLimitRetry(
   requestPath?: string
 ): Promise<Response> {
   const cfg = { ...defaultBackoff, ...opts };
+  const maxWaitMs = 60 * 60 * 1000;
 
-  let attempt = 0;
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
-    attempt += 1;
+  for (let attempt = 1; attempt <= cfg.maxRetries + 1; attempt += 1) {
     let res: Response;
+
     try {
       res = await fetchFactory();
     } catch (err) {
       if (attempt > cfg.maxRetries) {
         throw err;
       }
-      const delay = expBackoff(attempt, cfg.baseDelayMs, cfg.maxDelayMs);
+
+      const delay = getBackoffDelayMs(attempt, cfg);
       console.warn(`[spotify] network error, retrying in ${delay}ms (attempt ${attempt}/${cfg.maxRetries})`, err);
       await sleep(delay);
       continue;
@@ -101,21 +114,19 @@ export async function withRateLimitRetry(
 
     // 429 Too Many Requests - honor Retry-After
     if (res.status === 429) {
-      const ra = res.headers.get("Retry-After");
-      const waitSec = ra ? Number(ra) : NaN;
-      const delayMs = Number.isFinite(waitSec) ? waitSec * 1000 : expBackoff(attempt, cfg.baseDelayMs, cfg.maxDelayMs);
-      
+      const delayMs = getRetryAfterDelayMs(res.headers.get('Retry-After'), attempt, cfg);
+
       // If retry time is very long (> 1 hour), don't wait - throw immediately
-      const maxWaitMs = 60 * 60 * 1000; // 1 hour
       if (delayMs > maxWaitMs) {
         console.warn(`[spotify] 429 with long wait (${Math.ceil(delayMs / 1000)}s), throwing RateLimitError`);
         throw new RateLimitError(delayMs, requestPath);
       }
-      
+
       if (attempt > cfg.maxRetries) {
         console.warn(`[spotify] 429 and maxRetries reached, throwing RateLimitError`);
         throw new RateLimitError(delayMs, requestPath);
       }
+
       console.warn(`[spotify] 429 received, retry after ${delayMs}ms (attempt ${attempt}/${cfg.maxRetries})`);
       await sleep(delayMs);
       continue;
@@ -123,7 +134,7 @@ export async function withRateLimitRetry(
 
     // Retry select transient 5xx
     if (res.status >= 500 && res.status < 600 && attempt <= cfg.maxRetries) {
-      const delay = expBackoff(attempt, cfg.baseDelayMs, cfg.maxDelayMs);
+      const delay = getBackoffDelayMs(attempt, cfg);
       console.warn(`[spotify] ${res.status} server error, retrying in ${delay}ms (attempt ${attempt}/${cfg.maxRetries})`);
       await sleep(delay);
       continue;
@@ -132,4 +143,6 @@ export async function withRateLimitRetry(
     // Non-retryable or retries exhausted
     return res;
   }
+
+  throw new Error('[spotify] retry loop exhausted unexpectedly');
 }

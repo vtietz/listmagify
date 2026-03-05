@@ -77,27 +77,18 @@ export type PageResult<T> = {
  * Accept unknown to keep call sites tolerant to SDK/raw fetch responses.
  */
 export function mapPlaylist(raw: any): Playlist {
-  const images: Image[] | undefined = Array.isArray(raw?.images)
-    ? raw.images.map((img: any) => ({
-        url: String(img?.url ?? ""),
-        width: typeof img?.width === "number" ? img.width : undefined,
-        height: typeof img?.height === "number" ? img.height : undefined,
-      }))
-    : undefined;
+  const images = mapImageArray(raw?.images);
 
   return {
-    id: String(raw?.id ?? ""),
-    name: String(raw?.name ?? ""),
+    id: toStringValue(raw?.id, ''),
+    name: toStringValue(raw?.name, ''),
     description: raw?.description ?? null,
     ownerName: raw?.owner?.display_name ?? null,
-    owner: raw?.owner ? {
-      id: raw.owner.id ?? null,
-      displayName: raw.owner.display_name ?? null,
-    } : null,
+    owner: mapOwner(raw?.owner),
     image: images?.[0] ?? null,
-    tracksTotal: Number(raw?.tracks?.total ?? 0),
-    isPublic: typeof raw?.public === "boolean" ? raw.public : null,
-    collaborative: typeof raw?.collaborative === "boolean" ? raw.collaborative : null,
+    tracksTotal: toNumber(raw?.tracks?.total, 0),
+    isPublic: toBooleanOrNull(raw?.public),
+    collaborative: toBooleanOrNull(raw?.collaborative),
   };
 }
 
@@ -107,72 +98,138 @@ export function mapPlaylistItemToTrack(raw: any): Track {
   // Handle unavailable tracks (Spotify returns null for removed/unavailable tracks)
   if (t === null || t === undefined) {
     console.warn('[mapPlaylistItemToTrack] Encountered null/undefined track - track may be unavailable');
-    return {
-      id: null,
-      uri: '', // Empty URI will be filtered out when saving playlist order
-      name: '[Unavailable Track]',
-      artists: [],
-      artistObjects: [],
-      durationMs: 0,
-      addedAt: raw?.added_at ?? undefined,
-      album: null,
-      popularity: null,
-      explicit: false,
-      addedBy: raw?.added_by?.id
-        ? {
-            id: String(raw.added_by.id),
-            displayName: raw.added_by.display_name ?? null,
-          }
-        : null,
-    };
+    return mapUnavailableTrack(raw);
   }
 
-  const albumImages: Image[] | undefined = Array.isArray(t?.album?.images)
-    ? t.album.images.map((img: any) => ({
-        url: String(img?.url ?? ""),
-        width: typeof img?.width === "number" ? img.width : undefined,
-        height: typeof img?.height === "number" ? img.height : undefined,
-      }))
-    : undefined;
-
-  const artists: string[] = Array.isArray(t?.artists)
-    ? t.artists.map((a: any) => String(a?.name ?? "")).filter(Boolean)
-    : [];
-
-  const artistObjects = Array.isArray(t?.artists)
-    ? t.artists.map((a: any) => ({
-        id: a?.id ?? null,
-        name: String(a?.name ?? ""),
-      })).filter((a: { name: string }) => a.name)
-    : [];
+  const artists = mapArtistNames(t?.artists);
+  const artistObjects = mapArtistObjects(t?.artists);
+  const album = mapTrackAlbum(t?.album);
+  const addedBy = mapAddedBy(raw?.added_by);
 
   return {
     id: t?.id ?? null,
-    uri: String(t?.uri ?? ""),
-    name: String(t?.name ?? ""),
+    uri: toStringValue(t?.uri, ''),
+    name: toStringValue(t?.name, ''),
     artists,
     artistObjects,
-    durationMs: Number(t?.duration_ms ?? 0),
+    durationMs: toNumber(t?.duration_ms, 0),
     addedAt: raw?.added_at ?? undefined,
-    album: t?.album
-      ? {
-          id: t?.album?.id ?? null,
-          name: t?.album?.name ?? null,
-          image: albumImages?.[0] ?? null,
-          releaseDate: t?.album?.release_date ?? null,
-          releaseDatePrecision: ['year', 'month', 'day'].includes(t?.album?.release_date_precision)
-            ? t?.album?.release_date_precision as 'year' | 'month' | 'day'
-            : null,
-        }
-      : null,
+    album,
     popularity: typeof t?.popularity === 'number' ? t.popularity : null,
     explicit: t?.explicit === true,
-    addedBy: raw?.added_by?.id
-      ? {
-          id: String(raw.added_by.id),
-          displayName: raw.added_by.display_name ?? null,
-        }
+    addedBy,
+  };
+}
+
+function toStringValue(value: unknown, fallback: string): string {
+  return value === null || value === undefined ? fallback : String(value);
+}
+
+function toNumber(value: unknown, fallback: number): number {
+  return typeof value === 'number' ? value : Number(value ?? fallback);
+}
+
+function toBooleanOrNull(value: unknown): boolean | null {
+  return typeof value === 'boolean' ? value : null;
+}
+
+function mapImageArray(rawImages: any): Image[] | undefined {
+  if (!Array.isArray(rawImages)) {
+    return undefined;
+  }
+
+  return rawImages.map((img: any) => ({
+    url: toStringValue(img?.url, ''),
+    width: typeof img?.width === 'number' ? img.width : null,
+    height: typeof img?.height === 'number' ? img.height : null,
+  }));
+}
+
+function mapOwner(rawOwner: any): { id?: string | null; displayName?: string | null } | null {
+  if (!rawOwner) {
+    return null;
+  }
+
+  return {
+    id: rawOwner.id ?? null,
+    displayName: rawOwner.display_name ?? null,
+  };
+}
+
+function mapAddedBy(rawAddedBy: any): { id: string; displayName?: string | null } | null {
+  if (!rawAddedBy?.id) {
+    return null;
+  }
+
+  return {
+    id: toStringValue(rawAddedBy.id, ''),
+    displayName: rawAddedBy.display_name ?? null,
+  };
+}
+
+function mapArtistNames(rawArtists: any): string[] {
+  if (!Array.isArray(rawArtists)) {
+    return [];
+  }
+
+  return rawArtists
+    .map((artist: any) => toStringValue(artist?.name, ''))
+    .filter(Boolean);
+}
+
+function mapArtistObjects(rawArtists: any): Artist[] {
+  if (!Array.isArray(rawArtists)) {
+    return [];
+  }
+
+  return rawArtists
+    .map((artist: any) => ({
+      id: artist?.id ?? null,
+      name: toStringValue(artist?.name, ''),
+    }))
+    .filter((artist: Artist) => artist.name.length > 0);
+}
+
+function isValidReleaseDatePrecision(value: unknown): value is 'year' | 'month' | 'day' {
+  return value === 'year' || value === 'month' || value === 'day';
+}
+
+function mapTrackAlbum(rawAlbum: any): {
+  id?: string | null;
+  name?: string | null;
+  image?: Image | null;
+  releaseDate?: string | null;
+  releaseDatePrecision?: 'year' | 'month' | 'day' | null;
+} | null {
+  if (!rawAlbum) {
+    return null;
+  }
+
+  const images = mapImageArray(rawAlbum.images);
+  return {
+    id: rawAlbum.id ?? null,
+    name: rawAlbum.name ?? null,
+    image: images?.[0] ?? null,
+    releaseDate: rawAlbum.release_date ?? null,
+    releaseDatePrecision: isValidReleaseDatePrecision(rawAlbum.release_date_precision)
+      ? rawAlbum.release_date_precision
       : null,
+  };
+}
+
+function mapUnavailableTrack(raw: any): Track {
+  return {
+    id: null,
+    uri: '',
+    name: '[Unavailable Track]',
+    artists: [],
+    artistObjects: [],
+    durationMs: 0,
+    addedAt: raw?.added_at ?? undefined,
+    album: null,
+    popularity: null,
+    explicit: false,
+    addedBy: mapAddedBy(raw?.added_by),
   };
 }
 

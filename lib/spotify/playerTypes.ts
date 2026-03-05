@@ -83,15 +83,17 @@ export interface PlayRequest {
  * Map raw Spotify device response to our DTO
  */
 export function mapDevice(raw: any): SpotifyDevice {
+  const source = raw ?? {};
+
   return {
-    id: String(raw?.id ?? ''),
-    name: String(raw?.name ?? 'Unknown Device'),
-    type: raw?.type ?? 'Unknown',
-    isActive: Boolean(raw?.is_active),
-    isPrivateSession: Boolean(raw?.is_private_session),
-    isRestricted: Boolean(raw?.is_restricted),
-    volumePercent: typeof raw?.volume_percent === 'number' ? raw.volume_percent : null,
-    supportsVolume: Boolean(raw?.supports_volume),
+    id: coerceString(source.id, ''),
+    name: coerceString(source.name, 'Unknown Device'),
+    type: coerceDeviceType(source.type),
+    isActive: coerceBoolean(source.is_active),
+    isPrivateSession: coerceBoolean(source.is_private_session),
+    isRestricted: coerceBoolean(source.is_restricted),
+    volumePercent: coerceNumberOrNull(source.volume_percent),
+    supportsVolume: coerceBoolean(source.supports_volume),
   };
 }
 
@@ -114,44 +116,107 @@ const DEFAULT_RESTRICTIONS: PlaybackRestrictions = {
 
 export function mapPlaybackState(raw: any): PlaybackState | null {
   if (!raw) return null;
-  
-  const track = raw?.item;
-  // API returns actions.disallows where true = action is NOT allowed
-  const disallows = raw?.actions?.disallows ?? {};
-  
+
   return {
     device: raw?.device ? mapDevice(raw.device) : null,
-    isPlaying: Boolean(raw?.is_playing),
-    shuffleState: Boolean(raw?.shuffle_state),
-    repeatState: raw?.repeat_state ?? 'off',
-    context: raw?.context ? {
-      type: raw.context.type,
-      uri: raw.context.uri,
-      href: raw.context.href,
-    } : null,
-    track: track ? {
-      id: track.id ?? null,
-      uri: track.uri,
-      name: track.name,
-      artists: Array.isArray(track.artists) 
-        ? track.artists.map((a: any) => a.name).filter(Boolean)
-        : [],
-      albumName: track.album?.name ?? null,
-      albumImage: track.album?.images?.[0]?.url ?? null,
-      durationMs: track.duration_ms ?? 0,
-    } : null,
-    progressMs: raw?.progress_ms ?? 0,
-    timestamp: raw?.timestamp ?? Date.now(),
-    restrictions: {
-      ...DEFAULT_RESTRICTIONS,
-      pausing: Boolean(disallows.pausing),
-      resuming: Boolean(disallows.resuming),
-      seeking: Boolean(disallows.seeking),
-      skippingNext: Boolean(disallows.skipping_next),
-      skippingPrev: Boolean(disallows.skipping_prev),
-      togglingShuffle: Boolean(disallows.toggling_shuffle),
-      togglingRepeat: Boolean(disallows.toggling_repeat_context) || Boolean(disallows.toggling_repeat_track),
-      transferringPlayback: Boolean(disallows.transferring_playback),
-    },
+    isPlaying: coerceBoolean(raw?.is_playing),
+    shuffleState: coerceBoolean(raw?.shuffle_state),
+    repeatState: coerceRepeatState(raw?.repeat_state),
+    context: mapPlaybackContext(raw?.context),
+    track: mapPlaybackTrack(raw?.item),
+    progressMs: coerceNumber(raw?.progress_ms, 0),
+    timestamp: coerceNumber(raw?.timestamp, Date.now()),
+    restrictions: mapPlaybackRestrictions(raw?.actions?.disallows),
+  };
+}
+
+const VALID_DEVICE_TYPES = new Set<SpotifyDevice['type']>([
+  'Computer',
+  'Smartphone',
+  'Speaker',
+  'TV',
+  'AVR',
+  'STB',
+  'AudioDongle',
+  'GameConsole',
+  'CastVideo',
+  'CastAudio',
+  'Automobile',
+  'Unknown',
+]);
+
+const VALID_CONTEXT_TYPES = new Set<PlaybackContext['type']>(['album', 'artist', 'playlist', 'show']);
+const VALID_REPEAT_STATES = new Set<PlaybackState['repeatState']>(['off', 'track', 'context']);
+
+function coerceString(value: unknown, fallback: string): string {
+  return value === null || value === undefined ? fallback : String(value);
+}
+
+function coerceBoolean(value: unknown): boolean {
+  return Boolean(value);
+}
+
+function coerceNumber(value: unknown, fallback: number): number {
+  return typeof value === 'number' ? value : fallback;
+}
+
+function coerceNumberOrNull(value: unknown): number | null {
+  return typeof value === 'number' ? value : null;
+}
+
+function coerceDeviceType(value: unknown): SpotifyDevice['type'] {
+  return typeof value === 'string' && VALID_DEVICE_TYPES.has(value as SpotifyDevice['type'])
+    ? (value as SpotifyDevice['type'])
+    : 'Unknown';
+}
+
+function coerceRepeatState(value: unknown): PlaybackState['repeatState'] {
+  return typeof value === 'string' && VALID_REPEAT_STATES.has(value as PlaybackState['repeatState'])
+    ? (value as PlaybackState['repeatState'])
+    : 'off';
+}
+
+function mapPlaybackContext(raw: any): PlaybackContext | null {
+  if (!raw) return null;
+
+  const type = VALID_CONTEXT_TYPES.has(raw?.type) ? raw.type : 'playlist';
+  return {
+    type,
+    uri: coerceString(raw?.uri, ''),
+    href: coerceString(raw?.href, ''),
+  };
+}
+
+function mapPlaybackTrack(raw: any): PlaybackTrack | null {
+  if (!raw) return null;
+
+  const artists = Array.isArray(raw?.artists)
+    ? raw.artists.map((artist: any) => coerceString(artist?.name, '')).filter(Boolean)
+    : [];
+
+  return {
+    id: raw?.id ?? null,
+    uri: coerceString(raw?.uri, ''),
+    name: coerceString(raw?.name, ''),
+    artists,
+    albumName: raw?.album?.name ?? null,
+    albumImage: raw?.album?.images?.[0]?.url ?? null,
+    durationMs: coerceNumber(raw?.duration_ms, 0),
+  };
+}
+
+function mapPlaybackRestrictions(rawDisallows: any): PlaybackRestrictions {
+  const disallows = rawDisallows ?? {};
+
+  return {
+    ...DEFAULT_RESTRICTIONS,
+    pausing: coerceBoolean(disallows.pausing),
+    resuming: coerceBoolean(disallows.resuming),
+    seeking: coerceBoolean(disallows.seeking),
+    skippingNext: coerceBoolean(disallows.skipping_next),
+    skippingPrev: coerceBoolean(disallows.skipping_prev),
+    togglingShuffle: coerceBoolean(disallows.toggling_shuffle),
+    togglingRepeat: coerceBoolean(disallows.toggling_repeat_context) || coerceBoolean(disallows.toggling_repeat_track),
+    transferringPlayback: coerceBoolean(disallows.transferring_playback),
   };
 }

@@ -51,9 +51,9 @@ describe('Debug Utilities', () => {
   });
 
   describe('logDebug', () => {
-    it('should call console.log when debug is enabled', () => {
+    it('should call console.debug when debug is enabled', () => {
       process.env.NEXT_PUBLIC_DEBUG = 'true';
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const consoleSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
       
       logDebug('Test message', { data: 'value' });
       
@@ -61,9 +61,9 @@ describe('Debug Utilities', () => {
       consoleSpy.mockRestore();
     });
 
-    it('should not call console.log when debug is disabled', () => {
+    it('should not call console.debug when debug is disabled', () => {
       delete process.env.NEXT_PUBLIC_DEBUG;
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const consoleSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
       
       logDebug('Test message', { data: 'value' });
       
@@ -73,7 +73,7 @@ describe('Debug Utilities', () => {
 
     it('should handle multiple arguments', () => {
       process.env.NEXT_PUBLIC_DEBUG = 'true';
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const consoleSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
       
       logDebug('Message', 123, true, { obj: 'data' });
       

@@ -139,7 +139,7 @@ export function AddToMarkedButton({
     } finally {
       setIsInserting(false);
     }
-  }, [playlistsWithMarkers, trackUri, trackName, addTracksMutation, shiftAfterMultiInsert]);
+  }, [playlistsWithMarkers, trackUri, addTracksMutation, shiftAfterMultiInsert]);
 
   // Check for duplicates and show appropriate dialog
   const checkAndProceed = useCallback(async () => {

@@ -96,7 +96,6 @@ type ToasterComponent = React.ComponentType<ToasterProps>;
 // Lazy-load sonner to avoid server-side evaluation issues
 // The actual sonner import happens only when toast functions are called (client-side only)
 function getSonner() {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   return require('sonner') as { toast: ToastFunction; Toaster: ToasterComponent };
 }
 

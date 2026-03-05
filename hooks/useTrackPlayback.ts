@@ -76,7 +76,7 @@ export function useTrackPlayback(options: UseTrackPlaybackOptions) {
       loadingRef.current = false;
       setLoadingTrackUri(null);
     }
-  }, [trackUris, playlistUri, playlistId, play]);
+  }, [trackUris, playlistUri, playlistId, sourceId, play]);
 
   // Pause playback
   const pausePlayback = useCallback(async () => {

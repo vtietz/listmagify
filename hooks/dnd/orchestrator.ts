@@ -17,7 +17,7 @@
  * - collision.ts - Collision detection
  */
 
-import { useRef, useCallback, useMemo } from 'react';
+import { useRef, useCallback } from 'react';
 import {
   KeyboardSensor,
   PointerSensor,
@@ -243,23 +243,27 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
   );
 
   // === Event Handlers ===
-  const handleDragStart = useMemo(() => createDragStartHandler({
-    panels,
-    panelVirtualizersRef,
-    pointerTracker: pointerTracker as DragStartContext['pointerTracker'],
-    autoScroller,
-    startDrag,
-  }), [panels, pointerTracker, autoScroller, startDrag]);
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    createDragStartHandler({
+      panels,
+      panelVirtualizersRef,
+      pointerTracker: pointerTracker as DragStartContext['pointerTracker'],
+      autoScroller,
+      startDrag,
+    })(event);
+  }, [panels, pointerTracker, autoScroller, startDrag]);
 
-  const processDragOver = useMemo(() => createDragOverHandler({
-    panels,
-    panelVirtualizersRef,
-    pointerTracker: pointerTracker as DragOverContext['pointerTracker'],
-    headerOffset,
-    getActiveDragState,
-    findPanelUnderPointer: findPanel,
-    updateDropPosition,
-  }), [panels, pointerTracker, headerOffset, getActiveDragState, findPanel, updateDropPosition]);
+  const processDragOver = useCallback((event: DragMoveEvent | DragOverEvent) => {
+    createDragOverHandler({
+      panels,
+      panelVirtualizersRef,
+      pointerTracker: pointerTracker as DragOverContext['pointerTracker'],
+      headerOffset,
+      getActiveDragState,
+      findPanelUnderPointer: findPanel,
+      updateDropPosition,
+    })(event);
+  }, [panels, pointerTracker, headerOffset, getActiveDragState, findPanel, updateDropPosition]);
 
   // RAF-throttled position update — shared by onDragMove and onDragOver.
   // With per-row droppables removed (useDraggable instead of useSortable),
@@ -286,25 +290,34 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
   const handleDragMove = throttledPositionUpdate;
   const handleDragOver = throttledPositionUpdate;
 
-  const processDragEnd = useMemo(() => createDragEndHandler({
-    panels,
-    panelVirtualizersRef,
-    pointerTracker: pointerTracker as DragEndContext['pointerTracker'],
-    mutations: { addTracks, removeTracks, reorderTracks } as unknown as DragEndContext['mutations'],
-    getFinalDropPosition,
-    getSelectedIndices,
-    getOrderedTracksSnapshot,
-    endDrag,
-  }), [panels, pointerTracker, addTracks, removeTracks, reorderTracks, getFinalDropPosition, getSelectedIndices, getOrderedTracksSnapshot, endDrag]);
-
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     if (dragOverFrameRef.current !== null) {
       cancelAnimationFrame(dragOverFrameRef.current);
       dragOverFrameRef.current = null;
       queuedDragOverRef.current = null;
     }
-    processDragEnd(event);
-  }, [processDragEnd]);
+
+    createDragEndHandler({
+      panels,
+      panelVirtualizersRef,
+      pointerTracker: pointerTracker as DragEndContext['pointerTracker'],
+      mutations: { addTracks, removeTracks, reorderTracks } as unknown as DragEndContext['mutations'],
+      getFinalDropPosition,
+      getSelectedIndices,
+      getOrderedTracksSnapshot,
+      endDrag,
+    })(event);
+  }, [
+    panels,
+    pointerTracker,
+    addTracks,
+    removeTracks,
+    reorderTracks,
+    getFinalDropPosition,
+    getSelectedIndices,
+    getOrderedTracksSnapshot,
+    endDrag,
+  ]);
 
   const handleDragCancel = useCallback(() => {
     if (dragOverFrameRef.current !== null) {

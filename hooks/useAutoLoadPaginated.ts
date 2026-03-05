@@ -100,7 +100,7 @@ export function useAutoLoadPaginated<T>({
     // New dataset: allow a new auto-load run
     lastRunTokenRef.current = null;
     inFlightRef.current = false;
-  }, [resetToken]);
+  }, [resetToken, initialItems, initialNextCursor]);
 
   useEffect(() => {
     // Only kick off when enabled and we have a cursor.
