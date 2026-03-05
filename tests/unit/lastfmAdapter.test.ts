@@ -11,6 +11,7 @@ import {
   fetchTopTracks,
   fetchWeeklyChart,
   fetchLastfmTracks,
+  __lastfmTestUtils,
 } from '@/lib/importers/lastfm';
 
 // Mock environment variables
@@ -27,6 +28,123 @@ afterEach(() => {
 });
 
 describe('lastfm adapter', () => {
+  describe('helper utilities', () => {
+    it('computeRetryWaitMs prefers Retry-After when valid', () => {
+      expect(__lastfmTestUtils.computeRetryWaitMs(0, '3')).toBe(3000);
+      expect(__lastfmTestUtils.computeRetryWaitMs(2, '1')).toBe(1000);
+    });
+
+    it('computeRetryWaitMs falls back to exponential backoff', () => {
+      expect(__lastfmTestUtils.computeRetryWaitMs(0)).toBe(1000);
+      expect(__lastfmTestUtils.computeRetryWaitMs(1)).toBe(2000);
+      expect(__lastfmTestUtils.computeRetryWaitMs(2, 'invalid')).toBe(4000);
+    });
+
+    it('detectRateLimitFromStatus returns wait for 429 only', () => {
+      const status429 = new Response(null, {
+        status: 429,
+        headers: { 'Retry-After': '2' },
+      });
+      const status200 = new Response(null, { status: 200 });
+
+      expect(__lastfmTestUtils.detectRateLimitFromStatus(status429, 0)).toBe(2000);
+      expect(__lastfmTestUtils.detectRateLimitFromStatus(status200, 0)).toBeNull();
+    });
+
+    it('detectRateLimitFromBody handles error 29, non-error, and invalid JSON', async () => {
+      const rateLimited = new Response(JSON.stringify({ error: 29 }), { status: 200 });
+      const okBody = new Response(JSON.stringify({ recenttracks: { track: [] } }), { status: 200 });
+      const invalidJson = new Response('not-json', { status: 200 });
+
+      await expect(__lastfmTestUtils.detectRateLimitFromBody(rateLimited, 1)).resolves.toBe(2000);
+      await expect(__lastfmTestUtils.detectRateLimitFromBody(okBody, 1)).resolves.toBeNull();
+      await expect(__lastfmTestUtils.detectRateLimitFromBody(invalidJson, 1)).resolves.toBeNull();
+    });
+
+    it('buildPaginationFromAttr parses strings and supports missing fields', () => {
+      expect(
+        __lastfmTestUtils.buildPaginationFromAttr(
+          {
+            page: '2',
+            perPage: '20',
+            totalPages: '10',
+            total: '200',
+          },
+          50
+        )
+      ).toEqual({ page: 2, perPage: 20, totalPages: 10, totalItems: 200 });
+
+      expect(__lastfmTestUtils.buildPaginationFromAttr(undefined, 50)).toEqual({
+        page: 1,
+        perPage: 50,
+      });
+
+      expect(
+        __lastfmTestUtils.buildPaginationFromAttr(
+          {
+            page: '',
+            perPage: '',
+            totalPages: '',
+            total: '',
+          },
+          25
+        )
+      ).toEqual({ page: 1, perPage: 25 });
+    });
+
+    it('mapRecentTrack maps playedAt, album, and nowPlaying', () => {
+      const mapped = __lastfmTestUtils.mapRecentTrack({
+        artist: { '#text': 'Queen' },
+        name: 'Bohemian Rhapsody',
+        album: { '#text': 'A Night at the Opera' },
+        date: { uts: '1704067200', '#text': '1 Jan 2024' },
+        url: 'https://last.fm/track/1',
+        '@attr': { nowplaying: 'true' },
+      });
+
+      expect(mapped).toMatchObject({
+        artistName: 'Queen',
+        trackName: 'Bohemian Rhapsody',
+        albumName: 'A Night at the Opera',
+        playedAt: 1704067200,
+        sourceUrl: 'https://last.fm/track/1',
+        nowPlaying: true,
+      });
+    });
+
+    it('mapLovedTrack maps date and url fields', () => {
+      const mapped = __lastfmTestUtils.mapLovedTrack({
+        artist: { name: 'The Beatles' },
+        name: 'Hey Jude',
+        date: { uts: '1704067201', '#text': '1 Jan 2024' },
+        url: 'https://last.fm/track/2',
+      });
+
+      expect(mapped).toMatchObject({
+        artistName: 'The Beatles',
+        trackName: 'Hey Jude',
+        playedAt: 1704067201,
+        sourceUrl: 'https://last.fm/track/2',
+      });
+    });
+
+    it('mapTopTrack maps playcount field', () => {
+      const mapped = __lastfmTestUtils.mapTopTrack({
+        artist: { name: 'Pink Floyd' },
+        name: 'Comfortably Numb',
+        playcount: '150',
+        url: 'https://last.fm/track/3',
+      });
+
+      expect(mapped).toMatchObject({
+        artistName: 'Pink Floyd',
+        trackName: 'Comfortably Numb',
+        playcount: 150,
+        sourceUrl: 'https://last.fm/track/3',
+      });
+    });
+  });
+
   describe('getLastfmConfig', () => {
     it('returns config from environment', () => {
       process.env.LASTFM_API_KEY = 'test-api-key';

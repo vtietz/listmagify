@@ -55,6 +55,28 @@ function buildPaginationMeta(base: { page: number; perPage: number }, optionals:
   return result;
 }
 
+function toInt(value: string | undefined): number | undefined {
+  if (!value) return undefined;
+  const parsed = parseInt(value, 10);
+  return Number.isNaN(parsed) ? undefined : parsed;
+}
+
+function buildPaginationFromAttr(
+  attr: { page?: string; perPage?: string; totalPages?: string; total?: string } | undefined,
+  fallbackPerPage: number
+): ImportPaginationMeta {
+  return buildPaginationMeta(
+    {
+      page: toInt(attr?.page) ?? 1,
+      perPage: toInt(attr?.perPage) ?? fallbackPerPage,
+    },
+    {
+      totalPages: toInt(attr?.totalPages),
+      totalItems: toInt(attr?.total),
+    }
+  );
+}
+
 /**
  * Get Last.fm API configuration from environment
  */
@@ -82,6 +104,47 @@ async function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms + jitter));
 }
 
+async function ensureMinInterval(): Promise<void> {
+  const now = Date.now();
+  const timeSinceLast = now - lastRequestTime;
+  if (timeSinceLast < MIN_REQUEST_INTERVAL_MS) {
+    await sleep(MIN_REQUEST_INTERVAL_MS - timeSinceLast);
+  }
+  lastRequestTime = Date.now();
+}
+
+function computeRetryWaitMs(attempt: number, retryAfterHeader?: string | null): number {
+  const retryAfterSeconds = retryAfterHeader ? parseInt(retryAfterHeader, 10) : NaN;
+  if (!Number.isNaN(retryAfterSeconds)) {
+    return retryAfterSeconds * 1000;
+  }
+  return 1000 * Math.pow(2, attempt);
+}
+
+function detectRateLimitFromStatus(response: Response, attempt: number): number | null {
+  if (response.status !== 429) {
+    return null;
+  }
+  return computeRetryWaitMs(attempt, response.headers.get('Retry-After'));
+}
+
+async function detectRateLimitFromBody(response: Response, attempt: number): Promise<number | null> {
+  if (!response.ok) {
+    return null;
+  }
+
+  try {
+    const data = await response.clone().json() as { error?: number };
+    if (data.error === 29) {
+      return computeRetryWaitMs(attempt);
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
 /**
  * Rate-limited fetch with exponential backoff
  */
@@ -90,61 +153,35 @@ async function rateLimitedFetch(
   options: RequestInit,
   maxRetries = 3
 ): Promise<Response> {
-  // Enforce minimum interval between requests
-  const now = Date.now();
-  const timeSinceLast = now - lastRequestTime;
-  if (timeSinceLast < MIN_REQUEST_INTERVAL_MS) {
-    await sleep(MIN_REQUEST_INTERVAL_MS - timeSinceLast);
-  }
-  lastRequestTime = Date.now();
-
   let lastError: Error | null = null;
   
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    await ensureMinInterval();
+
     try {
       const response = await fetch(url, options);
-      
-      // Check for rate limit error (error code 29)
-      if (response.status === 429) {
-        const retryAfter = response.headers.get('Retry-After');
-        const waitTime = retryAfter ? parseInt(retryAfter, 10) * 1000 : 1000 * Math.pow(2, attempt);
+
+      const statusWaitMs = detectRateLimitFromStatus(response, attempt);
+      if (statusWaitMs !== null) {
+        const waitTime = statusWaitMs;
         console.warn(`[lastfm] Rate limited, waiting ${waitTime}ms before retry ${attempt + 1}/${maxRetries}`);
         await sleep(waitTime);
         continue;
       }
-      
-      // Check for Last.fm-specific rate limit in response body
-      if (response.ok) {
-        const text = await response.text();
-        try {
-          const data = JSON.parse(text);
-          if (data.error === 29) {
-            const waitTime = 1000 * Math.pow(2, attempt);
-            console.warn(`[lastfm] Rate limit error 29, waiting ${waitTime}ms before retry ${attempt + 1}/${maxRetries}`);
-            await sleep(waitTime);
-            continue;
-          }
-          // Create a new Response with the already-read body
-          return new Response(text, {
-            status: response.status,
-            statusText: response.statusText,
-            headers: response.headers,
-          });
-        } catch {
-          // Not JSON, return original-like response
-          return new Response(text, {
-            status: response.status,
-            statusText: response.statusText,
-            headers: response.headers,
-          });
-        }
+
+      const bodyWaitMs = await detectRateLimitFromBody(response, attempt);
+      if (bodyWaitMs !== null) {
+        const waitTime = bodyWaitMs;
+        console.warn(`[lastfm] Rate limit error 29, waiting ${waitTime}ms before retry ${attempt + 1}/${maxRetries}`);
+        await sleep(waitTime);
+        continue;
       }
-      
+
       return response;
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
       if (attempt < maxRetries) {
-        const waitTime = 1000 * Math.pow(2, attempt);
+        const waitTime = computeRetryWaitMs(attempt);
         console.warn(`[lastfm] Request failed, retrying in ${waitTime}ms: ${lastError.message}`);
         await sleep(waitTime);
       }
@@ -231,45 +268,38 @@ interface LastfmRecentTrack {
   mbid?: string;
 }
 
+function mapRecentTrack(track: LastfmRecentTrack): ImportedTrackDTO {
+  return buildTrackDTO(
+    { artistName: track.artist?.['#text'] || '', trackName: track.name || '' },
+    {
+      albumName: track.album?.['#text'] || undefined,
+      mbid: track.mbid || undefined,
+      playedAt: toInt(track.date?.uts),
+      sourceUrl: track.url || undefined,
+      nowPlaying: track['@attr']?.nowplaying === 'true',
+    }
+  );
+}
+
 /**
  * Fetch recent tracks for a Last.fm user
  */
 export async function fetchRecentTracks(params: LastfmFetchParams): Promise<ImportResponse> {
   const { username, page = 1, limit = 50 } = params;
-  
-  const data = await lastfmRequest<LastfmRecentTracksResponse>('user.getRecentTracks', {
-    user: username,
-    page,
-    limit,
+
+  return fetchAndMapTracks<LastfmRecentTracksResponse, LastfmRecentTrack>({
+    method: 'user.getRecentTracks',
+    params: {
+      user: username,
+      page,
+      limit,
+    },
+    source: 'lastfm-recent',
+    perPageFallback: limit,
+    pickTracks: (data) => data.recenttracks?.track,
+    pickAttr: (data) => data.recenttracks?.['@attr'],
+    mapTrack: mapRecentTrack,
   });
-  
-  const tracks: ImportedTrackDTO[] = (data.recenttracks?.track || []).map((track) => 
-    buildTrackDTO(
-      { artistName: track.artist?.['#text'] || '', trackName: track.name || '' },
-      {
-        albumName: track.album?.['#text'] || undefined,
-        mbid: track.mbid || undefined,
-        playedAt: track.date?.uts ? parseInt(track.date.uts, 10) : undefined,
-        sourceUrl: track.url || undefined,
-        nowPlaying: track['@attr']?.nowplaying === 'true',
-      }
-    )
-  );
-  
-  const attr = data.recenttracks?.['@attr'];
-  const pagination = buildPaginationMeta(
-    { page: parseInt(attr?.page || '1', 10), perPage: parseInt(attr?.perPage || String(limit), 10) },
-    {
-      totalPages: attr?.totalPages ? parseInt(attr.totalPages, 10) : undefined,
-      totalItems: attr?.total ? parseInt(attr.total, 10) : undefined,
-    }
-  );
-  
-  return {
-    tracks,
-    pagination,
-    source: 'lastfm-recent' as ImportSource,
-  };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -297,43 +327,36 @@ interface LastfmLovedTrack {
   mbid?: string;
 }
 
+function mapLovedTrack(track: LastfmLovedTrack): ImportedTrackDTO {
+  return buildTrackDTO(
+    { artistName: track.artist?.name || '', trackName: track.name || '' },
+    {
+      mbid: track.mbid || undefined,
+      playedAt: toInt(track.date?.uts),
+      sourceUrl: track.url || undefined,
+    }
+  );
+}
+
 /**
  * Fetch loved tracks for a Last.fm user
  */
 export async function fetchLovedTracks(params: LastfmFetchParams): Promise<ImportResponse> {
   const { username, page = 1, limit = 50 } = params;
-  
-  const data = await lastfmRequest<LastfmLovedTracksResponse>('user.getLovedTracks', {
-    user: username,
-    page,
-    limit,
+
+  return fetchAndMapTracks<LastfmLovedTracksResponse, LastfmLovedTrack>({
+    method: 'user.getLovedTracks',
+    params: {
+      user: username,
+      page,
+      limit,
+    },
+    source: 'lastfm-loved',
+    perPageFallback: limit,
+    pickTracks: (data) => data.lovedtracks?.track,
+    pickAttr: (data) => data.lovedtracks?.['@attr'],
+    mapTrack: mapLovedTrack,
   });
-  
-  const tracks: ImportedTrackDTO[] = (data.lovedtracks?.track || []).map((track) =>
-    buildTrackDTO(
-      { artistName: track.artist?.name || '', trackName: track.name || '' },
-      {
-        mbid: track.mbid || undefined,
-        playedAt: track.date?.uts ? parseInt(track.date.uts, 10) : undefined,
-        sourceUrl: track.url || undefined,
-      }
-    )
-  );
-  
-  const attr = data.lovedtracks?.['@attr'];
-  const pagination = buildPaginationMeta(
-    { page: parseInt(attr?.page || '1', 10), perPage: parseInt(attr?.perPage || String(limit), 10) },
-    {
-      totalPages: attr?.totalPages ? parseInt(attr.totalPages, 10) : undefined,
-      totalItems: attr?.total ? parseInt(attr.total, 10) : undefined,
-    }
-  );
-  
-  return {
-    tracks,
-    pagination,
-    source: 'lastfm-loved' as ImportSource,
-  };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -362,44 +385,57 @@ interface LastfmTopTrack {
   '@attr'?: { rank: string };
 }
 
+function mapTopTrack(track: LastfmTopTrack): ImportedTrackDTO {
+  return buildTrackDTO(
+    { artistName: track.artist?.name || '', trackName: track.name || '' },
+    {
+      mbid: track.mbid || undefined,
+      playcount: toInt(track.playcount),
+      sourceUrl: track.url || undefined,
+    }
+  );
+}
+
+async function fetchAndMapTracks<TResponse, TTrack>(config: {
+  method: string;
+  params: Record<string, string | number | undefined>;
+  source: ImportSource;
+  perPageFallback: number;
+  pickTracks: (data: TResponse) => TTrack[] | undefined;
+  pickAttr: (data: TResponse) => { page?: string; perPage?: string; totalPages?: string; total?: string } | undefined;
+  mapTrack: (track: TTrack) => ImportedTrackDTO;
+}): Promise<ImportResponse> {
+  const data = await lastfmRequest<TResponse>(config.method, config.params);
+  const tracks = (config.pickTracks(data) || []).map(config.mapTrack);
+  const pagination = buildPaginationFromAttr(config.pickAttr(data), config.perPageFallback);
+
+  return {
+    tracks,
+    pagination,
+    source: config.source,
+  };
+}
+
 /**
  * Fetch top tracks for a Last.fm user
  */
 export async function fetchTopTracks(params: LastfmFetchParams): Promise<ImportResponse> {
   const { username, page = 1, limit = 50, period = 'overall' } = params;
-  
-  const data = await lastfmRequest<LastfmTopTracksResponse>('user.getTopTracks', {
-    user: username,
-    page,
-    limit,
-    period,
+
+  return fetchAndMapTracks<LastfmTopTracksResponse, LastfmTopTrack>({
+    method: 'user.getTopTracks',
+    params: {
+      user: username,
+      page,
+      limit,
+      period,
+    },
+    source: 'lastfm-top',
+    perPageFallback: limit,
+    pickTracks: (data) => data.toptracks?.track,
+    pickAttr: (data) => data.toptracks?.['@attr'],
+    mapTrack: mapTopTrack,
   });
-  
-  const tracks: ImportedTrackDTO[] = (data.toptracks?.track || []).map((track) =>
-    buildTrackDTO(
-      { artistName: track.artist?.name || '', trackName: track.name || '' },
-      {
-        mbid: track.mbid || undefined,
-        playcount: track.playcount ? parseInt(track.playcount, 10) : undefined,
-        sourceUrl: track.url || undefined,
-      }
-    )
-  );
-  
-  const attr = data.toptracks?.['@attr'];
-  const pagination = buildPaginationMeta(
-    { page: parseInt(attr?.page || '1', 10), perPage: parseInt(attr?.perPage || String(limit), 10) },
-    {
-      totalPages: attr?.totalPages ? parseInt(attr.totalPages, 10) : undefined,
-      totalItems: attr?.total ? parseInt(attr.total, 10) : undefined,
-    }
-  );
-  
-  return {
-    tracks,
-    pagination,
-    source: 'lastfm-top' as ImportSource,
-  };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -488,3 +524,14 @@ export async function fetchLastfmTracks(
       throw new Error(`Unknown Last.fm source: ${source}`);
   }
 }
+
+export const __lastfmTestUtils = {
+  toInt,
+  buildPaginationFromAttr,
+  computeRetryWaitMs,
+  detectRateLimitFromStatus,
+  detectRateLimitFromBody,
+  mapRecentTrack,
+  mapLovedTrack,
+  mapTopTrack,
+};
