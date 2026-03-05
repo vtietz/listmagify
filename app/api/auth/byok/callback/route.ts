@@ -10,6 +10,104 @@ interface ByokState {
   timestamp: number;
 }
 
+function buildErrorRedirect(error: string): NextResponse {
+  return NextResponse.redirect(new URL(`/?error=${encodeURIComponent(error)}`, serverEnv.NEXTAUTH_URL));
+}
+
+function parseState(state: string): ByokState {
+  return JSON.parse(Buffer.from(state, 'base64url').toString('utf-8')) as ByokState;
+}
+
+function assertFreshState(timestamp: number): void {
+  if (Date.now() - timestamp > 5 * 60 * 1000) {
+    throw new Error('state_expired');
+  }
+}
+
+async function exchangeToken(code: string, clientId: string, clientSecret: string) {
+  const redirectUri = `${serverEnv.NEXTAUTH_URL}/api/auth/byok/callback`;
+
+  const tokenResponse = await fetch('https://accounts.spotify.com/api/token', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`,
+    },
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code,
+      redirect_uri: redirectUri,
+    }),
+  });
+
+  if (!tokenResponse.ok) {
+    throw new Error('token_exchange_failed');
+  }
+
+  return tokenResponse.json();
+}
+
+async function fetchProfile(accessToken: string) {
+  const profileResponse = await fetch('https://api.spotify.com/v1/me', {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+
+  if (!profileResponse.ok) {
+    throw new Error('profile_fetch_failed');
+  }
+
+  return profileResponse.json();
+}
+
+async function encodeSessionToken(params: {
+  profile: any;
+  tokens: any;
+  clientId: string;
+  clientSecret: string;
+}) {
+  const expiresAt = Date.now() + (params.tokens.expires_in ?? 3600) * 1000;
+
+  return encode({
+    token: {
+      name: params.profile.display_name,
+      email: params.profile.email,
+      picture: params.profile.images?.[0]?.url,
+      sub: params.profile.id,
+      accessToken: params.tokens.access_token,
+      refreshToken: params.tokens.refresh_token,
+      accessTokenExpires: expiresAt,
+      isByok: true,
+      byok: {
+        clientId: params.clientId,
+        clientSecret: params.clientSecret,
+      },
+    },
+    secret: serverEnv.NEXTAUTH_SECRET,
+    maxAge: 30 * 24 * 60 * 60,
+  });
+}
+
+function buildRedirectResponse(callbackUrl: string, token: string): NextResponse {
+  const isSecure = serverEnv.NEXTAUTH_URL.startsWith('https://');
+  const sessionCookieName = isSecure
+    ? '__Secure-next-auth.session-token'
+    : 'next-auth.session-token';
+
+  const response = NextResponse.redirect(new URL(callbackUrl || '/playlists', serverEnv.NEXTAUTH_URL));
+
+  response.cookies.set(sessionCookieName, token, {
+    httpOnly: true,
+    sameSite: 'lax',
+    path: '/',
+    secure: isSecure,
+    maxAge: 30 * 24 * 60 * 60,
+  });
+
+  return response;
+}
+
 /**
  * GET /api/auth/byok/callback
  * 
@@ -27,114 +125,24 @@ export async function GET(request: NextRequest) {
   const state = searchParams.get('state');
   const error = searchParams.get('error');
 
-  // Handle OAuth errors
   if (error) {
     console.error('[byok] OAuth error:', error);
-    return NextResponse.redirect(
-      new URL(`/?error=${encodeURIComponent(error)}`, serverEnv.NEXTAUTH_URL)
-    );
+    return buildErrorRedirect(error);
   }
 
   if (!code || !state) {
-    return NextResponse.redirect(new URL('/?error=missing_params', serverEnv.NEXTAUTH_URL));
+    return buildErrorRedirect('missing_params');
   }
 
   try {
-    // Decode state to get credentials
-    const stateData: ByokState = JSON.parse(
-      Buffer.from(state, 'base64url').toString('utf-8')
-    );
+    const stateData = parseState(state);
+    assertFreshState(stateData.timestamp);
 
     const { clientId, clientSecret, callbackUrl } = stateData;
-
-    // Verify state is not too old (5 minutes max)
-    if (Date.now() - stateData.timestamp > 5 * 60 * 1000) {
-      return NextResponse.redirect(new URL('/?error=state_expired', serverEnv.NEXTAUTH_URL));
-    }
-
-    // Exchange code for tokens
-    const redirectUri = `${serverEnv.NEXTAUTH_URL}/api/auth/byok/callback`;
-    
-    const tokenResponse = await fetch('https://accounts.spotify.com/api/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`,
-      },
-      body: new URLSearchParams({
-        grant_type: 'authorization_code',
-        code,
-        redirect_uri: redirectUri,
-      }),
-    });
-
-    if (!tokenResponse.ok) {
-      const errorData = await tokenResponse.json().catch(() => ({}));
-      console.error('[byok] Token exchange failed:', errorData);
-      return NextResponse.redirect(
-        new URL('/?error=token_exchange_failed', serverEnv.NEXTAUTH_URL)
-      );
-    }
-
-    const tokens = await tokenResponse.json();
-
-    // Get user profile
-    const profileResponse = await fetch('https://api.spotify.com/v1/me', {
-      headers: {
-        Authorization: `Bearer ${tokens.access_token}`,
-      },
-    });
-
-    if (!profileResponse.ok) {
-      console.error('[byok] Failed to fetch profile');
-      return NextResponse.redirect(
-        new URL('/?error=profile_fetch_failed', serverEnv.NEXTAUTH_URL)
-      );
-    }
-
-    const profile = await profileResponse.json();
-
-    // Calculate token expiry
-    const expiresAt = Date.now() + (tokens.expires_in ?? 3600) * 1000;
-
-    // Create JWT token compatible with NextAuth
-    const token = await encode({
-      token: {
-        name: profile.display_name,
-        email: profile.email,
-        picture: profile.images?.[0]?.url,
-        sub: profile.id,
-        accessToken: tokens.access_token,
-        refreshToken: tokens.refresh_token,
-        accessTokenExpires: expiresAt,
-        isByok: true, // Mark session as using BYOK
-        // Store BYOK credentials for token refresh
-        byok: {
-          clientId,
-          clientSecret,
-        },
-      },
-      secret: serverEnv.NEXTAUTH_SECRET,
-      maxAge: 30 * 24 * 60 * 60, // 30 days
-    });
-
-    const isSecure = serverEnv.NEXTAUTH_URL.startsWith('https://');
-    const sessionCookieName = isSecure
-      ? '__Secure-next-auth.session-token'
-      : 'next-auth.session-token';
-
-    const redirectResponse = NextResponse.redirect(
-      new URL(callbackUrl || '/playlists', serverEnv.NEXTAUTH_URL)
-    );
-
-    // Set session cookie on redirect response using NextAuth's expected cookie name
-    redirectResponse.cookies.set(sessionCookieName, token, {
-      httpOnly: true,
-      sameSite: 'lax',
-      path: '/',
-      secure: isSecure,
-      maxAge: 30 * 24 * 60 * 60, // 30 days
-    });
+    const tokens = await exchangeToken(code, clientId, clientSecret);
+    const profile = await fetchProfile(tokens.access_token);
+    const token = await encodeSessionToken({ profile, tokens, clientId, clientSecret });
+    const redirectResponse = buildRedirectResponse(callbackUrl, token);
 
     console.debug('[byok] Successfully authenticated user:', profile.id);
 
@@ -150,6 +158,10 @@ export async function GET(request: NextRequest) {
     return redirectResponse;
   } catch (error) {
     console.error('[byok] Callback error:', error);
-    return NextResponse.redirect(new URL('/?error=callback_failed', serverEnv.NEXTAUTH_URL));
+    const message = error instanceof Error ? error.message : 'callback_failed';
+    const knownError = ['state_expired', 'token_exchange_failed', 'profile_fetch_failed'].includes(message)
+      ? message
+      : 'callback_failed';
+    return buildErrorRedirect(knownError);
   }
 }

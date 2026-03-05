@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, ServerAuthError } from '@/lib/auth/requireAuth';
 import { spotifyFetchWithToken } from '@/lib/spotify/client';
+import { parsePlaylistId, parsePlaylistUpdatePayload } from '@/lib/services/spotifyPlaylistService';
+import { getPlaylistFieldsQuery, mapPlaylistMetadata } from '@/lib/repositories/playlistRepository';
 
 /**
  * GET /api/playlists/[id]
@@ -17,15 +19,11 @@ export async function GET(
   try {
     const session = await requireAuth();
 
-    const { id: playlistId } = await params;
+    const { id } = await params;
+    const playlistId = parsePlaylistId(id);
 
-    if (!playlistId || typeof playlistId !== 'string') {
-      return NextResponse.json({ error: 'Invalid playlist ID' }, { status: 400 });
-    }
-
-    // Fetch playlist metadata
     const path = `/playlists/${encodeURIComponent(playlistId)}`;
-    const fields = 'id,name,description,owner(id,display_name),collaborative,public,tracks(total)';
+    const fields = getPlaylistFieldsQuery();
 
     const res = await spotifyFetchWithToken(session.accessToken, `${path}?fields=${encodeURIComponent(fields)}`, {
       method: 'GET',
@@ -50,22 +48,7 @@ export async function GET(
     }
 
     const playlist = await res.json();
-
-    // Format response
-    const response = {
-      id: playlist.id,
-      name: playlist.name,
-      description: playlist.description ?? '',
-      owner: {
-        id: playlist.owner?.id,
-        displayName: playlist.owner?.display_name,
-      },
-      collaborative: playlist.collaborative ?? false,
-      tracksTotal: playlist.tracks?.total ?? 0,
-      isPublic: typeof playlist.public === 'boolean' ? playlist.public : false,
-    };
-
-    return NextResponse.json(response);
+    return NextResponse.json(mapPlaylistMetadata(playlist));
   } catch (error) {
     // Handle auth errors consistently
     if (error instanceof ServerAuthError) {
@@ -110,33 +93,9 @@ export async function PUT(
   try {
     const session = await requireAuth();
 
-    const { id: playlistId } = await params;
-
-    if (!playlistId || typeof playlistId !== 'string') {
-      return NextResponse.json({ error: 'Invalid playlist ID' }, { status: 400 });
-    }
-
-    const body = await request.json();
-    const { name, description, isPublic } = body;
-
-    // Build the update payload - only include fields that were provided
-    const updatePayload: Record<string, unknown> = {};
-    if (typeof name === 'string') {
-      if (name.trim().length === 0) {
-        return NextResponse.json({ error: 'Playlist name cannot be empty' }, { status: 400 });
-      }
-      updatePayload.name = name.trim();
-    }
-    if (typeof description === 'string') {
-      updatePayload.description = description;
-    }
-    if (typeof isPublic === 'boolean') {
-      updatePayload.public = isPublic;
-    }
-
-    if (Object.keys(updatePayload).length === 0) {
-      return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
-    }
+    const { id } = await params;
+    const playlistId = parsePlaylistId(id);
+    const updatePayload = parsePlaylistUpdatePayload(await request.json());
 
     // Update the playlist
     const path = `/playlists/${encodeURIComponent(playlistId)}`;
@@ -172,6 +131,14 @@ export async function PUT(
     // Handle auth errors consistently
     if (error instanceof ServerAuthError) {
       return NextResponse.json({ error: 'token_expired' }, { status: 401 });
+    }
+
+    if (error instanceof Error && error.message.includes('Invalid playlist ID')) {
+      return NextResponse.json({ error: 'Invalid playlist ID' }, { status: 400 });
+    }
+
+    if (error instanceof Error && (error.message.includes('No fields to update') || error.message.includes('cannot be empty'))) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
     console.error('[api/playlists] PUT Error:', error);

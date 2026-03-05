@@ -1,62 +1,48 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { serverEnv } from '@/lib/env';
-import { getDb } from '@/lib/metrics/db';
-import { sendVerificationCodeEmail } from '@/lib/email/verification-emails';
 import crypto from 'crypto';
+import { serverEnv } from '@/lib/env';
+import { sendVerificationCodeEmail } from '@/lib/email/verification-emails';
+import { getDb } from '@/lib/metrics/db';
+import { parseVerifyCodeInput, parseVerifyEmailInput } from '@/lib/services/accessRequestService';
+import { isAppRouteError } from '@/lib/errors';
 
-/**
- * POST /api/access-request/verify-email
- * 
- * Sends a verification code to the user's email.
- * Used before submitting access request to verify email ownership.
- */
+function isVerificationEnabled(): boolean {
+  return serverEnv.ACCESS_REQUEST_ENABLED && serverEnv.ACCESS_REQUEST_EMAIL_VERIFICATION_ENABLED;
+}
+
+function featureDisabledResponse() {
+  return NextResponse.json({ error: 'Email verification not enabled' }, { status: 404 });
+}
+
 export async function POST(request: NextRequest) {
   try {
     if (!serverEnv.ACCESS_REQUEST_ENABLED) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
-    if (!serverEnv.ACCESS_REQUEST_EMAIL_VERIFICATION_ENABLED) {
-      return NextResponse.json({ error: 'Email verification not enabled' }, { status: 404 });
+    if (!isVerificationEnabled()) {
+      return featureDisabledResponse();
     }
 
-    const body = await request.json();
-    const { email } = body;
-
-    // Validate email
-    if (!email || typeof email !== 'string' || !email.includes('@')) {
-      return NextResponse.json({ error: 'Valid email is required' }, { status: 400 });
-    }
-
-    const emailTrimmed = email.trim().toLowerCase();
-
-    // Generate 6-digit verification code
+    const { email } = parseVerifyEmailInput(await request.json());
     const code = crypto.randomInt(100000, 999999).toString();
-    
-    // Generate verification token (used to tie code verification to request submission)
     const verificationToken = crypto.randomBytes(32).toString('hex');
 
-    // Store code in database (expires in 15 minutes)
     const db = getDb();
     if (db) {
       const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
-      
-      // Delete any old unverified codes for this email
-      db.prepare('DELETE FROM email_verification_codes WHERE email = ? AND verified = 0').run(emailTrimmed);
-      
-      // Insert new code
+
+      db.prepare('DELETE FROM email_verification_codes WHERE email = ? AND verified = 0').run(email);
       db.prepare(`
         INSERT INTO email_verification_codes (email, code, expires_at, verification_token)
         VALUES (?, ?, ?, ?)
-      `).run(emailTrimmed, code, expiresAt, verificationToken);
+      `).run(email, code, expiresAt, verificationToken);
     } else {
-      // If no DB, still allow email sending (less secure but functional)
       console.warn('[verify-email] Database not available, verification code not stored');
     }
 
-    // Send verification email
     try {
-      await sendVerificationCodeEmail(emailTrimmed, code);
+      await sendVerificationCodeEmail(email, code);
     } catch (error) {
       console.error('[verify-email] Failed to send email:', error);
       return NextResponse.json(
@@ -65,14 +51,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.debug(`[verify-email] Verification code sent to ${emailTrimmed}`);
-    
-    return NextResponse.json({ 
+    console.debug(`[verify-email] Verification code sent to ${email}`);
+
+    return NextResponse.json({
       success: true,
       message: 'Verification code sent. Please check your email (including spam folder).',
       verificationToken: db ? verificationToken : undefined,
     });
   } catch (error) {
+    if (isAppRouteError(error) && error.status === 400) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
+    if (error instanceof Error && error.message.includes('required')) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
     console.error('[verify-email] Error:', error);
     return NextResponse.json(
       { error: 'Failed to send verification code. Please try again later.' },
@@ -81,36 +75,17 @@ export async function POST(request: NextRequest) {
   }
 }
 
-/**
- * PATCH /api/access-request/verify-email
- * 
- * Verifies the code entered by the user.
- */
 export async function PATCH(request: NextRequest) {
   try {
     if (!serverEnv.ACCESS_REQUEST_ENABLED) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
-    if (!serverEnv.ACCESS_REQUEST_EMAIL_VERIFICATION_ENABLED) {
-      return NextResponse.json({ error: 'Email verification not enabled' }, { status: 404 });
+    if (!isVerificationEnabled()) {
+      return featureDisabledResponse();
     }
 
-    const body = await request.json();
-    const { email, code } = body;
-
-    // Validate input
-    if (!email || typeof email !== 'string' || !email.includes('@')) {
-      return NextResponse.json({ error: 'Valid email is required' }, { status: 400 });
-    }
-
-    if (!code || typeof code !== 'string' || code.length !== 6) {
-      return NextResponse.json({ error: 'Valid 6-digit code is required' }, { status: 400 });
-    }
-
-    const emailTrimmed = email.trim().toLowerCase();
-    const codeTrimmed = code.trim();
-
+    const { email, code } = parseVerifyCodeInput(await request.json());
     const db = getDb();
     if (!db) {
       console.error('[verify-email] Database not available for verification');
@@ -120,14 +95,13 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    // Find matching code
     const record = db.prepare(`
       SELECT id, verification_token, expires_at, verified
       FROM email_verification_codes
       WHERE email = ? AND code = ?
       ORDER BY created_at DESC
       LIMIT 1
-    `).get(emailTrimmed, codeTrimmed) as {
+    `).get(email, code) as {
       id: number;
       verification_token: string;
       expires_at: string;
@@ -138,32 +112,35 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid verification code' }, { status: 400 });
     }
 
-    // Check if already verified
     if (record.verified) {
-      return NextResponse.json({ 
-        success: true, 
+      return NextResponse.json({
+        success: true,
         verificationToken: record.verification_token,
         message: 'Email already verified',
       });
     }
 
-    // Check if expired
-    const expiresAt = new Date(record.expires_at);
-    if (expiresAt < new Date()) {
+    if (new Date(record.expires_at) < new Date()) {
       return NextResponse.json({ error: 'Verification code has expired. Please request a new one.' }, { status: 400 });
     }
 
-    // Mark as verified
     db.prepare('UPDATE email_verification_codes SET verified = 1 WHERE id = ?').run(record.id);
+    console.debug(`[verify-email] Email verified: ${email}`);
 
-    console.debug(`[verify-email] Email verified: ${emailTrimmed}`);
-
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: true,
       verificationToken: record.verification_token,
       message: 'Email verified successfully',
     });
   } catch (error) {
+    if (isAppRouteError(error) && error.status === 400) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
+    if (error instanceof Error && (error.message.includes('required') || error.message.includes('Invalid'))) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
     console.error('[verify-email] Error:', error);
     return NextResponse.json(
       { error: 'Failed to verify code. Please try again.' },

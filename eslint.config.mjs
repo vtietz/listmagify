@@ -30,6 +30,13 @@ const eslintConfig = [
     },
   },
   {
+    files: ['app/api/**/*.ts'],
+    rules: {
+      complexity: ['warn', { max: 12 }],
+      'max-depth': ['warn', 3],
+    },
+  },
+  {
     ignores: ['node_modules/**', '.next/**', 'coverage/**'],
   },
 ];

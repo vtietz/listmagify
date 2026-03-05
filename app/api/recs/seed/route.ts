@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth/auth';
 import { 
-  isRecsAvailable, 
-  getSeedRecommendations, 
-  type RecommendationContext 
+  isRecsAvailable,
 } from '@/lib/recs';
-import { fetchTracks } from '@/lib/spotify/catalog';
+import { assertAuthenticated } from '@/app/api/_shared/guard';
+import { isAppRouteError } from '@/lib/errors';
+import { getSeedRecs } from '@/lib/services/recommendationService';
 
 /**
  * POST /api/recs/seed
@@ -34,14 +32,7 @@ import { fetchTracks } from '@/lib/spotify/catalog';
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: 'token_expired' }, { status: 401 });
-    }
-
-    if ((session as any).error === 'RefreshAccessTokenError') {
-      return NextResponse.json({ error: 'token_expired' }, { status: 401 });
-    }
+    await assertAuthenticated();
 
     // Check if recommendations are enabled
     if (!isRecsAvailable()) {
@@ -52,53 +43,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const body = await request.json();
-    const { 
-      seedTrackIds, 
-      excludeTrackIds = [], 
-      playlistId,
-      topN = 20,
-      includeMetadata = true,
-    } = body;
-
-    // Validate input
-    if (!Array.isArray(seedTrackIds) || seedTrackIds.length === 0) {
-      return NextResponse.json(
-        { error: 'seedTrackIds is required and must be a non-empty array' },
-        { status: 400 }
-      );
-    }
-
-    if (seedTrackIds.length > 5) {
-      return NextResponse.json(
-        { error: 'Maximum 5 seed tracks allowed' },
-        { status: 400 }
-      );
-    }
-
-    // Build recommendation context
-    const context: RecommendationContext = {
-      excludeTrackIds: new Set(excludeTrackIds),
-      playlistId,
-      topN: Math.min(Math.max(topN, 1), 50),
-    };
-
-    // Get recommendations
-    const recommendations = getSeedRecommendations(seedTrackIds, context);
-
-    // Optionally fetch full track metadata
-    if (includeMetadata && recommendations.length > 0) {
-      const trackIds = recommendations.map(r => r.trackId);
-      const tracks = await fetchTracks(trackIds);
-      const trackMap = new Map(tracks.map(t => [t.id, t]));
-
-      for (const rec of recommendations) {
-        const track = trackMap.get(rec.trackId);
-        if (track) {
-          rec.track = track;
-        }
-      }
-    }
+    const recommendations = await getSeedRecs(await request.json());
 
     return NextResponse.json({
       recommendations,
@@ -106,6 +51,14 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
+    if (isAppRouteError(error) && error.status === 401) {
+      return NextResponse.json({ error: 'token_expired' }, { status: 401 });
+    }
+
+    if (isAppRouteError(error) && error.status === 400) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
     console.error('[api/recs/seed] Error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
@@ -121,14 +74,7 @@ export async function POST(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: 'token_expired' }, { status: 401 });
-    }
-
-    if ((session as any).error === 'RefreshAccessTokenError') {
-      return NextResponse.json({ error: 'token_expired' }, { status: 401 });
-    }
+    await assertAuthenticated();
 
     if (!isRecsAvailable()) {
       return NextResponse.json({
@@ -141,10 +87,6 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     
     const seedTrackIds = searchParams.get('seedTrackIds')?.split(',').filter(Boolean) ?? [];
-    const excludeTrackIds = searchParams.get('excludeTrackIds')?.split(',').filter(Boolean) ?? [];
-    const playlistId = searchParams.get('playlistId') ?? undefined;
-    const topN = parseInt(searchParams.get('topN') ?? '20', 10);
-    const includeMetadata = searchParams.get('includeMetadata') !== 'false';
 
     if (seedTrackIds.length === 0) {
       return NextResponse.json({
@@ -154,33 +96,13 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    if (seedTrackIds.length > 5) {
-      return NextResponse.json(
-        { error: 'Maximum 5 seed tracks allowed' },
-        { status: 400 }
-      );
-    }
-
-    const context: RecommendationContext = {
-      excludeTrackIds: new Set(excludeTrackIds),
-      playlistId,
-      topN: Math.min(Math.max(topN, 1), 50),
-    };
-
-    const recommendations = getSeedRecommendations(seedTrackIds, context);
-
-    if (includeMetadata && recommendations.length > 0) {
-      const trackIds = recommendations.map(r => r.trackId);
-      const tracks = await fetchTracks(trackIds);
-      const trackMap = new Map(tracks.map(t => [t.id, t]));
-
-      for (const rec of recommendations) {
-        const track = trackMap.get(rec.trackId);
-        if (track) {
-          rec.track = track;
-        }
-      }
-    }
+    const recommendations = await getSeedRecs({
+      seedTrackIds,
+      excludeTrackIds: searchParams.get('excludeTrackIds')?.split(',').filter(Boolean) ?? [],
+      playlistId: searchParams.get('playlistId') ?? undefined,
+      topN: searchParams.get('topN') ?? '20',
+      includeMetadata: searchParams.get('includeMetadata') !== 'false',
+    });
 
     return NextResponse.json({
       recommendations,
@@ -188,6 +110,14 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
+    if (isAppRouteError(error) && error.status === 401) {
+      return NextResponse.json({ error: 'token_expired' }, { status: 401 });
+    }
+
+    if (isAppRouteError(error) && error.status === 400) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
     console.error('[api/recs/seed] GET Error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },

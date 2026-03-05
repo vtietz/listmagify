@@ -3,101 +3,75 @@ import { serverEnv } from '@/lib/env';
 import { getDb } from '@/lib/metrics/db';
 import { createEmailTransporter, getDefaultSender, getBccRecipients } from '@/lib/email/transporter';
 import { escapeHtml } from '@/lib/email/templates';
+import { detectAccessRequestRedFlags, parseAccessRequestInput } from '@/lib/services/accessRequestService';
+import { isAppRouteError } from '@/lib/errors';
 
-/**
- * POST /api/access-request
- * 
- * Receives access request from landing page and sends email to admin.
- * Used while app is in Spotify development mode with limited user slots.
- */
+function validateVerificationToken(email: string, verificationToken?: string): string | null {
+  if (!serverEnv.ACCESS_REQUEST_EMAIL_VERIFICATION_ENABLED) {
+    return null;
+  }
+
+  if (!verificationToken) {
+    return 'Email verification required';
+  }
+
+  const db = getDb();
+  if (!db) {
+    console.warn('[access-request] Email verification enabled but database not available');
+    return null;
+  }
+
+  const verification = db.prepare(`
+    SELECT verified, email
+    FROM email_verification_codes
+    WHERE verification_token = ? AND verified = 1
+    LIMIT 1
+  `).get(verificationToken) as { verified: number; email: string } | undefined;
+
+  if (!verification) {
+    return 'Invalid or unverified email';
+  }
+
+  if (verification.email !== email.trim().toLowerCase()) {
+    return 'Email does not match verified email';
+  }
+
+  return null;
+}
+
+function getMailer() {
+  const contactEmail = process.env.CONTACT_EMAIL;
+  const transporter = createEmailTransporter();
+
+  if (!transporter || !contactEmail) {
+    return null;
+  }
+
+  return { transporter, contactEmail };
+}
+
 export async function POST(request: NextRequest) {
   try {
     if (!serverEnv.ACCESS_REQUEST_ENABLED) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
-    const body = await request.json();
-    const { name, email, spotifyUsername, motivation, verificationToken } = body;
+    const payload = parseAccessRequestInput(await request.json());
+    const { name, email, spotifyUsername, motivation, verificationToken } = payload;
 
-    // Validate input
-    if (!name || typeof name !== 'string' || name.trim().length === 0) {
-      return NextResponse.json({ error: 'Name is required' }, { status: 400 });
+    const verificationError = validateVerificationToken(email, verificationToken);
+    if (verificationError) {
+      return NextResponse.json({ error: verificationError }, { status: 400 });
     }
 
-    if (!email || typeof email !== 'string' || !email.includes('@')) {
-      return NextResponse.json({ error: 'Valid email is required' }, { status: 400 });
-    }
+    const redFlags = detectAccessRequestRedFlags({
+      name,
+      ...(spotifyUsername ? { spotifyUsername } : {}),
+      ...(motivation ? { motivation } : {}),
+    });
 
-    // Check email verification if enabled
-    if (serverEnv.ACCESS_REQUEST_EMAIL_VERIFICATION_ENABLED) {
-      if (!verificationToken) {
-        return NextResponse.json({ error: 'Email verification required' }, { status: 400 });
-      }
-
-      const db = getDb();
-      if (db) {
-        const verification = db.prepare(`
-          SELECT verified, email
-          FROM email_verification_codes
-          WHERE verification_token = ? AND verified = 1
-          LIMIT 1
-        `).get(verificationToken) as { verified: number; email: string } | undefined;
-
-        if (!verification) {
-          return NextResponse.json({ error: 'Invalid or unverified email' }, { status: 400 });
-        }
-
-        // Ensure email matches the verified one
-        if (verification.email !== email.trim().toLowerCase()) {
-          return NextResponse.json({ error: 'Email does not match verified email' }, { status: 400 });
-        }
-      } else {
-        console.warn('[access-request] Email verification enabled but database not available');
-      }
-    }
-
-    // Detect suspicious patterns (red flags)
-    const redFlags: string[] = [];
-    const nameTrimmed = name.trim();
-    const spotifyUsernameTrimmed = spotifyUsername?.trim();
-
-    // Red flag: Name looks like a username (no spaces, all lowercase)
-    if (!nameTrimmed.includes(' ') && nameTrimmed === nameTrimmed.toLowerCase()) {
-      redFlags.push('Name looks like username (no spaces, lowercase)');
-    }
-
-    // Red flag: Spotify username contains spaces (invalid format)
-    if (spotifyUsernameTrimmed && spotifyUsernameTrimmed.includes(' ')) {
-      redFlags.push('Spotify username contains spaces (invalid)');
-    }
-
-    // Red flag: Very short name (likely fake)
-    if (nameTrimmed.length < 3) {
-      redFlags.push('Name too short (< 3 chars)');
-    }
-
-    // Red flag: Generic/templated motivation
-    const motivationLower = motivation?.trim().toLowerCase();
-    if (motivationLower) {
-      const genericPhrases = [
-        'para melhorar',
-        'to improve',
-        'want to use',
-        'please approve',
-        'give me access',
-        'test',
-        'testing'
-      ];
-      if (genericPhrases.some(phrase => motivationLower === phrase || motivationLower.length < 10)) {
-        redFlags.push('Generic or very short motivation');
-      }
-    }
-
-    // Check if SMTP is configured
-    const contactEmail = process.env.CONTACT_EMAIL;
-    const transporter = createEmailTransporter();
-
-    if (!transporter || !contactEmail) {
+    const mailer = getMailer();
+    if (!mailer) {
       console.error('[access-request] SMTP not configured');
       return NextResponse.json(
         { error: 'Email service not configured. Please contact the administrator.' },
@@ -105,10 +79,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Send email to admin
-    const mailOptions = {
+    await mailer.transporter.sendMail({
       from: getDefaultSender(),
-      to: contactEmail,
+      to: mailer.contactEmail,
       bcc: getBccRecipients(),
       subject: `[Listmagify] Access Request from ${name.trim()}${redFlags.length > 0 ? ' 🚩' : ''}${motivation && motivation.trim() ? ' ⭐' : ''}`,
       text: `New access request for Listmagify:
@@ -116,7 +89,7 @@ export async function POST(request: NextRequest) {
 Name: ${name.trim()}
 Spotify Email: ${email.trim()}
 ${spotifyUsername && spotifyUsername.trim() ? `Spotify Username: ${spotifyUsername.trim()}\n` : ''}
-${redFlags.length > 0 ? `\n🚩 RED FLAGS:\n${redFlags.map(f => `  - ${f}`).join('\n')}\n` : ''}
+${redFlags.length > 0 ? `\n🚩 RED FLAGS:\n${redFlags.map((flag) => `  - ${flag}`).join('\n')}\n` : ''}
 ${motivation && motivation.trim() ? `\nMotivation:\n${motivation.trim()}\n` : ''}
 To approve this user:
 1. Go to https://developer.spotify.com/dashboard
@@ -133,7 +106,7 @@ ${redFlags.length > 0 ? `
 <div style="background-color: #fee; border: 2px solid #c33; border-radius: 4px; padding: 12px; margin-bottom: 16px;">
   <strong style="color: #c33;">🚩 RED FLAGS DETECTED:</strong>
   <ul style="margin: 8px 0 0 0; padding-left: 20px; color: #666;">
-    ${redFlags.map(flag => `<li>${escapeHtml(flag)}</li>`).join('\n    ')}
+    ${redFlags.map((flag) => `<li>${escapeHtml(flag)}</li>`).join('\n    ')}
   </ul>
 </div>
 ` : ''}
@@ -171,11 +144,8 @@ ${redFlags.length > 0 ? `
 <hr>
 <p style="color: #666; font-size: 12px;">This is an automated message from Listmagify.</p>
 `,
-    };
+    });
 
-    await transporter.sendMail(mailOptions);
-
-    // Store in database if metrics are enabled
     try {
       const db = getDb();
       if (db) {
@@ -193,12 +163,19 @@ ${redFlags.length > 0 ? `
       }
     } catch (dbError) {
       console.error(`[access-request] Failed to store in database:`, dbError);
-      // Don't fail the request if DB storage fails
     }
 
     console.debug(`[access-request] Request sent for ${email}`);
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (isAppRouteError(error) && error.status === 400) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
+    if (error instanceof Error && error.message.includes('required')) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
     console.error('[access-request] Error:', error);
     return NextResponse.json(
       { error: 'Failed to send request. Please try again later.' },

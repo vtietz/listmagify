@@ -9,6 +9,93 @@ import type { ErrorReport, ErrorReportResponse } from "@/lib/errors/types";
 
 export const dynamic = "force-dynamic";
 
+function isErrorReportingEnabled(): boolean {
+  return process.env.ERROR_REPORTING_ENABLED === 'true';
+}
+
+function validateErrorReportPayload(body: ErrorReport): boolean {
+  return Boolean(body.error?.message && body.error?.category);
+}
+
+function buildReportId(): string {
+  return `ERR-${Date.now().toString(36).toUpperCase()}`;
+}
+
+function logErrorReport(reportId: string, session: { user: { id?: string | null; name?: string | null } }, body: ErrorReport) {
+  console.debug(`[error-report] Report ${reportId} received:`);
+  console.debug(`[error-report] Category: ${body.error.category}`);
+  console.debug(`[error-report] Message: ${body.error.message}`);
+  console.debug(`[error-report] Details: ${body.error.details || 'N/A'}`);
+  console.debug(`[error-report] User Description: ${body.userDescription || 'N/A'}`);
+
+  const logEntry = {
+    reportId,
+    timestamp: new Date().toISOString(),
+    userId: session.user.id,
+    userName: session.user.name,
+    error: body.error,
+    userDescription: body.userDescription,
+    environment: body.environment,
+  };
+
+  console.debug(`[error-report] FULL_REPORT: ${JSON.stringify(logEntry)}`);
+}
+
+function persistErrorReport(reportId: string, session: { user: { id?: string | null; name?: string | null } }, body: ErrorReport): void {
+  try {
+    const db = getDb();
+    if (!db) {
+      return;
+    }
+
+    const userHash = hashUserId(session.user.id || '');
+    db.prepare(`
+      INSERT INTO error_reports (
+        report_id, user_id, user_name, user_hash,
+        error_category, error_severity, error_message, error_details,
+        error_status_code, error_request_path, user_description,
+        environment_json, app_version
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      reportId,
+      session.user.id,
+      session.user.name,
+      userHash,
+      body.error.category,
+      body.error.severity,
+      body.error.message,
+      body.error.details || null,
+      body.error.statusCode || null,
+      body.error.requestPath || null,
+      body.userDescription || null,
+      JSON.stringify(body.environment),
+      body.appVersion
+    );
+
+    console.debug(`[error-report] Stored in database: ${reportId}`);
+  } catch (dbError) {
+    console.error(`[error-report] Failed to store in database:`, dbError);
+  }
+}
+
+async function notifyErrorReport(reportId: string, session: { user: { name?: string | null } }, body: ErrorReport): Promise<void> {
+  try {
+    const contact = getContactInfo();
+    await sendErrorReportEmail({
+      to: contact.email,
+      reportId,
+      userName: session.user.name || "Anonymous",
+      error: body.error,
+      userDescription: body.userDescription,
+      environment: body.environment,
+      appVersion: body.appVersion,
+    });
+    console.debug(`[error-report] Email sent successfully for report ${reportId}`);
+  } catch (emailError) {
+    console.error(`[error-report] Failed to send email for report ${reportId}:`, emailError);
+  }
+}
+
 /**
  * POST /api/error-report
  * 
@@ -17,8 +104,7 @@ export const dynamic = "force-dynamic";
  */
 export async function POST(request: Request): Promise<Response> {
   try {
-    // Check if error reporting is enabled
-    if (process.env.ERROR_REPORTING_ENABLED !== 'true') {
+    if (!isErrorReportingEnabled()) {
       return NextResponse.json(
         { success: false, message: "Error reporting is not enabled" },
         { status: 503 }
@@ -43,90 +129,18 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     const body = await request.json() as ErrorReport;
-    
-    // Validate required fields
-    if (!body.error?.message || !body.error?.category) {
+
+    if (!validateErrorReportPayload(body)) {
       return NextResponse.json(
         { success: false, message: "Invalid error report" },
         { status: 400 }
       );
     }
 
-    // Build report metadata
-    const reportId = `ERR-${Date.now().toString(36).toUpperCase()}`;
-
-    // Log the report for console tracking
-    console.debug(`[error-report] Report ${reportId} received:`);
-    console.debug(`[error-report] Category: ${body.error.category}`);
-    console.debug(`[error-report] Message: ${body.error.message}`);
-    console.debug(`[error-report] Details: ${body.error.details || 'N/A'}`);
-    console.debug(`[error-report] User Description: ${body.userDescription || 'N/A'}`);
-    
-    // Store in a simple log file (could be replaced with DB storage)
-    const logEntry = {
-      reportId,
-      timestamp: new Date().toISOString(),
-      userId: session.user.id,
-      userName: session.user.name,
-      error: body.error,
-      userDescription: body.userDescription,
-      environment: body.environment,
-    };
-    
-    // Log to console in structured format for easy parsing
-    console.debug(`[error-report] FULL_REPORT: ${JSON.stringify(logEntry)}`);
-
-    // Store in database if metrics are enabled
-    try {
-      const db = getDb();
-      if (db) {
-        const userHash = hashUserId(session.user.id || '');
-        db.prepare(`
-          INSERT INTO error_reports (
-            report_id, user_id, user_name, user_hash,
-            error_category, error_severity, error_message, error_details,
-            error_status_code, error_request_path, user_description,
-            environment_json, app_version
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(
-          reportId,
-          session.user.id,
-          session.user.name,
-          userHash,
-          body.error.category,
-          body.error.severity,
-          body.error.message,
-          body.error.details || null,
-          body.error.statusCode || null,
-          body.error.requestPath || null,
-          body.userDescription || null,
-          JSON.stringify(body.environment),
-          body.appVersion
-        );
-        console.debug(`[error-report] Stored in database: ${reportId}`);
-      }
-    } catch (dbError) {
-      console.error(`[error-report] Failed to store in database:`, dbError);
-      // Don't fail the request if DB storage fails
-    }
-
-    // Send email notification
-    try {
-      const contact = getContactInfo();
-      await sendErrorReportEmail({
-        to: contact.email,
-        reportId,
-        userName: session.user.name || "Anonymous",
-        error: body.error,
-        userDescription: body.userDescription,
-        environment: body.environment,
-        appVersion: body.appVersion,
-      });
-      console.debug(`[error-report] Email sent successfully for report ${reportId}`);
-    } catch (emailError) {
-      console.error(`[error-report] Failed to send email for report ${reportId}:`, emailError);
-      // Don't fail the request if email fails
-    }
+    const reportId = buildReportId();
+    logErrorReport(reportId, session, body);
+    persistErrorReport(reportId, session, body);
+    await notifyErrorReport(reportId, session, body);
 
     const response: ErrorReportResponse = {
       success: true,

@@ -4,6 +4,8 @@ import { authOptions } from '@/lib/auth/auth';
 import { isUserAllowedForStats } from '@/lib/metrics/env';
 import { getDb } from '@/lib/metrics/db';
 import { sendApprovalEmail, sendRejectionEmail, sendRevokedEmail } from '@/lib/email/access-request-emails';
+import { parseAccessRequestQuery } from '@/lib/repositories/statsRepository';
+import { isAppRouteError } from '@/lib/errors';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,12 +34,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Stats not enabled' }, { status: 503 });
     }
 
-    const searchParams = request.nextUrl.searchParams;
-    const limit = parseInt(searchParams.get('limit') || '50', 10);
-    const offset = parseInt(searchParams.get('offset') || '0', 10);
-    const status = searchParams.get('status'); // null = all, 'pending', 'approved', 'rejected'
-    const sortBy = searchParams.get('sortBy') || 'date'; // 'date', 'activity', 'name'
-    const search = searchParams.get('search'); // search across name, email, spotify_username
+    const { limit, offset, status, sortBy, search } = parseAccessRequestQuery(request.nextUrl.searchParams);
 
     // Get total count using a simple count query with the same WHERE clause
     let countQuery = `SELECT COUNT(*) as total FROM access_requests WHERE 1=1`;
@@ -109,6 +106,10 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
+    if (isAppRouteError(error) && error.status === 400) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
     console.error('[stats] Error fetching access requests:', error);
     return NextResponse.json(
       { error: 'Failed to fetch access requests' },

@@ -1,8 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth/auth';
+import { z } from 'zod';
+import { assertAuthenticated } from '@/app/api/_shared/guard';
+import { isAppRouteError } from '@/lib/errors';
 import { spotifyFetch } from '@/lib/spotify/client';
 import { mapPlaylistItemToTrack, type Track } from '@/lib/spotify/types';
+
+const querySchema = z.object({
+  q: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(50).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+
+function parseSearchQuery(searchParams: URLSearchParams) {
+  return querySchema.parse({
+    q: searchParams.get('q') ?? undefined,
+    limit: searchParams.get('limit') ?? '50',
+    offset: searchParams.get('offset') ?? '0',
+  });
+}
+
+function tokenExpiredResponse() {
+  return NextResponse.json({ error: 'token_expired' }, { status: 401 });
+}
 
 /**
  * GET /api/search/tracks?q=query&limit=50&offset=0
@@ -12,21 +31,12 @@ import { mapPlaylistItemToTrack, type Track } from '@/lib/spotify/types';
  */
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: 'token_expired' }, { status: 401 });
-    }
+    await assertAuthenticated();
 
-    if ((session as any).error === 'RefreshAccessTokenError') {
-      return NextResponse.json({ error: 'token_expired' }, { status: 401 });
-    }
+    const { q, limit, offset } = parseSearchQuery(request.nextUrl.searchParams);
+    const query = q?.trim() ?? '';
 
-    const searchParams = request.nextUrl.searchParams;
-    const query = searchParams.get('q');
-    const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '50', 10), 1), 50);
-    const offset = Math.max(parseInt(searchParams.get('offset') || '0', 10), 0);
-
-    if (!query || query.trim().length === 0) {
+    if (query.length === 0) {
       return NextResponse.json({
         tracks: [],
         total: 0,
@@ -51,7 +61,7 @@ export async function GET(request: NextRequest) {
     const data = await response.json();
 
     // Map raw Spotify items to our Track type
-    const tracks: Track[] = (data.tracks?.items || []).map((item: any) => 
+    const tracks: Track[] = (data.tracks?.items || []).map((item: any) =>
       mapPlaylistItemToTrack({ track: item })
     );
 
@@ -64,6 +74,14 @@ export async function GET(request: NextRequest) {
       nextOffset,
     });
   } catch (error: any) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: error.issues[0]?.message ?? 'Invalid query params' }, { status: 400 });
+    }
+
+    if (isAppRouteError(error) && error.status === 401) {
+      return tokenExpiredResponse();
+    }
+
     const { handleSpotifyException } = await import('@/lib/api/spotifyErrorHandler');
     return handleSpotifyException(error, {
       operation: 'api/search/tracks'
