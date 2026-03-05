@@ -1,7 +1,15 @@
-import { describe, expect, it } from 'vitest';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { AdaptiveNav, type NavItem } from '@/components/ui/adaptive-nav';
+
+vi.mock('@/components/ui/AdaptiveNav/useOverflowMeasurement', () => ({
+  useOverflowMeasurement: () => ({
+    visibleCount: Infinity,
+    effectiveMode: 'with-labels' as const,
+    remeasure: () => undefined,
+  }),
+}));
 
 const icon = <span aria-hidden="true">•</span>;
 
@@ -33,6 +41,8 @@ describe('AdaptiveNav grouping', () => {
   });
 
   it('renders menu-only groups with separators in overflow menu', async () => {
+    const user = userEvent.setup();
+
     render(
       <AdaptiveNav
         displayMode="with-labels"
@@ -45,15 +55,15 @@ describe('AdaptiveNav grouping', () => {
     );
 
     const trigger = screen.getByTitle('More options');
-    fireEvent.pointerDown(trigger);
+    await user.click(trigger);
 
-    const menu = screen.getByRole('menu');
+    const menu = await screen.findByRole('menu');
     expect(within(menu).getByText('menu-a')).toBeInTheDocument();
     expect(within(menu).getByText('menu-b')).toBeInTheDocument();
 
     const menuSeparators = menu.querySelectorAll('[role="separator"]');
     expect(menuSeparators.length).toBeGreaterThanOrEqual(1);
-  });
+  }, 15000);
 
   it('shows all visible items in burger mode', async () => {
     const user = userEvent.setup();

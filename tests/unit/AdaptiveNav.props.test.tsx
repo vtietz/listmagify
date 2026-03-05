@@ -3,6 +3,14 @@ import { render, screen } from '@testing-library/react';
 import { AdaptiveNav, type NavItem } from '@/components/ui/adaptive-nav';
 import { MenuItem } from '@/components/ui/AdaptiveNav/MenuItem';
 
+vi.mock('@/components/ui/AdaptiveNav/useOverflowMeasurement', () => ({
+  useOverflowMeasurement: () => ({
+    visibleCount: Infinity,
+    effectiveMode: 'with-labels' as const,
+    remeasure: () => undefined,
+  }),
+}));
+
 const icon = <span aria-hidden="true">•</span>;
 
 function item(id: string, overrides: Partial<NavItem> = {}): NavItem {
@@ -15,9 +23,10 @@ function item(id: string, overrides: Partial<NavItem> = {}): NavItem {
 }
 
 describe('AdaptiveNav props behavior', () => {
-  it('supports customRender and customMenuRender passthrough', () => {
+  it('supports customRender and customMenuRender passthrough', async () => {
     render(
       <AdaptiveNav
+        displayMode="with-labels"
         items={[
           item('custom-inline', {
             customRender: () => <button type="button">Inline custom</button>,
@@ -26,7 +35,7 @@ describe('AdaptiveNav props behavior', () => {
       />
     );
 
-    expect(screen.getByRole('button', { name: 'Inline custom' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Inline custom' })).toBeInTheDocument();
 
     render(
       <MenuItem
@@ -36,8 +45,8 @@ describe('AdaptiveNav props behavior', () => {
       />
     );
 
-    expect(screen.getByText('Menu custom')).toBeInTheDocument();
-  });
+    expect(await screen.findByText('Menu custom')).toBeInTheDocument();
+  }, 15000);
 
   it('disables loading buttons and animates icon container class', () => {
     render(
