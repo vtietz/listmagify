@@ -108,8 +108,19 @@ case "${1:-}" in
 
       echo ''
       echo '[quality] Code metrics'
-      FILES=\$(git ls-files '*.ts' '*.tsx' '*.js' '*.jsx' | wc -l)
-      LOC=\$(git ls-files '*.ts' '*.tsx' '*.js' '*.jsx' | xargs -r wc -l | tail -n1 | awk '{print \$1}')
+      if command -v git >/dev/null 2>&1 && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        FILES=\$(git ls-files '*.ts' '*.tsx' '*.js' '*.jsx' | wc -l)
+        LOC=\$(git ls-files '*.ts' '*.tsx' '*.js' '*.jsx' | xargs -r wc -l | tail -n1 | awk '{print \$1}')
+      else
+        echo '[quality] git not found in container, using find fallback'
+        FILE_LIST=\$(find app components hooks lib tests types scripts -type f \( -name '*.ts' -o -name '*.tsx' -o -name '*.js' -o -name '*.jsx' \) 2>/dev/null)
+        FILES=\$(printf '%s\n' "\$FILE_LIST" | sed '/^$/d' | wc -l)
+        if [ "\$FILES" -gt 0 ]; then
+          LOC=\$(printf '%s\n' "\$FILE_LIST" | sed '/^$/d' | xargs -r wc -l | tail -n1 | awk '{print \$1}')
+        else
+          LOC=0
+        fi
+      fi
       echo \"[quality] Source files: \$FILES\"
       echo \"[quality] Total LOC (ts/js): \$LOC\"
 
