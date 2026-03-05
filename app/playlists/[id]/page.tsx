@@ -1,4 +1,4 @@
-import { SinglePlaylistView } from "@/components/split-editor/SinglePlaylistView";
+import { SinglePlaylistView } from "@/components/split-editor/layout/SinglePlaylistView";
 
 export const dynamic = "force-dynamic";
 

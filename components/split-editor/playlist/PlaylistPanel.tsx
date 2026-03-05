@@ -19,16 +19,16 @@ import { usePlayerStore } from '@/hooks/usePlayerStore';
 import { useHydratedAutoScrollPlay } from '@/hooks/useAutoScrollPlayStore';
 import { useDndStateStore } from '@/hooks/dnd';
 import { PanelToolbar } from './PanelToolbar';
-import { TableHeader } from './TableHeader';
-import { VirtualizedTrackListContainer } from './VirtualizedTrackListContainer';
-import { TRACK_ROW_HEIGHT } from './constants';
+import { TableHeader } from '../TableHeader';
+import { VirtualizedTrackListContainer } from '../VirtualizedTrackListContainer';
+import { TRACK_ROW_HEIGHT } from '../constants';
 import {
   LoadingSkeletonList,
   ErrorPanel,
   EmptyPanel,
   EmptyTrackList,
   ConfirmDeleteDialog,
-} from './panel';
+} from '../panel';
 import type { Track } from '@/lib/spotify/types';
 
 interface PlaylistPanelProps {

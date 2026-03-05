@@ -6,14 +6,14 @@
  */
 
 // Main grid and layout components
-export { SplitGrid } from './SplitGrid';
-export { SplitNodeView } from './SplitNodeView';
-export { SinglePlaylistView } from './SinglePlaylistView';
+export { SplitGrid } from './layout/SplitGrid';
+export { SplitNodeView } from './layout/SplitNodeView';
+export { SinglePlaylistView } from './layout/SinglePlaylistView';
 
 // Playlist panel components
-export { PlaylistPanel } from './PlaylistPanel';
-export { PlaylistSelector } from './PlaylistSelector';
-export { PanelToolbar } from './PanelToolbar';
+export { PlaylistPanel } from './playlist/PlaylistPanel';
+export { PlaylistSelector } from './playlist/PlaylistSelector';
+export { PanelToolbar } from './playlist/PanelToolbar';
 
 // Track list components
 export { TrackRow } from './TrackRow';
@@ -39,25 +39,23 @@ export { TableHeader, TRACK_GRID_CLASSES, TRACK_GRID_CLASSES_NORMAL, TRACK_GRID_
 export { VirtualizedTrackListContainer } from './VirtualizedTrackListContainer';
 
 // Browse panel components
-export { BrowsePanel, BROWSE_PANEL_ID } from './BrowsePanel';
-export { SearchPanel, SEARCH_PANEL_ID } from './SearchPanel';
-export { RecommendationsPanel } from './RecommendationsPanel';
-export { LastfmBrowseTab, LASTFM_PANEL_ID } from './LastfmBrowseTab';
+export { BrowsePanel, BROWSE_PANEL_ID } from './browse/BrowsePanel';
+export { SearchPanel, SEARCH_PANEL_ID } from './browse/SearchPanel';
+export { RecommendationsPanel } from './browse/RecommendationsPanel';
+export { LastfmBrowseTab, LASTFM_PANEL_ID } from './browse/LastfmBrowseTab';
 
 // Marker and indicator components
 export { DropIndicator } from './DropIndicator';
 export { InsertionMarkersOverlay, InsertionMarker } from './InsertionMarker';
-export { MatchStatusIndicator } from './MatchStatusIndicator';
+export { MatchStatusIndicator } from './browse/MatchStatusIndicator';
 
 // Action button components
-export { AddToMarkedButton } from './AddToMarkedButton';
-export { AddSelectedToMarkersButton } from './AddSelectedToMarkersButton';
-export { LastfmAddToMarkedButton } from './LastfmAddToMarkedButton';
+export { AddToMarkedButton } from './playlist/AddToMarkedButton';
+export { AddSelectedToMarkersButton } from './playlist/AddSelectedToMarkersButton';
+export { LastfmAddToMarkedButton } from './browse/LastfmAddToMarkedButton';
 
 // Mobile-specific components
-export { DragHandle, useDragHandle } from './DragHandle';
-export { MobilePanelSwitcher, useMobilePanelSwitcher } from './MobilePanelSwitcher';
-export { MobileBrowseOverlay, useMobileBrowseOverlay, QuickAddButton } from './MobileBrowseOverlay';
+export { DragHandle, useDragHandle } from './mobile/DragHandle';
 export { 
   TrackContextMenu as MobileTrackContextMenu, 
   ContextMenuTrigger, 

@@ -23,11 +23,11 @@ import { apiFetch } from '@/lib/api/client';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { TrackRow } from './TrackRow';
-import { TrackContextMenu } from './TrackContextMenu';
-import { TableHeader } from './TableHeader';
-import { AddSelectedToMarkersButton } from './AddSelectedToMarkersButton';
-import { TRACK_ROW_HEIGHT, TRACK_ROW_HEIGHT_COMPACT, VIRTUALIZATION_OVERSCAN } from './constants';
+import { TrackRow } from '../TrackRow';
+import { TrackContextMenu } from '../TrackContextMenu';
+import { TableHeader } from '../TableHeader';
+import { AddSelectedToMarkersButton } from '../playlist/AddSelectedToMarkersButton';
+import { TRACK_ROW_HEIGHT, TRACK_ROW_HEIGHT_COMPACT, VIRTUALIZATION_OVERSCAN } from '../constants';
 import { makeCompositeId } from '@/lib/dnd/id';
 import type { Track } from '@/lib/spotify/types';
 

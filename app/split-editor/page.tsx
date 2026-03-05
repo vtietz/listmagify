@@ -3,7 +3,7 @@
  */
 
 import { Suspense } from 'react';
-import { SplitGrid } from '@/components/split-editor/SplitGrid';
+import { SplitGrid } from '@/components/split-editor/layout/SplitGrid';
 
 function SplitEditorLoading() {
   return (

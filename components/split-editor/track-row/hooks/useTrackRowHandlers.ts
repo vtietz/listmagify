@@ -3,7 +3,7 @@ import type * as React from 'react';
 import { useLongPress } from '@/hooks/useLongPress';
 import type { MarkerActions, ReorderActions, TrackActions } from '../../TrackContextMenu';
 import type { Track } from '@/lib/spotify/types';
-import type { MobileOverlay } from '../../MobileBottomNav';
+import type { MobileOverlay } from '../../mobile/MobileBottomNav';
 import { useContextMenuStore } from '@/hooks/useContextMenuStore';
 
 interface UseTrackRowHandlersInput {

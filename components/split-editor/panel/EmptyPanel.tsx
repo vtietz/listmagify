@@ -6,7 +6,7 @@
 
 'use client';
 
-import { PanelToolbar } from '../PanelToolbar';
+import { PanelToolbar } from '../playlist/PanelToolbar';
 
 interface EmptyPanelProps {
   /** Unique identifier for this panel */

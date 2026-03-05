@@ -18,7 +18,7 @@ import { useAutoScrollTextStore } from '@/hooks/useAutoScrollTextStore';
 import { useBrowsePanelStore } from '@/hooks/useBrowsePanelStore';
 import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
 import { useDeviceType } from '@/hooks/useDeviceType';
-import { useMobileOverlayStore } from './MobileBottomNav';
+import { useMobileOverlayStore } from './mobile/MobileBottomNav';
 import { useDndStateStore } from '@/hooks/dnd/state';
 import type { Track } from '@/lib/spotify/types';
 

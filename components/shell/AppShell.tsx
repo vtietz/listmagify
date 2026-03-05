@@ -12,7 +12,7 @@ import { useSessionUser } from "@/hooks/useSessionUser";
 import { useStatsAccess } from "@/hooks/useStatsAccess";
 import { useDeviceType } from "@/hooks/useDeviceType";
 import { SpotifyPlayer } from "@/components/player";
-import { BrowsePanel } from "@/components/split-editor/BrowsePanel";
+import { BrowsePanel } from "@/components/split-editor/browse/BrowsePanel";
 import { AppLogo } from "@/components/ui/app-logo";
 import { AppFooter } from "@/components/ui/app-footer";
 import { cn } from "@/lib/utils";

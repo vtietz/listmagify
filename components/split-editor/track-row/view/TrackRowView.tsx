@@ -1,8 +1,8 @@
 import type * as React from 'react';
 import { MoreHorizontal } from 'lucide-react';
 import type { SyntheticListenerMap } from '@dnd-kit/core/dist/hooks/utilities';
-import { AddToMarkedButton } from '../../AddToMarkedButton';
-import { DragHandle } from '../../DragHandle';
+import { AddToMarkedButton } from '../../playlist/AddToMarkedButton';
+import { DragHandle } from '../../mobile/DragHandle';
 import {
   PositionCell,
   TitleCell,

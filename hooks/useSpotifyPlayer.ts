@@ -11,7 +11,7 @@ import { useSessionUser } from './useSessionUser';
 import { useDeviceType } from './useDeviceType';
 import type { SpotifyDevice, PlaybackState } from '@/lib/spotify/playerTypes';
 import { toast } from '@/lib/ui/toast';
-import { useMobileOverlayStore } from '@/components/split-editor/MobileBottomNav';
+import { useMobileOverlayStore } from '@/components/split-editor/mobile/MobileBottomNav';
 
 const POLL_INTERVAL = 5000; // Poll playback state every 5 seconds
 

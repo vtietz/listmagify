@@ -12,7 +12,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { AddSelectedToMarkersButton } from './AddSelectedToMarkersButton';
+import { AddSelectedToMarkersButton } from '../playlist/AddSelectedToMarkersButton';
 import type { ImportSource, LastfmPeriod } from '@/lib/importers/types';
 
 const SOURCE_OPTIONS: { value: ImportSource; label: string }[] = [

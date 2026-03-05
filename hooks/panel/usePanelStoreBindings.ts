@@ -6,7 +6,7 @@
 
 import { useCallback } from 'react';
 import { useSplitGridStore } from '@/hooks/useSplitGridStore';
-import { useMobileOverlayStore } from '@/components/split-editor/MobileBottomNav';
+import { useMobileOverlayStore } from '@/components/split-editor/mobile/MobileBottomNav';
 import { useDeviceType } from '@/hooks/useDeviceType';
 import { eventBus } from '@/lib/sync/eventBus';
 import type { SortKey, SortDirection } from '@/lib/utils/sort';

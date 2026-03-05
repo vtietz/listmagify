@@ -7,7 +7,7 @@
 
 import { ArrowUp, ArrowDown, Heart, Play, Plus, TrendingUp, Calendar, Users, Timer, Radio, GripVertical } from 'lucide-react';
 import { useCompactModeStore } from '@/hooks/useCompactModeStore';
-import { useDragHandle } from './DragHandle';
+import { useDragHandle } from './mobile/DragHandle';
 import type { SortKey, SortDirection } from '@/hooks/usePlaylistSort';
 
 interface TableHeaderProps {

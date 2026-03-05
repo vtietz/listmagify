@@ -7,8 +7,8 @@ import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
 import { useContextMenuStore } from '@/hooks/useContextMenuStore';
 import { useDeviceType } from '@/hooks/useDeviceType';
 import { useDndStateStore } from '@/hooks/dnd';
-import { useMobileOverlayStore } from '../MobileBottomNav';
-import { useDragHandle } from '../DragHandle';
+import { useMobileOverlayStore } from '../mobile/MobileBottomNav';
+import { useDragHandle } from '../mobile/DragHandle';
 import { TrackRowInner } from './TrackRowInner';
 import type { TrackRowProps, TrackRowSharedContext } from './types';
 
