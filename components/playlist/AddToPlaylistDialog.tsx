@@ -15,12 +15,9 @@
 
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, Plus, Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
-import { PlayingIndicator } from '@/components/ui/playing-indicator';
 import { apiFetch } from '@/lib/api/client';
 import { userPlaylists, playlistTracksInfinite } from '@/lib/api/queryKeys';
 import { usePlaylistTrackCheck } from '@/hooks/usePlaylistTrackCheck';
@@ -29,7 +26,7 @@ import { useSessionUser } from '@/hooks/useSessionUser';
 import { usePlayerStore } from '@/hooks/usePlayerStore';
 import { useSplitGridStore, flattenPanels } from '@/hooks/useSplitGridStore';
 import { matchesAllWords } from '@/lib/utils';
-import { cn } from '@/lib/utils';
+import { AddToPlaylistDialogPlaylistList } from './AddToPlaylistDialogPlaylistList';
 import type { Playlist, Track } from '@/lib/spotify/types';
 
 interface AddToPlaylistDialogProps {
@@ -557,112 +554,21 @@ export function AddToPlaylistDialog({ isOpen, onClose, trackUri, trackName, trac
           className="mb-4"
         />
 
-        {/* Playlists list */}
-        <div ref={scrollContainerRef} className="max-h-96 overflow-y-auto space-y-1">
-          {isLoading && allPlaylists.length === 0 ? (
-            <div className="flex items-center justify-center py-8 text-muted-foreground">
-              <Loader2 className="h-5 w-5 animate-spin mr-2" />
-              Loading playlists...
-            </div>
-          ) : filteredPlaylists.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              No playlists found
-            </div>
-          ) : (
-            filteredPlaylists.map((item, index) => {
-              // Handle separator
-              if ('kind' in item && item.kind === 'separator') {
-                return (
-                  <div key={`separator-${index}`} className="py-2">
-                    <Separator />
-                  </div>
-                );
-              }
-              
-              const playlist = item as Playlist;
-              const containsTrack = playlistsWithTrack.has(playlist.id);
-              const isProcessing = processingPlaylists.has(playlist.id);
-              const isChecking = checkingPlaylists.has(playlist.id);
-              const statusKnown = isPlaylistStatusKnown(playlist.id);
-              const isEditable = user?.id && playlist.owner?.id === user.id;
-
-              return (
-                <button
-                  key={playlist.id}
-                  ref={(el) => registerPlaylistElement(playlist.id, el)}
-                  data-playlist-id={playlist.id}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (isEditable && !isProcessing && !isChecking && statusKnown) {
-                      handleToggleTrack(playlist, containsTrack);
-                    }
-                  }}
-                  disabled={!isEditable || isProcessing || isChecking || !statusKnown}
-                  className={cn(
-                    "w-full flex items-center gap-3 p-2 rounded-md text-left transition-colors",
-                    isEditable && !isProcessing && !isChecking && statusKnown && "hover:bg-muted",
-                    (!isEditable || isProcessing || isChecking || !statusKnown) && "opacity-50 cursor-not-allowed"
-                  )}
-                >
-                  {/* Playlist image */}
-                  <div className="w-12 h-12 rounded bg-muted flex-shrink-0 overflow-hidden">
-                    {playlist.image?.url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={playlist.image.url}
-                        alt={playlist.name}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-xs text-muted-foreground">
-                        No cover
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Playlist info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      {playbackContext?.playlistId === playlist.id && (
-                        <PlayingIndicator size="sm" />
-                      )}
-                      <div className="font-medium truncate">{playlist.name}</div>
-                    </div>
-                    <div className="text-sm text-muted-foreground truncate">
-                      {playlist.ownerName || 'Unknown'}
-                    </div>
-                  </div>
-
-                  {/* Action button / Status indicator */}
-                  {isProcessing || isChecking ? (
-                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground flex-shrink-0" />
-                  ) : !statusKnown ? (
-                    // Status unknown - waiting to check
-                    <div className="h-6 w-6 flex items-center justify-center text-muted-foreground/50 flex-shrink-0">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    </div>
-                  ) : containsTrack ? (
-                    <div className="h-6 w-6 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
-                      <Check className="h-4 w-4 text-white" />
-                    </div>
-                  ) : (
-                    <div className="h-6 w-6 flex items-center justify-center text-muted-foreground flex-shrink-0">
-                      <Plus className="h-5 w-5" />
-                    </div>
-                  )}
-                </button>
-              );
-            })
-          )}
-
-          {/* Loading more indicator */}
-          {isFetchingNextPage && (
-            <div className="flex items-center justify-center py-4 text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-              Loading more...
-            </div>
-          )}
-        </div>
+        <AddToPlaylistDialogPlaylistList
+          scrollContainerRef={scrollContainerRef}
+          isLoading={isLoading}
+          allPlaylistsCount={allPlaylists.length}
+          filteredPlaylists={filteredPlaylists}
+          playlistsWithTrack={playlistsWithTrack}
+          processingPlaylists={processingPlaylists}
+          checkingPlaylists={checkingPlaylists}
+          currentPlaybackPlaylistId={playbackContext?.playlistId ?? null}
+          userId={user?.id}
+          isPlaylistStatusKnown={isPlaylistStatusKnown}
+          registerPlaylistElement={registerPlaylistElement}
+          handleToggleTrack={handleToggleTrack}
+          isFetchingNextPage={isFetchingNextPage}
+        />
 
         {/* Close button */}
         <div className="flex justify-end pt-4 border-t">

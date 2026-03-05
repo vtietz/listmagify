@@ -32,6 +32,7 @@ export function useVirtualizerState(
   const deferredCount = useDeferredValue(filteredTracks.length);
   const overscan = isDragging ? Math.max(2, Math.floor(VIRTUALIZATION_OVERSCAN / 2)) : VIRTUALIZATION_OVERSCAN;
 
+  // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer({
     count: deferredCount,
     getScrollElement: () => scrollRef.current,

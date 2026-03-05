@@ -10,7 +10,8 @@ Commands:
   up              Start dev server (docker compose up)
   down            Stop dev server (docker compose down)
   install         Install dependencies
-  test            Run tests
+  test            Run unit tests
+  test-e2e        Run e2e tests (Playwright, spins up test stack automatically)
   quality         Run code quality checks (typecheck, lint, LOC, complexity)
   exec            Run command in container (e.g., exec pnpm add package)
   compose         Run docker compose command (e.g., compose logs -f)
@@ -32,6 +33,8 @@ Examples:
   ./run.sh down
   ./run.sh install
   ./run.sh test
+  ./run.sh test-e2e
+  ./run.sh test-e2e -- --project=chromium
   ./run.sh quality
   ./run.sh test -- --watch
   ./run.sh exec pnpm add lodash
@@ -89,6 +92,10 @@ case "${1:-}" in
   test)
     shift
     docker compose --env-file .env -f docker/docker-compose.yml run --rm web pnpm test "$@"
+    ;;
+  test-e2e)
+    shift
+    docker compose -f docker/docker-compose.yml --profile test run --rm playwright-runner "$@"
     ;;
   quality)
     shift

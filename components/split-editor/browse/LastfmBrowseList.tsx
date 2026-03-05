@@ -92,6 +92,7 @@ export function LastfmBrowseList({
   const rowHeight = isCompact ? TRACK_ROW_HEIGHT_COMPACT : TRACK_ROW_HEIGHT;
   const deferredCount = useDeferredValue(allTracks.length);
   
+  // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer({
     count: deferredCount,
     getScrollElement: () => scrollRef.current,
