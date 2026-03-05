@@ -12,7 +12,7 @@
 
 'use client';
 
-import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react';
+import { createElement, useState, useRef, useEffect, useCallback, type ReactNode } from 'react';
 import { MoreHorizontal, type LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -96,6 +96,174 @@ const DEFAULT_GAP = 4;
 const OVERFLOW_BUTTON_WIDTH = 32;
 const MEASURE_EPSILON_PX = 1;
 
+type EffectiveMode = 'icon-only' | 'with-labels';
+
+function getInitialEffectiveMode(displayMode: AdaptiveToolbarProps['displayMode']): EffectiveMode {
+  return displayMode === 'responsive' ? 'with-labels' : (displayMode ?? 'icon-only');
+}
+
+function measureTotalWidth(elements: HTMLElement[], gap: number): number {
+  let total = 0;
+  for (const el of elements) {
+    total += Math.ceil(el.getBoundingClientRect().width) + gap;
+  }
+  return total;
+}
+
+function resolveResponsiveMode(
+  totalLabels: number,
+  totalIcons: number,
+  fullFitWidth: number
+): EffectiveMode {
+  const labelsFit = totalLabels <= fullFitWidth + MEASURE_EPSILON_PX;
+  if (labelsFit) {
+    return 'with-labels';
+  }
+
+  const iconsFit = totalIcons <= fullFitWidth + MEASURE_EPSILON_PX;
+  if (iconsFit) {
+    return 'icon-only';
+  }
+
+  return 'icon-only';
+}
+
+function getVisibleCountFromWidths(
+  itemWidths: number[],
+  containerWidth: number,
+  gap: number,
+  overflowMustShow: boolean
+): number {
+  const fullFitWidth = overflowMustShow
+    ? containerWidth - OVERFLOW_BUTTON_WIDTH - gap
+    : containerWidth;
+  const totalWidth = itemWidths.reduce((sum, width) => sum + width + gap, 0);
+
+  if (totalWidth <= fullFitWidth + MEASURE_EPSILON_PX) {
+    return Infinity;
+  }
+
+  const availableWidth = containerWidth - OVERFLOW_BUTTON_WIDTH - gap;
+  let usedWidth = 0;
+  let count = 0;
+
+  for (const width of itemWidths) {
+    const itemWidth = width + gap;
+    if (usedWidth + itemWidth > availableWidth && count > 0) {
+      break;
+    }
+    usedWidth += itemWidth;
+    count++;
+  }
+
+  return count;
+}
+
+function splitInlineAndOverflowActions(
+  inlineCandidates: ToolbarAction[],
+  visibleCount: number
+): { inlineActions: ToolbarAction[]; overflowActions: ToolbarAction[] } {
+  if (visibleCount === Infinity) {
+    return { inlineActions: inlineCandidates, overflowActions: [] };
+  }
+
+  return {
+    inlineActions: inlineCandidates.slice(0, visibleCount),
+    overflowActions: inlineCandidates.slice(visibleCount),
+  };
+}
+
+function getBadgeClasses(variant: ToolbarAction['variant'], isMenuItem: boolean): string {
+  const base = isMenuItem
+    ? 'text-xs font-medium px-1.5 py-0.5 rounded-full ml-auto'
+    : 'text-xs font-medium px-1.5 py-0.5 rounded-full ml-1';
+
+  const variantClasses: Record<NonNullable<ToolbarAction['variant']> | 'default', string> = {
+    default: 'bg-muted text-muted-foreground',
+    warning: 'bg-orange-500 text-white',
+    destructive: 'bg-destructive text-destructive-foreground',
+  };
+
+  const variantKey = variant ?? 'default';
+  return cn(base, variantClasses[variantKey]);
+}
+
+function getInlineVariantClasses(variant: ToolbarAction['variant']): string {
+  const classMap: Record<NonNullable<ToolbarAction['variant']>, string> = {
+    default: '',
+    warning: 'text-orange-500 hover:text-orange-600',
+    destructive: 'text-destructive hover:text-destructive',
+  };
+
+  if (!variant || variant === 'default') {
+    return '';
+  }
+
+  return classMap[variant];
+}
+
+function getMenuVariantClasses(variant: ToolbarAction['variant']): string {
+  const classMap: Record<NonNullable<ToolbarAction['variant']>, string> = {
+    default: '',
+    warning: 'text-orange-500 focus:text-orange-600',
+    destructive: 'text-destructive focus:text-destructive',
+  };
+
+  if (!variant || variant === 'default') {
+    return '';
+  }
+
+  return classMap[variant];
+}
+
+function renderToolbarActionIcon(action: ToolbarAction, className: string): ReactNode {
+  const IconComponent = action.loading && action.loadingIcon ? action.loadingIcon : action.icon;
+  return createElement(IconComponent, {
+    className: cn(className, action.loading && 'animate-spin'),
+  });
+}
+
+function renderOverflowContent(action: ToolbarAction): ReactNode {
+  return (
+    <>
+      {renderToolbarActionIcon(action, 'h-4 w-4 mr-2')}
+      <span className="flex-1">{action.label}</span>
+      {action.badge !== undefined && (
+        <span className={getBadgeClasses(action.variant, true)}>
+          {action.badge}
+        </span>
+      )}
+      {action.active && <span className="ml-auto text-xs text-muted-foreground">✓</span>}
+    </>
+  );
+}
+
+function renderOverflowInteractiveItem(
+  action: ToolbarAction,
+  itemClasses: string,
+  itemContent: ReactNode
+): ReactNode {
+  if (action.href) {
+    return (
+      <DropdownMenuItem asChild disabled={action.disabled || false}>
+        <a href={action.href} className={itemClasses}>
+          {itemContent}
+        </a>
+      </DropdownMenuItem>
+    );
+  }
+
+  return (
+    <DropdownMenuItem
+      onClick={action.onClick}
+      disabled={action.disabled || action.loading || false}
+      className={itemClasses}
+    >
+      {itemContent}
+    </DropdownMenuItem>
+  );
+}
+
 // ============================================================================
 // AdaptiveToolbar Component
 // ============================================================================
@@ -113,8 +281,8 @@ export function AdaptiveToolbar({
   const containerRef = useRef<HTMLDivElement>(null);
   const rafIdRef = useRef<number | null>(null);
   const [visibleCount, setVisibleCount] = useState<number>(Infinity);
-  const [effectiveMode, setEffectiveMode] = useState<'icon-only' | 'with-labels'>(
-    displayMode === 'responsive' ? 'with-labels' : displayMode
+  const [effectiveMode, setEffectiveMode] = useState<EffectiveMode>(
+    getInitialEffectiveMode(displayMode)
   );
 
   // Filter out hidden actions
@@ -125,6 +293,7 @@ export function AdaptiveToolbar({
 
   // Actions that should only appear in the overflow menu
   const menuOnlyActions = visibleActions.filter((action) => action.menuOnly);
+  const menuOnlyCount = menuOnlyActions.length;
 
   const doMeasure = useCallback(() => {
     const container = containerRef.current;
@@ -135,14 +304,11 @@ export function AdaptiveToolbar({
 
     const containerWidth = Math.floor(container.getBoundingClientRect().width);
 
-    // If we must show the overflow button (menu-only actions), reserve its space
-    const overflowMustShow = menuOnlyActions.length > 0;
+    const overflowMustShow = menuOnlyCount > 0;
     const fullFitWidth = overflowMustShow
       ? containerWidth - OVERFLOW_BUTTON_WIDTH - gap
       : containerWidth;
 
-    // For responsive mode, decide whether labels fit by measuring the label layer.
-    // We avoid oscillation by only switching modes when the decision is clear.
     if (displayMode === 'responsive') {
       const labelButtons = Array.from(
         measureLayer.querySelectorAll('[data-measure="labels"]')
@@ -151,23 +317,12 @@ export function AdaptiveToolbar({
         measureLayer.querySelectorAll('[data-measure="icons"]')
       ) as HTMLElement[];
 
-      const measureTotal = (elements: HTMLElement[]) => {
-        let total = 0;
-        for (const el of elements) {
-          total += Math.ceil(el.getBoundingClientRect().width) + gap;
-        }
-        return total;
-      };
-
-      const totalLabels = measureTotal(labelButtons);
-      const totalIcons = measureTotal(iconButtons);
-
-      const labelsFit = totalLabels <= fullFitWidth + MEASURE_EPSILON_PX;
-      const iconsFit = totalIcons <= fullFitWidth + MEASURE_EPSILON_PX;
-
-      if (labelsFit && effectiveMode !== 'with-labels') setEffectiveMode('with-labels');
-      if (!labelsFit && iconsFit && effectiveMode !== 'icon-only') setEffectiveMode('icon-only');
-      if (!labelsFit && !iconsFit && effectiveMode !== 'icon-only') setEffectiveMode('icon-only');
+      const totalLabels = measureTotalWidth(labelButtons, gap);
+      const totalIcons = measureTotalWidth(iconButtons, gap);
+      const nextMode = resolveResponsiveMode(totalLabels, totalIcons, fullFitWidth);
+      if (nextMode !== effectiveMode) {
+        setEffectiveMode(nextMode);
+      }
     }
 
     const modeKey = effectiveMode === 'with-labels' ? 'labels' : 'icons';
@@ -177,28 +332,15 @@ export function AdaptiveToolbar({
     if (itemButtons.length === 0) return;
 
     const itemWidths = itemButtons.map((el) => Math.ceil(el.getBoundingClientRect().width));
+    const nextVisibleCount = getVisibleCountFromWidths(
+      itemWidths,
+      containerWidth,
+      gap,
+      overflowMustShow
+    );
 
-    let totalWidth = 0;
-    for (const width of itemWidths) totalWidth += width + gap;
-
-    if (totalWidth <= fullFitWidth + MEASURE_EPSILON_PX) {
-      setVisibleCount((prev) => (prev === Infinity ? prev : Infinity));
-      return;
-    }
-
-    const availableWidth = containerWidth - OVERFLOW_BUTTON_WIDTH - gap;
-    let usedWidth = 0;
-    let count = 0;
-
-    for (const width of itemWidths) {
-      const w = width + gap;
-      if (usedWidth + w > availableWidth && count > 0) break;
-      usedWidth += w;
-      count++;
-    }
-
-    setVisibleCount((prev) => (prev === count ? prev : count));
-  }, [displayMode, effectiveMode, gap, menuOnlyActions.length]);
+    setVisibleCount((prev) => (prev === nextVisibleCount ? prev : nextVisibleCount));
+  }, [displayMode, effectiveMode, gap, menuOnlyCount]);
 
   const measureOverflow = useCallback(() => {
     if (rafIdRef.current != null) return;
@@ -238,12 +380,7 @@ export function AdaptiveToolbar({
   }, []);
 
   // Split actions into visible and overflow (inline candidates only)
-  const inlineActions = visibleCount === Infinity
-    ? inlineCandidates
-    : inlineCandidates.slice(0, visibleCount);
-  const overflowActions = visibleCount === Infinity
-    ? []
-    : inlineCandidates.slice(visibleCount);
+  const { inlineActions, overflowActions } = splitInlineAndOverflowActions(inlineCandidates, visibleCount);
   const hasOverflow = overflowActions.length > 0 || menuOnlyActions.length > 0;
 
   return (
@@ -356,27 +493,20 @@ interface InlineButtonProps {
 }
 
 function InlineButton({ action, showLabel, buttonSize, buttonHeight }: InlineButtonProps) {
-  // Custom render takes precedence
   if (action.customRender) {
     return <>{action.customRender()}</>;
   }
 
-  const Icon = action.loading && action.loadingIcon ? action.loadingIcon : action.icon;
   const isLink = !!action.href;
+  const title = action.title || action.label;
+  const buttonVariant = action.active ? 'secondary' : 'ghost';
   
   const buttonContent = (
     <>
-      <Icon className={cn('h-4 w-4', action.loading && 'animate-spin')} />
+      {renderToolbarActionIcon(action, 'h-4 w-4')}
       {showLabel && <span className="truncate">{action.label}</span>}
       {action.badge !== undefined && (
-        <span className={cn(
-          'text-xs font-medium px-1.5 py-0.5 rounded-full ml-1',
-          action.variant === 'warning' 
-            ? 'bg-orange-500 text-white' 
-            : action.variant === 'destructive'
-            ? 'bg-destructive text-destructive-foreground'
-            : 'bg-muted text-muted-foreground'
-        )}>
+        <span className={getBadgeClasses(action.variant, false)}>
           {action.badge}
         </span>
       )}
@@ -387,19 +517,18 @@ function InlineButton({ action, showLabel, buttonSize, buttonHeight }: InlineBut
     buttonHeight,
     showLabel ? 'px-2 gap-1.5' : 'w-8 p-0',
     'shrink-0',
-    action.variant === 'warning' && 'text-orange-500 hover:text-orange-600',
-    action.variant === 'destructive' && 'text-destructive hover:text-destructive',
+    getInlineVariantClasses(action.variant),
     action.active && 'bg-secondary'
   );
 
   if (isLink) {
     return (
       <Button
-        variant={action.active ? 'secondary' : 'ghost'}
+        variant={buttonVariant}
         size={buttonSize}
         asChild
         className={buttonClasses}
-        title={action.title || action.label}
+        title={title}
       >
         <a href={action.href}>
           {buttonContent}
@@ -410,12 +539,12 @@ function InlineButton({ action, showLabel, buttonSize, buttonHeight }: InlineBut
 
   return (
     <Button
-      variant={action.active ? 'secondary' : 'ghost'}
+      variant={buttonVariant}
       size={buttonSize}
       onClick={action.onClick}
       disabled={action.disabled || action.loading}
       className={buttonClasses}
-      title={action.title || action.label}
+      title={title}
     >
       {buttonContent}
     </Button>
@@ -432,7 +561,6 @@ interface OverflowMenuItemProps {
 }
 
 function OverflowMenuItem({ action, isFirst }: OverflowMenuItemProps) {
-  // Custom menu render takes precedence
   if (action.customMenuRender) {
     return (
       <>
@@ -443,55 +571,17 @@ function OverflowMenuItem({ action, isFirst }: OverflowMenuItemProps) {
     );
   }
 
-  const Icon = action.loading && action.loadingIcon ? action.loadingIcon : action.icon;
-  const isLink = !!action.href;
-
-  const itemContent = (
-    <>
-      <Icon className={cn('h-4 w-4 mr-2', action.loading && 'animate-spin')} />
-      <span className="flex-1">{action.label}</span>
-      {action.badge !== undefined && (
-        <span className={cn(
-          'text-xs font-medium px-1.5 py-0.5 rounded-full ml-auto',
-          action.variant === 'warning' 
-            ? 'bg-orange-500 text-white' 
-            : action.variant === 'destructive'
-            ? 'bg-destructive text-destructive-foreground'
-            : 'bg-muted text-muted-foreground'
-        )}>
-          {action.badge}
-        </span>
-      )}
-      {action.active && (
-        <span className="ml-auto text-xs text-muted-foreground">✓</span>
-      )}
-    </>
-  );
+  const itemContent = renderOverflowContent(action);
 
   const itemClasses = cn(
     'flex items-center gap-2 cursor-pointer',
-    action.variant === 'warning' && 'text-orange-500 focus:text-orange-600',
-    action.variant === 'destructive' && 'text-destructive focus:text-destructive'
+    getMenuVariantClasses(action.variant)
   );
 
   return (
     <>
       {action.separatorBefore && !isFirst && <DropdownMenuSeparator />}
-      {isLink ? (
-        <DropdownMenuItem asChild disabled={action.disabled || false}>
-          <a href={action.href} className={itemClasses}>
-            {itemContent}
-          </a>
-        </DropdownMenuItem>
-      ) : (
-        <DropdownMenuItem 
-          onClick={action.onClick}
-          disabled={action.disabled || action.loading || false}
-          className={itemClasses}
-        >
-          {itemContent}
-        </DropdownMenuItem>
-      )}
+      {renderOverflowInteractiveItem(action, itemClasses, itemContent)}
       {action.separatorAfter && <DropdownMenuSeparator />}
     </>
   );
