@@ -1,63 +1,9 @@
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth/auth";
-import { withRateLimitRetry } from "@/lib/spotify/rateLimit";
+import { createSpotifyProvider } from '@/lib/music-provider/spotifyProvider';
+import type { ProviderClientOptions } from '@/lib/music-provider/types';
 
-/**
- * Build headers with bearer token from the NextAuth session.
- * Throws if token is missing — callers should ensure the user is authenticated.
- */
-async function buildAuthHeaders(extra?: Record<string, string>): Promise<Headers> {
-  const session = await getServerSession(authOptions);
-  const headers = new Headers(extra ?? {});
-  if (!session || !(session as any).accessToken) {
-    throw new Error("Missing access token: user not authenticated");
-  }
-  headers.set("Authorization", `Bearer ${(session as any).accessToken}`);
-  headers.set("Content-Type", "application/json");
-  return headers;
-}
+export type SpotifyClientOptions = ProviderClientOptions;
 
-/**
- * Build headers with a pre-provided bearer token.
- * Use this when you already have an access token (e.g., from requireAuth()).
- */
-function buildAuthHeadersWithToken(token: string, extra?: Record<string, string>): Headers {
-  const headers = new Headers(extra ?? {});
-  headers.set("Authorization", `Bearer ${token}`);
-  headers.set("Content-Type", "application/json");
-  return headers;
-}
-
-export type SpotifyClientOptions = {
-  baseUrl?: string;
-  backoff?: {
-    maxRetries?: number;
-    baseDelayMs?: number;
-    maxDelayMs?: number;
-  };
-};
-
-const DEFAULT_BASE = "https://api.spotify.com/v1";
-
-/**
- * Extract a safe request path for error reporting (no query params with sensitive data)
- */
-function getSafeRequestPath(path?: string): string {
-  if (path === undefined) return "";
-  
-  // After undefined check, use non-null assertion for split operations
-  try {
-    // If it's a full URL, extract just the pathname
-    if (path.startsWith("http")) {
-      const url = new URL(path);
-      return url.pathname;
-    }
-    // Otherwise, strip query params
-    return path.split("?")[0]!;
-  } catch {
-    return path.split("?")[0]!;
-  }
-}
+const spotifyProvider = createSpotifyProvider();
 
 /**
  * Low-level GET/POST wrapper that injects the access token and applies
@@ -68,23 +14,7 @@ export async function spotifyFetch(
   init?: RequestInit,
   opts?: SpotifyClientOptions
 ): Promise<Response> {
-  // In E2E mode, route to mock Spotify server
-  const effectiveBase = process.env.E2E_MODE === '1' 
-    ? (process.env.SPOTIFY_BASE_URL ?? 'http://spotify-mock:8080/v1')
-    : DEFAULT_BASE;
-  
-  const base = opts?.baseUrl ?? effectiveBase;
-
-  const url = path.startsWith("http") ? path : `${base}${path}`;
-  const headers = await buildAuthHeaders(init?.headers as Record<string, string> | undefined);
-
-  const requestFactory = () =>
-    fetch(url, {
-      ...init,
-      headers,
-    });
-
-  return withRateLimitRetry(requestFactory, opts?.backoff, getSafeRequestPath(path));
+  return spotifyProvider.fetch(path, init, opts);
 }
 
 /**
@@ -104,23 +34,7 @@ export async function spotifyFetchWithToken(
   init?: RequestInit,
   opts?: SpotifyClientOptions
 ): Promise<Response> {
-  // In E2E mode, route to mock Spotify server
-  const effectiveBase = process.env.E2E_MODE === '1' 
-    ? (process.env.SPOTIFY_BASE_URL ?? 'http://spotify-mock:8080/v1')
-    : DEFAULT_BASE;
-  
-  const base = opts?.baseUrl ?? effectiveBase;
-
-  const url = path.startsWith("http") ? path : `${base}${path}`;
-  const headers = buildAuthHeadersWithToken(accessToken, init?.headers as Record<string, string> | undefined);
-
-  const requestFactory = () =>
-    fetch(url, {
-      ...init,
-      headers,
-    });
-
-  return withRateLimitRetry(requestFactory, opts?.backoff, getSafeRequestPath(path));
+  return spotifyProvider.fetchWithToken(accessToken, path, init, opts);
 }
 
 /**
@@ -131,10 +45,5 @@ export async function getJSON<T>(
   path: string,
   opts?: SpotifyClientOptions
 ): Promise<T> {
-  const res = await spotifyFetch(path, { method: "GET" }, opts);
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`[spotify] GET ${path} failed: ${res.status} ${res.statusText} ${text}`);
-  }
-  return res.json() as Promise<T>;
+  return spotifyProvider.getJSON<T>(path, opts);
 }
