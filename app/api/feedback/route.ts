@@ -21,46 +21,62 @@ const feedbackSchema = z.object({
   email: z.string().optional(),
 });
 
+function parseSchemaError(parsed: z.ZodSafeParseError<unknown>) {
+  const issue = parsed.error.issues[0];
+  const path = issue?.path?.[0];
+  if (path === 'comment') return 'Comment must be a string';
+  if (path === 'name') return 'Name must be a string';
+  if (path === 'email') return 'Email must be a string';
+  return 'NPS score must be a number between 0 and 10';
+}
+
+function normalizeFeedbackInput(data: z.infer<typeof feedbackSchema>) {
+  return {
+    npsScore: data.npsScore,
+    normalizedComment: (data.comment ?? '').trim(),
+    normalizedName: (data.name ?? '').trim(),
+    normalizedEmail: (data.email ?? '').trim(),
+  };
+}
+
+function hasFeedbackInput(input: ReturnType<typeof normalizeFeedbackInput>) {
+  return (
+    typeof input.npsScore === 'number' ||
+    input.normalizedComment.length > 0 ||
+    input.normalizedName.length > 0 ||
+    input.normalizedEmail.length > 0
+  );
+}
+
+function validateFeedbackEmail(email: string) {
+  if (email.length === 0) {
+    return true;
+  }
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
 function parseFeedbackBody(payload: unknown) {
   const parsed = feedbackSchema.safeParse(payload);
   if (!parsed.success) {
-    const issue = parsed.error.issues[0];
-    const path = issue?.path?.[0];
-    if (path === 'comment') return { ok: false as const, error: 'Comment must be a string' };
-    if (path === 'name') return { ok: false as const, error: 'Name must be a string' };
-    if (path === 'email') return { ok: false as const, error: 'Email must be a string' };
-    return { ok: false as const, error: 'NPS score must be a number between 0 and 10' };
+    return { ok: false as const, error: parseSchemaError(parsed) };
   }
 
-  const normalizedComment = (parsed.data.comment ?? '').trim();
-  const normalizedName = (parsed.data.name ?? '').trim();
-  const normalizedEmail = (parsed.data.email ?? '').trim();
-  const npsScore = parsed.data.npsScore;
-
-  const hasAnyInput =
-    typeof npsScore === 'number' ||
-    normalizedComment.length > 0 ||
-    normalizedName.length > 0 ||
-    normalizedEmail.length > 0;
-
-  if (!hasAnyInput) {
+  const normalized = normalizeFeedbackInput(parsed.data);
+  if (!hasFeedbackInput(normalized)) {
     return { ok: false as const, error: 'Please provide a score, a comment, or contact info' };
   }
 
-  if (normalizedEmail.length > 0) {
-    const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail);
-    if (!isEmailValid) {
-      return { ok: false as const, error: 'Email address is invalid' };
-    }
+  if (!validateFeedbackEmail(normalized.normalizedEmail)) {
+    return { ok: false as const, error: 'Email address is invalid' };
   }
 
   return {
     ok: true as const,
     value: {
-      npsScore: typeof npsScore === 'number' ? npsScore : null,
-      comment: normalizedComment || null,
-      name: normalizedName || null,
-      email: normalizedEmail || null,
+      npsScore: typeof normalized.npsScore === 'number' ? normalized.npsScore : null,
+      comment: normalized.normalizedComment || null,
+      name: normalized.normalizedName || null,
+      email: normalized.normalizedEmail || null,
     },
   };
 }

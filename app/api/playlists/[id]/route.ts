@@ -4,6 +4,55 @@ import { spotifyFetchWithToken } from '@/lib/spotify/client';
 import { parsePlaylistId, parsePlaylistUpdatePayload } from '@/lib/services/spotifyPlaylistService';
 import { getPlaylistFieldsQuery, mapPlaylistMetadata } from '@/lib/repositories/playlistRepository';
 
+function mapPlaylistPutResponseError(status: number, statusText: string): NextResponse {
+  if (status === 401) {
+    return NextResponse.json({ error: 'token_expired' }, { status: 401 });
+  }
+
+  if (status === 403) {
+    return NextResponse.json({ error: 'You do not have permission to edit this playlist' }, { status: 403 });
+  }
+
+  if (status === 404) {
+    return NextResponse.json({ error: 'Playlist not found' }, { status: 404 });
+  }
+
+  return NextResponse.json(
+    { error: `Failed to update playlist: ${status} ${statusText}` },
+    { status }
+  );
+}
+
+function mapPlaylistPutThrownError(error: unknown): NextResponse {
+  if (error instanceof ServerAuthError) {
+    return NextResponse.json({ error: 'token_expired' }, { status: 401 });
+  }
+
+  if (error instanceof Error && error.message.includes('Invalid playlist ID')) {
+    return NextResponse.json({ error: 'Invalid playlist ID' }, { status: 400 });
+  }
+
+  if (error instanceof Error && (error.message.includes('No fields to update') || error.message.includes('cannot be empty'))) {
+    return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+
+  console.error('[api/playlists] PUT Error:', error);
+
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  if (
+    errorMessage.includes('401') ||
+    errorMessage.includes('Unauthorized') ||
+    errorMessage.includes('access token expired')
+  ) {
+    return NextResponse.json({ error: 'token_expired' }, { status: 401 });
+  }
+
+  return NextResponse.json(
+    { error: error instanceof Error ? error.message : 'Internal server error' },
+    { status: 500 }
+  );
+}
+
 /**
  * GET /api/playlists/[id]
  *
@@ -107,54 +156,11 @@ export async function PUT(
     if (!res.ok) {
       const text = await res.text().catch(() => '');
       console.error(`[api/playlists] PUT ${path} failed: ${res.status} ${text}`);
-
-      if (res.status === 401) {
-        return NextResponse.json({ error: 'token_expired' }, { status: 401 });
-      }
-
-      if (res.status === 403) {
-        return NextResponse.json({ error: 'You do not have permission to edit this playlist' }, { status: 403 });
-      }
-
-      if (res.status === 404) {
-        return NextResponse.json({ error: 'Playlist not found' }, { status: 404 });
-      }
-
-      return NextResponse.json(
-        { error: `Failed to update playlist: ${res.status} ${res.statusText}` },
-        { status: res.status }
-      );
+      return mapPlaylistPutResponseError(res.status, res.statusText);
     }
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    // Handle auth errors consistently
-    if (error instanceof ServerAuthError) {
-      return NextResponse.json({ error: 'token_expired' }, { status: 401 });
-    }
-
-    if (error instanceof Error && error.message.includes('Invalid playlist ID')) {
-      return NextResponse.json({ error: 'Invalid playlist ID' }, { status: 400 });
-    }
-
-    if (error instanceof Error && (error.message.includes('No fields to update') || error.message.includes('cannot be empty'))) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
-    }
-
-    console.error('[api/playlists] PUT Error:', error);
-
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    if (
-      errorMessage.includes('401') ||
-      errorMessage.includes('Unauthorized') ||
-      errorMessage.includes('access token expired')
-    ) {
-      return NextResponse.json({ error: 'token_expired' }, { status: 401 });
-    }
-
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Internal server error' },
-      { status: 500 }
-    );
+    return mapPlaylistPutThrownError(error);
   }
 }

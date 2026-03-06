@@ -1,8 +1,38 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth/auth";
+import { assertAuthenticated } from '@/app/api/_shared/guard';
+import { isAppRouteError } from '@/lib/errors';
 import { getJSON, spotifyFetch } from "@/lib/spotify/client";
 import { pageFromSpotify, mapPlaylist } from "@/lib/spotify/types";
+
+type CursorFetchResult =
+  | { ok: true; data: ReturnType<typeof pageFromSpotify> }
+  | { ok: false; error: NextResponse };
+
+async function fetchInitialPlaylists() {
+  const raw = await getJSON<any>(`/me/playlists?limit=50`);
+  return pageFromSpotify(raw, mapPlaylist);
+}
+
+async function fetchCursorPlaylists(nextCursor: string): Promise<CursorFetchResult> {
+  const res = await spotifyFetch(nextCursor, { method: "GET" });
+
+  if (!res.ok) {
+    if (res.status === 401) {
+      return { ok: false, error: NextResponse.json({ error: "token_expired" }, { status: 401 }) };
+    }
+
+    return {
+      ok: false,
+      error: NextResponse.json(
+        { error: `Failed to fetch playlists: ${res.status} ${res.statusText}` },
+        { status: res.status }
+      ),
+    };
+  }
+
+  const raw = await res.json();
+  return { ok: true, data: pageFromSpotify(raw, mapPlaylist) };
+}
 
 /**
  * GET /api/me/playlists
@@ -16,62 +46,30 @@ import { pageFromSpotify, mapPlaylist } from "@/lib/spotify/types";
  */
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "token_expired" }, { status: 401 });
-    }
-
-    // Check if there's a session error (refresh failed)
-    if ((session as any).error === "RefreshAccessTokenError") {
-      return NextResponse.json({ error: "token_expired" }, { status: 401 });
-    }
+    await assertAuthenticated();
 
     const searchParams = request.nextUrl.searchParams;
     const nextCursor = searchParams.get("nextCursor");
 
-    let result;
+    const result: CursorFetchResult = nextCursor
+      ? await fetchCursorPlaylists(nextCursor)
+      : { ok: true, data: await fetchInitialPlaylists() };
 
-    if (nextCursor) {
-      // Use the full next URL provided by Spotify
-      const res = await spotifyFetch(nextCursor, { method: "GET" });
-      
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        console.error(`[api/me/playlists] GET ${nextCursor} failed: ${res.status} ${text}`);
-        
-        // Forward 401 errors with consistent format
-        if (res.status === 401) {
-          return NextResponse.json({ error: "token_expired" }, { status: 401 });
-        }
-        
-        return NextResponse.json(
-          { error: `Failed to fetch playlists: ${res.status} ${res.statusText}` },
-          { status: res.status }
-        );
-      }
-
-      const raw = await res.json();
-      result = pageFromSpotify(raw, mapPlaylist);
-    } else {
-      // Initial request - start from the beginning with limit 50
-      const limit = 50;
-      const raw = await getJSON<any>(`/me/playlists?limit=${limit}`);
-      result = pageFromSpotify(raw, mapPlaylist);
+    if (!result.ok) {
+      return result.error;
     }
 
     return NextResponse.json({
-      items: result.items,
-      nextCursor: result.nextCursor,
-      total: result.total,
+      items: result.data.items,
+      nextCursor: result.data.nextCursor,
+      total: result.data.total,
     });
   } catch (error) {
-    console.error("[api/me/playlists] Error:", error);
-    
-    // Check if error is 401 Unauthorized
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    if (errorMessage.includes("401") || errorMessage.includes("Unauthorized") || errorMessage.includes("access token expired")) {
+    if (isAppRouteError(error) && error.status === 401) {
       return NextResponse.json({ error: "token_expired" }, { status: 401 });
     }
+
+    console.error("[api/me/playlists] Error:", error);
     
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Internal server error" },

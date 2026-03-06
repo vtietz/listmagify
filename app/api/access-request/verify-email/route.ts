@@ -14,6 +14,33 @@ function featureDisabledResponse() {
   return NextResponse.json({ error: 'Email verification not enabled' }, { status: 404 });
 }
 
+function verifyCodeRecord(record: {
+  id: number;
+  verification_token: string;
+  expires_at: string;
+  verified: number;
+}) {
+  if (record.verified) {
+    return {
+      done: true as const,
+      response: NextResponse.json({
+        success: true,
+        verificationToken: record.verification_token,
+        message: 'Email already verified',
+      }),
+    };
+  }
+
+  if (new Date(record.expires_at) < new Date()) {
+    return {
+      done: true as const,
+      response: NextResponse.json({ error: 'Verification code has expired. Please request a new one.' }, { status: 400 }),
+    };
+  }
+
+  return { done: false as const };
+}
+
 export async function POST(request: NextRequest) {
   try {
     if (!serverEnv.ACCESS_REQUEST_ENABLED) {
@@ -112,16 +139,9 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid verification code' }, { status: 400 });
     }
 
-    if (record.verified) {
-      return NextResponse.json({
-        success: true,
-        verificationToken: record.verification_token,
-        message: 'Email already verified',
-      });
-    }
-
-    if (new Date(record.expires_at) < new Date()) {
-      return NextResponse.json({ error: 'Verification code has expired. Please request a new one.' }, { status: 400 });
+    const verificationCheck = verifyCodeRecord(record);
+    if (verificationCheck.done) {
+      return verificationCheck.response;
     }
 
     db.prepare('UPDATE email_verification_codes SET verified = 1 WHERE id = ?').run(record.id);

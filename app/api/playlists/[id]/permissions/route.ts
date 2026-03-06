@@ -1,7 +1,63 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth/auth';
+import { assertAuthenticated } from '@/app/api/_shared/guard';
+import { isAppRouteError } from '@/lib/errors';
 import { spotifyFetch } from '@/lib/spotify/client';
+import { parsePlaylistId } from '@/lib/services/spotifyPlaylistService';
+
+async function fetchPlaylistPermissionData(playlistId: string) {
+  const path = `/playlists/${encodeURIComponent(playlistId)}`;
+  const fields = 'owner.id,collaborative';
+  const response = await spotifyFetch(`${path}?fields=${encodeURIComponent(fields)}`, { method: 'GET' });
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    if (response.status === 401) {
+      return { error: NextResponse.json({ error: 'token_expired' }, { status: 401 }) };
+    }
+    if (response.status === 404) {
+      return { error: NextResponse.json({ error: 'Playlist not found' }, { status: 404 }) };
+    }
+    return {
+      error: NextResponse.json(
+        { error: `Failed to fetch playlist: ${response.status} ${response.statusText}` },
+        { status: response.status }
+      ),
+      text,
+    };
+  }
+
+  return { data: await response.json() };
+}
+
+async function fetchCurrentUserId() {
+  const userResponse = await spotifyFetch('/me', { method: 'GET' });
+  if (!userResponse.ok) {
+    return { error: NextResponse.json({ error: 'Failed to fetch user info' }, { status: userResponse.status }) };
+  }
+
+  const user = await userResponse.json();
+  if (!user?.id) {
+    return { error: NextResponse.json({ error: 'Failed to determine user ID' }, { status: 500 }) };
+  }
+
+  return { userId: user.id as string };
+}
+
+function mapPermissionsError(error: unknown): NextResponse {
+  if (isAppRouteError(error) && error.status === 401) {
+    return NextResponse.json({ error: 'token_expired' }, { status: 401 });
+  }
+
+  if (isAppRouteError(error) && error.status === 400) {
+    return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+
+  console.error('[api/playlists/permissions] Error:', error);
+  return NextResponse.json(
+    { error: error instanceof Error ? error.message : 'Internal server error' },
+    { status: 500 }
+  );
+}
 
 /**
  * GET /api/playlists/[id]/permissions
@@ -16,87 +72,26 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: 'token_expired' }, { status: 401 });
+    await assertAuthenticated();
+    const { id } = await params;
+    const playlistId = parsePlaylistId(id);
+
+    const playlistResult = await fetchPlaylistPermissionData(playlistId);
+    if (playlistResult.error) {
+      return playlistResult.error;
     }
 
-    if ((session as any).error === 'RefreshAccessTokenError') {
-      return NextResponse.json({ error: 'token_expired' }, { status: 401 });
+    const userResult = await fetchCurrentUserId();
+    if (userResult.error) {
+      return userResult.error;
     }
 
-    const { id: playlistId } = await params;
-
-    if (!playlistId || typeof playlistId !== 'string') {
-      return NextResponse.json({ error: 'Invalid playlist ID' }, { status: 400 });
-    }
-
-    // Fetch playlist details to check ownership and collaborative status
-    const path = `/playlists/${encodeURIComponent(playlistId)}`;
-    const fields = 'owner.id,collaborative';
-
-    const res = await spotifyFetch(`${path}?fields=${encodeURIComponent(fields)}`, {
-      method: 'GET',
-    });
-
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      console.error(`[api/playlists/permissions] GET ${path} failed: ${res.status} ${text}`);
-
-      if (res.status === 401) {
-        return NextResponse.json({ error: 'token_expired' }, { status: 401 });
-      }
-
-      if (res.status === 404) {
-        return NextResponse.json({ error: 'Playlist not found' }, { status: 404 });
-      }
-
-      return NextResponse.json(
-        { error: `Failed to fetch playlist: ${res.status} ${res.statusText}` },
-        { status: res.status }
-      );
-    }
-
-    const playlist = await res.json();
-
-    // Get current user's ID
-    const userRes = await spotifyFetch('/me', { method: 'GET' });
-
-    if (!userRes.ok) {
-      console.error(`[api/playlists/permissions] Failed to fetch user: ${userRes.status}`);
-      return NextResponse.json({ error: 'Failed to fetch user info' }, { status: userRes.status });
-    }
-
-    const user = await userRes.json();
-    const userId = user?.id;
-
-    if (!userId) {
-      return NextResponse.json({ error: 'Failed to determine user ID' }, { status: 500 });
-    }
-
-    // A playlist is editable if:
-    // 1. The user owns it, OR
-    // 2. The playlist is collaborative
-    const isOwner = playlist?.owner?.id === userId;
-    const isCollaborative = playlist?.collaborative === true;
+    const isOwner = playlistResult.data?.owner?.id === userResult.userId;
+    const isCollaborative = playlistResult.data?.collaborative === true;
     const isEditable = isOwner || isCollaborative;
 
     return NextResponse.json({ isEditable });
   } catch (error) {
-    console.error('[api/playlists/permissions] Error:', error);
-
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    if (
-      errorMessage.includes('401') ||
-      errorMessage.includes('Unauthorized') ||
-      errorMessage.includes('access token expired')
-    ) {
-      return NextResponse.json({ error: 'token_expired' }, { status: 401 });
-    }
-
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Internal server error' },
-      { status: 500 }
-    );
+    return mapPermissionsError(error);
   }
 }

@@ -3,8 +3,68 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/auth';
 import { isUserAllowedForStats } from '@/lib/metrics/env';
 import { getDb } from '@/lib/metrics/db';
+import { routeErrors, isAppRouteError } from '@/lib/errors';
+import { z } from 'zod';
 
 export const dynamic = 'force-dynamic';
+
+const querySchema = z.object({
+  from: z.string().optional(),
+  to: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
+  resolved: z.enum(['true', 'false']).optional(),
+  search: z.string().optional(),
+});
+
+function parseQuery(searchParams: URLSearchParams) {
+  const parsed = querySchema.safeParse({
+    from: searchParams.get('from') ?? undefined,
+    to: searchParams.get('to') ?? undefined,
+    limit: searchParams.get('limit') ?? '50',
+    offset: searchParams.get('offset') ?? '0',
+    resolved: searchParams.get('resolved') ?? undefined,
+    search: searchParams.get('search') ?? undefined,
+  });
+
+  if (!parsed.success) {
+    throw routeErrors.validation(parsed.error.issues[0]?.message ?? 'Invalid query');
+  }
+
+  return parsed.data;
+}
+
+function appendCommonFilters(
+  query: string,
+  params: (string | number)[],
+  filters: ReturnType<typeof parseQuery>
+) {
+  let result = query;
+
+  if (filters.from) {
+    result += ` AND DATE(ts) >= ?`;
+    params.push(filters.from);
+  }
+
+  if (filters.to) {
+    result += ` AND DATE(ts) <= ?`;
+    params.push(filters.to);
+  }
+
+  if (filters.resolved === 'true') {
+    result += ` AND resolved = 1`;
+  } else if (filters.resolved === 'false') {
+    result += ` AND resolved = 0`;
+  }
+
+  if (filters.search) {
+    result += ` AND (error_message LIKE ? OR error_category LIKE ? OR user_name LIKE ?)`;
+    const searchPattern = `%${filters.search}%`;
+    params.push(searchPattern, searchPattern, searchPattern);
+  }
+
+  return result;
+}
 
 /**
  * GET /api/stats/error-reports
@@ -28,15 +88,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Stats not enabled' }, { status: 503 });
     }
 
-    const searchParams = request.nextUrl.searchParams;
-    const from = searchParams.get('from');
-    const to = searchParams.get('to');
-    const limit = parseInt(searchParams.get('limit') || '50', 10);
-    const offset = parseInt(searchParams.get('offset') || '0', 10);
-    const resolved = searchParams.get('resolved'); // null = all, 'true' = resolved only, 'false' = unresolved only
-    const search = searchParams.get('search'); // search across error_message, error_category, user_name
+    const filters = parseQuery(request.nextUrl.searchParams);
 
-    let query = `
+    const params: (string | number)[] = [];
+    let query = appendCommonFilters(`
       SELECT 
         id, report_id, ts, user_id, user_name, user_hash,
         error_category, error_severity, error_message, error_details,
@@ -44,60 +99,21 @@ export async function GET(request: NextRequest) {
         environment_json, app_version, resolved
       FROM error_reports
       WHERE 1=1
-    `;
-    const params: (string | number)[] = [];
+    `, params, filters);
 
-    if (from) {
-      query += ` AND DATE(ts) >= ?`;
-      params.push(from);
-    }
-
-    if (to) {
-      query += ` AND DATE(ts) <= ?`;
-      params.push(to);
-    }
-
-    if (resolved === 'true') {
-      query += ` AND resolved = 1`;
-    } else if (resolved === 'false') {
-      query += ` AND resolved = 0`;
-    }
-
-    if (search) {
-      query += ` AND (error_message LIKE ? OR error_category LIKE ? OR user_name LIKE ?)`;
-      const searchPattern = `%${search}%`;
-      params.push(searchPattern, searchPattern, searchPattern);
-    }
-
-    // Get total count using a simple count query with the same WHERE clause
-    let countQuery = `SELECT COUNT(*) as total FROM error_reports WHERE 1=1`;
     const countParams: (string | number)[] = [];
-    
-    if (from) {
-      countQuery += ` AND DATE(ts) >= ?`;
-      countParams.push(from);
-    }
-    if (to) {
-      countQuery += ` AND DATE(ts) <= ?`;
-      countParams.push(to);
-    }
-    if (resolved === 'true') {
-      countQuery += ` AND resolved = 1`;
-    } else if (resolved === 'false') {
-      countQuery += ` AND resolved = 0`;
-    }
-    if (search) {
-      countQuery += ` AND (error_message LIKE ? OR error_category LIKE ? OR user_name LIKE ?)`;
-      const searchPattern = `%${search}%`;
-      countParams.push(searchPattern, searchPattern, searchPattern);
-    }
+    const countQuery = appendCommonFilters(
+      `SELECT COUNT(*) as total FROM error_reports WHERE 1=1`,
+      countParams,
+      filters
+    );
     
     const countResult = db.prepare(countQuery).get(...countParams) as { total: number };
     const total = countResult.total;
 
     // Add ordering and pagination
     query += ` ORDER BY ts DESC LIMIT ? OFFSET ?`;
-    params.push(limit, offset);
+    params.push(filters.limit, filters.offset);
 
     const reports = db.prepare(query).all(...params);
 
@@ -106,12 +122,16 @@ export async function GET(request: NextRequest) {
       data: reports,
       pagination: {
         total,
-        limit,
-        offset,
-        hasMore: offset + limit < total,
+        limit: filters.limit,
+        offset: filters.offset,
+        hasMore: filters.offset + filters.limit < total,
       },
     });
   } catch (error) {
+    if (isAppRouteError(error) && error.status === 400) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
     console.error('[stats] Error fetching error reports:', error);
     return NextResponse.json(
       { error: 'Failed to fetch error reports' },

@@ -6,6 +6,28 @@ import { assertAuthenticated } from '@/app/api/_shared/guard';
 import { isAppRouteError } from '@/lib/errors';
 import { getSeedRecs } from '@/lib/services/recommendationService';
 
+function parseSeedQueryParams(searchParams: URLSearchParams) {
+  const seedTrackIds = searchParams.get('seedTrackIds')?.split(',').filter(Boolean) ?? [];
+
+  if (seedTrackIds.length === 0) {
+    return {
+      empty: true as const,
+      payload: null,
+    };
+  }
+
+  return {
+    empty: false as const,
+    payload: {
+      seedTrackIds,
+      excludeTrackIds: searchParams.get('excludeTrackIds')?.split(',').filter(Boolean) ?? [],
+      playlistId: searchParams.get('playlistId') ?? undefined,
+      topN: searchParams.get('topN') ?? '20',
+      includeMetadata: searchParams.get('includeMetadata') !== 'false',
+    },
+  };
+}
+
 /**
  * POST /api/recs/seed
  * 
@@ -84,11 +106,8 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const searchParams = request.nextUrl.searchParams;
-    
-    const seedTrackIds = searchParams.get('seedTrackIds')?.split(',').filter(Boolean) ?? [];
-
-    if (seedTrackIds.length === 0) {
+    const parsed = parseSeedQueryParams(request.nextUrl.searchParams);
+    if (parsed.empty) {
       return NextResponse.json({
         recommendations: [],
         enabled: true,
@@ -96,13 +115,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const recommendations = await getSeedRecs({
-      seedTrackIds,
-      excludeTrackIds: searchParams.get('excludeTrackIds')?.split(',').filter(Boolean) ?? [],
-      playlistId: searchParams.get('playlistId') ?? undefined,
-      topN: searchParams.get('topN') ?? '20',
-      includeMetadata: searchParams.get('includeMetadata') !== 'false',
-    });
+    const recommendations = await getSeedRecs(parsed.payload);
 
     return NextResponse.json({
       recommendations,

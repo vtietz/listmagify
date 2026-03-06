@@ -1,8 +1,53 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth/auth";
+import { assertAuthenticated } from '@/app/api/_shared/guard';
+import { isAppRouteError } from '@/lib/errors';
 import { spotifyFetch } from "@/lib/spotify/client";
 import { mapPlaylistItemToTrack, type Track } from "@/lib/spotify/types";
+import { parsePlaylistId } from '@/lib/services/spotifyPlaylistService';
+
+const TRACK_FIELDS = "items(track(id,uri,name,artists(name),duration_ms,album(id,name,images,release_date,release_date_precision),popularity),added_at,added_by(id,display_name)),next,total,snapshot_id";
+
+function buildTracksPath(playlistId: string, nextCursorParam: string | null): string {
+  if (!nextCursorParam) {
+    return `/playlists/${encodeURIComponent(playlistId)}/tracks?limit=100&fields=${encodeURIComponent(TRACK_FIELDS)}`;
+  }
+
+  try {
+    const url = new URL(nextCursorParam);
+    const offset = url.searchParams.get('offset') || '0';
+    const limit = url.searchParams.get('limit') || '100';
+    return `/playlists/${encodeURIComponent(playlistId)}/tracks?offset=${offset}&limit=${limit}&fields=${encodeURIComponent(TRACK_FIELDS)}`;
+  } catch {
+    return nextCursorParam.includes('fields=')
+      ? nextCursorParam
+      : `${nextCursorParam}&fields=${encodeURIComponent(TRACK_FIELDS)}`;
+  }
+}
+
+function extractOffset(nextCursorParam: string | null, path: string): number {
+  const url = new URL(nextCursorParam || `http://dummy${path}`);
+  return parseInt(url.searchParams.get('offset') || '0', 10);
+}
+
+function mapTracksResponse(raw: any, offset: number) {
+  const snapshotId = raw?.snapshot_id ?? null;
+  const rawItems = Array.isArray(raw?.items) ? raw.items : [];
+
+  const tracks: Track[] = rawItems.map((item: unknown, index: number) => ({
+    ...mapPlaylistItemToTrack(item),
+    position: offset + index,
+  }));
+
+  const total = typeof raw?.total === "number" ? raw.total : tracks.length;
+  const nextCursor = raw?.next ?? null;
+
+  return {
+    tracks,
+    snapshotId,
+    total,
+    nextCursor,
+  };
+}
 
 /**
  * GET /api/playlists/[id]/tracks
@@ -15,51 +60,14 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "token_expired" }, { status: 401 });
-    }
-
-    // Check if there's a session error (refresh failed)
-    if ((session as any).error === "RefreshAccessTokenError") {
-      return NextResponse.json({ error: "token_expired" }, { status: 401 });
-    }
-
-    const { id: playlistId } = await params;
-
-    if (!playlistId || typeof playlistId !== "string") {
-      return NextResponse.json({ error: "Invalid playlist ID" }, { status: 400 });
-    }
+    await assertAuthenticated();
+    const { id } = await params;
+    const playlistId = parsePlaylistId(id);
 
     const searchParams = request.nextUrl.searchParams;
     const nextCursorParam = searchParams.get("nextCursor");
 
-    // Fields parameter for consistent data fetching (includes added_by for collaborative playlists)
-    const fields = "items(track(id,uri,name,artists(name),duration_ms,album(id,name,images,release_date,release_date_precision),popularity),added_at,added_by(id,display_name)),next,total,snapshot_id";
-
-    let path: string;
-    
-    if (nextCursorParam) {
-      // nextCursor is a full Spotify URL like:
-      // https://api.spotify.com/v1/playlists/xxx/tracks?offset=100&limit=100
-      // Extract just the path part and ensure our fields parameter is used
-      try {
-        const url = new URL(nextCursorParam);
-        const offset = url.searchParams.get('offset') || '0';
-        const limit = url.searchParams.get('limit') || '100';
-        // Rebuild with our fields to ensure added_by is included
-        path = `/playlists/${encodeURIComponent(playlistId)}/tracks?offset=${offset}&limit=${limit}&fields=${encodeURIComponent(fields)}`;
-      } catch (_err) {
-        // If not a full URL, assume it's already a path but add fields
-        path = nextCursorParam.includes('fields=') 
-          ? nextCursorParam 
-          : `${nextCursorParam}&fields=${encodeURIComponent(fields)}`;
-      }
-    } else {
-      // Fetch tracks from Spotify (limit 100 per request)
-      const limit = 100;
-      path = `/playlists/${encodeURIComponent(playlistId)}/tracks?limit=${limit}&fields=${encodeURIComponent(fields)}`;
-    }
+    const path = buildTracksPath(playlistId, nextCursorParam);
     const res = await spotifyFetch(path, { method: "GET" });
 
     if (!res.ok) {
@@ -78,38 +86,17 @@ export async function GET(
     }
 
     const raw = await res.json();
-
-    // Extract snapshot_id and normalize tracks
-    const snapshotId = raw?.snapshot_id ?? null;
-    const rawItems = Array.isArray(raw?.items) ? raw.items : [];
-    
-    // Calculate the starting offset for this page
-    const url = new URL(nextCursorParam || `http://dummy${path}`);
-    const offset = parseInt(url.searchParams.get('offset') || '0', 10);
-    
-    // Map tracks with their original positions
-    const tracks: Track[] = rawItems.map((item: unknown, index: number) => ({
-      ...mapPlaylistItemToTrack(item),
-      position: offset + index,
-    }));
-    
-    const total = typeof raw?.total === "number" ? raw.total : tracks.length;
-    const nextCursor = raw?.next ?? null;
-
-    return NextResponse.json({
-      tracks,
-      snapshotId,
-      total,
-      nextCursor,
-    });
+    return NextResponse.json(mapTracksResponse(raw, extractOffset(nextCursorParam, path)));
   } catch (error) {
-    console.error("[api/playlists/tracks] Error:", error);
-    
-    // Check if error is 401 Unauthorized
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    if (errorMessage.includes("401") || errorMessage.includes("Unauthorized") || errorMessage.includes("access token expired")) {
+    if (isAppRouteError(error) && error.status === 401) {
       return NextResponse.json({ error: "token_expired" }, { status: 401 });
     }
+
+    if (isAppRouteError(error) && error.status === 400) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
+    console.error("[api/playlists/tracks] Error:", error);
     
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Internal server error" },

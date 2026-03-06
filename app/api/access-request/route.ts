@@ -6,6 +6,13 @@ import { escapeHtml } from '@/lib/email/templates';
 import { detectAccessRequestRedFlags, parseAccessRequestInput } from '@/lib/services/accessRequestService';
 import { isAppRouteError } from '@/lib/errors';
 
+type AccessRequestPayload = {
+  name: string;
+  email: string;
+  spotifyUsername?: string;
+  motivation?: string;
+};
+
 function validateVerificationToken(email: string, verificationToken?: string): string | null {
   if (!serverEnv.ACCESS_REQUEST_EMAIL_VERIFICATION_ENABLED) {
     return null;
@@ -50,6 +57,140 @@ function getMailer() {
   return { transporter, contactEmail };
 }
 
+function trimOptional(value?: string): string | null {
+  if (!value) {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
+function buildAccessRequestEmail(
+  payload: AccessRequestPayload,
+  redFlags: string[]
+) {
+  const trimmedName = payload.name.trim();
+  const trimmedEmail = payload.email.trim();
+  const trimmedSpotifyUsername = trimOptional(payload.spotifyUsername);
+  const trimmedMotivation = trimOptional(payload.motivation);
+
+  const subject = `[Listmagify] Access Request from ${trimmedName}${redFlags.length > 0 ? ' 🚩' : ''}${trimmedMotivation ? ' ⭐' : ''}`;
+  const text = `New access request for Listmagify:
+
+Name: ${trimmedName}
+Spotify Email: ${trimmedEmail}
+${trimmedSpotifyUsername ? `Spotify Username: ${trimmedSpotifyUsername}\n` : ''}
+${redFlags.length > 0 ? `\n🚩 RED FLAGS:\n${redFlags.map((flag) => `  - ${flag}`).join('\n')}\n` : ''}
+${trimmedMotivation ? `\nMotivation:\n${trimmedMotivation}\n` : ''}
+To approve this user:
+1. Go to https://developer.spotify.com/dashboard
+2. Select your app
+3. Go to Settings > User Management
+4. Add the user with the email above
+
+---
+This is an automated message from Listmagify.
+`;
+
+  const html = `
+<h2>New Access Request for Listmagify</h2>
+${redFlags.length > 0 ? `
+<div style="background-color: #fee; border: 2px solid #c33; border-radius: 4px; padding: 12px; margin-bottom: 16px;">
+  <strong style="color: #c33;">🚩 RED FLAGS DETECTED:</strong>
+  <ul style="margin: 8px 0 0 0; padding-left: 20px; color: #666;">
+    ${redFlags.map((flag) => `<li>${escapeHtml(flag)}</li>`).join('\n    ')}
+  </ul>
+</div>
+` : ''}
+<table style="border-collapse: collapse;">
+  <tr>
+    <td style="padding: 8px; font-weight: bold;">Name:</td>
+    <td style="padding: 8px;">${escapeHtml(trimmedName)}</td>
+  </tr>
+  <tr>
+    <td style="padding: 8px; font-weight: bold;">Spotify Email:</td>
+    <td style="padding: 8px;">${escapeHtml(trimmedEmail)}</td>
+  </tr>
+  ${trimmedSpotifyUsername ? `
+  <tr>
+    <td style="padding: 8px; font-weight: bold;">Spotify Username:</td>
+    <td style="padding: 8px;">${escapeHtml(trimmedSpotifyUsername)}</td>
+  </tr>
+  ` : ''}
+  ${trimmedMotivation ? `
+  <tr>
+    <td style="padding: 8px; font-weight: bold; vertical-align: top;">Motivation:</td>
+    <td style="padding: 8px; background-color: #f0f9ff; border-left: 3px solid #0ea5e9;">${escapeHtml(trimmedMotivation).replace(/\n/g, '<br>')}</td>
+  </tr>
+  ` : ''}
+</table>
+
+<h3>To approve this user:</h3>
+<ol>
+  <li>Go to <a href="https://developer.spotify.com/dashboard">Spotify Developer Dashboard</a></li>
+  <li>Select your app</li>
+  <li>Go to Settings → User Management</li>
+  <li>Add the user with the email above</li>
+</ol>
+
+<hr>
+<p style="color: #666; font-size: 12px;">This is an automated message from Listmagify.</p>
+`;
+
+  return {
+    trimmedName,
+    trimmedEmail,
+    trimmedSpotifyUsername,
+    trimmedMotivation,
+    subject,
+    text,
+    html,
+  };
+}
+
+function persistAccessRequest(
+  emailContent: ReturnType<typeof buildAccessRequestEmail>,
+  redFlags: string[]
+) {
+  try {
+    const db = getDb();
+    if (!db) {
+      return;
+    }
+
+    db.prepare(`
+      INSERT INTO access_requests (name, email, spotify_username, motivation, status, red_flags)
+      VALUES (?, ?, ?, ?, 'pending', ?)
+    `).run(
+      emailContent.trimmedName,
+      emailContent.trimmedEmail,
+      emailContent.trimmedSpotifyUsername,
+      emailContent.trimmedMotivation,
+      redFlags.length > 0 ? JSON.stringify(redFlags) : null
+    );
+    console.debug(`[access-request] Stored in database for ${emailContent.trimmedEmail}`);
+  } catch (dbError) {
+    console.error(`[access-request] Failed to store in database:`, dbError);
+  }
+}
+
+function mapAccessRequestError(error: unknown): NextResponse {
+  if (isAppRouteError(error) && error.status === 400) {
+    return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+
+  if (error instanceof Error && error.message.includes('required')) {
+    return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+
+  console.error('[access-request] Error:', error);
+  return NextResponse.json(
+    { error: 'Failed to send request. Please try again later.' },
+    { status: 500 }
+  );
+}
+
 export async function POST(request: NextRequest) {
   try {
     if (!serverEnv.ACCESS_REQUEST_ENABLED) {
@@ -70,6 +211,11 @@ export async function POST(request: NextRequest) {
       ...(motivation ? { motivation } : {}),
     });
 
+    const emailContent = buildAccessRequestEmail(
+      { name, email, ...(spotifyUsername ? { spotifyUsername } : {}), ...(motivation ? { motivation } : {}) },
+      redFlags
+    );
+
     const mailer = getMailer();
     if (!mailer) {
       console.error('[access-request] SMTP not configured');
@@ -83,103 +229,16 @@ export async function POST(request: NextRequest) {
       from: getDefaultSender(),
       to: mailer.contactEmail,
       bcc: getBccRecipients(),
-      subject: `[Listmagify] Access Request from ${name.trim()}${redFlags.length > 0 ? ' 🚩' : ''}${motivation && motivation.trim() ? ' ⭐' : ''}`,
-      text: `New access request for Listmagify:
-
-Name: ${name.trim()}
-Spotify Email: ${email.trim()}
-${spotifyUsername && spotifyUsername.trim() ? `Spotify Username: ${spotifyUsername.trim()}\n` : ''}
-${redFlags.length > 0 ? `\n🚩 RED FLAGS:\n${redFlags.map((flag) => `  - ${flag}`).join('\n')}\n` : ''}
-${motivation && motivation.trim() ? `\nMotivation:\n${motivation.trim()}\n` : ''}
-To approve this user:
-1. Go to https://developer.spotify.com/dashboard
-2. Select your app
-3. Go to Settings > User Management
-4. Add the user with the email above
-
----
-This is an automated message from Listmagify.
-`,
-      html: `
-<h2>New Access Request for Listmagify</h2>
-${redFlags.length > 0 ? `
-<div style="background-color: #fee; border: 2px solid #c33; border-radius: 4px; padding: 12px; margin-bottom: 16px;">
-  <strong style="color: #c33;">🚩 RED FLAGS DETECTED:</strong>
-  <ul style="margin: 8px 0 0 0; padding-left: 20px; color: #666;">
-    ${redFlags.map((flag) => `<li>${escapeHtml(flag)}</li>`).join('\n    ')}
-  </ul>
-</div>
-` : ''}
-<table style="border-collapse: collapse;">
-  <tr>
-    <td style="padding: 8px; font-weight: bold;">Name:</td>
-    <td style="padding: 8px;">${escapeHtml(name.trim())}</td>
-  </tr>
-  <tr>
-    <td style="padding: 8px; font-weight: bold;">Spotify Email:</td>
-    <td style="padding: 8px;">${escapeHtml(email.trim())}</td>
-  </tr>
-  ${spotifyUsername && spotifyUsername.trim() ? `
-  <tr>
-    <td style="padding: 8px; font-weight: bold;">Spotify Username:</td>
-    <td style=\"padding: 8px;\">${escapeHtml(spotifyUsername.trim())}</td>
-  </tr>
-  ` : ''}
-  ${motivation && motivation.trim() ? `
-  <tr>
-    <td style="padding: 8px; font-weight: bold; vertical-align: top;">Motivation:</td>
-    <td style="padding: 8px; background-color: #f0f9ff; border-left: 3px solid #0ea5e9;">${escapeHtml(motivation.trim()).replace(/\n/g, '<br>')}</td>
-  </tr>
-  ` : ''}
-</table>
-
-<h3>To approve this user:</h3>
-<ol>
-  <li>Go to <a href="https://developer.spotify.com/dashboard">Spotify Developer Dashboard</a></li>
-  <li>Select your app</li>
-  <li>Go to Settings → User Management</li>
-  <li>Add the user with the email above</li>
-</ol>
-
-<hr>
-<p style="color: #666; font-size: 12px;">This is an automated message from Listmagify.</p>
-`,
+      subject: emailContent.subject,
+      text: emailContent.text,
+      html: emailContent.html,
     });
 
-    try {
-      const db = getDb();
-      if (db) {
-        db.prepare(`
-          INSERT INTO access_requests (name, email, spotify_username, motivation, status, red_flags)
-          VALUES (?, ?, ?, ?, 'pending', ?)
-        `).run(
-          name.trim(),
-          email.trim(),
-          spotifyUsername && spotifyUsername.trim() ? spotifyUsername.trim() : null,
-          motivation && motivation.trim() ? motivation.trim() : null,
-          redFlags.length > 0 ? JSON.stringify(redFlags) : null
-        );
-        console.debug(`[access-request] Stored in database for ${email}`);
-      }
-    } catch (dbError) {
-      console.error(`[access-request] Failed to store in database:`, dbError);
-    }
+    persistAccessRequest(emailContent, redFlags);
 
     console.debug(`[access-request] Request sent for ${email}`);
     return NextResponse.json({ success: true });
   } catch (error) {
-    if (isAppRouteError(error) && error.status === 400) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
-    }
-
-    if (error instanceof Error && error.message.includes('required')) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
-    }
-
-    console.error('[access-request] Error:', error);
-    return NextResponse.json(
-      { error: 'Failed to send request. Please try again later.' },
-      { status: 500 }
-    );
+    return mapAccessRequestError(error);
   }
 }

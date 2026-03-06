@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, ServerAuthError } from "@/lib/auth/requireAuth";
 import { spotifyFetchWithToken } from "@/lib/spotify/client";
 
+type ReorderAllInput = {
+  playlistId: string;
+  trackUris: string[];
+};
+
 /**
  * Helper function to process large playlists in batches
  */
@@ -96,6 +101,110 @@ function handleSpotifyError(res: Response, text: string, uriCount: number) {
   );
 }
 
+async function parseReorderAllInput(
+  request: NextRequest,
+  params: Promise<{ id: string }>
+): Promise<ReorderAllInput | NextResponse> {
+  const { id: playlistId } = await params;
+
+  if (!playlistId || typeof playlistId !== "string") {
+    return NextResponse.json({ error: "Invalid playlist ID" }, { status: 400 });
+  }
+
+  const body = await request.json().catch(() => ({}));
+  const { trackUris } = body;
+
+  if (!Array.isArray(trackUris) || trackUris.length === 0) {
+    return NextResponse.json(
+      { error: "trackUris must be a non-empty array" },
+      { status: 400 }
+    );
+  }
+
+  if (!trackUris.every((uri: unknown) => typeof uri === "string" && uri.startsWith("spotify:track:"))) {
+    const invalidUris = trackUris.filter((uri: unknown) =>
+      typeof uri !== "string" || !uri.startsWith("spotify:track:")
+    );
+    console.error(`[api/playlists/reorder-all] Invalid URIs found:`, invalidUris.slice(0, 10));
+    return NextResponse.json(
+      {
+        error: "All trackUris must be valid Spotify track URIs starting with 'spotify:track:'",
+        details: `Found ${invalidUris.length} invalid URI(s). Local files, episodes, and other non-Spotify tracks cannot be reordered.`
+      },
+      { status: 400 }
+    );
+  }
+
+  const uniqueUris = new Set(trackUris);
+  if (uniqueUris.size !== trackUris.length) {
+    console.warn(
+      `[api/playlists/reorder-all] Duplicate URIs detected in request. ` +
+      `${trackUris.length} URIs provided, ${uniqueUris.size} unique. This is normal for playlists with duplicate tracks.`
+    );
+  }
+
+  return { playlistId, trackUris };
+}
+
+async function executeSimpleReorder(
+  accessToken: string,
+  path: string,
+  trackUris: string[]
+): Promise<string | NextResponse> {
+  const res = await spotifyFetchWithToken(accessToken, path, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ uris: trackUris }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    return handleSpotifyError(res, text, trackUris.length);
+  }
+
+  const result = await res.json();
+  return result?.snapshot_id ?? "";
+}
+
+async function executeReorderAll(
+  accessToken: string,
+  path: string,
+  trackUris: string[]
+): Promise<string | NextResponse> {
+  if (trackUris.length <= 100) {
+    return executeSimpleReorder(accessToken, path, trackUris);
+  }
+
+  try {
+    return (await processBatchedReorder(accessToken, path, trackUris)) ?? "";
+  } catch (batchError) {
+    return NextResponse.json(
+      { error: batchError instanceof Error ? batchError.message : "Failed to reorder playlist" },
+      { status: 500 }
+    );
+  }
+}
+
+function mapReorderAllThrownError(error: unknown): NextResponse {
+  if (error instanceof ServerAuthError) {
+    return NextResponse.json({ error: "token_expired" }, { status: 401 });
+  }
+
+  console.error("[api/playlists/reorder-all] Error:", error);
+
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  if (errorMessage.includes("401") || errorMessage.includes("Unauthorized")) {
+    return NextResponse.json({ error: "token_expired" }, { status: 401 });
+  }
+
+  return NextResponse.json(
+    { error: "Internal server error" },
+    { status: 500 }
+  );
+}
+
 /**
  * PUT /api/playlists/[id]/reorder-all
  * 
@@ -116,89 +225,19 @@ export async function PUT(
   try {
     const session = await requireAuth();
 
-    const { id: playlistId } = await params;
-
-    if (!playlistId || typeof playlistId !== "string") {
-      return NextResponse.json({ error: "Invalid playlist ID" }, { status: 400 });
+    const parsedInput = await parseReorderAllInput(request, params);
+    if (parsedInput instanceof NextResponse) {
+      return parsedInput;
     }
 
-    const body = await request.json().catch(() => ({}));
-    const { trackUris } = body;
-
-    // Validate required fields
-    if (!Array.isArray(trackUris) || trackUris.length === 0) {
-      return NextResponse.json(
-        { error: "trackUris must be a non-empty array" },
-        { status: 400 }
-      );
-    }
-
-    // Validate all URIs
-    if (!trackUris.every((uri: unknown) => typeof uri === "string" && uri.startsWith("spotify:track:"))) {
-      const invalidUris = trackUris.filter((uri: unknown) => 
-        typeof uri !== "string" || !uri.startsWith("spotify:track:")
-      );
-      console.error(`[api/playlists/reorder-all] Invalid URIs found:`, invalidUris.slice(0, 10));
-      return NextResponse.json(
-        { 
-          error: "All trackUris must be valid Spotify track URIs starting with 'spotify:track:'",
-          details: `Found ${invalidUris.length} invalid URI(s). Local files, episodes, and other non-Spotify tracks cannot be reordered.`
-        },
-        { status: 400 }
-      );
-    }
-
-    // Additional validation: check for duplicate URIs that might cause issues
-    const uniqueUris = new Set(trackUris);
-    if (uniqueUris.size !== trackUris.length) {
-      console.warn(
-        `[api/playlists/reorder-all] Duplicate URIs detected in request. ` +
-        `${trackUris.length} URIs provided, ${uniqueUris.size} unique. This is normal for playlists with duplicate tracks.`
-      );
-    }
-
-    // Spotify API: PUT /playlists/{id}/tracks with uris array replaces all tracks
-    // https://developer.spotify.com/documentation/web-api/reference/reorder-or-replace-playlists-tracks
-    // Maximum 100 tracks per request
+    const { playlistId, trackUris } = parsedInput;
     const path = `/playlists/${encodeURIComponent(playlistId)}/tracks`;
-    
-    let newSnapshotId: string | null = null;
-
-    // If 100 or fewer tracks, use simple PUT request
-    if (trackUris.length <= 100) {
-      const requestBody = {
-        uris: trackUris,
-      };
-
-      const res = await spotifyFetchWithToken(session.accessToken, path, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        return handleSpotifyError(res, text, trackUris.length);
-      }
-
-      const result = await res.json();
-      newSnapshotId = result?.snapshot_id ?? null;
-    } else {
-      // For playlists with more than 100 tracks, use batch processing
-      try {
-        newSnapshotId = await processBatchedReorder(session.accessToken, path, trackUris);
-      } catch (batchError) {
-        // Error already logged in processBatchedReorder
-        return NextResponse.json(
-          { error: batchError instanceof Error ? batchError.message : "Failed to reorder playlist" },
-          { status: 500 }
-        );
-      }
+    const result = await executeReorderAll(session.accessToken, path, trackUris);
+    if (result instanceof NextResponse) {
+      return result;
     }
 
-    if (!newSnapshotId) {
+    if (!result) {
       console.warn("[api/playlists/reorder-all] No snapshot_id in response");
       return NextResponse.json(
         { error: "Reorder succeeded but no snapshot_id returned" },
@@ -206,24 +245,8 @@ export async function PUT(
       );
     }
 
-    return NextResponse.json({ snapshotId: newSnapshotId });
+    return NextResponse.json({ snapshotId: result });
   } catch (error) {
-    // Handle auth errors consistently
-    if (error instanceof ServerAuthError) {
-      return NextResponse.json({ error: "token_expired" }, { status: 401 });
-    }
-
-    console.error("[api/playlists/reorder-all] Error:", error);
-    
-    // Check if error is 401 Unauthorized
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    if (errorMessage.includes("401") || errorMessage.includes("Unauthorized")) {
-      return NextResponse.json({ error: "token_expired" }, { status: 401 });
-    }
-
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return mapReorderAllThrownError(error);
   }
 }

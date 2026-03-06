@@ -1,8 +1,90 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth/auth';
+import { requireAuth, ServerAuthError } from '@/lib/auth/requireAuth';
 import { spotifyFetch } from '@/lib/spotify/client';
 import { handleApiError } from '@/lib/api/errorHandler';
+
+interface CreatePlaylistInput {
+  name: string;
+  description: string;
+  isPublic: boolean;
+}
+
+function parseCreatePlaylistBody(body: any): CreatePlaylistInput | null {
+  if (!body?.name || typeof body.name !== 'string' || body.name.trim().length === 0) {
+    return null;
+  }
+
+  return {
+    name: body.name.trim(),
+    description: typeof body.description === 'string' ? body.description.trim() : '',
+    isPublic: Boolean(body.isPublic ?? false),
+  };
+}
+
+async function fetchCurrentUser() {
+  const response = await spotifyFetch('/me', { method: 'GET' });
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      return { error: NextResponse.json({ error: 'token_expired' }, { status: 401 }) };
+    }
+
+    return {
+      error: NextResponse.json(
+        { error: 'Failed to get user info' },
+        { status: response.status }
+      ),
+    };
+  }
+
+  return { data: await response.json() };
+}
+
+async function createPlaylist(userId: string, input: CreatePlaylistInput) {
+  const response = await spotifyFetch(`/users/${encodeURIComponent(userId)}/playlists`, {
+    method: 'POST',
+    body: JSON.stringify({
+      name: input.name,
+      description: input.description,
+      public: input.isPublic,
+    }),
+  });
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      return { error: NextResponse.json({ error: 'token_expired' }, { status: 401 }) };
+    }
+
+    return {
+      error: NextResponse.json(
+        { error: `Failed to create playlist: ${response.status} ${response.statusText}` },
+        { status: response.status }
+      ),
+    };
+  }
+
+  return { data: await response.json() };
+}
+
+function toPlaylistResponse(playlist: any, meData: any) {
+  return {
+    id: playlist.id,
+    name: playlist.name,
+    description: playlist.description ?? '',
+    isPublic: playlist.public,
+    ownerName: playlist.owner?.display_name ?? meData.display_name ?? null,
+    image: playlist.images?.[0] ?? null,
+    tracksTotal: playlist.tracks?.total ?? 0,
+  };
+}
+
+function mapPlaylistsPostError(error: unknown): NextResponse {
+  if (error instanceof ServerAuthError) {
+    return NextResponse.json({ error: 'token_expired' }, { status: 401 });
+  }
+
+  return handleApiError(error);
+}
 
 /**
  * POST /api/playlists
@@ -18,76 +100,29 @@ import { handleApiError } from '@/lib/api/errorHandler';
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: 'token_expired' }, { status: 401 });
-    }
-
-    if ((session as any).error === 'RefreshAccessTokenError') {
-      return NextResponse.json({ error: 'token_expired' }, { status: 401 });
-    }
+    await requireAuth();
 
     const body = await request.json();
-    const { name, description, isPublic = false } = body;
-
-    if (!name || typeof name !== 'string' || name.trim().length === 0) {
+    const input = parseCreatePlaylistBody(body);
+    if (!input) {
       return NextResponse.json({ error: 'Playlist name is required' }, { status: 400 });
     }
 
-    // First, get the current user's ID
-    const meRes = await spotifyFetch('/me', { method: 'GET' });
-    if (!meRes.ok) {
-      if (meRes.status === 401) {
-        return NextResponse.json({ error: 'token_expired' }, { status: 401 });
-      }
-      const text = await meRes.text().catch(() => '');
-      console.error(`[api/playlists] GET /me failed: ${meRes.status} ${text}`);
-      return NextResponse.json(
-        { error: 'Failed to get user info' },
-        { status: meRes.status }
-      );
+    const currentUser = await fetchCurrentUser();
+    if (currentUser.error) {
+      return currentUser.error;
     }
 
-    const meData = await meRes.json();
-    const userId = meData.id;
-
-    // Create the playlist
-    const createRes = await spotifyFetch(`/users/${encodeURIComponent(userId)}/playlists`, {
-      method: 'POST',
-      body: JSON.stringify({
-        name: name.trim(),
-        description: description?.trim() || '',
-        public: isPublic,
-      }),
-    });
-
-    if (!createRes.ok) {
-      const text = await createRes.text().catch(() => '');
-      console.error(`[api/playlists] POST /users/${userId}/playlists failed: ${createRes.status} ${text}`);
-
-      if (createRes.status === 401) {
-        return NextResponse.json({ error: 'token_expired' }, { status: 401 });
-      }
-
-      return NextResponse.json(
-        { error: `Failed to create playlist: ${createRes.status} ${createRes.statusText}` },
-        { status: createRes.status }
-      );
+    const created = await createPlaylist(currentUser.data.id, input);
+    if (created.error) {
+      return created.error;
     }
 
-    const playlist = await createRes.json();
+    const playlist = created.data;
+    const meData = currentUser.data;
 
-    return NextResponse.json({
-      id: playlist.id,
-      name: playlist.name,
-      description: playlist.description ?? '',
-      isPublic: playlist.public,
-      ownerName: playlist.owner?.display_name ?? meData.display_name ?? null,
-      image: playlist.images?.[0] ?? null,
-      tracksTotal: playlist.tracks?.total ?? 0,
-    });
+    return NextResponse.json(toPlaylistResponse(playlist, meData));
   } catch (error) {
-    // Handle rate limit and other errors
-    return handleApiError(error);
+    return mapPlaylistsPostError(error);
   }
 }

@@ -13,6 +13,36 @@ import { requireAuth } from '@/lib/auth/requireAuth';
 import { spotifyFetchWithToken } from '@/lib/spotify/client';
 import { getMetricsConfig } from '@/lib/metrics/env';
 
+function fallbackProfile(userId: string, showUserDetails: boolean): UserProfile {
+  return {
+    id: userId,
+    displayName: userId,
+    ...(showUserDetails ? { email: null } : {}),
+  };
+}
+
+async function fetchUserProfile(accessToken: string, userId: string, showUserDetails: boolean): Promise<UserProfile> {
+  if (!userId || typeof userId !== 'string') {
+    return fallbackProfile(String(userId), showUserDetails);
+  }
+
+  try {
+    const response = await spotifyFetchWithToken(accessToken, `/users/${encodeURIComponent(userId)}`);
+    if (!response.ok) {
+      return fallbackProfile(userId, showUserDetails);
+    }
+
+    const data = await response.json();
+    return {
+      id: userId,
+      displayName: data.display_name || userId,
+      ...(showUserDetails && data.email ? { email: data.email } : {}),
+    };
+  } catch {
+    return fallbackProfile(userId, showUserDetails);
+  }
+}
+
 export interface UserProfile {
   id: string;
   displayName: string | null;
@@ -45,51 +75,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const profiles: UserProfile[] = [];
-
-    // Fetch each user profile from Spotify API
-    for (const userId of userIds) {
-      if (!userId || typeof userId !== 'string') {
-        continue;
-      }
-
-      try {
-        const res = await spotifyFetchWithToken(
-          session.accessToken,
-          `/users/${encodeURIComponent(userId)}`
-        );
-
-        if (res.ok) {
-          const data = await res.json();
-          const profile: UserProfile = {
-            id: userId,
-            displayName: data.display_name || userId,
-          };
-
-          // Only include email if STATS_SHOW_USER_DETAILS is enabled
-          if (config.showUserDetails && data.email) {
-            profile.email = data.email;
-          }
-
-          profiles.push(profile);
-        } else {
-          // If profile fetch fails, use user ID as display name
-          profiles.push({
-            id: userId,
-            displayName: userId,
-            ...(config.showUserDetails ? { email: null } : {}),
-          });
-        }
-      } catch (error) {
-        console.error(`[stats/user-profiles] Failed to fetch profile for ${userId}:`, error);
-        // Add fallback entry
-        profiles.push({
-          id: userId,
-          displayName: userId,
-          ...(config.showUserDetails ? { email: null } : {}),
-        });
-      }
-    }
+    const profiles = await Promise.all(
+      userIds
+        .filter((userId: unknown): userId is string => typeof userId === 'string' && userId.length > 0)
+        .map((userId: string) => fetchUserProfile(session.accessToken, userId, config.showUserDetails))
+    );
 
     return NextResponse.json({
       success: true,
