@@ -8,7 +8,7 @@
  */
 
 import type { DragStartEvent } from '@dnd-kit/core';
-import type { Track } from '@/lib/spotify/types';
+import type { Track } from '@/lib/music-provider/types';
 import type { PanelConfig, PanelVirtualizerData } from '../types';
 import { getTrackSelectionKey } from '@/lib/dnd/selection';
 import { determineDragTracks } from '../operations';

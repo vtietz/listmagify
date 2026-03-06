@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/auth';
-import { spotifyFetch } from '@/lib/spotify/client';
+import { resolveMusicProviderFromRequest } from '@/app/api/_shared/provider';
 import { logTrackRemove } from '@/lib/metrics/api-helpers';
+import { ProviderApiError, type MusicProvider } from '@/lib/music-provider/types';
 
 type RemovableTrack = { uri: string; positions?: number[] };
 
@@ -15,6 +16,21 @@ function isTokenExpiredSession(session: unknown): boolean {
 }
 
 function mapTrackRemoveThrownError(error: unknown): NextResponse {
+  if (error instanceof ProviderApiError) {
+    if (error.status === 401) {
+      return NextResponse.json({ error: 'token_expired' }, { status: 401 });
+    }
+
+    let errorMessage = error.message;
+    if (error.status === 403) {
+      errorMessage = "You don't have permission to modify this playlist.";
+    } else if (error.status === 404) {
+      errorMessage = 'Playlist not found.';
+    }
+
+    return NextResponse.json({ error: errorMessage, details: error.details }, { status: error.status });
+  }
+
   console.error('[api/playlists/tracks/remove] Error:', error);
 
   const errorMessage = error instanceof Error ? error.message : String(error);
@@ -33,7 +49,7 @@ function mapTrackRemoveThrownError(error: unknown): NextResponse {
 }
 
 function isValidTrackUri(uri: unknown): boolean {
-  return typeof uri === 'string' && uri.startsWith('spotify:track:');
+  return typeof uri === 'string' && uri.length > 0;
 }
 
 function parseTracksToRemove(body: any): RemovableTrack[] | NextResponse {
@@ -41,7 +57,7 @@ function parseTracksToRemove(body: any): RemovableTrack[] | NextResponse {
 
   if (Array.isArray(tracks) && tracks.length > 0) {
     if (!tracks.every((t: any) => isValidTrackUri(t.uri))) {
-      return NextResponse.json({ error: 'All track URIs must be valid Spotify URIs' }, { status: 400 });
+      return NextResponse.json({ error: 'All track URIs must be non-empty strings' }, { status: 400 });
     }
 
     return tracks;
@@ -49,7 +65,7 @@ function parseTracksToRemove(body: any): RemovableTrack[] | NextResponse {
 
   if (Array.isArray(trackUris) && trackUris.length > 0) {
     if (!trackUris.every((uri: unknown) => isValidTrackUri(uri))) {
-      return NextResponse.json({ error: 'All track URIs must be valid Spotify URIs' }, { status: 400 });
+      return NextResponse.json({ error: 'All track URIs must be non-empty strings' }, { status: 400 });
     }
 
     return trackUris.map((uri: string) => ({ uri }));
@@ -63,7 +79,7 @@ function parseTracksToRemove(body: any): RemovableTrack[] | NextResponse {
  *
  * Removes tracks from a playlist.
  * 
- * IMPORTANT: Spotify's API no longer supports position-based deletion.
+ * IMPORTANT: Provider APIs may not support position-based deletion directly.
  * The `positions` parameter is ignored - DELETE always removes ALL instances of a URI.
  * 
  * To handle duplicate tracks (same song at multiple positions), we use a "rebuild" approach:
@@ -96,15 +112,17 @@ export async function DELETE(
       return tracksToRemove;
     }
 
+    const { provider } = resolveMusicProviderFromRequest(request);
+
     // Check if we need position-based removal (for duplicates)
     const hasPositions = tracksToRemove.some((t: RemovableTrack) => t.positions && t.positions.length > 0);
     
     if (hasPositions) {
       // Use rebuild approach for position-based removal
-      return handlePositionBasedRemoval(playlistId, tracksToRemove);
+      return handlePositionBasedRemoval(provider, playlistId, tracksToRemove);
     } else {
       // Use simple DELETE for non-duplicate removal
-      return handleSimpleRemoval(playlistId, tracksToRemove);
+      return handleSimpleRemoval(provider, playlistId, tracksToRemove);
     }
   } catch (error) {
     return mapTrackRemoveThrownError(error);
@@ -113,9 +131,10 @@ export async function DELETE(
 
 /**
  * Handle position-based removal using the "rebuild playlist" approach.
- * This is needed because Spotify's API ignores the positions parameter.
+ * This is needed because provider delete operations may ignore positions.
  */
 async function handlePositionBasedRemoval(
+  provider: MusicProvider,
   playlistId: string,
   tracksToRemove: RemovableTrack[]
 ): Promise<NextResponse> {
@@ -134,7 +153,7 @@ async function handlePositionBasedRemoval(
   console.debug('[api/playlists/tracks/remove] Position-based removal, positions:', Array.from(positionsToRemove));
 
   // Fetch all current playlist tracks
-  const allTracks = await fetchAllPlaylistTracks(playlistId);
+  const allTracks = await fetchAllPlaylistTracks(provider, playlistId);
   
   if (!allTracks) {
     return NextResponse.json({ error: 'Failed to fetch playlist tracks' }, { status: 500 });
@@ -148,7 +167,7 @@ async function handlePositionBasedRemoval(
   console.debug(`[api/playlists/tracks/remove] After removal: ${remainingTracks.length} tracks remain`);
 
   // Replace playlist contents
-  const newSnapshotId = await replacePlaylistTracks(playlistId, remainingTracks);
+  const newSnapshotId = await replacePlaylistTracks(provider, playlistId, remainingTracks);
   
   if (!newSnapshotId) {
     return NextResponse.json({ error: 'Failed to update playlist' }, { status: 500 });
@@ -165,119 +184,24 @@ async function handlePositionBasedRemoval(
  * This removes ALL instances of each URI, which is fine for non-duplicates.
  */
 async function handleSimpleRemoval(
+  provider: MusicProvider,
   playlistId: string,
   tracksToRemove: RemovableTrack[]
 ): Promise<NextResponse> {
-  const BATCH_SIZE = 100;
-  const path = `/playlists/${encodeURIComponent(playlistId)}/tracks`;
-
-  let newSnapshotId: string | null = null;
-  
-  for (let i = 0; i < tracksToRemove.length; i += BATCH_SIZE) {
-    const batch = tracksToRemove.slice(i, i + BATCH_SIZE);
-    
-    // Only send URIs, not positions (they're ignored anyway)
-    const requestBody = {
-      tracks: batch.map(t => ({ uri: t.uri })),
-    };
-
-    const res = await spotifyFetch(path, {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(requestBody),
-    });
-
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      console.error(`[api/playlists/tracks/remove] DELETE failed: ${res.status} ${text}`);
-
-      if (res.status === 401) {
-        return NextResponse.json({ error: 'token_expired' }, { status: 401 });
-      }
-
-      let errorMessage = `Failed to remove tracks: ${res.status} ${res.statusText}`;
-      if (res.status === 403) {
-        errorMessage = "You don't have permission to modify this playlist.";
-      } else if (res.status === 404) {
-        errorMessage = 'Playlist not found.';
-      }
-
-      return NextResponse.json({ error: errorMessage, details: text }, { status: res.status });
-    }
-
-    const result = await res.json();
-    newSnapshotId = result?.snapshot_id ?? null;
-  }
-
-  if (!newSnapshotId) {
-    return NextResponse.json({ error: 'Remove succeeded but no snapshot_id returned' }, { status: 500 });
-  }
+  const uniqueUris = Array.from(new Set(tracksToRemove.map((track) => track.uri)));
+  const removed = await provider.removePlaylistTracks(playlistId, uniqueUris);
 
   logTrackRemove(playlistId, tracksToRemove.length).catch(() => {});
 
-  return NextResponse.json({ snapshotId: newSnapshotId });
-}
-
-async function appendPlaylistTracksInBatches(path: string, trackUris: string[]): Promise<string | null> {
-  let snapshotId: string | null = null;
-  const BATCH_SIZE = 100;
-
-  for (let i = 0; i < trackUris.length; i += BATCH_SIZE) {
-    const batch = trackUris.slice(i, i + BATCH_SIZE);
-
-    const addRes = await spotifyFetch(path, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ uris: batch }),
-    });
-
-    if (!addRes.ok) {
-      console.error(`[replacePlaylistTracks] Add batch failed: ${addRes.status}`);
-      continue;
-    }
-
-    const addData = await addRes.json();
-    snapshotId = addData.snapshot_id || snapshotId;
-  }
-
-  return snapshotId;
+  return NextResponse.json({ snapshotId: removed.snapshotId });
 }
 
 /**
  * Fetch all tracks from a playlist (handles pagination).
  */
-async function fetchAllPlaylistTracks(playlistId: string): Promise<string[] | null> {
-  const tracks: string[] = [];
-  let offset = 0;
-  const limit = 100;
-  
+async function fetchAllPlaylistTracks(provider: MusicProvider, playlistId: string): Promise<string[] | null> {
   try {
-    while (true) {
-      const path = `/playlists/${encodeURIComponent(playlistId)}/tracks?offset=${offset}&limit=${limit}&fields=items(track(uri)),total`;
-      const res = await spotifyFetch(path, { method: 'GET' });
-      
-      if (!res.ok) {
-        console.error(`[fetchAllPlaylistTracks] GET failed: ${res.status}`);
-        return null;
-      }
-      
-      const data = await res.json();
-      const items = data.items || [];
-
-      const uris = items
-        .map((item: any) => item?.track?.uri)
-        .filter((uri: unknown): uri is string => typeof uri === 'string');
-      tracks.push(...uris);
-      
-      // Check if we've fetched all tracks
-      if (items.length < limit || tracks.length >= (data.total || 0)) {
-        break;
-      }
-      
-      offset += limit;
-    }
-    
-    return tracks;
+    return await provider.getPlaylistTrackUris(playlistId);
   } catch (error) {
     console.error('[fetchAllPlaylistTracks] Error:', error);
     return null;
@@ -288,43 +212,10 @@ async function fetchAllPlaylistTracks(playlistId: string): Promise<string[] | nu
  * Replace all tracks in a playlist with a new list.
  * Uses PUT for small playlists, or clear+add for larger ones.
  */
-async function replacePlaylistTracks(playlistId: string, trackUris: string[]): Promise<string | null> {
-  const path = `/playlists/${encodeURIComponent(playlistId)}/tracks`;
-  
+async function replacePlaylistTracks(provider: MusicProvider, playlistId: string, trackUris: string[]): Promise<string | null> {
   try {
-    // Spotify's PUT endpoint can handle up to 100 URIs directly
-    // For larger playlists, we need to clear first, then add in batches
-    
-    if (trackUris.length <= 100) {
-      // Simple case: use PUT to replace all tracks
-      const res = await spotifyFetch(path, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uris: trackUris }),
-      });
-      
-      if (!res.ok) {
-        console.error(`[replacePlaylistTracks] PUT failed: ${res.status}`);
-        return null;
-      }
-      
-      const data = await res.json();
-      return data.snapshot_id || null;
-    }
-    
-    // Large playlist: clear first, then add in batches
-    const clearRes = await spotifyFetch(path, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ uris: [] }),
-    });
-    
-    if (!clearRes.ok) {
-      console.error(`[replacePlaylistTracks] Clear failed: ${clearRes.status}`);
-      return null;
-    }
-
-    return appendPlaylistTracksInBatches(path, trackUris);
+    const replaced = await provider.replacePlaylistTracks(playlistId, trackUris);
+    return replaced.snapshotId;
   } catch (error) {
     console.error('[replacePlaylistTracks] Error:', error);
     return null;

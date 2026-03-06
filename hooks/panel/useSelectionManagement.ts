@@ -7,7 +7,7 @@
 import { useEffect, useCallback, useRef, useState } from 'react';
 import { getTrackSelectionKey } from '@/lib/dnd/selection';
 import { useTrackListSelection } from '@/hooks/useTrackListSelection';
-import type { Track } from '@/lib/spotify/types';
+import type { Track } from '@/lib/music-provider/types';
 import type { Virtualizer } from '@tanstack/react-virtual';
 
 interface UseSelectionManagementOptions {

@@ -23,7 +23,7 @@ import { makeCompositeId } from '@/lib/dnd/id';
 import { cn, matchesAllWords } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import type { Track } from '@/lib/spotify/types';
+import type { Track } from '@/lib/music-provider/types';
 
 /** Virtual panel ID for recommendations (used in DnD composite IDs) */
 export const RECS_PANEL_ID = 'recs-panel';

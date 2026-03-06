@@ -11,7 +11,7 @@ import { useInfiniteQuery } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
 import { apiFetch } from '@/lib/api/client';
 import { useSavedTracksStore } from './useSavedTracksIndex';
-import type { Track } from '@/lib/spotify/types';
+import type { Track } from '@/lib/music-provider/types';
 
 /**
  * Virtual playlist ID constant

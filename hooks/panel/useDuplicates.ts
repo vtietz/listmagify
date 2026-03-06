@@ -7,7 +7,7 @@
 import { useMemo, useState, useCallback } from 'react';
 import { toast } from '@/lib/ui/toast';
 import { buildDuplicateUris, buildSelectedDuplicateUris, buildSoftDuplicateUris } from './panelUtils';
-import type { Track } from '@/lib/spotify/types';
+import type { Track } from '@/lib/music-provider/types';
 
 export type DuplicateType = 'real' | 'soft' | null;
 

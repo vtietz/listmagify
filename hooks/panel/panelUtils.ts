@@ -4,7 +4,7 @@
  */
 
 import { getTrackSelectionKey } from '@/lib/dnd/selection';
-import type { Track } from '@/lib/spotify/types';
+import type { Track } from '@/lib/music-provider/types';
 
 /**
  * Build a set of duplicate URIs (URIs that appear more than once in the track list).

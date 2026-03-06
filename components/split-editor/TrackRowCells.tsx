@@ -8,7 +8,7 @@
 import * as React from 'react';
 import { cn } from '@/lib/utils';
 import { formatDuration, formatReleaseDate, formatScrobbleDate } from '@/lib/utils/format';
-import type { Track } from '@/lib/spotify/types';
+import type { Track } from '@/lib/music-provider/types';
 import { useTapHandler } from '@/hooks/useTapHandler';
 import { MarqueeText } from '@/components/ui/marquee-text';
 

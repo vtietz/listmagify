@@ -29,7 +29,7 @@ import { TableHeader } from '../TableHeader';
 import { AddSelectedToMarkersButton } from '../playlist/AddSelectedToMarkersButton';
 import { TRACK_ROW_HEIGHT, TRACK_ROW_HEIGHT_COMPACT, VIRTUALIZATION_OVERSCAN } from '../constants';
 import { makeCompositeId } from '@/lib/dnd/id';
-import type { Track } from '@/lib/spotify/types';
+import type { Track } from '@/lib/music-provider/types';
 
 /** Virtual panel ID for the search panel (used in DnD composite IDs) */
 export const SEARCH_PANEL_ID = 'search-panel';

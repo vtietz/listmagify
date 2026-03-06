@@ -1,12 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { spotifyFetch } from '@/lib/spotify/client';
+import { resolveMusicProviderFromRequest } from '@/app/api/_shared/provider';
+import { ProviderApiError } from '@/lib/music-provider/types';
+
+function getProviderErrorMessage(errorData: any, status: number): string {
+  return errorData.error?.message || errorData.message || `Provider API error: ${status}`;
+}
+
+function parseProviderErrorDetails(details?: string): any {
+  if (!details) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(details);
+  } catch {
+    return { message: details };
+  }
+}
 
 /**
  * GET /api/tracks/contains?ids=id1,id2,...
  * 
- * Proxy to Spotify's GET /me/tracks/contains endpoint.
+ * Proxy to provider saved-tracks contains endpoint.
  * Returns boolean[] indicating whether each track is saved to user's library.
- * Max 50 IDs per request (Spotify limit).
+ * Max 50 IDs per request.
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -40,24 +57,27 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const response = await spotifyFetch(
-    `/me/tracks/contains?ids=${ids.join(',')}`
-  );
+  const { providerId, provider } = resolveMusicProviderFromRequest(request);
+  try {
+    const data = await provider.containsTracks({ ids });
+    return NextResponse.json(data);
+  } catch (error) {
+    if (error instanceof ProviderApiError) {
+      const errorData = parseProviderErrorDetails(error.details);
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    console.error('[api/tracks/contains] Spotify API error:', {
-      status: response.status,
-      statusText: response.statusText,
-      idsCount: ids.length,
-      error: errorData,
-    });
-    return NextResponse.json(
-      { error: errorData.error?.message || errorData.message || `Spotify API error: ${response.status}` },
-      { status: response.status }
-    );
+      console.error('[api/tracks/contains] Provider API error:', {
+        provider: providerId,
+        status: error.status,
+        idsCount: ids.length,
+        error: errorData,
+      });
+
+      return NextResponse.json(
+        { error: getProviderErrorMessage(errorData, error.status) },
+        { status: error.status }
+      );
+    }
+
+    throw error;
   }
-
-  const data = await response.json();
-  return NextResponse.json(data);
 }

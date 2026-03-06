@@ -1,4 +1,4 @@
-import type { Track } from '@/lib/spotify/types';
+import type { Track } from '@/lib/music-provider/types';
 
 /**
  * Builds a stable selection key for a track instance, distinguishing duplicates.

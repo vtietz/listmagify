@@ -8,7 +8,7 @@
  */
 
 import type { DragMoveEvent } from '@dnd-kit/core';
-import type { Track } from '@/lib/spotify/types';
+import type { Track } from '@/lib/music-provider/types';
 import type { PanelConfig, PanelVirtualizerData, EphemeralInsertion } from '../types';
 import { calculateDropPosition } from '../../useDropPosition';
 

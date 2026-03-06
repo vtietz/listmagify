@@ -9,14 +9,15 @@ import { apiFetch } from '@/lib/api/client';
 import { usePlayerStore, type PlaybackContext } from './usePlayerStore';
 import { useSessionUser } from './useSessionUser';
 import { useDeviceType } from './useDeviceType';
-import type { SpotifyDevice, PlaybackState } from '@/lib/spotify/playerTypes';
+import { useMusicProviderId } from './useMusicProviderId';
+import type { PlaybackDevice, PlaybackState } from '@/lib/music-provider/types';
 import { toast } from '@/lib/ui/toast';
 import { useMobileOverlayStore } from '@/components/split-editor/mobile/MobileBottomNav';
 
 const POLL_INTERVAL = 5000; // Poll playback state every 5 seconds
 
 interface DevicesResponse {
-  devices: SpotifyDevice[];
+  devices: PlaybackDevice[];
 }
 
 interface PlaybackResponse {
@@ -31,6 +32,7 @@ interface ControlResponse {
 
 export function useSpotifyPlayer() {
   const queryClient = useQueryClient();
+  const providerId = useMusicProviderId();
   const { authenticated } = useSessionUser();
   const { isPhone } = useDeviceType();
   const setMobileOverlay = useMobileOverlayStore((s) => s.setActiveOverlay);
@@ -66,9 +68,9 @@ export function useSpotifyPlayer() {
 
   // Fetch playback state - only when authenticated
   const playbackQuery = useQuery({
-    queryKey: ['spotify-playback-state'],
+    queryKey: ['playback-state', providerId],
     queryFn: async (): Promise<PlaybackState | null> => {
-      const data = await apiFetch<PlaybackResponse>('/api/player/state');
+      const data = await apiFetch<PlaybackResponse>(`/api/player/state?provider=${providerId}`);
       return data.playback;
     },
     enabled: authenticated,
@@ -176,7 +178,7 @@ export function useSpotifyPlayer() {
         autoPlayInProgressRef.current = true;
         
         // Use the control mutation directly to avoid circular dependencies
-        apiFetch<ControlResponse>('/api/player/control', {
+        apiFetch<ControlResponse>(`/api/player/control?provider=${providerId}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -190,7 +192,7 @@ export function useSpotifyPlayer() {
             currentIndex: nextIndex,
           });
           // Refetch playback state
-          queryClient.invalidateQueries({ queryKey: ['spotify-playback-state'] });
+          queryClient.invalidateQueries({ queryKey: ['playback-state', providerId] });
         }).catch((err) => {
           console.error('[auto-play next] Failed:', err);
         }).finally(() => {
@@ -198,13 +200,13 @@ export function useSpotifyPlayer() {
         });
       }
     }
-  }, [playbackQuery.data, playbackContext, selectedDeviceId, setPlaybackContext, queryClient]);
+  }, [playbackQuery.data, playbackContext, selectedDeviceId, setPlaybackContext, queryClient, providerId]);
 
   // Fetch available devices - only when authenticated
   const devicesQuery = useQuery({
-    queryKey: ['spotify-devices'],
-    queryFn: async (): Promise<SpotifyDevice[]> => {
-      const data = await apiFetch<DevicesResponse>('/api/player/devices');
+    queryKey: ['playback-devices', providerId],
+    queryFn: async (): Promise<PlaybackDevice[]> => {
+      const data = await apiFetch<DevicesResponse>(`/api/player/devices?provider=${providerId}`);
       return data.devices ?? [];
     },
     enabled: authenticated,
@@ -219,7 +221,7 @@ export function useSpotifyPlayer() {
       
       // Auto-select active device if none selected
       if (!selectedDeviceId) {
-        const activeDevice = devicesQuery.data.find((d: SpotifyDevice) => d.isActive);
+        const activeDevice = devicesQuery.data.find((d: PlaybackDevice) => d.isActive);
         if (activeDevice) {
           setSelectedDevice(activeDevice.id);
         }
@@ -244,7 +246,7 @@ export function useSpotifyPlayer() {
   // Playback control mutation
   const controlMutation = useMutation({
     mutationFn: async (params: ControlParams) => {
-      return apiFetch<ControlResponse>('/api/player/control', {
+      return apiFetch<ControlResponse>(`/api/player/control?provider=${providerId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(params),
@@ -253,7 +255,7 @@ export function useSpotifyPlayer() {
     onSuccess: () => {
       // Refetch playback state after control action
       setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ['spotify-playback-state'] });
+        queryClient.invalidateQueries({ queryKey: ['playback-state', providerId] });
       }, 300);
     },
     onError: (error: Error & { message?: string }) => {
@@ -266,7 +268,7 @@ export function useSpotifyPlayer() {
           setMobileOverlay('player');
         }
         // Refresh devices list
-        queryClient.invalidateQueries({ queryKey: ['spotify-devices'] });
+        queryClient.invalidateQueries({ queryKey: ['playback-devices', providerId] });
       } else if (message.includes('premium_required')) {
         toast.error('Spotify Premium is required to control playback. You can still use this app to organize playlists!');
       } else if (message.includes('token_expired') || message.includes('Authentication required')) {
@@ -532,8 +534,8 @@ export function useSpotifyPlayer() {
 
   // Refresh devices list
   const refreshDevices = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: ['spotify-devices'] });
-  }, [queryClient]);
+    queryClient.invalidateQueries({ queryKey: ['playback-devices', providerId] });
+  }, [queryClient, providerId]);
 
   return {
     // State
@@ -574,3 +576,5 @@ export function useSpotifyPlayer() {
     togglePlayerVisible,
   };
 }
+
+export const useProviderPlayer = useSpotifyPlayer;

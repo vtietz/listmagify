@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import type { Virtualizer } from '@tanstack/react-virtual';
-import type { Track } from '@/lib/spotify/types';
+import type { Track } from '@/lib/music-provider/types';
 import { getNextTrackIndex } from '@/lib/dnd/selection';
 import { scrollToIndexIfOutOfView } from '@/lib/utils/virtualScroll';
 import {

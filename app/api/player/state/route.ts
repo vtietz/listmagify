@@ -3,33 +3,24 @@
  */
 
 import { NextResponse } from 'next/server';
-import { spotifyFetch } from '@/lib/spotify/client';
-import { mapPlaybackState, type PlaybackState } from '@/lib/spotify/playerTypes';
-import { handleSpotifyResponseError, handleSpotifyException } from '@/lib/api/spotifyErrorHandler';
+import { NextRequest } from 'next/server';
+import { resolveMusicProviderFromRequest } from '@/app/api/_shared/provider';
+import { ProviderApiError } from '@/lib/music-provider/types';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const response = await spotifyFetch('/me/player', { method: 'GET' });
-    
-    // 204 No Content means no active device
-    if (response.status === 204) {
-      return NextResponse.json({ playback: null });
-    }
-    
-    if (!response.ok) {
-      return handleSpotifyResponseError(response, {
-        operation: 'api/player/state',
-        path: '/me/player'
-      });
-    }
-    
-    const data = await response.json();
-    const playback: PlaybackState | null = mapPlaybackState(data);
-    
+    const { provider } = resolveMusicProviderFromRequest(request);
+    const playback = await provider.getPlaybackState();
     return NextResponse.json({ playback });
-  } catch (error: any) {
-    return handleSpotifyException(error, {
-      operation: 'api/player/state'
-    });
+  } catch (error) {
+    if (error instanceof ProviderApiError) {
+      if (error.status === 401) {
+        return NextResponse.json({ error: 'token_expired' }, { status: 401 });
+      }
+
+      return NextResponse.json({ error: error.message, details: error.details }, { status: error.status });
+    }
+
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

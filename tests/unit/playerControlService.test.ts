@@ -1,16 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const spotifyFetchMock = vi.fn();
+const providerFetchMock = vi.fn();
 
-vi.mock('@/lib/spotify/client', () => ({
-  spotifyFetch: (...args: unknown[]) => spotifyFetchMock(...args),
+vi.mock('@/lib/music-provider', () => ({
+  getMusicProvider: () => ({
+    fetch: (...args: unknown[]) => providerFetchMock(...args),
+  }),
 }));
 
 import { parseControlPayload, runPlaybackAction } from '@/lib/services/playerControlService';
 
 describe('playerControlService', () => {
   beforeEach(() => {
-    spotifyFetchMock.mockReset();
+    providerFetchMock.mockReset();
   });
 
   it('validates and parses control payload', () => {
@@ -24,7 +26,7 @@ describe('playerControlService', () => {
   });
 
   it('maps 404 response to no_active_device error', async () => {
-    spotifyFetchMock.mockResolvedValue(new Response('', { status: 404 }));
+    providerFetchMock.mockResolvedValue(new Response('', { status: 404 }));
 
     const payload = parseControlPayload({ action: 'pause' });
     await expect(runPlaybackAction(payload)).rejects.toMatchObject({

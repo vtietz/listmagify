@@ -14,7 +14,7 @@ import {
   TRACK_ROW_HEIGHT_COMPACT,
   VIRTUALIZATION_OVERSCAN,
 } from '@/components/split-editor/constants';
-import type { Track } from '@/lib/spotify/types';
+import type { Track } from '@/lib/music-provider/types';
 
 export function useVirtualizerState(
   filteredTracks: Track[],

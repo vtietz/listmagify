@@ -29,7 +29,7 @@ import {
   EmptyTrackList,
   ConfirmDeleteDialog,
 } from '../panel';
-import type { Track } from '@/lib/spotify/types';
+import type { Track } from '@/lib/music-provider/types';
 
 interface PlaylistPanelProps {
   panelId: string;

@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, ServerAuthError } from '@/lib/auth/requireAuth';
-import { spotifyFetchWithToken } from '@/lib/spotify/client';
+import { resolveMusicProviderFromRequest } from '@/app/api/_shared/provider';
+import { ProviderApiError } from '@/lib/music-provider/types';
 import { logTrackAdd } from '@/lib/metrics/api-helpers';
+import type { MusicProvider } from '@/lib/music-provider/types';
 
 const TRACK_ADD_BATCH_SIZE = 100;
 
@@ -29,8 +31,8 @@ async function parseAddTracksInput(
     return NextResponse.json({ error: 'trackUris must be a non-empty array' }, { status: 400 });
   }
 
-  if (!trackUris.every((uri) => typeof uri === 'string' && uri.startsWith('spotify:track:'))) {
-    return NextResponse.json({ error: 'All track URIs must be valid Spotify URIs' }, { status: 400 });
+  if (!trackUris.every((uri) => typeof uri === 'string' && uri.length > 0)) {
+    return NextResponse.json({ error: 'All track URIs must be non-empty strings' }, { status: 400 });
   }
 
   if (position !== undefined && (typeof position !== 'number' || position < 0)) {
@@ -73,49 +75,29 @@ function mapTrackAddResponseError(
 }
 
 async function addTrackBatches(
-  accessToken: string,
-  path: string,
+  provider: MusicProvider,
   input: AddTracksInput
 ): Promise<string | NextResponse> {
-  let newSnapshotId: string | null = null;
-  let currentPosition = input.position;
-
-  for (let i = 0; i < input.trackUris.length; i += TRACK_ADD_BATCH_SIZE) {
-    const batch = input.trackUris.slice(i, i + TRACK_ADD_BATCH_SIZE);
-    const requestBody: Record<string, unknown> = {
-      uris: batch,
-    };
-
-    if (typeof currentPosition === 'number') {
-      requestBody.position = currentPosition;
-      currentPosition += batch.length;
-    }
-
-    if (newSnapshotId) {
-      requestBody.snapshot_id = newSnapshotId;
-    } else if (input.snapshotId) {
-      requestBody.snapshot_id = input.snapshotId;
-    }
-
-    const res = await spotifyFetchWithToken(accessToken, path, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestBody),
+  try {
+    const result = await provider.addTracks({
+      playlistId: input.playlistId,
+      trackUris: input.trackUris,
+      ...(typeof input.position === 'number' ? { position: input.position } : {}),
+      ...(typeof input.snapshotId === 'string' ? { snapshotId: input.snapshotId } : {}),
     });
-
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      console.error(`[api/playlists/tracks/add] POST ${path} failed: ${res.status} ${text}`);
-      return mapTrackAddResponseError(res, text, i, input.trackUris.length);
+    return result.snapshotId;
+  } catch (error) {
+    if (error instanceof ProviderApiError) {
+      return mapTrackAddResponseError(
+        new Response(error.details ?? '', { status: error.status, statusText: error.message }),
+        error.details ?? error.message,
+        0,
+        input.trackUris.length
+      );
     }
 
-    const result = await res.json();
-    newSnapshotId = result?.snapshot_id ?? null;
+    throw error;
   }
-
-  return newSnapshotId ?? '';
 }
 
 function mapTrackAddThrownError(error: unknown): NextResponse {
@@ -154,15 +136,15 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await requireAuth();
+    await requireAuth();
 
     const input = await parseAddTracksInput(request, params);
     if (input instanceof NextResponse) {
       return input;
     }
 
-    const path = `/playlists/${encodeURIComponent(input.playlistId)}/tracks`;
-    const snapshotId = await addTrackBatches(session.accessToken, path, input);
+    const { provider } = resolveMusicProviderFromRequest(request);
+    const snapshotId = await addTrackBatches(provider, input);
     if (snapshotId instanceof NextResponse) {
       return snapshotId;
     }

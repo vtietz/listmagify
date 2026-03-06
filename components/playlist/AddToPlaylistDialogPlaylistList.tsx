@@ -4,7 +4,7 @@ import { Check, Plus, Loader2 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { PlayingIndicator } from '@/components/ui/playing-indicator';
 import { cn } from '@/lib/utils';
-import type { Playlist } from '@/lib/spotify/types';
+import type { Playlist } from '@/lib/music-provider/types';
 
 type PlaylistListItem = Playlist | { kind: 'separator' };
 

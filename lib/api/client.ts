@@ -9,6 +9,47 @@ import { createRateLimitError, createAppError } from "@/lib/errors/types";
 
 interface FetchOptions extends RequestInit {}
 
+const PROVIDER_STORAGE_KEY = 'music-provider-id';
+
+function isMusicProviderId(value: string | null | undefined): value is 'spotify' | 'tidal' {
+  return value === 'spotify' || value === 'tidal';
+}
+
+function getCurrentProviderId(): 'spotify' | 'tidal' {
+  if (typeof window === 'undefined') {
+    return 'spotify';
+  }
+
+  const fromQuery = new URLSearchParams(window.location.search).get('provider');
+  if (isMusicProviderId(fromQuery)) {
+    window.localStorage.setItem(PROVIDER_STORAGE_KEY, fromQuery);
+    return fromQuery;
+  }
+
+  const fromStorage = window.localStorage.getItem(PROVIDER_STORAGE_KEY);
+  if (isMusicProviderId(fromStorage)) {
+    return fromStorage;
+  }
+
+  return 'spotify';
+}
+
+function withProviderOnApiUrl(url: string, providerId: 'spotify' | 'tidal'): string {
+  if (!url.startsWith('/api/')) {
+    return url;
+  }
+
+  const [rawPath, query] = url.split('?');
+  const path = rawPath ?? url;
+  const params = new URLSearchParams(query ?? '');
+  if (!params.has('provider')) {
+    params.set('provider', providerId);
+  }
+
+  const serialized = params.toString();
+  return serialized.length > 0 ? `${path}?${serialized}` : path;
+}
+
 /**
  * Custom error for access token expiration.
  * Components should handle this by showing a sign-in prompt.
@@ -59,7 +100,17 @@ export async function apiFetch<T = any>(
   options: FetchOptions = {}
 ): Promise<T> {
   try {
-    const response = await fetch(url, options);
+    const providerId = getCurrentProviderId();
+    const resolvedUrl = withProviderOnApiUrl(url, providerId);
+    const headers = new Headers(options.headers ?? {});
+    if (resolvedUrl.startsWith('/api/') && !headers.has('x-music-provider')) {
+      headers.set('x-music-provider', providerId);
+    }
+
+    const response = await fetch(resolvedUrl, {
+      ...options,
+      headers,
+    });
     const data = await response.json().catch(() => ({}));
 
     // Handle 401 Unauthorized - token expired

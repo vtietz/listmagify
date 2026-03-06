@@ -12,7 +12,7 @@ import { useInfiniteQuery } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api/client';
 import { useLastfmMatch, type CachedMatch } from './useLastfmMatchCache';
 import type { ImportedTrackDTO, ImportSource, LastfmPeriod } from '@/lib/importers/types';
-import type { Track } from '@/lib/spotify/types';
+import type { Track } from '@/lib/music-provider/types';
 
 interface LastfmResponse {
   enabled: boolean;

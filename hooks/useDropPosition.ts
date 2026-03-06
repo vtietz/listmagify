@@ -1,5 +1,5 @@
 import type { Virtualizer } from '@tanstack/react-virtual';
-import type { Track } from '@/lib/spotify/types';
+import type { Track } from '@/lib/music-provider/types';
 import type { RefObject } from 'react';
 import { computeDropIntent } from './dnd/dropIntent';
 

@@ -4,7 +4,7 @@
  * Utility functions for drag-and-drop operations
  */
 
-import type { Track } from '@/lib/spotify/types';
+import type { Track } from '@/lib/music-provider/types';
 import type { TrackWithPositions } from './types';
 
 /**

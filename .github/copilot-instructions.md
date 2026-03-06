@@ -156,6 +156,47 @@ Follow these best practices when writing or modifying code:
 
 ---
 
+## Architecture Boundaries
+
+When editing API and Spotify integration code, follow these boundaries strictly:
+
+1. Route handlers (`app/api/**/route.ts`) are orchestrators only.
+- Parse and validate input.
+- Call services/providers.
+- Map known errors to stable response shapes.
+- Do not implement OAuth refresh or low-level transport logic in routes.
+
+2. Auth/token lifecycle belongs to `lib/auth/*`.
+- Keep refresh-window policy and session reacquire logic in `lib/auth/tokenManager.ts`.
+- Use `requireAuth`/shared guards for authentication checks.
+- Do not duplicate token-refresh behavior in route files.
+
+3. Spotify transport belongs to provider layer.
+- Prefer `getMusicProvider()` from `lib/music-provider/index.ts` in new code.
+- Keep Spotify-specific request/retry/header logic in `lib/music-provider/spotifyProvider.ts`.
+- Route files must call domain methods (e.g., `saveTracks`, `removeTracks`, `getUserPlaylists`, `getPlaylistTracks`, `addTracks`) instead of passing raw provider HTTP paths.
+- Do not call low-level provider transport (`fetch`, `fetchWithToken`, `getJSON`) from route handlers except for temporary migration code explicitly marked with a TODO.
+
+4. Error contract consistency.
+- Preserve existing API response contracts unless explicitly asked to change them.
+- Keep `token_expired` responses consistent across endpoints.
+- Use shared error helpers/types (`lib/errors.ts`, shared guards) where applicable.
+
+5. Complexity and extraction policy.
+- For `app/api/**/*.ts`, keep cyclomatic complexity <= 12 and max depth <= 3.
+- If a route grows, extract helpers/services instead of adding nested branches.
+
+6. Multi-provider readiness.
+- Prefer provider-agnostic naming in service/domain layers (`MusicProvider`, generic DTOs).
+- Keep Spotify-specific field mappings inside Spotify adapter or mapping helpers.
+- Do not hardcode `const providerId = 'spotify'` in route handlers. Resolve provider per request (query/header/route param) via shared helper.
+
+7. Testing requirements for boundary changes.
+- For auth/provider changes, add or update unit tests for retry behavior, refresh-window logic, and error mapping.
+- Validate with Docker commands: typecheck, lint, and tests.
+
+---
+
 ## � Documentation Style
 
 - **Minimize emoji usage**: Use emojis sparingly (max 2-3 per document section). Prefer clear headers and bullet points over emoji-heavy formatting

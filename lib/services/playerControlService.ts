@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { routeErrors } from '@/lib/errors';
-import { spotifyFetch } from '@/lib/spotify/client';
+import { getMusicProvider } from '@/lib/music-provider';
 
 const actionSchema = z.enum([
   'play',
@@ -37,46 +37,52 @@ function deviceQuery(deviceId?: string): string {
 
 const actionHandlers: Record<ControlRequest['action'], ActionHandler> = {
   play: async (payload) => {
+    const provider = getMusicProvider('spotify');
     const playBody: Record<string, unknown> = {};
     if (payload.contextUri) playBody.context_uri = payload.contextUri;
     if (payload.uris) playBody.uris = payload.uris;
     if (payload.offset) playBody.offset = payload.offset;
     if (typeof payload.positionMs === 'number') playBody.position_ms = payload.positionMs;
 
-    return spotifyFetch(`/me/player/play${deviceQuery(payload.deviceId)}`, {
+    return provider.fetch(`/me/player/play${deviceQuery(payload.deviceId)}`, {
       method: 'PUT',
       ...(Object.keys(playBody).length > 0 ? { body: JSON.stringify(playBody) } : {}),
     });
   },
-  pause: (payload) => spotifyFetch(`/me/player/pause${deviceQuery(payload.deviceId)}`, { method: 'PUT' }),
-  next: (payload) => spotifyFetch(`/me/player/next${deviceQuery(payload.deviceId)}`, { method: 'POST' }),
-  previous: (payload) => spotifyFetch(`/me/player/previous${deviceQuery(payload.deviceId)}`, { method: 'POST' }),
+  pause: (payload) => getMusicProvider('spotify').fetch(`/me/player/pause${deviceQuery(payload.deviceId)}`, { method: 'PUT' }),
+  next: (payload) => getMusicProvider('spotify').fetch(`/me/player/next${deviceQuery(payload.deviceId)}`, { method: 'POST' }),
+  previous: (payload) => getMusicProvider('spotify').fetch(`/me/player/previous${deviceQuery(payload.deviceId)}`, { method: 'POST' }),
   seek: (payload) => {
+    const provider = getMusicProvider('spotify');
     const seekMs = payload.seekPositionMs ?? 0;
     const device = payload.deviceId ? `&device_id=${encodeURIComponent(payload.deviceId)}` : '';
-    return spotifyFetch(`/me/player/seek?position_ms=${seekMs}${device}`, { method: 'PUT' });
+    return provider.fetch(`/me/player/seek?position_ms=${seekMs}${device}`, { method: 'PUT' });
   },
   shuffle: (payload) => {
+    const provider = getMusicProvider('spotify');
     const state = payload.shuffleState ?? false;
     const device = payload.deviceId ? `&device_id=${encodeURIComponent(payload.deviceId)}` : '';
-    return spotifyFetch(`/me/player/shuffle?state=${state}${device}`, { method: 'PUT' });
+    return provider.fetch(`/me/player/shuffle?state=${state}${device}`, { method: 'PUT' });
   },
   repeat: (payload) => {
+    const provider = getMusicProvider('spotify');
     const state = payload.repeatState ?? 'off';
     const device = payload.deviceId ? `&device_id=${encodeURIComponent(payload.deviceId)}` : '';
-    return spotifyFetch(`/me/player/repeat?state=${state}${device}`, { method: 'PUT' });
+    return provider.fetch(`/me/player/repeat?state=${state}${device}`, { method: 'PUT' });
   },
   volume: (payload) => {
+    const provider = getMusicProvider('spotify');
     const volumePercent = Math.max(0, Math.min(100, payload.volumePercent ?? 50));
     const device = payload.deviceId ? `&device_id=${encodeURIComponent(payload.deviceId)}` : '';
-    return spotifyFetch(`/me/player/volume?volume_percent=${volumePercent}${device}`, { method: 'PUT' });
+    return provider.fetch(`/me/player/volume?volume_percent=${volumePercent}${device}`, { method: 'PUT' });
   },
   transfer: (payload) => {
+    const provider = getMusicProvider('spotify');
     if (!payload.deviceId) {
       throw routeErrors.badRequest('Device ID required for transfer');
     }
 
-    return spotifyFetch('/me/player', {
+    return provider.fetch('/me/player', {
       method: 'PUT',
       body: JSON.stringify({
         device_ids: [payload.deviceId],

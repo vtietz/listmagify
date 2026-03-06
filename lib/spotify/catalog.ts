@@ -5,9 +5,9 @@
  * Used to populate track details in recommendation results.
  */
 
-import { getJSON } from "@/lib/spotify/client";
-import { mapPlaylistItemToTrack } from "@/lib/spotify/types";
-import type { Track } from "@/lib/spotify/types";
+import { getMusicProvider } from '@/lib/music-provider';
+import { mapPlaylistItemToTrack } from '@/lib/spotify/types';
+import type { Track } from '@/lib/music-provider/types';
 
 /**
  * Fetch a single track's full details.
@@ -16,7 +16,8 @@ import type { Track } from "@/lib/spotify/types";
  */
 export async function fetchTrack(trackId: string): Promise<Track | null> {
   try {
-    const raw = await getJSON<any>(`/tracks/${encodeURIComponent(trackId)}`);
+    const provider = getMusicProvider('spotify');
+    const raw = await provider.getJSON<any>(`/tracks/${encodeURIComponent(trackId)}`);
     return mapPlaylistItemToTrack(raw);
   } catch {
     return null;
@@ -38,7 +39,8 @@ export async function fetchTracks(trackIds: string[]): Promise<Track[]> {
     const batch = trackIds.slice(i, i + 50);
     const ids = batch.join(',');
     
-    const raw = await getJSON<{
+    const provider = getMusicProvider('spotify');
+    const raw = await provider.getJSON<{
       tracks: Array<any | null>;
     }>(`/tracks?ids=${ids}`);
     
@@ -64,7 +66,8 @@ export async function fetchArtist(artistId: string): Promise<{
   popularity: number;
 } | null> {
   try {
-    const raw = await getJSON<{
+    const provider = getMusicProvider('spotify');
+    const raw = await provider.getJSON<{
       id: string;
       name: string;
       genres: string[];
@@ -107,7 +110,8 @@ export async function fetchArtists(artistIds: string[]): Promise<Array<{
     const batch = artistIds.slice(i, i + 50);
     const ids = batch.join(',');
     
-    const raw = await getJSON<{
+    const provider = getMusicProvider('spotify');
+    const raw = await provider.getJSON<{
       artists: Array<{
         id: string;
         name: string;
@@ -144,7 +148,8 @@ export async function fetchAlbum(albumId: string): Promise<{
   artistIds: string[];
 } | null> {
   try {
-    const raw = await getJSON<{
+    const provider = getMusicProvider('spotify');
+    const raw = await provider.getJSON<{
       id: string;
       name: string;
       total_tracks: number;

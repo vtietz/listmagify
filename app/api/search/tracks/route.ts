@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { assertAuthenticated } from '@/app/api/_shared/guard';
+import { resolveMusicProviderFromRequest } from '@/app/api/_shared/provider';
 import { isAppRouteError } from '@/lib/errors';
-import { spotifyFetch } from '@/lib/spotify/client';
-import { mapPlaylistItemToTrack, type Track } from '@/lib/spotify/types';
+import { ProviderApiError } from '@/lib/music-provider/types';
 
 const querySchema = z.object({
   q: z.string().optional(),
@@ -31,32 +31,9 @@ function emptyTracksResponse() {
   });
 }
 
-async function executeSpotifySearch(query: string, limit: number, offset: number) {
-  const spotifyUrl = `/search?q=${encodeURIComponent(query)}&type=track&limit=${limit}&offset=${offset}`;
-  const response = await spotifyFetch(spotifyUrl);
-
-  if (!response.ok) {
-    const { handleSpotifyResponseError } = await import('@/lib/api/spotifyErrorHandler');
-    return {
-      error: await handleSpotifyResponseError(response, {
-        operation: 'api/search/tracks',
-        path: spotifyUrl,
-        context: { query, limit, offset },
-      }),
-    };
-  }
-
-  const data = await response.json();
-  const tracks: Track[] = (data.tracks?.items || []).map((item: any) =>
-    mapPlaylistItemToTrack({ track: item })
-  );
-
-  const total = data.tracks?.total || 0;
-  const nextOffset = offset + tracks.length < total ? offset + tracks.length : null;
-
-  return {
-    data: NextResponse.json({ tracks, total, nextOffset }),
-  };
+async function executeTrackSearch(request: NextRequest, query: string, limit: number, offset: number) {
+  const { provider } = resolveMusicProviderFromRequest(request);
+  return provider.searchTracks(query, limit, offset);
 }
 
 async function mapSearchError(error: any) {
@@ -68,16 +45,21 @@ async function mapSearchError(error: any) {
     return tokenExpiredResponse();
   }
 
-  const { handleSpotifyException } = await import('@/lib/api/spotifyErrorHandler');
-  return handleSpotifyException(error, {
-    operation: 'api/search/tracks',
-  });
+  if (error instanceof ProviderApiError) {
+    if (error.status === 401) {
+      return tokenExpiredResponse();
+    }
+
+    return NextResponse.json({ error: error.message, details: error.details }, { status: error.status });
+  }
+
+  return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
 }
 
 /**
  * GET /api/search/tracks?q=query&limit=50&offset=0
  * 
- * Search for tracks on Spotify.
+ * Search for tracks through the selected music provider.
  * Returns normalized tracks matching the search query.
  */
 export async function GET(request: NextRequest) {
@@ -91,12 +73,8 @@ export async function GET(request: NextRequest) {
       return emptyTracksResponse();
     }
 
-    const result = await executeSpotifySearch(query, limit, offset);
-    if (result.error) {
-      return result.error;
-    }
-
-    return result.data;
+    const result = await executeTrackSearch(request, query, limit, offset);
+    return NextResponse.json(result);
   } catch (error: any) {
     return mapSearchError(error);
   }

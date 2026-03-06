@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import type { MarkerActions, TrackActions } from '../../TrackContextMenu';
-import type { Track } from '@/lib/spotify/types';
+import type { Track } from '@/lib/music-provider/types';
+import { getProviderEntityUrl } from '@/lib/music-provider/links';
 
 interface UseContextMenuActionsInput {
   track: Track;
@@ -72,7 +73,12 @@ export function useContextMenuActions({
     }
     if (track.id) {
       actions.onOpenInSpotify = () => {
-        window.open(`https://open.spotify.com/track/${track.id}`, '_blank', 'noopener,noreferrer');
+        const url = getProviderEntityUrl('track', track.id!, { uri: track.uri });
+        if (!url) {
+          return;
+        }
+
+        window.open(url, '_blank', 'noopener,noreferrer');
       };
     }
 

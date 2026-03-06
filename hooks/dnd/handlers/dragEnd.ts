@@ -8,7 +8,7 @@
  */
 
 import type { DragEndEvent } from '@dnd-kit/core';
-import type { Track } from '@/lib/spotify/types';
+import type { Track } from '@/lib/music-provider/types';
 import type { PanelConfig, PanelVirtualizerData } from '../types';
 import type { DropContext, MutationHandlers } from '../mutations';
 import {

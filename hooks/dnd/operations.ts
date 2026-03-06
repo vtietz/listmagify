@@ -5,7 +5,7 @@
  * These functions have no side effects and can be easily unit tested.
  */
 
-import type { Track } from '@/lib/spotify/types';
+import type { Track } from '@/lib/music-provider/types';
 import { getTrackSelectionKey } from '@/lib/dnd/selection';
 
 /**

@@ -2,69 +2,16 @@
  * Types for Spotify Player/Playback state
  */
 
-export interface SpotifyDevice {
-  id: string;
-  name: string;
-  type: 'Computer' | 'Smartphone' | 'Speaker' | 'TV' | 'AVR' | 'STB' | 'AudioDongle' | 'GameConsole' | 'CastVideo' | 'CastAudio' | 'Automobile' | 'Unknown';
-  isActive: boolean;
-  isPrivateSession: boolean;
-  isRestricted: boolean;
-  volumePercent: number | null;
-  supportsVolume: boolean;
-}
+import type {
+  PlaybackContext,
+  PlaybackDevice,
+  PlaybackRestrictions,
+  PlaybackState,
+  PlaybackTrack,
+} from '@/lib/music-provider/types';
 
-export interface PlaybackContext {
-  type: 'album' | 'artist' | 'playlist' | 'show';
-  uri: string;
-  href: string;
-}
-
-export interface PlaybackTrack {
-  id: string | null;
-  uri: string;
-  name: string;
-  artists: string[];
-  albumName: string | null;
-  albumImage: string | null;
-  durationMs: number;
-}
-
-/**
- * Playback action restrictions.
- * Per Spotify guidelines: gate shuffle/next/prev/repeat/seek by these flags.
- * When true, the action is DISALLOWED (restricted).
- */
-export interface PlaybackRestrictions {
-  /** Cannot pause playback */
-  pausing: boolean;
-  /** Cannot resume playback */
-  resuming: boolean;
-  /** Cannot seek to position */
-  seeking: boolean;
-  /** Cannot skip to next track */
-  skippingNext: boolean;
-  /** Cannot skip to previous track */
-  skippingPrev: boolean;
-  /** Cannot toggle shuffle */
-  togglingShuffle: boolean;
-  /** Cannot toggle repeat mode */
-  togglingRepeat: boolean;
-  /** Cannot transfer playback to another device */
-  transferringPlayback: boolean;
-}
-
-export interface PlaybackState {
-  device: SpotifyDevice | null;
-  isPlaying: boolean;
-  shuffleState: boolean;
-  repeatState: 'off' | 'track' | 'context';
-  context: PlaybackContext | null;
-  track: PlaybackTrack | null;
-  progressMs: number;
-  timestamp: number;
-  /** Action restrictions (e.g., Free tier cannot skip) */
-  restrictions: PlaybackRestrictions;
-}
+export type { PlaybackContext, PlaybackDevice, PlaybackRestrictions, PlaybackState, PlaybackTrack };
+export type SpotifyDevice = PlaybackDevice;
 
 export interface PlayRequest {
   /** Device ID to play on (optional, uses active device if not specified) */
@@ -130,7 +77,7 @@ export function mapPlaybackState(raw: any): PlaybackState | null {
   };
 }
 
-const VALID_DEVICE_TYPES = new Set<SpotifyDevice['type']>([
+const VALID_DEVICE_TYPES = new Set<PlaybackDevice['type']>([
   'Computer',
   'Smartphone',
   'Speaker',
@@ -165,8 +112,8 @@ function coerceNumberOrNull(value: unknown): number | null {
 }
 
 function coerceDeviceType(value: unknown): SpotifyDevice['type'] {
-  return typeof value === 'string' && VALID_DEVICE_TYPES.has(value as SpotifyDevice['type'])
-    ? (value as SpotifyDevice['type'])
+  return typeof value === 'string' && VALID_DEVICE_TYPES.has(value as PlaybackDevice['type'])
+    ? (value as PlaybackDevice['type'])
     : 'Unknown';
 }
 

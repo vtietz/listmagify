@@ -1,13 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { spotifyFetch } from '@/lib/spotify/client';
+import { resolveMusicProviderFromRequest } from '@/app/api/_shared/provider';
+import { ProviderApiError } from '@/lib/music-provider/types';
+
+function getProviderErrorMessage(errorData: any, status: number): string {
+  return errorData.error?.message || errorData.message || `Provider API error: ${status}`;
+}
+
+function parseProviderErrorDetails(details?: string): any {
+  if (!details) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(details);
+  } catch {
+    return { message: details };
+  }
+}
 
 /**
  * PUT /api/tracks/save
  * Body: { ids: string[] }
  * 
- * Proxy to Spotify's PUT /me/tracks endpoint.
+ * Proxy to provider saved-tracks endpoint.
  * Saves tracks to user's "Liked Songs" library.
- * Max 50 IDs per request (Spotify limit).
+ * Max 50 IDs per request.
  */
 export async function PUT(request: NextRequest) {
   let body: { ids?: string[] };
@@ -49,24 +66,28 @@ export async function PUT(request: NextRequest) {
     );
   }
 
-  // Spotify's PUT /me/tracks expects IDs in query string
-  const response = await spotifyFetch(
-    `/me/tracks?ids=${ids.join(',')}`,
-    { method: 'PUT' }
-  );
+  // Provider adapter maps to the underlying save-tracks endpoint.
+  const { providerId, provider } = resolveMusicProviderFromRequest(request);
+  try {
+    await provider.saveTracks({ ids });
+  } catch (error) {
+    if (error instanceof ProviderApiError) {
+      const errorData = parseProviderErrorDetails(error.details);
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    console.error('[api/tracks/save] Spotify API error:', {
-      status: response.status,
-      statusText: response.statusText,
-      idsCount: ids.length,
-      error: errorData,
-    });
-    return NextResponse.json(
-      { error: errorData.error?.message || errorData.message || `Spotify API error: ${response.status}` },
-      { status: response.status }
-    );
+      console.error('[api/tracks/save] Provider API error:', {
+        provider: providerId,
+        status: error.status,
+        idsCount: ids.length,
+        error: errorData,
+      });
+
+      return NextResponse.json(
+        { error: getProviderErrorMessage(errorData, error.status) },
+        { status: error.status }
+      );
+    }
+
+    throw error;
   }
 
   return NextResponse.json({ success: true });

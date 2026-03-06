@@ -6,7 +6,7 @@ import {
   captureAndUpdateEdges,
   type PlaylistSnapshotInput 
 } from '@/lib/recs';
-import type { Track } from '@/lib/spotify/types';
+import type { Track } from '@/lib/music-provider/types';
 
 /**
  * POST /api/recs/capture

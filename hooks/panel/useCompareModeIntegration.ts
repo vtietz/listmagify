@@ -6,7 +6,7 @@
 
 import { useEffect, useCallback, useMemo } from 'react';
 import { useCompareModeStore, getTrackCompareColor } from '@/hooks/useCompareModeStore';
-import type { Track } from '@/lib/spotify/types';
+import type { Track } from '@/lib/music-provider/types';
 
 export function useCompareModeIntegration(
   panelId: string,

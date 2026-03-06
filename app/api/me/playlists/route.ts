@@ -1,48 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { assertAuthenticated } from '@/app/api/_shared/guard';
+import { resolveMusicProviderFromRequest } from '@/app/api/_shared/provider';
 import { isAppRouteError } from '@/lib/errors';
-import { getJSON, spotifyFetch } from "@/lib/spotify/client";
-import { pageFromSpotify, mapPlaylist } from "@/lib/spotify/types";
-
-type CursorFetchResult =
-  | { ok: true; data: ReturnType<typeof pageFromSpotify> }
-  | { ok: false; error: NextResponse };
-
-async function fetchInitialPlaylists() {
-  const raw = await getJSON<any>(`/me/playlists?limit=50`);
-  return pageFromSpotify(raw, mapPlaylist);
-}
-
-async function fetchCursorPlaylists(nextCursor: string): Promise<CursorFetchResult> {
-  const res = await spotifyFetch(nextCursor, { method: "GET" });
-
-  if (!res.ok) {
-    if (res.status === 401) {
-      return { ok: false, error: NextResponse.json({ error: "token_expired" }, { status: 401 }) };
-    }
-
-    return {
-      ok: false,
-      error: NextResponse.json(
-        { error: `Failed to fetch playlists: ${res.status} ${res.statusText}` },
-        { status: res.status }
-      ),
-    };
-  }
-
-  const raw = await res.json();
-  return { ok: true, data: pageFromSpotify(raw, mapPlaylist) };
-}
+import { ProviderApiError } from '@/lib/music-provider/types';
 
 /**
  * GET /api/me/playlists
  * 
  * Returns the current user's playlists with pagination support.
  * Accepts optional nextCursor query parameter for infinite scroll.
- * Uses server-side Spotify access token (never exposes tokens to client).
+ * Uses server-side provider access token (never exposes tokens to client).
  * 
  * Query params:
- * - nextCursor (optional): Full Spotify API URL to fetch next page
+ * - nextCursor (optional): Provider cursor URL for the next page
  */
 export async function GET(request: NextRequest) {
   try {
@@ -50,21 +20,26 @@ export async function GET(request: NextRequest) {
 
     const searchParams = request.nextUrl.searchParams;
     const nextCursor = searchParams.get("nextCursor");
-
-    const result: CursorFetchResult = nextCursor
-      ? await fetchCursorPlaylists(nextCursor)
-      : { ok: true, data: await fetchInitialPlaylists() };
-
-    if (!result.ok) {
-      return result.error;
-    }
+    const { provider } = resolveMusicProviderFromRequest(request);
+    const result = await provider.getUserPlaylists(50, nextCursor);
 
     return NextResponse.json({
-      items: result.data.items,
-      nextCursor: result.data.nextCursor,
-      total: result.data.total,
+      items: result.items,
+      nextCursor: result.nextCursor,
+      total: result.total,
     });
   } catch (error) {
+    if (error instanceof ProviderApiError && error.status === 401) {
+      return NextResponse.json({ error: 'token_expired' }, { status: 401 });
+    }
+
+    if (error instanceof ProviderApiError) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: error.status }
+      );
+    }
+
     if (isAppRouteError(error) && error.status === 401) {
       return NextResponse.json({ error: "token_expired" }, { status: 401 });
     }

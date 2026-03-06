@@ -4,7 +4,7 @@
  */
 
 import { create } from 'zustand';
-import type { Track } from '@/lib/spotify/types';
+import type { Track } from '@/lib/music-provider/types';
 import type { MarkerActions, TrackActions, ReorderActions, RecommendationActions } from '@/components/split-editor/TrackContextMenu';
 
 interface ContextMenuState {

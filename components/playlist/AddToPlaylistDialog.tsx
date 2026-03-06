@@ -27,7 +27,7 @@ import { usePlayerStore } from '@/hooks/usePlayerStore';
 import { useSplitGridStore, flattenPanels } from '@/hooks/useSplitGridStore';
 import { matchesAllWords } from '@/lib/utils';
 import { AddToPlaylistDialogPlaylistList } from './AddToPlaylistDialogPlaylistList';
-import type { Playlist, Track } from '@/lib/spotify/types';
+import type { Playlist, Track } from '@/lib/music-provider/types';
 
 interface AddToPlaylistDialogProps {
   isOpen: boolean;

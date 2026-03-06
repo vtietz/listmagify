@@ -13,7 +13,7 @@ import {
   useReorderTracks,
 } from '@/lib/spotify/playlistMutations';
 import { getSortedValidTrackUris } from './panelUtils';
-import type { Track } from '@/lib/spotify/types';
+import type { Track } from '@/lib/music-provider/types';
 import type { SortKey, SortDirection } from '@/hooks/usePlaylistSort';
 
 interface UsePlaylistMutationsOptions {

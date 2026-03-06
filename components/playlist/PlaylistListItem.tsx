@@ -3,7 +3,7 @@
 import Link from "next/link";
 import React, { useState, useCallback } from "react";
 import { Heart, Pencil, Play } from "lucide-react";
-import { type Playlist } from "@/lib/spotify/types";
+import type { Playlist  } from '@/lib/music-provider/types';
 import { cn } from "@/lib/utils";
 import { isLikedSongsPlaylist } from "@/hooks/useLikedVirtualPlaylist";
 import { useSessionUser } from "@/hooks/useSessionUser";

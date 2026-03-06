@@ -1,13 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { spotifyFetch } from '@/lib/spotify/client';
+import { resolveMusicProviderFromRequest } from '@/app/api/_shared/provider';
+import { ProviderApiError } from '@/lib/music-provider/types';
+
+function getProviderErrorMessage(errorData: any, status: number): string {
+  return errorData.error?.message || errorData.message || `Provider API error: ${status}`;
+}
+
+function parseProviderErrorDetails(details?: string): any {
+  if (!details) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(details);
+  } catch {
+    return { message: details };
+  }
+}
 
 /**
  * DELETE /api/tracks/remove
  * Body: { ids: string[] }
  * 
- * Proxy to Spotify's DELETE /me/tracks endpoint.
+ * Proxy to provider saved-tracks removal endpoint.
  * Removes tracks from user's "Liked Songs" library.
- * Max 50 IDs per request (Spotify limit).
+ * Max 50 IDs per request.
  */
 export async function DELETE(request: NextRequest) {
   let body: { ids?: string[] };
@@ -49,24 +66,28 @@ export async function DELETE(request: NextRequest) {
     );
   }
 
-  // Spotify's DELETE /me/tracks expects IDs in query string
-  const response = await spotifyFetch(
-    `/me/tracks?ids=${ids.join(',')}`,
-    { method: 'DELETE' }
-  );
+  // Provider adapter maps to the underlying remove-tracks endpoint.
+  const { providerId, provider } = resolveMusicProviderFromRequest(request);
+  try {
+    await provider.removeTracks({ ids });
+  } catch (error) {
+    if (error instanceof ProviderApiError) {
+      const errorData = parseProviderErrorDetails(error.details);
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    console.error('[api/tracks/remove] Spotify API error:', {
-      status: response.status,
-      statusText: response.statusText,
-      idsCount: ids.length,
-      error: errorData,
-    });
-    return NextResponse.json(
-      { error: errorData.error?.message || errorData.message || `Spotify API error: ${response.status}` },
-      { status: response.status }
-    );
+      console.error('[api/tracks/remove] Provider API error:', {
+        provider: providerId,
+        status: error.status,
+        idsCount: ids.length,
+        error: errorData,
+      });
+
+      return NextResponse.json(
+        { error: getProviderErrorMessage(errorData, error.status) },
+        { status: error.status }
+      );
+    }
+
+    throw error;
   }
 
   return NextResponse.json({ success: true });

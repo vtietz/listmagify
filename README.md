@@ -164,6 +164,17 @@ All commands run inside Docker:
 | Run arbitrary command | `./run.sh exec <cmd>` |
 | Run docker compose cmd | `./run.sh compose <cmd>` |
 
+### Spotify Integration Boundaries
+
+Spotify API and token handling are now split into explicit layers to reduce route complexity:
+
+- `lib/auth/tokenManager.ts`: session/token lifecycle policy (refresh window, single-flight session reacquire)
+- `lib/music-provider/spotifyProvider.ts`: Spotify transport adapter (auth headers, rate-limit retry, one retry on 401)
+- `lib/music-provider/types.ts`: provider contract boundary for future multi-provider support
+- `lib/music-provider/index.ts`: provider resolver entry point used by route handlers and services
+
+Routes should depend on the provider boundary and avoid embedding Spotify auth/transport details directly.
+
 ## Production Deployment
 
 Build and run the production image:

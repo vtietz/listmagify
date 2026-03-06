@@ -10,7 +10,7 @@
  * 3. Maps filtered indices to global playlist positions
  */
 
-import type { Track } from '@/lib/spotify/types';
+import type { Track } from '@/lib/music-provider/types';
 
 /**
  * Input parameters for drop intent computation

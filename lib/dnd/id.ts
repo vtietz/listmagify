@@ -3,7 +3,7 @@
  * Provides consistent composite ID generation and track position extraction.
  */
 
-import type { Track } from '@/lib/spotify/types';
+import type { Track } from '@/lib/music-provider/types';
 
 /**
  * Creates a globally unique composite ID for a track within a panel.

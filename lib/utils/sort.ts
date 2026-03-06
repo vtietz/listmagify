@@ -3,7 +3,7 @@
  * All comparators use stable secondary sort by originalPosition when values are equal
  */
 
-import type { Track } from "@/lib/spotify/types";
+import type { Track } from '@/lib/music-provider/types';
 
 export type SortKey =
   | "position"

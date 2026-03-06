@@ -1,6 +1,7 @@
 "use client";
 
-import type { Track } from "@/lib/spotify/types";
+import type { Track } from '@/lib/music-provider/types';
+import { getProviderEntityUrl } from '@/lib/music-provider/links';
 import type { DragEndEvent } from "@dnd-kit/core";
 import {
   DndContext,
@@ -98,7 +99,7 @@ function SortableRow({ track, index, isDragEnabled }: SortableRowProps) {
       </td>
       <td className="py-2 px-4">
         <div className="font-medium flex items-center gap-1.5">
-          {/* Explicit content badge per Spotify guidelines */}
+          {/* Explicit content badge */}
           {track.explicit && (
             <span 
               className="shrink-0 inline-flex items-center justify-center rounded text-[9px] font-bold px-1.5 h-4 bg-muted-foreground/20 text-muted-foreground"
@@ -109,15 +110,24 @@ function SortableRow({ track, index, isDragEnabled }: SortableRowProps) {
             </span>
           )}
           {track.id ? (
-            <a
-              href={`https://open.spotify.com/track/${track.id}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:underline hover:text-green-500"
-              title={`Open in Spotify ↗`}
-            >
-              {track.name}
-            </a>
+            (() => {
+              const url = getProviderEntityUrl('track', track.id, { uri: track.uri });
+              if (!url) {
+                return track.name;
+              }
+
+              return (
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:underline hover:text-green-500"
+                  title="Open in provider ↗"
+                >
+                  {track.name}
+                </a>
+              );
+            })()
           ) : (
             track.name
           )}
@@ -128,14 +138,23 @@ function SortableRow({ track, index, isDragEnabled }: SortableRowProps) {
           track.artistObjects.map((artist, idx) => (
             <span key={artist.id || artist.name}>
               {artist.id ? (
-                <a
-                  href={`https://open.spotify.com/artist/${artist.id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:underline hover:text-green-500"
-                >
-                  {artist.name}
-                </a>
+                (() => {
+                  const url = getProviderEntityUrl('artist', artist.id, { uri: track.uri });
+                  if (!url) {
+                    return artist.name;
+                  }
+
+                  return (
+                    <a
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="hover:underline hover:text-green-500"
+                    >
+                      {artist.name}
+                    </a>
+                  );
+                })()
               ) : (
                 artist.name
               )}
@@ -149,14 +168,23 @@ function SortableRow({ track, index, isDragEnabled }: SortableRowProps) {
       <td className="py-2 px-4 text-sm text-muted-foreground">
         {track.album?.name ? (
           track.album.id ? (
-            <a
-              href={`https://open.spotify.com/album/${track.album.id}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:underline hover:text-green-500"
-            >
-              {track.album.name}
-            </a>
+            (() => {
+              const url = getProviderEntityUrl('album', track.album.id!, { uri: track.uri });
+              if (!url) {
+                return track.album?.name;
+              }
+
+              return (
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:underline hover:text-green-500"
+                >
+                  {track.album?.name}
+                </a>
+              );
+            })()
           ) : (
             track.album.name
           )

@@ -8,7 +8,7 @@
 import { GripVertical } from 'lucide-react';
 import { useDraggable } from '@dnd-kit/core';
 import { cn } from '@/lib/utils';
-import type { Track } from '@/lib/spotify/types';
+import type { Track } from '@/lib/music-provider/types';
 import { MarqueeText } from '@/components/ui/marquee-text';
 import { useHydratedAutoScrollText } from '@/hooks/useAutoScrollTextStore';
 

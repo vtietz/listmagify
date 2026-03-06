@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { getTrackGridStyle } from '../../TableHeader';
-import type { Track } from '@/lib/spotify/types';
+import type { Track } from '@/lib/music-provider/types';
 
 interface UseTrackRowComputedInput {
   track: Track;

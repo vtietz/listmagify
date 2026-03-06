@@ -13,7 +13,7 @@
 'use client';
 
 import { DragOverlay } from '@dnd-kit/core';
-import type { Track } from '@/lib/spotify/types';
+import type { Track } from '@/lib/music-provider/types';
 import { useHydratedCompactMode } from '@/hooks/useCompactModeStore';
 import { cn } from '@/lib/utils';
 import { formatDuration } from '@/lib/utils/format';

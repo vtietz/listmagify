@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, ServerAuthError } from '@/lib/auth/requireAuth';
-import { spotifyFetchWithToken } from '@/lib/spotify/client';
-import { parsePlaylistId, parsePlaylistUpdatePayload } from '@/lib/services/spotifyPlaylistService';
+import { resolveMusicProviderFromRequest } from '@/app/api/_shared/provider';
+import { parsePlaylistId, parsePlaylistUpdatePayload } from '@/lib/services/playlistService';
 import { getPlaylistFieldsQuery, mapPlaylistMetadata } from '@/lib/repositories/playlistRepository';
+import { ProviderApiError } from '@/lib/music-provider/types';
 
 function mapPlaylistPutResponseError(status: number, statusText: string): NextResponse {
   if (status === 401) {
@@ -23,27 +24,46 @@ function mapPlaylistPutResponseError(status: number, statusText: string): NextRe
   );
 }
 
+function hasTokenExpiredMessage(message: string): boolean {
+  return (
+    message.includes('401') ||
+    message.includes('Unauthorized') ||
+    message.includes('access token expired')
+  );
+}
+
+function mapKnownPlaylistValidationError(error: Error): NextResponse | null {
+  if (error.message.includes('Invalid playlist ID')) {
+    return NextResponse.json({ error: 'Invalid playlist ID' }, { status: 400 });
+  }
+
+  if (error.message.includes('No fields to update') || error.message.includes('cannot be empty')) {
+    return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+
+  return null;
+}
+
 function mapPlaylistPutThrownError(error: unknown): NextResponse {
   if (error instanceof ServerAuthError) {
     return NextResponse.json({ error: 'token_expired' }, { status: 401 });
   }
 
-  if (error instanceof Error && error.message.includes('Invalid playlist ID')) {
-    return NextResponse.json({ error: 'Invalid playlist ID' }, { status: 400 });
+  if (error instanceof Error) {
+    const validationError = mapKnownPlaylistValidationError(error);
+    if (validationError) {
+      return validationError;
+    }
   }
 
-  if (error instanceof Error && (error.message.includes('No fields to update') || error.message.includes('cannot be empty'))) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+  if (error instanceof ProviderApiError) {
+    return mapPlaylistPutResponseError(error.status, error.message);
   }
 
   console.error('[api/playlists] PUT Error:', error);
 
   const errorMessage = error instanceof Error ? error.message : String(error);
-  if (
-    errorMessage.includes('401') ||
-    errorMessage.includes('Unauthorized') ||
-    errorMessage.includes('access token expired')
-  ) {
+  if (hasTokenExpiredMessage(errorMessage)) {
     return NextResponse.json({ error: 'token_expired' }, { status: 401 });
   }
 
@@ -62,43 +82,32 @@ function mapPlaylistPutThrownError(error: unknown): NextResponse {
  * Returns: { id, name, owner, collaborative, tracksTotal, isPublic }
  */
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await requireAuth();
+    await requireAuth();
+    const { provider } = resolveMusicProviderFromRequest(request);
 
     const { id } = await params;
     const playlistId = parsePlaylistId(id);
 
-    const path = `/playlists/${encodeURIComponent(playlistId)}`;
     const fields = getPlaylistFieldsQuery();
-
-    const res = await spotifyFetchWithToken(session.accessToken, `${path}?fields=${encodeURIComponent(fields)}`, {
-      method: 'GET',
-    });
-
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      console.error(`[api/playlists] GET ${path} failed: ${res.status} ${text}`);
-
-      if (res.status === 401) {
+    const playlist = await provider.getPlaylistDetails(playlistId, fields);
+    return NextResponse.json(mapPlaylistMetadata(playlist));
+  } catch (error) {
+    if (error instanceof ProviderApiError) {
+      if (error.status === 401) {
         return NextResponse.json({ error: 'token_expired' }, { status: 401 });
       }
 
-      if (res.status === 404) {
+      if (error.status === 404) {
         return NextResponse.json({ error: 'Playlist not found' }, { status: 404 });
       }
 
-      return NextResponse.json(
-        { error: `Failed to fetch playlist: ${res.status} ${res.statusText}` },
-        { status: res.status }
-      );
+      return NextResponse.json({ error: error.message, details: error.details }, { status: error.status });
     }
 
-    const playlist = await res.json();
-    return NextResponse.json(mapPlaylistMetadata(playlist));
-  } catch (error) {
     // Handle auth errors consistently
     if (error instanceof ServerAuthError) {
       return NextResponse.json({ error: 'token_expired' }, { status: 401 });
@@ -140,24 +149,15 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await requireAuth();
+    await requireAuth();
+    const { provider } = resolveMusicProviderFromRequest(request);
 
     const { id } = await params;
     const playlistId = parsePlaylistId(id);
     const updatePayload = parsePlaylistUpdatePayload(await request.json());
 
     // Update the playlist
-    const path = `/playlists/${encodeURIComponent(playlistId)}`;
-    const res = await spotifyFetchWithToken(session.accessToken, path, {
-      method: 'PUT',
-      body: JSON.stringify(updatePayload),
-    });
-
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      console.error(`[api/playlists] PUT ${path} failed: ${res.status} ${text}`);
-      return mapPlaylistPutResponseError(res.status, res.statusText);
-    }
+    await provider.updatePlaylistDetails(playlistId, updatePayload);
 
     return NextResponse.json({ success: true });
   } catch (error) {

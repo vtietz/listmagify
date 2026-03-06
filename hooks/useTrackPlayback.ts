@@ -4,14 +4,14 @@
  */
 
 import { useCallback, useState, useRef } from 'react';
-import { useSpotifyPlayer } from './useSpotifyPlayer';
+import { useProviderPlayer } from './useSpotifyPlayer';
 
 interface UseTrackPlaybackOptions {
   /** All track URIs in the current playlist (for auto-play next) */
   trackUris: string[];
   /** Playlist ID (optional, for context) */
   playlistId?: string | undefined;
-  /** Playlist URI (optional, for Spotify context playback) */
+  /** Playlist URI (optional, for provider context playback) */
   playlistUri?: string | undefined;
   /** Source identifier (e.g., 'search', 'lastfm', or panel ID) for tracking playback origin */
   sourceId?: string | undefined;
@@ -19,7 +19,7 @@ interface UseTrackPlaybackOptions {
 
 export function useTrackPlayback(options: UseTrackPlaybackOptions) {
   const { trackUris, playlistId, playlistUri, sourceId } = options;
-  const { play, pause, isPlaying, currentTrackId, isLoading } = useSpotifyPlayer();
+  const { play, pause, isPlaying, currentTrackId, isLoading } = useProviderPlayer();
   
   // Track which track we're loading (for showing spinner)
   const [loadingTrackUri, setLoadingTrackUri] = useState<string | null>(null);
@@ -47,10 +47,9 @@ export function useTrackPlayback(options: UseTrackPlaybackOptions) {
       // Find the track index in the list (used for local context tracking)
       const trackIndex = trackUris.indexOf(trackUri);
       
-      // If we have a playlist context URI, use it for proper Spotify queue management
-      // This lets Spotify handle next/previous within the playlist
+      // If we have a playlist context URI, use it for proper provider queue management.
       // IMPORTANT: Use URI offset instead of position offset to handle sorted/filtered views
-      // Position offset refers to Spotify's playlist order, but our trackUris may be sorted differently
+      // Position offset refers to provider playlist order, but our trackUris may be sorted differently
       if (playlistUri && trackIndex >= 0) {
         await play({
           contextUri: playlistUri,

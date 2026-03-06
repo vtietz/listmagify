@@ -7,7 +7,7 @@
 import { useMemo } from 'react';
 import { matchesAllWords } from '@/lib/utils';
 import { usePlaylistSort, type SortKey, type SortDirection } from '@/hooks/usePlaylistSort';
-import type { Track } from '@/lib/spotify/types';
+import type { Track } from '@/lib/music-provider/types';
 
 export function useFilteringAndSorting(
   tracks: Track[],

@@ -7,7 +7,7 @@
 
 import { useRef, useCallback } from 'react';
 import type { Virtualizer } from '@tanstack/react-virtual';
-import type { Track } from '@/lib/spotify/types';
+import type { Track } from '@/lib/music-provider/types';
 import type { PanelVirtualizerData } from './types';
 
 /**

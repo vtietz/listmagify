@@ -2,7 +2,7 @@
  * Shared types for playlist mutation hooks.
  */
 
-import type { Track } from '@/lib/spotify/types';
+import type { Track } from '@/lib/music-provider/types';
 
 // Re-export InfiniteData from sortUtils for convenience
 export type { InfiniteData } from '@/lib/dnd/sortUtils';

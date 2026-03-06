@@ -36,7 +36,7 @@ function mapKnownAppRouteError(error: any): NextResponse | null {
 
   if (error.status === 404 && error.message === 'no_active_device') {
     return NextResponse.json(
-      { error: 'no_active_device', message: error.detail ?? 'No active Spotify device found. Open Spotify on a device first.' },
+      { error: 'no_active_device', message: error.detail ?? 'No active playback device found. Open your music app on a device first.' },
       { status: 404 }
     );
   }
@@ -45,7 +45,7 @@ function mapKnownAppRouteError(error: any): NextResponse | null {
     return NextResponse.json(
       {
         error: 'premium_required',
-        message: error.detail ?? 'Spotify Premium is required to control playback. You can still use this app to organize your playlists!',
+        message: error.detail ?? 'A premium subscription is required to control playback. You can still use this app to organize your playlists!',
       },
       { status: 403 }
     );

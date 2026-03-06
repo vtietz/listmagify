@@ -8,7 +8,7 @@
 import { useMemo } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { makeCompositeId, getTrackPosition } from '@/lib/dnd/id';
-import type { Track } from '@/lib/spotify/types';
+import type { Track } from '@/lib/music-provider/types';
 
 // ============================================================================
 // Types

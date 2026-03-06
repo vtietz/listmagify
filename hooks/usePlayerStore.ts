@@ -1,10 +1,10 @@
 /**
- * Zustand store for Spotify playback state and controls.
+ * Zustand store for playback state and controls.
  * Manages player UI state, device selection, and playback queue context.
  */
 
 import { create } from 'zustand';
-import type { SpotifyDevice, PlaybackState } from '@/lib/spotify/playerTypes';
+import type { PlaybackDevice, PlaybackState } from '@/lib/music-provider/types';
 
 export interface PlaybackContext {
   /** Playlist, album, or artist URI */
@@ -26,7 +26,7 @@ interface PlayerStore {
   error: string | null;
   
   // Device management
-  devices: SpotifyDevice[];
+  devices: PlaybackDevice[];
   selectedDeviceId: string | null;
   isDeviceSelectorOpen: boolean;
   
@@ -44,7 +44,7 @@ interface PlayerStore {
   
   // Actions
   setPlaybackState: (state: PlaybackState | null) => void;
-  setDevices: (devices: SpotifyDevice[]) => void;
+  setDevices: (devices: PlaybackDevice[]) => void;
   setSelectedDevice: (deviceId: string | null) => void;
   setDeviceSelectorOpen: (open: boolean) => void;
   setWebPlayerDeviceId: (deviceId: string | null) => void;

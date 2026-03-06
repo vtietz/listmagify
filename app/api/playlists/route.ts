@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, ServerAuthError } from '@/lib/auth/requireAuth';
-import { spotifyFetch } from '@/lib/spotify/client';
+import { resolveMusicProviderFromRequest } from '@/app/api/_shared/provider';
 import { handleApiError } from '@/lib/api/errorHandler';
+import { ProviderApiError, type Playlist } from '@/lib/music-provider/types';
 
 interface CreatePlaylistInput {
   name: string;
@@ -21,66 +22,29 @@ function parseCreatePlaylistBody(body: any): CreatePlaylistInput | null {
   };
 }
 
-async function fetchCurrentUser() {
-  const response = await spotifyFetch('/me', { method: 'GET' });
-
-  if (!response.ok) {
-    if (response.status === 401) {
-      return { error: NextResponse.json({ error: 'token_expired' }, { status: 401 }) };
-    }
-
-    return {
-      error: NextResponse.json(
-        { error: 'Failed to get user info' },
-        { status: response.status }
-      ),
-    };
-  }
-
-  return { data: await response.json() };
-}
-
-async function createPlaylist(userId: string, input: CreatePlaylistInput) {
-  const response = await spotifyFetch(`/users/${encodeURIComponent(userId)}/playlists`, {
-    method: 'POST',
-    body: JSON.stringify({
-      name: input.name,
-      description: input.description,
-      public: input.isPublic,
-    }),
-  });
-
-  if (!response.ok) {
-    if (response.status === 401) {
-      return { error: NextResponse.json({ error: 'token_expired' }, { status: 401 }) };
-    }
-
-    return {
-      error: NextResponse.json(
-        { error: `Failed to create playlist: ${response.status} ${response.statusText}` },
-        { status: response.status }
-      ),
-    };
-  }
-
-  return { data: await response.json() };
-}
-
-function toPlaylistResponse(playlist: any, meData: any) {
+function toPlaylistResponse(playlist: Playlist, meData: { displayName: string | null }) {
   return {
     id: playlist.id,
     name: playlist.name,
     description: playlist.description ?? '',
-    isPublic: playlist.public,
-    ownerName: playlist.owner?.display_name ?? meData.display_name ?? null,
-    image: playlist.images?.[0] ?? null,
-    tracksTotal: playlist.tracks?.total ?? 0,
+    isPublic: playlist.isPublic ?? false,
+    ownerName: playlist.owner?.displayName ?? meData.displayName ?? null,
+    image: playlist.image ?? null,
+    tracksTotal: playlist.tracksTotal ?? 0,
   };
 }
 
 function mapPlaylistsPostError(error: unknown): NextResponse {
   if (error instanceof ServerAuthError) {
     return NextResponse.json({ error: 'token_expired' }, { status: 401 });
+  }
+
+  if (error instanceof ProviderApiError) {
+    if (error.status === 401) {
+      return NextResponse.json({ error: 'token_expired' }, { status: 401 });
+    }
+
+    return NextResponse.json({ error: error.message, details: error.details }, { status: error.status });
   }
 
   return handleApiError(error);
@@ -101,6 +65,7 @@ function mapPlaylistsPostError(error: unknown): NextResponse {
 export async function POST(request: NextRequest) {
   try {
     await requireAuth();
+    const { provider } = resolveMusicProviderFromRequest(request);
 
     const body = await request.json();
     const input = parseCreatePlaylistBody(body);
@@ -108,20 +73,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Playlist name is required' }, { status: 400 });
     }
 
-    const currentUser = await fetchCurrentUser();
-    if (currentUser.error) {
-      return currentUser.error;
-    }
-
-    const created = await createPlaylist(currentUser.data.id, input);
-    if (created.error) {
-      return created.error;
-    }
-
-    const playlist = created.data;
-    const meData = currentUser.data;
-
-    return NextResponse.json(toPlaylistResponse(playlist, meData));
+    const currentUser = await provider.getCurrentUser();
+    const playlist = await provider.createPlaylist({
+      userId: currentUser.id,
+      name: input.name,
+      description: input.description,
+      isPublic: input.isPublic,
+    });
+    return NextResponse.json(toPlaylistResponse(playlist, currentUser));
   } catch (error) {
     return mapPlaylistsPostError(error);
   }

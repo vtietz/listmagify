@@ -1,5 +1,5 @@
 /**
- * Stats User Profiles API - Fetches Spotify user profiles for display in stats.
+ * Stats User Profiles API - Fetches provider user profiles for display in stats.
  * 
  * POST /api/stats/user-profiles
  * Body: { userIds: string[] }
@@ -10,8 +10,9 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth/requireAuth';
-import { spotifyFetchWithToken } from '@/lib/spotify/client';
+import { resolveMusicProviderFromRequest } from '@/app/api/_shared/provider';
 import { getMetricsConfig } from '@/lib/metrics/env';
+import type { MusicProvider } from '@/lib/music-provider/types';
 
 function fallbackProfile(userId: string, showUserDetails: boolean): UserProfile {
   return {
@@ -21,21 +22,20 @@ function fallbackProfile(userId: string, showUserDetails: boolean): UserProfile 
   };
 }
 
-async function fetchUserProfile(accessToken: string, userId: string, showUserDetails: boolean): Promise<UserProfile> {
+async function fetchUserProfile(
+  provider: MusicProvider,
+  userId: string,
+  showUserDetails: boolean
+): Promise<UserProfile> {
   if (!userId || typeof userId !== 'string') {
     return fallbackProfile(String(userId), showUserDetails);
   }
 
   try {
-    const response = await spotifyFetchWithToken(accessToken, `/users/${encodeURIComponent(userId)}`);
-    if (!response.ok) {
-      return fallbackProfile(userId, showUserDetails);
-    }
-
-    const data = await response.json();
+    const data = await provider.getUserProfile(userId);
     return {
       id: userId,
-      displayName: data.display_name || userId,
+      displayName: data.displayName || userId,
       ...(showUserDetails && data.email ? { email: data.email } : {}),
     };
   } catch {
@@ -51,7 +51,8 @@ export interface UserProfile {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await requireAuth();
+    await requireAuth();
+    const { provider } = resolveMusicProviderFromRequest(request);
     
     const body = await request.json().catch(() => ({}));
     const { userIds } = body;
@@ -78,7 +79,7 @@ export async function POST(request: NextRequest) {
     const profiles = await Promise.all(
       userIds
         .filter((userId: unknown): userId is string => typeof userId === 'string' && userId.length > 0)
-        .map((userId: string) => fetchUserProfile(session.accessToken, userId, config.showUserDetails))
+        .map((userId: string) => fetchUserProfile(provider, userId, config.showUserDetails))
     );
 
     return NextResponse.json({

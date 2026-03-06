@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { assertAuthenticated } from '@/app/api/_shared/guard';
+import { resolveMusicProviderFromRequest } from '@/app/api/_shared/provider';
 import { isAppRouteError } from '@/lib/errors';
-import { spotifyFetch } from '@/lib/spotify/client';
+import { ProviderApiError } from '@/lib/music-provider/types';
 
 function mapFallbackUser(userId: string) {
   return {
@@ -14,19 +15,19 @@ function mapFallbackUser(userId: string) {
 function mapUserResponse(user: any) {
   return {
     id: user.id,
-    displayName: user.display_name || null,
-    imageUrl: user.images?.[0]?.url || null,
+    displayName: user.displayName || null,
+    imageUrl: user.imageUrl || null,
   };
 }
 
 /**
  * GET /api/users/[id]
  * 
- * Fetches a Spotify user's public profile.
+ * Fetches a music provider user's public profile.
  * Returns: { id, displayName, imageUrl }
  */
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -38,28 +39,23 @@ export async function GET(
       return NextResponse.json({ error: 'Invalid user ID' }, { status: 400 });
     }
 
-    const res = await spotifyFetch(`/users/${encodeURIComponent(userId)}`, {
-      method: 'GET',
-    });
-
-    if (!res.ok) {
-      if (res.status === 404) {
+    const { provider } = resolveMusicProviderFromRequest(request);
+    const user = await provider.getUserProfile(userId);
+    return NextResponse.json(mapUserResponse(user));
+  } catch (error) {
+    if (error instanceof ProviderApiError) {
+      if (error.status === 404) {
+        const { id: userId } = await params;
         return NextResponse.json(mapFallbackUser(userId));
       }
 
-      if (res.status === 401) {
+      if (error.status === 401) {
         return NextResponse.json({ error: 'token_expired' }, { status: 401 });
       }
 
-      return NextResponse.json(
-        { error: `Failed to fetch user: ${res.status}` },
-        { status: res.status }
-      );
+      return NextResponse.json({ error: error.message, details: error.details }, { status: error.status });
     }
 
-    const user = await res.json();
-    return NextResponse.json(mapUserResponse(user));
-  } catch (error) {
     if (isAppRouteError(error) && error.status === 401) {
       return NextResponse.json({ error: 'token_expired' }, { status: 401 });
     }

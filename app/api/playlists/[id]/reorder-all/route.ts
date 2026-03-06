@@ -1,105 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, ServerAuthError } from "@/lib/auth/requireAuth";
-import { spotifyFetchWithToken } from "@/lib/spotify/client";
+import { resolveMusicProviderFromRequest } from '@/app/api/_shared/provider';
+import { ProviderApiError } from '@/lib/music-provider/types';
 
 type ReorderAllInput = {
   playlistId: string;
   trackUris: string[];
 };
 
-/**
- * Helper function to process large playlists in batches
- */
-async function processBatchedReorder(
-  accessToken: string,
-  path: string,
-  trackUris: string[]
-): Promise<string | null> {
-  console.warn(`[api/playlists/reorder-all] Large playlist detected (${trackUris.length} tracks). Using batch operation.`);
-
-  // Step 1: Clear the playlist
-  const clearRes = await spotifyFetchWithToken(accessToken, path, {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ uris: [] }),
-  });
-
-  if (!clearRes.ok) {
-    void await clearRes.text().catch(() => "");
-    console.error(`[api/playlists/reorder-all] Failed to clear playlist: ${clearRes.status}`);
-    throw new Error(`Failed to clear playlist: ${clearRes.status}`);
-  }
-
-  // Step 2: Add tracks back in batches of 100
-  let newSnapshotId: string | null = null;
-  
-  for (let i = 0; i < trackUris.length; i += 100) {
-    const batch = trackUris.slice(i, i + 100);
-    
-    const addRes = await spotifyFetchWithToken(accessToken, path, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ uris: batch }),
-    });
-
-    if (!addRes.ok) {
-      void await addRes.text().catch(() => "");
-      console.error(`[api/playlists/reorder-all] Failed to add batch ${i / 100 + 1}: ${addRes.status}`);
-      throw new Error(`Failed to add batch ${i / 100 + 1}: ${addRes.status}`);
-    }
-
-    const result = await addRes.json();
-    newSnapshotId = result?.snapshot_id ?? null;
-  }
-
-  return newSnapshotId;
-}
-
-/**
- * Helper function to handle Spotify API errors consistently
- */
-function handleSpotifyError(res: Response, text: string, uriCount: number) {
-  console.error(`[api/playlists/reorder-all] Spotify API error: ${res.status} ${text}`);
-  
-  // Forward 401 errors with consistent format
-  if (res.status === 401) {
-    return NextResponse.json({ error: "token_expired" }, { status: 401 });
-  }
-  
-  // Provide actionable error messages
-  let errorMessage = `Failed to reorder playlist: ${res.status} ${res.statusText}`;
-  
-  if (res.status === 400) {
-    // Parse error response to get more details
-    let errorDetails = text;
-    try {
-      const errorJson = JSON.parse(text);
-      errorDetails = errorJson?.error?.message || errorJson?.message || text;
-    } catch {
-      // text is not JSON, use as-is
-    }
-    
-    errorMessage = "Invalid request. Some tracks may not be available or have been removed from Spotify.";
-    console.error(
-      `[api/playlists/reorder-all] Spotify API returned 400. ` +
-      `This usually means one or more tracks are unavailable, removed, or region-restricted. ` +
-      `Track URIs in this batch: ${uriCount}. Details: ${errorDetails}`
-    );
-  } else if (res.status === 403) {
-    errorMessage = "You don't have permission to modify this playlist.";
-  } else if (res.status === 404) {
-    errorMessage = "Playlist not found.";
-  }
-
-  return NextResponse.json(
-    { error: errorMessage, details: text },
-    { status: res.status }
-  );
-}
 
 async function parseReorderAllInput(
   request: NextRequest,
@@ -121,15 +29,13 @@ async function parseReorderAllInput(
     );
   }
 
-  if (!trackUris.every((uri: unknown) => typeof uri === "string" && uri.startsWith("spotify:track:"))) {
-    const invalidUris = trackUris.filter((uri: unknown) =>
-      typeof uri !== "string" || !uri.startsWith("spotify:track:")
-    );
+  if (!trackUris.every((uri: unknown) => typeof uri === "string" && uri.length > 0)) {
+    const invalidUris = trackUris.filter((uri: unknown) => typeof uri !== "string" || uri.length === 0);
     console.error(`[api/playlists/reorder-all] Invalid URIs found:`, invalidUris.slice(0, 10));
     return NextResponse.json(
       {
-        error: "All trackUris must be valid Spotify track URIs starting with 'spotify:track:'",
-        details: `Found ${invalidUris.length} invalid URI(s). Local files, episodes, and other non-Spotify tracks cannot be reordered.`
+        error: "All trackUris must be non-empty strings",
+        details: `Found ${invalidUris.length} invalid URI(s).`
       },
       { status: 400 }
     );
@@ -146,50 +52,26 @@ async function parseReorderAllInput(
   return { playlistId, trackUris };
 }
 
-async function executeSimpleReorder(
-  accessToken: string,
-  path: string,
-  trackUris: string[]
-): Promise<string | NextResponse> {
-  const res = await spotifyFetchWithToken(accessToken, path, {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ uris: trackUris }),
-  });
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    return handleSpotifyError(res, text, trackUris.length);
-  }
-
-  const result = await res.json();
-  return result?.snapshot_id ?? "";
-}
-
-async function executeReorderAll(
-  accessToken: string,
-  path: string,
-  trackUris: string[]
-): Promise<string | NextResponse> {
-  if (trackUris.length <= 100) {
-    return executeSimpleReorder(accessToken, path, trackUris);
-  }
-
-  try {
-    return (await processBatchedReorder(accessToken, path, trackUris)) ?? "";
-  } catch (batchError) {
-    return NextResponse.json(
-      { error: batchError instanceof Error ? batchError.message : "Failed to reorder playlist" },
-      { status: 500 }
-    );
-  }
-}
-
 function mapReorderAllThrownError(error: unknown): NextResponse {
   if (error instanceof ServerAuthError) {
     return NextResponse.json({ error: "token_expired" }, { status: 401 });
+  }
+
+  if (error instanceof ProviderApiError) {
+    if (error.status === 401) {
+      return NextResponse.json({ error: 'token_expired' }, { status: 401 });
+    }
+
+    let errorMessage = error.message;
+    if (error.status === 400) {
+      errorMessage = 'Invalid request. Some tracks may not be available in this provider catalog.';
+    } else if (error.status === 403) {
+      errorMessage = "You don't have permission to modify this playlist.";
+    } else if (error.status === 404) {
+      errorMessage = 'Playlist not found.';
+    }
+
+    return NextResponse.json({ error: errorMessage, details: error.details }, { status: error.status });
   }
 
   console.error("[api/playlists/reorder-all] Error:", error);
@@ -223,7 +105,8 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await requireAuth();
+    await requireAuth();
+    const { provider } = resolveMusicProviderFromRequest(request);
 
     const parsedInput = await parseReorderAllInput(request, params);
     if (parsedInput instanceof NextResponse) {
@@ -231,21 +114,8 @@ export async function PUT(
     }
 
     const { playlistId, trackUris } = parsedInput;
-    const path = `/playlists/${encodeURIComponent(playlistId)}/tracks`;
-    const result = await executeReorderAll(session.accessToken, path, trackUris);
-    if (result instanceof NextResponse) {
-      return result;
-    }
-
-    if (!result) {
-      console.warn("[api/playlists/reorder-all] No snapshot_id in response");
-      return NextResponse.json(
-        { error: "Reorder succeeded but no snapshot_id returned" },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({ snapshotId: result });
+    const reordered = await provider.replacePlaylistTracks(playlistId, trackUris);
+    return NextResponse.json({ snapshotId: reordered.snapshotId });
   } catch (error) {
     return mapReorderAllThrownError(error);
   }

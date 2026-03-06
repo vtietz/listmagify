@@ -1,46 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { assertAuthenticated } from '@/app/api/_shared/guard';
+import { resolveMusicProviderFromRequest } from '@/app/api/_shared/provider';
 import { isAppRouteError } from '@/lib/errors';
-import { spotifyFetch } from '@/lib/spotify/client';
-import { parsePlaylistId } from '@/lib/services/spotifyPlaylistService';
+import { parsePlaylistId } from '@/lib/services/playlistService';
+import { ProviderApiError } from '@/lib/music-provider/types';
 
-async function fetchPlaylistPermissionData(playlistId: string) {
-  const path = `/playlists/${encodeURIComponent(playlistId)}`;
-  const fields = 'owner.id,collaborative';
-  const response = await spotifyFetch(`${path}?fields=${encodeURIComponent(fields)}`, { method: 'GET' });
-
-  if (!response.ok) {
-    const text = await response.text().catch(() => '');
-    if (response.status === 401) {
-      return { error: NextResponse.json({ error: 'token_expired' }, { status: 401 }) };
-    }
-    if (response.status === 404) {
-      return { error: NextResponse.json({ error: 'Playlist not found' }, { status: 404 }) };
-    }
-    return {
-      error: NextResponse.json(
-        { error: `Failed to fetch playlist: ${response.status} ${response.statusText}` },
-        { status: response.status }
-      ),
-      text,
-    };
-  }
-
-  return { data: await response.json() };
-}
-
-async function fetchCurrentUserId() {
-  const userResponse = await spotifyFetch('/me', { method: 'GET' });
-  if (!userResponse.ok) {
-    return { error: NextResponse.json({ error: 'Failed to fetch user info' }, { status: userResponse.status }) };
-  }
-
-  const user = await userResponse.json();
-  if (!user?.id) {
+async function fetchCurrentUserId(provider: ReturnType<typeof resolveMusicProviderFromRequest>['provider']) {
+  const user = await provider.getCurrentUser();
+  if (!user.id) {
     return { error: NextResponse.json({ error: 'Failed to determine user ID' }, { status: 500 }) };
   }
 
-  return { userId: user.id as string };
+  return { userId: user.id };
 }
 
 function mapPermissionsError(error: unknown): NextResponse {
@@ -50,6 +21,18 @@ function mapPermissionsError(error: unknown): NextResponse {
 
   if (isAppRouteError(error) && error.status === 400) {
     return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+
+  if (error instanceof ProviderApiError) {
+    if (error.status === 401) {
+      return NextResponse.json({ error: 'token_expired' }, { status: 401 });
+    }
+
+    if (error.status === 404) {
+      return NextResponse.json({ error: 'Playlist not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({ error: error.message, details: error.details }, { status: error.status });
   }
 
   console.error('[api/playlists/permissions] Error:', error);
@@ -73,21 +56,19 @@ export async function GET(
 ) {
   try {
     await assertAuthenticated();
+    const { provider } = resolveMusicProviderFromRequest(_request);
     const { id } = await params;
     const playlistId = parsePlaylistId(id);
 
-    const playlistResult = await fetchPlaylistPermissionData(playlistId);
-    if (playlistResult.error) {
-      return playlistResult.error;
-    }
+    const playlistPermissions = await provider.getPlaylistPermissions(playlistId);
 
-    const userResult = await fetchCurrentUserId();
+    const userResult = await fetchCurrentUserId(provider);
     if (userResult.error) {
       return userResult.error;
     }
 
-    const isOwner = playlistResult.data?.owner?.id === userResult.userId;
-    const isCollaborative = playlistResult.data?.collaborative === true;
+    const isOwner = playlistPermissions.ownerId === userResult.userId;
+    const isCollaborative = playlistPermissions.collaborative;
     const isEditable = isOwner || isCollaborative;
 
     return NextResponse.json({ isEditable });

@@ -2,7 +2,7 @@
  * Custom hook for sorting playlist tracks with memoization
  */
 import { useMemo } from "react";
-import type { Track } from "@/lib/spotify/types";
+import type { Track } from '@/lib/music-provider/types';
 import {
   sortTracks,
   type SortKey,

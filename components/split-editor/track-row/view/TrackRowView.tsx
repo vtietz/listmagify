@@ -20,7 +20,7 @@ import {
   ContributorAvatar,
 } from '../../TrackRowActions';
 import { cn } from '@/lib/utils';
-import type { Track } from '@/lib/spotify/types';
+import type { Track } from '@/lib/music-provider/types';
 import { InsertionControls } from './InsertionControls';
 
 interface TrackRowViewProps {

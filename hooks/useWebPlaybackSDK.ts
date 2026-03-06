@@ -9,7 +9,7 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import { useSessionUser } from './useSessionUser';
 import { usePlayerStore } from './usePlayerStore';
 import { apiFetch } from '@/lib/api/client';
-import type { SpotifyDevice } from '@/lib/spotify/playerTypes';
+import type { PlaybackDevice } from '@/lib/music-provider/types';
 import { toast } from '@/lib/ui/toast';
 
 const PLAYER_NAME = 'Spotify Playlist Editor';
@@ -164,7 +164,7 @@ export function useWebPlaybackSDK(): UseWebPlaybackSDKResult {
         setIsInitializing(false);
         
         // Add the web player to the devices list
-        const webPlayerDevice: SpotifyDevice = {
+        const webPlayerDevice: PlaybackDevice = {
           id: device_id,
           name: PLAYER_NAME,
           type: 'Computer',

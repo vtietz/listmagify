@@ -5,7 +5,7 @@
  * Each handler returns true if the operation was handled, false otherwise.
  */
 
-import type { Track } from '@/lib/spotify/types';
+import type { Track } from '@/lib/music-provider/types';
 import type { PanelConfig, TrackWithPositions } from './types';
 import { buildTracksWithPositions, getTrackPositions, isContiguousRange } from './helpers';
 import { logDebug } from '@/lib/utils/debug';

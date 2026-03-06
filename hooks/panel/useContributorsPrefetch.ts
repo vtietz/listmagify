@@ -7,7 +7,7 @@
 import { useMemo } from 'react';
 import { usePrefetchContributorProfiles, useUserProfilesCache } from '@/hooks/useUserProfiles';
 import { hasMultipleContributors as checkMultipleContributors } from './panelUtils';
-import type { Track } from '@/lib/spotify/types';
+import type { Track } from '@/lib/music-provider/types';
 
 export function useContributorsPrefetch(tracks: Track[]) {
   const hasMultipleContributors = useMemo(

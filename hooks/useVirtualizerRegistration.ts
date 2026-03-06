@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 
-import type { Track } from '@/lib/spotify/types';
+import type { Track } from '@/lib/music-provider/types';
 
 type RegisterVirtualizer = (
   panelId: string,

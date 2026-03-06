@@ -31,7 +31,7 @@ import { toast } from '@/lib/ui/toast';
 import { LastfmBrowseFilters } from './LastfmBrowseFilters';
 import { LastfmBrowseList } from './LastfmBrowseList';
 import type { ImportedTrackDTO, ImportSource } from '@/lib/importers/types';
-import type { Track } from '@/lib/spotify/types';
+import type { Track } from '@/lib/music-provider/types';
 
 /** Virtual panel ID for Last.fm browse (used in DnD composite IDs) */
 export const LASTFM_PANEL_ID = 'lastfm-panel';

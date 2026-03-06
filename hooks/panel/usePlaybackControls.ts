@@ -14,7 +14,7 @@
 
 import { useMemo, useCallback } from 'react';
 import { useTrackPlayback } from '@/hooks/useTrackPlayback';
-import type { Track } from '@/lib/spotify/types';
+import type { Track } from '@/lib/music-provider/types';
 
 export function usePlaybackControls(
   filteredTracks: Track[],

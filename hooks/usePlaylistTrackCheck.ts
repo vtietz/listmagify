@@ -6,7 +6,7 @@
 import { useCallback } from 'react';
 import { useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { playlistTracksInfinite } from '@/lib/api/queryKeys';
-import type { Track } from '@/lib/spotify/types';
+import type { Track } from '@/lib/music-provider/types';
 
 interface PlaylistTracksPage {
   tracks: Track[];

@@ -1,4 +1,4 @@
-import type { Track } from '@/lib/spotify/types';
+import type { Track } from '@/lib/music-provider/types';
 
 // Action group types
 export interface ReorderActions {

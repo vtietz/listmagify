@@ -7,7 +7,7 @@
  * - Triggering edge updates after captures
  */
 
-import type { Track } from "@/lib/spotify/types";
+import type { Track } from '@/lib/music-provider/types';
 import { unixNow, withTransaction } from "./db";
 import { updateAdjacencyEdgesFromPlaylist, updateCooccurrenceEdgesFromPlaylist } from "./edges";
 

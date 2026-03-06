@@ -11,7 +11,7 @@
 import { getRecsDb, unixNow } from "./db";
 import { scoringWeights, recsParams } from "./env";
 import { getAdjacencyEdgesFrom, getCooccurrenceNeighbors } from "./edges";
-import type { Track } from "@/lib/spotify/types";
+import type { Track } from '@/lib/music-provider/types';
 
 /**
  * A candidate recommendation with accumulated scores.

@@ -40,7 +40,7 @@ import { useHydratedCompactMode } from '../useCompactModeStore';
 import { usePlayerStore } from '../usePlayerStore';
 import { useAddTracks, useRemoveTracks, useReorderTracks } from '@/lib/spotify/playlistMutations';
 import { TABLE_HEADER_HEIGHT, TABLE_HEADER_HEIGHT_COMPACT } from '@/components/split-editor/constants';
-import type { Track } from '@/lib/spotify/types';
+import type { Track } from '@/lib/music-provider/types';
 
 import {
   useDndStateStore,

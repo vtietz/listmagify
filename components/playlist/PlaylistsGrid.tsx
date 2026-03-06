@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
-import type { Playlist } from "@/lib/spotify/types";
+import type { Playlist } from '@/lib/music-provider/types';
 import { PlaylistCard } from "@/components/playlist/PlaylistCard";
 import { PlaylistListItem } from "@/components/playlist/PlaylistListItem";
 import { apiFetch, ApiError } from "@/lib/api/client";

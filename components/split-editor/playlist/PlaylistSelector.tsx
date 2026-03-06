@@ -15,7 +15,7 @@ import { apiFetch } from '@/lib/api/client';
 import { userPlaylists } from '@/lib/api/queryKeys';
 import { cn, matchesAllWords } from '@/lib/utils';
 import { LIKED_SONGS_PLAYLIST_ID, LIKED_SONGS_METADATA, isLikedSongsPlaylist } from '@/hooks/useLikedVirtualPlaylist';
-import type { Playlist } from '@/lib/spotify/types';
+import type { Playlist } from '@/lib/music-provider/types';
 
 interface PlaylistSelectorProps {
   selectedPlaylistId: string | null;

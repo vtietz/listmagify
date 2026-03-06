@@ -18,19 +18,19 @@ import {
   Check,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import type { SpotifyDevice } from '@/lib/spotify/playerTypes';
+import type { PlaybackDevice } from '@/lib/music-provider/types';
 import { cn } from '@/lib/utils';
 
 interface DeviceSelectorProps {
   isOpen: boolean;
   onClose: () => void;
-  devices: SpotifyDevice[];
+  devices: PlaybackDevice[];
   selectedDeviceId: string | null;
   onSelectDevice: (deviceId: string) => void;
   onRefresh: () => void;
 }
 
-function getDeviceIcon(type: SpotifyDevice['type']) {
+function getDeviceIcon(type: PlaybackDevice['type']) {
   switch (type) {
     case 'Smartphone':
       return Smartphone;

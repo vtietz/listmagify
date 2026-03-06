@@ -4,7 +4,7 @@
  * Shared type definitions for drag-and-drop orchestration
  */
 
-import type { Track } from '@/lib/spotify/types';
+import type { Track } from '@/lib/music-provider/types';
 import type { Virtualizer } from '@tanstack/react-virtual';
 
 /**

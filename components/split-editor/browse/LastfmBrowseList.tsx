@@ -19,7 +19,7 @@ import { makeCompositeId } from '@/lib/dnd/id';
 import { makeMatchKeyFromDTO } from '@/hooks/useLastfmMatchCache';
 import { LASTFM_PANEL_ID } from './LastfmBrowseTab';
 import type { LastfmTrack, IndexedTrackDTO } from '@/hooks/useLastfmTracks';
-import type { Track } from '@/lib/spotify/types';
+import type { Track } from '@/lib/music-provider/types';
 
 interface LastfmBrowseListProps {
   allTracks: LastfmTrack[];

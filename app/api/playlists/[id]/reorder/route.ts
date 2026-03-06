@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/auth";
-import { spotifyFetch } from "@/lib/spotify/client";
+import { resolveMusicProviderFromRequest } from '@/app/api/_shared/provider';
 import { logTrackReorder } from '@/lib/metrics/api-helpers';
+import { ProviderApiError } from '@/lib/music-provider/types';
 
 type ReorderRequestData = {
   playlistId: string;
@@ -61,36 +62,27 @@ async function parseReorderRequest(
   };
 }
 
-function buildSpotifyReorderBody(input: ReorderRequestData): Record<string, any> {
-  return {
-    range_start: input.fromIndex,
-    insert_before: input.toIndex,
-    range_length: input.rangeLength,
-    ...(input.snapshotId ? { snapshot_id: input.snapshotId } : {}),
-  };
-}
-
-function mapSpotifyReorderError(res: Response, text: string): NextResponse {
-  if (res.status === 401) {
-    return NextResponse.json({ error: "token_expired" }, { status: 401 });
-  }
-
-  let errorMessage = `Failed to reorder tracks: ${res.status} ${res.statusText}`;
-  if (res.status === 400) {
-    errorMessage = "Invalid reorder request. The playlist may have been modified by another client.";
-  } else if (res.status === 403) {
-    errorMessage = "You don't have permission to modify this playlist.";
-  } else if (res.status === 404) {
-    errorMessage = "Playlist not found.";
-  }
-
-  return NextResponse.json(
-    { error: errorMessage, details: text },
-    { status: res.status }
-  );
-}
-
 function mapReorderThrownError(error: unknown): NextResponse {
+  if (error instanceof ProviderApiError) {
+    if (error.status === 401) {
+      return NextResponse.json({ error: 'token_expired' }, { status: 401 });
+    }
+
+    let errorMessage = error.message;
+    if (error.status === 400) {
+      errorMessage = 'Invalid reorder request. The playlist may have been modified by another client.';
+    } else if (error.status === 403) {
+      errorMessage = "You don't have permission to modify this playlist.";
+    } else if (error.status === 404) {
+      errorMessage = 'Playlist not found.';
+    }
+
+    return NextResponse.json(
+      { error: errorMessage, details: error.details },
+      { status: error.status }
+    );
+  }
+
   console.error("[api/playlists/reorder] Error:", error);
 
   const errorMessage = error instanceof Error ? error.message : String(error);
@@ -107,7 +99,7 @@ function mapReorderThrownError(error: unknown): NextResponse {
 /**
  * PUT /api/playlists/[id]/reorder
  * 
- * Reorders tracks in a playlist using Spotify's reorder endpoint.
+ * Reorders tracks in a playlist through the selected provider.
  * Supports optimistic concurrency via snapshot_id.
  * 
  * Body: { fromIndex: number, toIndex: number, rangeLength?: number, snapshotId?: string }
@@ -128,27 +120,16 @@ export async function PUT(
       return parsedRequest;
     }
 
-    const path = `/playlists/${encodeURIComponent(parsedRequest.playlistId)}/tracks`;
-    const requestBody = buildSpotifyReorderBody(parsedRequest);
-
-    const res = await spotifyFetch(path, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(requestBody),
+    const { provider } = resolveMusicProviderFromRequest(request);
+    const reordered = await provider.reorderTracks({
+      playlistId: parsedRequest.playlistId,
+      fromIndex: parsedRequest.fromIndex,
+      toIndex: parsedRequest.toIndex,
+      rangeLength: parsedRequest.rangeLength,
+      ...(parsedRequest.snapshotId ? { snapshotId: parsedRequest.snapshotId } : {}),
     });
 
-    if (!res.ok) {
-      const text = await res.text().catch(() => "");
-      console.error(`[api/playlists/reorder] PUT ${path} failed: ${res.status} ${text}`);
-      return mapSpotifyReorderError(res, text);
-    }
-
-    const result = await res.json();
-
-    // Extract new snapshot_id from response
-    const newSnapshotId = result?.snapshot_id ?? null;
+    const newSnapshotId = reordered.snapshotId ?? null;
 
     if (!newSnapshotId) {
       console.warn("[api/playlists/reorder] No snapshot_id in response");

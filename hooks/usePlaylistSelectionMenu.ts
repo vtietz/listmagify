@@ -2,7 +2,7 @@
 
 import { useCallback } from 'react';
 
-import type { Track } from '@/lib/spotify/types';
+import type { Track } from '@/lib/music-provider/types';
 import type { MarkerActions } from '@/components/split-editor/TrackContextMenu';
 
 type SelectionBounds = {

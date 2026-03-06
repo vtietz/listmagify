@@ -12,7 +12,7 @@
 
 import type { SplitNode } from '@/hooks/useSplitGridStore';
 import { PlaylistPanel } from '../playlist/PlaylistPanel';
-import type { Track } from '@/lib/spotify/types';
+import type { Track } from '@/lib/music-provider/types';
 import type { Virtualizer } from '@tanstack/react-virtual';
 import { useDeviceType } from '@/hooks/useDeviceType';
 import { usePanelFocusStore, getFocusedPanelSize, getUnfocusedPanelSize } from '@/hooks/usePanelFocusStore';

@@ -20,7 +20,7 @@ import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
 import { useDeviceType } from '@/hooks/useDeviceType';
 import { useMobileOverlayStore } from './mobile/MobileBottomNav';
 import { useDndStateStore } from '@/hooks/dnd/state';
-import type { Track } from '@/lib/spotify/types';
+import type { Track } from '@/lib/music-provider/types';
 
 interface VirtualizedTrackListContainerProps {
   /** Unique identifier for this panel */

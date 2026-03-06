@@ -18,7 +18,7 @@ import type {
   MatchResult,
   SpotifyMatchedTrack,
 } from '@/lib/importers/types';
-import { spotifyFetch } from '@/lib/spotify/client';
+import { getMusicProvider } from '@/lib/music-provider';
 import { mapPlaylistItemToTrack } from '@/lib/spotify/types';
 
 const lastfmBaseSchema = z.object({
@@ -147,8 +147,9 @@ export function parseMatchRequest(payload: unknown): { tracks: ImportedTrackDTO[
 }
 
 async function searchSpotify(query: string, limit: number): Promise<SpotifyMatchedTrack[]> {
+  const provider = getMusicProvider('spotify');
   const spotifyUrl = `/search?q=${encodeURIComponent(query)}&type=track&limit=${limit}`;
-  const response = await spotifyFetch(spotifyUrl);
+  const response = await provider.fetch(spotifyUrl);
 
   if (!response.ok) {
     const message = await response.text().catch(() => 'Search failed');

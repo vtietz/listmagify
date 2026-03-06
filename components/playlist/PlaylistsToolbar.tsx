@@ -6,7 +6,7 @@ import { RefreshCw, Plus } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { PlaylistDialog } from "@/components/playlist/PlaylistDialog";
 import { useCreatePlaylist } from "@/lib/spotify/playlistMutations";
-import type { Playlist } from "@/lib/spotify/types";
+import type { Playlist } from '@/lib/music-provider/types';
 
 export interface PlaylistsToolbarProps {
   searchTerm: string;
