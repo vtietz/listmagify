@@ -32,8 +32,8 @@ const eslintConfig = [
   {
     files: ['app/api/**/*.ts'],
     rules: {
-      complexity: ['warn', { max: 12 }],
-      'max-depth': ['warn', 3],
+      complexity: ['error', { max: 12 }],
+      'max-depth': ['error', 3],
     },
   },
   {
