@@ -9,6 +9,8 @@ const nextConfig = {
   output: 'standalone',
   // Ensure compatibility with Turbopack in Next.js 16+
   turbopack: {},
+  // Allow isolated build output for E2E dev server to avoid lock conflicts
+  ...(process.env.NEXT_DIST_DIR ? { distDir: process.env.NEXT_DIST_DIR } : {}),
 } as const;
 
 export default nextConfig;

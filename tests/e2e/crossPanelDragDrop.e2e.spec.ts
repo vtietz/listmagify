@@ -6,6 +6,8 @@ test.describe('Cross-Panel Split Editor', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto(TWO_PANEL_LAYOUT);
     await expect(page.locator('[data-testid="playlist-panel"]')).toHaveCount(2, { timeout: 15_000 });
+    await expect(page.getByText('Test Playlist 1').first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText('Test Playlist 2').first()).toBeVisible({ timeout: 20_000 });
   });
 
   test('should hydrate two panels from URL layout', async ({ page }) => {
@@ -43,8 +45,8 @@ test.describe('Cross-Panel Split Editor', () => {
     const panelTwo = panels.nth(1);
     const panelOneScroll = panelOne.locator('[data-testid="track-list-scroll"]');
 
-    const sourceRow = panelTwo.locator('div[id^="option-"]').filter({ hasText: 'Test Track 6' }).first();
-    await expect(sourceRow).toBeVisible();
+    const sourceRow = panelTwo.getByText('Test Track 6').first();
+    await expect(sourceRow).toBeVisible({ timeout: 20_000 });
     await expect(panelOneScroll).toBeVisible();
 
     const sourceBox = await sourceRow.boundingBox();
@@ -74,8 +76,8 @@ test.describe('Cross-Panel Split Editor', () => {
     const panelTwo = panels.nth(1);
     const panelOneScroll = panelOne.locator('[data-testid="track-list-scroll"]');
 
-    const sourceRow = panelTwo.locator('div[id^="option-"]').filter({ hasText: 'Test Track 6' }).first();
-    await expect(sourceRow).toBeVisible();
+    const sourceRow = panelTwo.getByText('Test Track 6').first();
+    await expect(sourceRow).toBeVisible({ timeout: 20_000 });
     await expect(panelOneScroll).toBeVisible();
 
     const sourceBox = await sourceRow.boundingBox();
@@ -108,5 +110,99 @@ test.describe('Cross-Panel Split Editor', () => {
 
     expect(Array.isArray(postData.trackUris)).toBeTruthy();
     expect(postData.trackUris?.length ?? 0).toBeGreaterThan(0);
+  });
+
+  test('should reflect edited playlist name immediately without reload', async ({ page }) => {
+    const updatedName = 'Renamed Playlist 1';
+    let wasUpdated = false;
+
+    await page.route('**/api/playlists/test-playlist-1', async (route) => {
+      const request = route.request();
+
+      if (request.method() === 'PUT') {
+        wasUpdated = true;
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true }),
+        });
+        return;
+      }
+
+      if (request.method() === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            id: 'test-playlist-1',
+            name: wasUpdated ? updatedName : 'Test Playlist 1',
+            description: 'Mock playlist used for e2e testing',
+            owner: { id: 'test-user-id', displayName: 'Test User' },
+            collaborative: false,
+            tracksTotal: 5,
+            isPublic: true,
+          }),
+        });
+        return;
+      }
+
+      await route.continue();
+    });
+
+    await page.route('**/api/me/playlists**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          items: [
+            {
+              id: 'test-playlist-1',
+              name: wasUpdated ? updatedName : 'Test Playlist 1',
+              description: 'Mock playlist used for e2e testing',
+              ownerName: 'Test User',
+              owner: { id: 'test-user-id', displayName: 'Test User' },
+              image: null,
+              tracksTotal: 5,
+              isPublic: true,
+            },
+            {
+              id: 'test-playlist-2',
+              name: 'Test Playlist 2',
+              description: 'Another mock playlist for e2e testing',
+              ownerName: 'Test User',
+              owner: { id: 'test-user-id', displayName: 'Test User' },
+              image: null,
+              tracksTotal: 5,
+              isPublic: true,
+            },
+          ],
+          nextCursor: null,
+          total: 2,
+        }),
+      });
+    });
+
+    await page.goto('/split-editor?layout=p.test-playlist-1');
+
+    const selectorButton = page.locator('button[title="Select playlist"]').first();
+    await expect(selectorButton).toBeVisible();
+    await expect(selectorButton).toContainText('Test Playlist 1');
+
+    await page.locator('[title="Edit playlist info"]').first().click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+
+    await page.locator('#playlist-name').fill(updatedName);
+
+    const updateRequestPromise = page.waitForRequest(
+      (request) =>
+        request.method() === 'PUT' &&
+        /\/api\/playlists\/test-playlist-1(?:\?|$)/.test(request.url()),
+      { timeout: 10_000 }
+    );
+
+    await page.getByRole('button', { name: 'Save Changes' }).click();
+    await updateRequestPromise;
+
+    await expect(selectorButton).toContainText(updatedName, { timeout: 15_000 });
   });
 });

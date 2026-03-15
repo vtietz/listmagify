@@ -69,6 +69,7 @@ services:
       - NODE_ENV=development
       - E2E_MODE=1
       - NEXT_PUBLIC_E2E_MODE=1
+      - NEXT_DIST_DIR=.next-e2e
       - NEXT_TELEMETRY_DISABLED=1
       - CHOKIDAR_USEPOLLING=1
       - WATCHPACK_POLLING=true

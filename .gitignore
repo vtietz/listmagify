@@ -16,6 +16,7 @@ coverage/
 out/
 build/
 dist/
+.next-e2e/
 
 # Production
 *.tsbuildinfo
