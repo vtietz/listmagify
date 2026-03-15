@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { assertAuthenticated } from '@/app/api/_shared/guard';
+import { resolveMusicProviderFromRequest } from '@/app/api/_shared/provider';
 import { isAppRouteError } from '@/lib/errors';
 import { assertLastfmAvailable, mapLastfmError, matchTracks } from '@/lib/services/lastfmService';
 
 /**
  * POST /api/lastfm/match
  * 
- * Match imported tracks to Spotify tracks.
+ * Match imported tracks to provider tracks.
  * Request body:
  * {
  *   tracks: ImportedTrackDTO[],  // Tracks to match
- *   limit?: number               // Max Spotify results per track (default 5)
+ *   limit?: number               // Max provider results per track (default 5)
  * }
  * 
  * Response:
@@ -22,9 +23,10 @@ export async function POST(request: NextRequest) {
   try {
     await assertAuthenticated();
     assertLastfmAvailable();
+    const { providerId } = resolveMusicProviderFromRequest(request);
 
     const payload = await request.json();
-    const result = await matchTracks(payload);
+    const result = await matchTracks(payload, providerId);
 
     return NextResponse.json(result);
   } catch (error) {

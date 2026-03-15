@@ -15,6 +15,7 @@ export type SessionUser = {
 
 export function useSessionUser() {
   const { data, status } = useSession();
+  const isE2EMode = process.env.NEXT_PUBLIC_E2E_MODE === '1';
   const user = data?.user as SessionUser | undefined;
 
   // Check for session error (e.g., RefreshAccessTokenError)
@@ -26,8 +27,8 @@ export function useSessionUser() {
     session: data,
     status, // "authenticated" | "unauthenticated" | "loading"
     // User is only authenticated if status says so AND there's no session error
-    authenticated: status === "authenticated" && !hasSessionError,
-    loading: status === "loading",
+    authenticated: isE2EMode || (status === "authenticated" && !hasSessionError),
+    loading: isE2EMode ? false : status === "loading",
     error,
     hasSessionError,
   };

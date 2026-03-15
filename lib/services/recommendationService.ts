@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { routeErrors } from '@/lib/errors';
 import { fetchTracks } from '@/lib/spotify/catalog';
+import type { MusicProviderId } from '@/lib/music-provider/types';
 import {
   getPlaylistAppendixRecommendations,
   getSeedRecommendations,
@@ -39,12 +40,18 @@ export function parseAppendixRequest(payload: unknown) {
   return parsed.data;
 }
 
-async function attachTrackMetadata(recommendations: Recommendation[]) {
+async function attachTrackMetadata(
+  recommendations: Recommendation[],
+  providerId: MusicProviderId
+) {
   if (recommendations.length === 0) {
     return recommendations;
   }
 
-  const tracks = await fetchTracks(recommendations.map((recommendation) => recommendation.trackId));
+  const tracks = await fetchTracks(
+    recommendations.map((recommendation) => recommendation.trackId),
+    providerId
+  );
   const trackMap = new Map(tracks.map((track) => [track.id, track]));
 
   for (const recommendation of recommendations) {
@@ -57,7 +64,10 @@ async function attachTrackMetadata(recommendations: Recommendation[]) {
   return recommendations;
 }
 
-export async function getSeedRecs(payload: unknown) {
+export async function getSeedRecs(
+  payload: unknown,
+  providerId: MusicProviderId = 'spotify'
+) {
   const parsed = parseSeedRequest(payload);
   const context: RecommendationContext = {
     excludeTrackIds: new Set(parsed.excludeTrackIds),
@@ -67,13 +77,16 @@ export async function getSeedRecs(payload: unknown) {
 
   const recommendations = getSeedRecommendations(parsed.seedTrackIds, context);
   if (parsed.includeMetadata) {
-    await attachTrackMetadata(recommendations);
+    await attachTrackMetadata(recommendations, providerId);
   }
 
   return recommendations;
 }
 
-export async function getAppendixRecs(payload: unknown) {
+export async function getAppendixRecs(
+  payload: unknown,
+  providerId: MusicProviderId = 'spotify'
+) {
   const parsed = parseAppendixRequest(payload);
   const context: RecommendationContext = {
     excludeTrackIds: new Set(parsed.trackIds),
@@ -83,7 +96,7 @@ export async function getAppendixRecs(payload: unknown) {
 
   const recommendations = getPlaylistAppendixRecommendations(parsed.trackIds, context);
   if (parsed.includeMetadata) {
-    await attachTrackMetadata(recommendations);
+    await attachTrackMetadata(recommendations, providerId);
   }
 
   return recommendations;

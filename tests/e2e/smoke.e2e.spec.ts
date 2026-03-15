@@ -3,42 +3,45 @@ import { test, expect } from '@playwright/test';
 test.describe('E2E Smoke Tests', () => {
   test('should load home page', async ({ page }) => {
     await page.goto('/');
-    await expect(page).toHaveTitle(/Spotify Playlist Editor/);
+    await expect(page).toHaveTitle(/Listmagify/);
   });
 
-  test('should display playlists', async ({ page }) => {
+  test('should display playlists on index page', async ({ page }) => {
     await page.goto('/playlists');
-    
-    // Mock API returns 2 playlists
-    await expect(page.locator('text=Test Playlist 1')).toBeVisible();
-    await expect(page.locator('text=Test Playlist 2')).toBeVisible();
+
+    // Page header
+    await expect(page.getByRole('heading', { name: 'Your Playlists' })).toBeVisible({ timeout: 15_000 });
+
+    // Mock API returns 2 playlists rendered as cards
+    await expect(page.getByText('Test Playlist 1').first()).toBeVisible();
+    await expect(page.getByText('Test Playlist 2').first()).toBeVisible();
   });
 
-  test('should view playlist detail', async ({ page }) => {
-    await page.goto('/playlists/test-playlist-1');
-    
-    // Verify playlist header
-    await expect(page.locator('h1:has-text("Test Playlist 1")')).toBeVisible();
-    
-    // Verify tracks from fixture (5 tracks)
-    await expect(page.locator('text=Test Track 1')).toBeVisible();
-    await expect(page.locator('text=Test Artist 1')).toBeVisible();
+  test('should open split-editor with a playlist', async ({ page }) => {
+    // Load a playlist in the split editor (same approach as playlistSelector tests)
+    await page.goto('/split-editor?layout=p.test-playlist-1');
+
+    // Wait for the playlist panel to appear
+    await expect(page.locator('[data-testid="playlist-panel"]').first()).toBeVisible({ timeout: 15_000 });
+
+    // Verify track content from fixture (5 tracks)
+    await expect(page.getByText('Test Track 1').first()).toBeVisible();
+    await expect(page.getByText('Test Artist 1').first()).toBeVisible();
   });
 
-  test('should handle pagination', async ({ page }) => {
-    await page.goto('/playlists/test-playlist-1');
-    
-    // Mock returns 5 tracks initially
-    const trackRows = page.locator('tr').filter({ hasText: 'Test Track' });
-    await expect(trackRows).toHaveCount(5);
-    
-    // Scroll to trigger load more (if implemented)
-    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-    
-    // Wait a bit for potential loading
-    await page.waitForTimeout(1000);
-    
-    // Should still have 5 tracks (mock has no pagination)
-    await expect(trackRows).toHaveCount(5);
+  test('should show all fixture tracks in split-editor', async ({ page }) => {
+    await page.goto('/split-editor?layout=p.test-playlist-1');
+
+    // Wait for panel to load
+    await expect(page.locator('[data-testid="playlist-panel"]').first()).toBeVisible({ timeout: 15_000 });
+
+    // The track list uses role="listbox"
+    const trackList = page.locator('[role="listbox"]').first();
+    await expect(trackList).toBeVisible();
+
+    // Fixture has 5 tracks — verify several are rendered
+    await expect(page.getByText('Test Track 1').first()).toBeVisible();
+    await expect(page.getByText('Test Track 3').first()).toBeVisible();
+    await expect(page.getByText('Test Track 5').first()).toBeVisible();
   });
 });

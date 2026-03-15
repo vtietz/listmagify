@@ -140,6 +140,7 @@ export async function apiFetch<T = any>(
     }
 
     const requestPath = url.split("?")[0];
+    const shouldOpenErrorDialog = process.env.NEXT_PUBLIC_E2E_MODE !== '1';
 
     // Handle 429 Rate Limit - report to error store
     if (response.status === 429) {
@@ -153,7 +154,9 @@ export async function apiFetch<T = any>(
       
       // Report to error store and show dialog
       reportError(rateLimitError);
-      useErrorStore.getState().openDialog(rateLimitError);
+      if (shouldOpenErrorDialog) {
+        useErrorStore.getState().openDialog(rateLimitError);
+      }
       
       throw new RateLimitApiError(
         rateLimitError.message,
@@ -183,7 +186,9 @@ export async function apiFetch<T = any>(
         });
         
         reportError(appError);
-        useErrorStore.getState().openDialog(appError);
+        if (shouldOpenErrorDialog) {
+          useErrorStore.getState().openDialog(appError);
+        }
         throw apiError;
       }
       
@@ -199,7 +204,9 @@ export async function apiFetch<T = any>(
         });
         
         reportError(appError);
-        useErrorStore.getState().openDialog(appError);
+        if (shouldOpenErrorDialog) {
+          useErrorStore.getState().openDialog(appError);
+        }
       }
       
       throw apiError;

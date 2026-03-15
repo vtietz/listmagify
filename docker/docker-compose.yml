@@ -68,6 +68,7 @@ services:
     environment:
       - NODE_ENV=development
       - E2E_MODE=1
+      - NEXT_PUBLIC_E2E_MODE=1
       - NEXT_TELEMETRY_DISABLED=1
       - CHOKIDAR_USEPOLLING=1
       - WATCHPACK_POLLING=true
@@ -76,7 +77,7 @@ services:
       - NEXTAUTH_SECRET=test-secret-key-for-e2e
       - SPOTIFY_CLIENT_ID=dummy-client-id
       - SPOTIFY_CLIENT_SECRET=dummy-client-secret
-      - SPOTIFY_BASE_URL=http://spotify-mock:8080
+      - SPOTIFY_BASE_URL=http://spotify-mock:8080/v1
     volumes:
       - ..:/usr/src/app:cached
       - ../node_modules:/usr/src/app/node_modules:cached
@@ -106,29 +107,28 @@ services:
 
   playwright-runner:
     profiles: ["test"]
-    image: mcr.microsoft.com/playwright:v1.48.2-jammy
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.playwright
+    image: sbs-playwright:dev
     working_dir: /work
     environment:
       - BASE_URL=http://web-test:3100
       - CI=true
+      - PLAYWRIGHT_ARGS=
     volumes:
       - ..:/work:cached
-      - playwright-cache:/root/.cache/ms-playwright  # Persist browser downloads
       - ../node_modules:/work/node_modules:cached  # Use bind mount for node_modules
     command: >
       sh -c "
-        npm install -g pnpm@10.26.2 &&
-        pnpm exec playwright install chromium --with-deps &&
-        pnpm exec playwright test
+        rm -rf test-results .playwright-artifacts-* &&
+        pnpm exec playwright test $$PLAYWRIGHT_ARGS
       "
     depends_on:
       - web-test
       - spotify-mock
     networks:
       - test-network
-
-volumes:
-  playwright-cache:  # Persist Playwright browser downloads
 
 networks:
   test-network:

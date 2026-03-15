@@ -23,8 +23,19 @@ export function resolveMusicProviderIdFromRequest(request: NextRequest) {
 
 export function resolveMusicProviderFromRequest(request: NextRequest) {
   const providerId = resolveMusicProviderIdFromRequest(request);
-  return {
-    providerId,
-    provider: getMusicProvider(providerId),
-  };
+
+  try {
+    return {
+      providerId,
+      provider: getMusicProvider(providerId),
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes('Provider not implemented')) {
+      throw routeErrors.featureDisabled(`Provider '${providerId}' is not available yet.`);
+    }
+
+    throw error;
+  }
+
 }

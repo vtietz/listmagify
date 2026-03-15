@@ -85,6 +85,14 @@ export interface ErrorReportResponse {
   reportId?: string;
 }
 
+function generateErrorId(): string {
+  if (typeof globalThis.crypto?.randomUUID === 'function') {
+    return globalThis.crypto.randomUUID();
+  }
+
+  return `err-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 /**
  * Create a new AppError with defaults
  */
@@ -92,7 +100,7 @@ export function createAppError(
   partial: Partial<AppError> & Pick<AppError, 'message' | 'category'>
 ): AppError {
   return {
-    id: crypto.randomUUID(),
+    id: generateErrorId(),
     timestamp: new Date().toISOString(),
     severity: 'error',
     userNotified: false,

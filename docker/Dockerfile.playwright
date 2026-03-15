@@ -1,0 +1,8 @@
+# Custom Playwright runner image with pnpm pre-installed.
+# Avoids reinstalling pnpm + system deps on every test run.
+FROM mcr.microsoft.com/playwright:v1.57.0-jammy
+
+# Pre-install pnpm so test runs don't need `npm install -g pnpm`
+RUN npm install -g pnpm@10.26.2
+
+WORKDIR /work

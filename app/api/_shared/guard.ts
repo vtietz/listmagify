@@ -1,8 +1,21 @@
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth/auth';
 import { routeErrors } from '@/lib/errors';
 
 export async function assertAuthenticated() {
+  if (process.env.E2E_MODE === '1') {
+    return {
+      user: {
+        id: 'e2e-user',
+        email: 'e2e@example.com',
+        name: 'E2E Test User',
+      },
+    };
+  }
+
+  const [{ getServerSession }, { authOptions }] = await Promise.all([
+    import('next-auth'),
+    import('@/lib/auth/auth'),
+  ]);
+
   const session = await getServerSession(authOptions);
 
   if (!session || (session as { error?: string }).error === 'RefreshAccessTokenError') {

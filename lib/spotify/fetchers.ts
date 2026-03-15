@@ -1,4 +1,5 @@
 import { getMusicProvider } from '@/lib/music-provider';
+import type { MusicProviderId } from '@/lib/music-provider/types';
 import { mapPlaylist, mapPlaylistItemToTrack, pageFromSpotify, type PageResult, type Playlist, type Track } from "@/lib/spotify/types";
 
 /**
@@ -8,9 +9,10 @@ import { mapPlaylist, mapPlaylistItemToTrack, pageFromSpotify, type PageResult, 
  */
 export async function getCurrentUserPlaylists(
   limit: number = 50,
-  nextCursor?: string | null
+  nextCursor?: string | null,
+  providerId: MusicProviderId = 'spotify'
 ): Promise<PageResult<Playlist>> {
-  const provider = getMusicProvider('spotify');
+  const provider = getMusicProvider(providerId);
   const path = nextCursor ?? `/me/playlists?limit=${Math.min(Math.max(limit, 1), 50)}`;
   const raw = await provider.getJSON<any>(path);
   return pageFromSpotify(raw, mapPlaylist);
@@ -19,8 +21,11 @@ export async function getCurrentUserPlaylists(
 /**
  * Fetch a single playlist's metadata.
  */
-export async function getPlaylistById(playlistId: string): Promise<Playlist> {
-  const provider = getMusicProvider('spotify');
+export async function getPlaylistById(
+  playlistId: string,
+  providerId: MusicProviderId = 'spotify'
+): Promise<Playlist> {
+  const provider = getMusicProvider(providerId);
   const raw = await provider.getJSON<any>(`/playlists/${encodeURIComponent(playlistId)}`);
   return mapPlaylist(raw);
 }
@@ -35,9 +40,10 @@ export async function getPlaylistById(playlistId: string): Promise<Playlist> {
 export async function getPlaylistItems(
   playlistId: string,
   limit: number = 100,
-  nextCursor?: string | null
+  nextCursor?: string | null,
+  providerId: MusicProviderId = 'spotify'
 ): Promise<PageResult<Track>> {
-  const provider = getMusicProvider('spotify');
+  const provider = getMusicProvider(providerId);
   const base = `/playlists/${encodeURIComponent(playlistId)}/tracks?limit=${Math.min(Math.max(limit, 1), 100)}`;
   const path = nextCursor ?? base;
 

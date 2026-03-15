@@ -1,5 +1,6 @@
 import { getCurrentUserPlaylists } from "@/lib/spotify/fetchers";
 import { PlaylistsContainer } from "@/components/playlist/PlaylistsContainer";
+import { parseMusicProviderId } from '@/lib/music-provider';
 
 export const dynamic = "force-dynamic";
 
@@ -10,11 +11,24 @@ export const dynamic = "force-dynamic";
  * - Server-rendered initial playlists for fast loading
  * - Client-side search filtering
  * - Infinite scroll with automatic loading
- * - Refresh button to re-fetch from Spotify
+ * - Refresh button to re-fetch from provider
  * - Authentication handled by middleware (no need for page-level redirects)
  */
-export default async function PlaylistsPage() {
-  const page = await getCurrentUserPlaylists(50);
+export default async function PlaylistsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ provider?: string }>;
+}) {
+  const resolvedSearchParams = await searchParams;
+  let providerId: 'spotify' | 'tidal' = 'spotify';
+
+  try {
+    providerId = parseMusicProviderId(resolvedSearchParams?.provider);
+  } catch {
+    providerId = 'spotify';
+  }
+
+  const page = await getCurrentUserPlaylists(50, undefined, providerId);
 
   return (
     <div className="container mx-auto p-6">

@@ -1,7 +1,7 @@
 /**
- * Spotify track matcher service
+ * Provider track matcher service
  * 
- * Handles matching imported tracks (from Last.fm, etc.) to Spotify tracks
+ * Handles matching imported tracks (from Last.fm, etc.) to provider tracks
  * using search queries, normalization, and scoring.
  */
 
@@ -9,7 +9,7 @@ import type {
   ImportedTrackDTO,
   MatchResult,
   MatchConfidence,
-  SpotifyMatchedTrack,
+  MatchedTrack,
 } from './types';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -73,7 +73,7 @@ export function sanitizeName(name: string): string {
 }
 
 /**
- * Build a Spotify search query from imported track data
+ * Build a provider search query from imported track data
  */
 export function buildSearchQuery(track: ImportedTrackDTO, includeAlbum = false): string {
   const artist = sanitizeName(track.artistName);
@@ -161,10 +161,10 @@ export function isEffectivelyEqual(a: string, b: string): boolean {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * Score a Spotify track against an imported track
+ * Score a matched provider track against an imported track
  * Returns a score from 0-100
  */
-export function scoreMatch(imported: ImportedTrackDTO, spotify: SpotifyMatchedTrack): number {
+export function scoreMatch(imported: ImportedTrackDTO, spotify: MatchedTrack): number {
   let score = 0;
   
   // Track name matching (40 points max)
@@ -214,11 +214,11 @@ export function getConfidence(score: number): MatchConfidence {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * Create match results from Spotify search results
+ * Create match results from provider search results
  */
 export function createMatchResult(
   imported: ImportedTrackDTO,
-  spotifyTracks: SpotifyMatchedTrack[]
+  spotifyTracks: MatchedTrack[]
 ): MatchResult {
   if (spotifyTracks.length === 0) {
     return {
@@ -251,6 +251,7 @@ export function createMatchResult(
   
   return {
     imported,
+    matchedTrack: best.track,
     spotifyTrack: best.track,
     confidence,
     score: best.score,
@@ -267,18 +268,20 @@ export function deduplicateMatches(results: MatchResult[]): MatchResult[] {
   const unique: MatchResult[] = [];
   
   for (const result of results) {
+    const matchedTrack = result.matchedTrack ?? result.spotifyTrack;
+
     // Skip tracks without a match
-    if (!result.spotifyTrack) {
+    if (!matchedTrack) {
       unique.push(result);
       continue;
     }
     
-    // Skip duplicates based on Spotify track URI
-    if (seen.has(result.spotifyTrack.uri)) {
+    // Skip duplicates based on track URI
+    if (seen.has(matchedTrack.uri)) {
       continue;
     }
     
-    seen.add(result.spotifyTrack.uri);
+    seen.add(matchedTrack.uri);
     unique.push(result);
   }
   

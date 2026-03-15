@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth/auth';
+import { assertAuthenticated } from '@/app/api/_shared/guard';
+import { isAppRouteError } from '@/lib/errors';
 import { isRecsAvailable, dismissRecommendation, clearDismissals } from '@/lib/recs';
+
+function mapDismissRouteError(error: unknown): NextResponse | null {
+  if (isAppRouteError(error) && error.status === 401) {
+    return NextResponse.json({ error: 'token_expired' }, { status: 401 });
+  }
+
+  return null;
+}
 
 /**
  * POST /api/recs/dismiss
@@ -15,14 +23,7 @@ import { isRecsAvailable, dismissRecommendation, clearDismissals } from '@/lib/r
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: 'token_expired' }, { status: 401 });
-    }
-
-    if ((session as any).error === 'RefreshAccessTokenError') {
-      return NextResponse.json({ error: 'token_expired' }, { status: 401 });
-    }
+    await assertAuthenticated();
 
     if (!isRecsAvailable()) {
       return NextResponse.json({
@@ -50,6 +51,11 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
+    const mapped = mapDismissRouteError(error);
+    if (mapped) {
+      return mapped;
+    }
+
     console.error('[api/recs/dismiss] Error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
@@ -65,14 +71,7 @@ export async function POST(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: 'token_expired' }, { status: 401 });
-    }
-
-    if ((session as any).error === 'RefreshAccessTokenError') {
-      return NextResponse.json({ error: 'token_expired' }, { status: 401 });
-    }
+    await assertAuthenticated();
 
     if (!isRecsAvailable()) {
       return NextResponse.json({
@@ -92,6 +91,11 @@ export async function DELETE(request: NextRequest) {
     });
 
   } catch (error) {
+    const mapped = mapDismissRouteError(error);
+    if (mapped) {
+      return mapped;
+    }
+
     console.error('[api/recs/dismiss] DELETE Error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },

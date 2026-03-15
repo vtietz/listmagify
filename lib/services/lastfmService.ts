@@ -19,7 +19,7 @@ import type {
   SpotifyMatchedTrack,
 } from '@/lib/importers/types';
 import { getMusicProvider } from '@/lib/music-provider';
-import { mapPlaylistItemToTrack } from '@/lib/spotify/types';
+import type { MusicProviderId } from '@/lib/music-provider/types';
 
 const lastfmBaseSchema = z.object({
   user: z.string().trim().min(1, 'Username is required').transform((value) => value.toLowerCase()),
@@ -146,21 +146,15 @@ export function parseMatchRequest(payload: unknown): { tracks: ImportedTrackDTO[
   };
 }
 
-async function searchSpotify(query: string, limit: number): Promise<SpotifyMatchedTrack[]> {
-  const provider = getMusicProvider('spotify');
-  const spotifyUrl = `/search?q=${encodeURIComponent(query)}&type=track&limit=${limit}`;
-  const response = await provider.fetch(spotifyUrl);
+async function searchProvider(
+  query: string,
+  limit: number,
+  providerId: MusicProviderId
+): Promise<SpotifyMatchedTrack[]> {
+  const provider = getMusicProvider(providerId);
+  const result = await provider.searchTracks(query, limit, 0);
 
-  if (!response.ok) {
-    const message = await response.text().catch(() => 'Search failed');
-    throw routeErrors.upstreamFailure(`Search failed: ${response.status}`, message);
-  }
-
-  const data = (await response.json()) as { tracks?: { items?: unknown[] } };
-  const items = data.tracks?.items ?? [];
-
-  return items.map((item) => {
-    const track = mapPlaylistItemToTrack({ track: item });
+  return result.tracks.map((track) => {
     return {
       id: track.id || '',
       uri: track.uri,
@@ -178,29 +172,36 @@ async function searchSpotify(query: string, limit: number): Promise<SpotifyMatch
   });
 }
 
-async function matchSingleTrack(track: ImportedTrackDTO, limit: number): Promise<MatchResult> {
-  const exact = await searchSpotify(buildSearchQuery(track, true), limit);
+async function matchSingleTrack(
+  track: ImportedTrackDTO,
+  limit: number,
+  providerId: MusicProviderId
+): Promise<MatchResult> {
+  const exact = await searchProvider(buildSearchQuery(track, true), limit, providerId);
   if (exact.length > 0) {
     return createMatchResult(track, exact);
   }
 
-  const relaxed = await searchSpotify(buildSearchQuery(track, false), limit);
+  const relaxed = await searchProvider(buildSearchQuery(track, false), limit, providerId);
   if (relaxed.length > 0) {
     return createMatchResult(track, relaxed);
   }
 
-  const fallback = await searchSpotify(buildFallbackQuery(track), limit);
+  const fallback = await searchProvider(buildFallbackQuery(track), limit, providerId);
   return createMatchResult(track, fallback);
 }
 
-export async function matchTracks(payload: MatchRequest): Promise<{ results: MatchResult[]; matched: number; total: number }> {
+export async function matchTracks(
+  payload: MatchRequest,
+  providerId: MusicProviderId = 'spotify'
+): Promise<{ results: MatchResult[]; matched: number; total: number }> {
   const { tracks, limit } = parseMatchRequest(payload);
   const tracksToMatch = tracks.slice(0, 20);
 
   const results = await Promise.all(
     tracksToMatch.map(async (track) => {
       try {
-        return await matchSingleTrack(track, limit);
+        return await matchSingleTrack(track, limit, providerId);
       } catch {
         return {
           imported: track,

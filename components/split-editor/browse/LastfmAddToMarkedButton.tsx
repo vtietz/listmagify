@@ -2,7 +2,7 @@
  * LastfmAddToMarkedButton - Add Last.fm track to insertion markers with matching
  * 
  * Unlike the regular AddToMarkedButton, this component:
- * 1. First matches the Last.fm track to Spotify if not already matched
+ * 1. First matches the Last.fm track to a provider track if not already matched
  * 2. Only then adds to the insertion markers
  */
 
@@ -27,7 +27,7 @@ interface LastfmAddToMarkedButtonProps {
 
 /**
  * Button to add a Last.fm track to all marked insertion points.
- * First matches the track to Spotify, then inserts at all markers.
+ * First matches the track to a provider track, then inserts at all markers.
  */
 export function LastfmAddToMarkedButton({
   lastfmTrack,
@@ -67,9 +67,11 @@ export function LastfmAddToMarkedButton({
         match = await matchTrack(lastfmTrack);
       }
 
+      const matchedTrack = match.matchedTrack ?? match.spotifyTrack;
+
       // Check if match was successful
-      if (match.status !== 'matched' || !match.spotifyTrack) {
-        toast.error(`Could not find "${trackName}" on Spotify`);
+      if (match.status !== 'matched' || !matchedTrack) {
+        toast.error(`Could not find "${trackName}" from provider search`);
         setIsInserting(false);
         return;
       }
@@ -81,7 +83,7 @@ export function LastfmAddToMarkedButton({
         return;
       }
 
-      const trackUri = match.spotifyTrack.uri;
+      const trackUri = matchedTrack.uri;
 
       // Step 2: Insert at each playlist's markers
       for (const [playlistId, data] of playlistsWithMarkers) {

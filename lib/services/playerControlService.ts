@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { routeErrors } from '@/lib/errors';
 import { getMusicProvider } from '@/lib/music-provider';
+import type { MusicProvider } from '@/lib/music-provider/types';
+import type { MusicProviderId } from '@/lib/music-provider/types';
 
 const actionSchema = z.enum([
   'play',
@@ -29,15 +31,14 @@ const requestSchema = z.object({
 
 type ControlRequest = z.infer<typeof requestSchema>;
 
-type ActionHandler = (payload: ControlRequest) => Promise<Response>;
+type ActionHandler = (provider: MusicProvider, payload: ControlRequest) => Promise<Response>;
 
 function deviceQuery(deviceId?: string): string {
   return deviceId ? `?device_id=${encodeURIComponent(deviceId)}` : '';
 }
 
 const actionHandlers: Record<ControlRequest['action'], ActionHandler> = {
-  play: async (payload) => {
-    const provider = getMusicProvider('spotify');
+  play: async (provider, payload) => {
     const playBody: Record<string, unknown> = {};
     if (payload.contextUri) playBody.context_uri = payload.contextUri;
     if (payload.uris) playBody.uris = payload.uris;
@@ -49,35 +50,30 @@ const actionHandlers: Record<ControlRequest['action'], ActionHandler> = {
       ...(Object.keys(playBody).length > 0 ? { body: JSON.stringify(playBody) } : {}),
     });
   },
-  pause: (payload) => getMusicProvider('spotify').fetch(`/me/player/pause${deviceQuery(payload.deviceId)}`, { method: 'PUT' }),
-  next: (payload) => getMusicProvider('spotify').fetch(`/me/player/next${deviceQuery(payload.deviceId)}`, { method: 'POST' }),
-  previous: (payload) => getMusicProvider('spotify').fetch(`/me/player/previous${deviceQuery(payload.deviceId)}`, { method: 'POST' }),
-  seek: (payload) => {
-    const provider = getMusicProvider('spotify');
+  pause: (provider, payload) => provider.fetch(`/me/player/pause${deviceQuery(payload.deviceId)}`, { method: 'PUT' }),
+  next: (provider, payload) => provider.fetch(`/me/player/next${deviceQuery(payload.deviceId)}`, { method: 'POST' }),
+  previous: (provider, payload) => provider.fetch(`/me/player/previous${deviceQuery(payload.deviceId)}`, { method: 'POST' }),
+  seek: (provider, payload) => {
     const seekMs = payload.seekPositionMs ?? 0;
     const device = payload.deviceId ? `&device_id=${encodeURIComponent(payload.deviceId)}` : '';
     return provider.fetch(`/me/player/seek?position_ms=${seekMs}${device}`, { method: 'PUT' });
   },
-  shuffle: (payload) => {
-    const provider = getMusicProvider('spotify');
+  shuffle: (provider, payload) => {
     const state = payload.shuffleState ?? false;
     const device = payload.deviceId ? `&device_id=${encodeURIComponent(payload.deviceId)}` : '';
     return provider.fetch(`/me/player/shuffle?state=${state}${device}`, { method: 'PUT' });
   },
-  repeat: (payload) => {
-    const provider = getMusicProvider('spotify');
+  repeat: (provider, payload) => {
     const state = payload.repeatState ?? 'off';
     const device = payload.deviceId ? `&device_id=${encodeURIComponent(payload.deviceId)}` : '';
     return provider.fetch(`/me/player/repeat?state=${state}${device}`, { method: 'PUT' });
   },
-  volume: (payload) => {
-    const provider = getMusicProvider('spotify');
+  volume: (provider, payload) => {
     const volumePercent = Math.max(0, Math.min(100, payload.volumePercent ?? 50));
     const device = payload.deviceId ? `&device_id=${encodeURIComponent(payload.deviceId)}` : '';
     return provider.fetch(`/me/player/volume?volume_percent=${volumePercent}${device}`, { method: 'PUT' });
   },
-  transfer: (payload) => {
-    const provider = getMusicProvider('spotify');
+  transfer: (provider, payload) => {
     if (!payload.deviceId) {
       throw routeErrors.badRequest('Device ID required for transfer');
     }
@@ -100,9 +96,13 @@ export function parseControlPayload(body: unknown): ControlRequest {
   return parsed.data;
 }
 
-export async function runPlaybackAction(payload: ControlRequest): Promise<void> {
+export async function runPlaybackAction(
+  payload: ControlRequest,
+  providerId: MusicProviderId = 'spotify'
+): Promise<void> {
+  const provider = getMusicProvider(providerId);
   const handler = actionHandlers[payload.action];
-  const response = await handler(payload);
+  const response = await handler(provider, payload);
 
   if (response.status === 204 || response.ok) {
     return;
@@ -111,13 +111,13 @@ export async function runPlaybackAction(payload: ControlRequest): Promise<void> 
   const errorText = await response.text().catch(() => '');
 
   if (response.status === 404) {
-    throw routeErrors.notFound('no_active_device', 'No active Spotify device found. Open Spotify on a device first.');
+    throw routeErrors.notFound('no_active_device', 'No active playback device found. Open your music app on a device first.');
   }
 
   if (response.status === 403) {
     throw routeErrors.forbidden(
       'premium_required',
-      'Spotify Premium is required to control playback. You can still use this app to organize your playlists!'
+      'A premium subscription is required to control playback. You can still use this app to organize your playlists!'
     );
   }
 

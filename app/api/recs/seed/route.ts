@@ -3,6 +3,7 @@ import {
   isRecsAvailable,
 } from '@/lib/recs';
 import { assertAuthenticated } from '@/app/api/_shared/guard';
+import { resolveMusicProviderFromRequest } from '@/app/api/_shared/provider';
 import { isAppRouteError } from '@/lib/errors';
 import { getSeedRecs } from '@/lib/services/recommendationService';
 
@@ -55,6 +56,7 @@ function parseSeedQueryParams(searchParams: URLSearchParams) {
 export async function POST(request: NextRequest) {
   try {
     await assertAuthenticated();
+    const { providerId } = resolveMusicProviderFromRequest(request);
 
     // Check if recommendations are enabled
     if (!isRecsAvailable()) {
@@ -65,7 +67,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const recommendations = await getSeedRecs(await request.json());
+    const recommendations = await getSeedRecs(await request.json(), providerId);
 
     return NextResponse.json({
       recommendations,
@@ -97,6 +99,7 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     await assertAuthenticated();
+    const { providerId } = resolveMusicProviderFromRequest(request);
 
     if (!isRecsAvailable()) {
       return NextResponse.json({
@@ -115,7 +118,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const recommendations = await getSeedRecs(parsed.payload);
+    const recommendations = await getSeedRecs(parsed.payload, providerId);
 
     return NextResponse.json({
       recommendations,

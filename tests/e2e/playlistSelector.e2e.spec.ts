@@ -1,17 +1,19 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
+
+const getSelectorButton = (page: Page) =>
+  page.getByRole('combobox').first();
+
+const getPlaylistOption = (page: Page, name: string) =>
+  page.locator('[data-playlist-index]').filter({ hasText: name }).first();
 
 test.describe('Playlist Selector Dropdown', () => {
   test.beforeEach(async ({ page }) => {
-    // Navigate to split editor page
-    await page.goto('/split-editor');
-    
-    // Wait for the page to load
-    await page.waitForLoadState('networkidle');
+    await page.goto('/split-editor?layout=p.');
+    await expect(getSelectorButton(page)).toBeVisible({ timeout: 15000 });
   });
 
   test('should show dropdown button with placeholder text initially', async ({ page }) => {
-    // Find the playlist selector button
-    const selectorButton = page.getByRole('combobox', { name: 'Select playlist' });
+    const selectorButton = getSelectorButton(page);
     
     // Should be visible
     await expect(selectorButton).toBeVisible();
@@ -21,8 +23,7 @@ test.describe('Playlist Selector Dropdown', () => {
   });
 
   test('should open dropdown when clicking the button', async ({ page }) => {
-    // Click the selector button
-    const selectorButton = page.getByRole('combobox', { name: 'Select playlist' });
+    const selectorButton = getSelectorButton(page);
     await selectorButton.click();
     
     // Dropdown should be visible (rendered in portal)
@@ -32,13 +33,12 @@ test.describe('Playlist Selector Dropdown', () => {
     // Should show loading or playlists
     // Wait for either loading text or playlist items
     await expect(
-      page.locator('text=Loading...').or(page.locator('text=Test Playlist'))
+      page.locator('text=Loading...').or(page.locator('text=Test Playlist')).first()
     ).toBeVisible({ timeout: 5000 });
   });
 
   test('should show playlists in the dropdown', async ({ page }) => {
-    // Open dropdown
-    const selectorButton = page.getByRole('combobox', { name: 'Select playlist' });
+    const selectorButton = getSelectorButton(page);
     await selectorButton.click();
     
     // Wait for playlists to load (mock returns Test Playlist 1 and Test Playlist 2)
@@ -47,8 +47,7 @@ test.describe('Playlist Selector Dropdown', () => {
   });
 
   test('should filter playlists when typing in search', async ({ page }) => {
-    // Open dropdown
-    const selectorButton = page.getByRole('combobox', { name: 'Select playlist' });
+    const selectorButton = getSelectorButton(page);
     await selectorButton.click();
     
     // Wait for playlists to load
@@ -66,12 +65,11 @@ test.describe('Playlist Selector Dropdown', () => {
   });
 
   test('should select a playlist and show its name in the button', async ({ page }) => {
-    // Open dropdown
-    const selectorButton = page.getByRole('combobox', { name: 'Select playlist' });
+    const selectorButton = getSelectorButton(page);
     await selectorButton.click();
     
     // Wait for playlists and click on "Test Playlist 1"
-    const playlist1 = page.locator('button:has-text("Test Playlist 1")').first();
+    const playlist1 = getPlaylistOption(page, 'Test Playlist 1');
     await expect(playlist1).toBeVisible({ timeout: 5000 });
     await playlist1.click();
     
@@ -84,8 +82,7 @@ test.describe('Playlist Selector Dropdown', () => {
   });
 
   test('should close dropdown when clicking outside', async ({ page }) => {
-    // Open dropdown
-    const selectorButton = page.getByRole('combobox', { name: 'Select playlist' });
+    const selectorButton = getSelectorButton(page);
     await selectorButton.click();
     
     // Verify dropdown is open
@@ -100,8 +97,7 @@ test.describe('Playlist Selector Dropdown', () => {
   });
 
   test('should navigate playlists with keyboard', async ({ page }) => {
-    // Open dropdown
-    const selectorButton = page.getByRole('combobox', { name: 'Select playlist' });
+    const selectorButton = getSelectorButton(page);
     await selectorButton.click();
     
     // Wait for search input to be focused
@@ -124,8 +120,7 @@ test.describe('Playlist Selector Dropdown', () => {
   });
 
   test('should close dropdown when pressing Escape', async ({ page }) => {
-    // Open dropdown
-    const selectorButton = page.getByRole('combobox', { name: 'Select playlist' });
+    const selectorButton = getSelectorButton(page);
     await selectorButton.click();
     
     // Verify dropdown is open
@@ -140,11 +135,10 @@ test.describe('Playlist Selector Dropdown', () => {
   });
 
   test('should show check mark next to selected playlist', async ({ page }) => {
-    // Open dropdown and select first playlist
-    const selectorButton = page.getByRole('combobox', { name: 'Select playlist' });
+    const selectorButton = getSelectorButton(page);
     await selectorButton.click();
     
-    const playlist1Button = page.locator('button:has-text("Test Playlist 1")').first();
+    const playlist1Button = getPlaylistOption(page, 'Test Playlist 1');
     await expect(playlist1Button).toBeVisible({ timeout: 5000 });
     await playlist1Button.click();
     
@@ -156,19 +150,18 @@ test.describe('Playlist Selector Dropdown', () => {
     
     // The selected playlist should have a visible check mark
     // Check icon should be visible (opacity-100)
-    const selectedPlaylistItem = page.locator('button:has-text("Test Playlist 1")').first();
-    const checkIcon = selectedPlaylistItem.locator('svg').first();
+    const selectedPlaylistItem = getPlaylistOption(page, 'Test Playlist 1');
+    const checkIcon = selectedPlaylistItem.locator('svg.lucide-check');
     
     await expect(checkIcon).toBeVisible();
     await expect(checkIcon).toHaveCSS('opacity', '1');
   });
 
   test('should switch between playlists', async ({ page }) => {
-    // Select first playlist
-    const selectorButton = page.getByRole('combobox', { name: 'Select playlist' });
+    const selectorButton = getSelectorButton(page);
     await selectorButton.click();
     
-    const playlist1Button = page.locator('button:has-text("Test Playlist 1")').first();
+    const playlist1Button = getPlaylistOption(page, 'Test Playlist 1');
     await expect(playlist1Button).toBeVisible({ timeout: 5000 });
     await playlist1Button.click();
     
@@ -177,7 +170,8 @@ test.describe('Playlist Selector Dropdown', () => {
     
     // Re-open and select second playlist
     await selectorButton.click();
-    const playlist2Button = page.locator('button:has-text("Test Playlist 2")').first();
+    const playlist2Button = getPlaylistOption(page, 'Test Playlist 2');
+    await expect(playlist2Button).toBeVisible({ timeout: 5000 });
     await playlist2Button.click();
     
     // Verify second playlist is now selected
@@ -185,13 +179,22 @@ test.describe('Playlist Selector Dropdown', () => {
   });
 
   test('should load tracks when playlist is selected', async ({ page }) => {
-    // Select a playlist
-    const selectorButton = page.getByRole('combobox', { name: 'Select playlist' });
+    const selectorButton = getSelectorButton(page);
     await selectorButton.click();
     
-    const playlist1Button = page.locator('button:has-text("Test Playlist 1")').first();
+    const playlist1Button = getPlaylistOption(page, 'Test Playlist 1');
     await expect(playlist1Button).toBeVisible({ timeout: 5000 });
+
+    const tracksRequestPromise = page.waitForRequest(
+      (request) =>
+        request.method() === 'GET' &&
+        /\/api\/playlists\/test-playlist-1\/tracks(?:\?|$)/.test(request.url()),
+      { timeout: 10_000 }
+    );
+
     await playlist1Button.click();
+
+    await tracksRequestPromise;
     
     // Wait for tracks to load
     // Mock data should have "Test Track 1", "Test Track 2", etc.
@@ -199,12 +202,11 @@ test.describe('Playlist Selector Dropdown', () => {
     
     // Verify table header is visible
     await expect(page.locator('text=TITLE')).toBeVisible();
-    await expect(page.locator('text=ARTIST')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Artist', exact: true })).toBeVisible();
   });
 
   test('should show loading indicator when auto-loading playlists', async ({ page }) => {
-    // Open dropdown
-    const selectorButton = page.getByRole('combobox', { name: 'Select playlist' });
+    const selectorButton = getSelectorButton(page);
     await selectorButton.click();
     
     // Search input should be visible immediately

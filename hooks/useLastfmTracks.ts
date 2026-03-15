@@ -4,7 +4,7 @@
  * Features:
  * - Infinite query with pagination
  * - Track normalization with global indices
- * - Spotify matching integration
+ * - Provider matching integration
  */
 
 import { useMemo } from 'react';
@@ -40,17 +40,17 @@ export interface LastfmTrack extends Track {
 }
 
 /**
- * Convert a Last.fm track to a Spotify Track format for display
- * Uses matched Spotify data when available, otherwise shows Last.fm info as placeholder
+ * Convert a Last.fm track to provider track format for display
+ * Uses matched provider data when available, otherwise shows Last.fm info as placeholder
  */
 export function lastfmToTrack(
   dto: IndexedTrackDTO,
   cachedMatch: CachedMatch | undefined
 ): LastfmTrack {
-  const matched = cachedMatch?.spotifyTrack;
+  const matched = cachedMatch?.matchedTrack ?? cachedMatch?.spotifyTrack;
 
   if (matched) {
-    // Use matched Spotify track data
+    // Use matched provider track data
     return {
       id: matched.id,
       uri: matched.uri,

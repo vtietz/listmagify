@@ -199,9 +199,10 @@ export function LastfmBrowseTab({ isActive = true }: LastfmBrowseTabProps) {
       if (!track) continue;
       
       const cached = getCachedMatch(track);
-      if (cached?.spotifyTrack?.uri && 
-          (cached.confidence === 'high' || cached.confidence === 'medium')) {
-        uris.push(cached.spotifyTrack.uri);
+      const matchedTrack = cached?.matchedTrack ?? cached?.spotifyTrack;
+      if (matchedTrack?.uri && 
+          (cached?.confidence === 'high' || cached?.confidence === 'medium')) {
+        uris.push(matchedTrack.uri);
       }
     }
     
@@ -218,12 +219,12 @@ export function LastfmBrowseTab({ isActive = true }: LastfmBrowseTabProps) {
       if (!lastfmTrack) continue;
       
       const cached = getCachedMatch(lastfmTrack);
-      const spotifyTrack = cached?.spotifyTrack;
+      const matchedTrack = cached?.matchedTrack ?? cached?.spotifyTrack;
       
-      if (spotifyTrack && 
-          (cached.confidence === 'high' || cached.confidence === 'medium')) {
-        // Use the matched Spotify track
-        tracks.push(spotifyTrack);
+      if (matchedTrack && 
+          (cached?.confidence === 'high' || cached?.confidence === 'medium')) {
+        // Use the matched provider track
+        tracks.push(matchedTrack);
       } else {
         // Create a minimal Track object from Last.fm data
         tracks.push(lastfmToTrack(lastfmTrack, cached));
@@ -361,10 +362,11 @@ export function LastfmBrowseTab({ isActive = true }: LastfmBrowseTabProps) {
       const key = makeMatchKeyFromDTO(track);
       const match = matchResults.get(key);
       
-      if (match?.status === 'matched' && match.spotifyTrack) {
+      const matchedTrack = match?.matchedTrack ?? match?.spotifyTrack;
+      if (match?.status === 'matched' && matchedTrack) {
         // Accept high/medium confidence matches
         if (match.confidence === 'high' || match.confidence === 'medium') {
-          matchedUris.push(match.spotifyTrack.uri);
+          matchedUris.push(matchedTrack.uri);
         } else {
           unmatchedCount++;
         }

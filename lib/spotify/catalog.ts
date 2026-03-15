@@ -6,17 +6,21 @@
  */
 
 import { getMusicProvider } from '@/lib/music-provider';
+import type { MusicProviderId } from '@/lib/music-provider/types';
 import { mapPlaylistItemToTrack } from '@/lib/spotify/types';
 import type { Track } from '@/lib/music-provider/types';
 
 /**
  * Fetch a single track's full details.
  * 
- * @param trackId - Spotify track ID
+ * @param trackId - Provider track ID
  */
-export async function fetchTrack(trackId: string): Promise<Track | null> {
+export async function fetchTrack(
+  trackId: string,
+  providerId: MusicProviderId = 'spotify'
+): Promise<Track | null> {
   try {
-    const provider = getMusicProvider('spotify');
+    const provider = getMusicProvider(providerId);
     const raw = await provider.getJSON<any>(`/tracks/${encodeURIComponent(trackId)}`);
     return mapPlaylistItemToTrack(raw);
   } catch {
@@ -29,7 +33,10 @@ export async function fetchTrack(trackId: string): Promise<Track | null> {
  * 
  * @param trackIds - Array of track IDs
  */
-export async function fetchTracks(trackIds: string[]): Promise<Track[]> {
+export async function fetchTracks(
+  trackIds: string[],
+  providerId: MusicProviderId = 'spotify'
+): Promise<Track[]> {
   if (trackIds.length === 0) return [];
   
   const results: Track[] = [];
@@ -39,7 +46,7 @@ export async function fetchTracks(trackIds: string[]): Promise<Track[]> {
     const batch = trackIds.slice(i, i + 50);
     const ids = batch.join(',');
     
-    const provider = getMusicProvider('spotify');
+    const provider = getMusicProvider(providerId);
     const raw = await provider.getJSON<{
       tracks: Array<any | null>;
     }>(`/tracks?ids=${ids}`);
@@ -57,16 +64,19 @@ export async function fetchTracks(trackIds: string[]): Promise<Track[]> {
 /**
  * Fetch artist info including genres.
  * 
- * @param artistId - Spotify artist ID
+ * @param artistId - Provider artist ID
  */
-export async function fetchArtist(artistId: string): Promise<{
+export async function fetchArtist(
+  artistId: string,
+  providerId: MusicProviderId = 'spotify'
+): Promise<{
   id: string;
   name: string;
   genres: string[];
   popularity: number;
 } | null> {
   try {
-    const provider = getMusicProvider('spotify');
+    const provider = getMusicProvider(providerId);
     const raw = await provider.getJSON<{
       id: string;
       name: string;
@@ -90,7 +100,10 @@ export async function fetchArtist(artistId: string): Promise<{
  * 
  * @param artistIds - Array of artist IDs
  */
-export async function fetchArtists(artistIds: string[]): Promise<Array<{
+export async function fetchArtists(
+  artistIds: string[],
+  providerId: MusicProviderId = 'spotify'
+): Promise<Array<{
   id: string;
   name: string;
   genres: string[];
@@ -110,7 +123,7 @@ export async function fetchArtists(artistIds: string[]): Promise<Array<{
     const batch = artistIds.slice(i, i + 50);
     const ids = batch.join(',');
     
-    const provider = getMusicProvider('spotify');
+    const provider = getMusicProvider(providerId);
     const raw = await provider.getJSON<{
       artists: Array<{
         id: string;
@@ -138,9 +151,12 @@ export async function fetchArtists(artistIds: string[]): Promise<Array<{
 /**
  * Fetch album details.
  * 
- * @param albumId - Spotify album ID
+ * @param albumId - Provider album ID
  */
-export async function fetchAlbum(albumId: string): Promise<{
+export async function fetchAlbum(
+  albumId: string,
+  providerId: MusicProviderId = 'spotify'
+): Promise<{
   id: string;
   name: string;
   totalTracks: number;
@@ -148,7 +164,7 @@ export async function fetchAlbum(albumId: string): Promise<{
   artistIds: string[];
 } | null> {
   try {
-    const provider = getMusicProvider('spotify');
+    const provider = getMusicProvider(providerId);
     const raw = await provider.getJSON<{
       id: string;
       name: string;

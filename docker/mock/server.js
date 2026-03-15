@@ -93,6 +93,16 @@ app.get('/v1/playlists/:id/tracks', (req, res) => {
   }
 });
 
+// GET /v1/me/player - Current playback state (204 = no active playback)
+app.get('/v1/me/player', (_req, res) => {
+  res.status(204).send();
+});
+
+// GET /v1/me/player/devices - Available playback devices
+app.get('/v1/me/player/devices', (_req, res) => {
+  res.json({ devices: [] });
+});
+
 // PUT /v1/playlists/:id/tracks - Reorder tracks
 app.put('/v1/playlists/:id/tracks', (req, res) => {
   console.debug('[mock-spotify] Reorder tracks:', req.body);

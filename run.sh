@@ -95,7 +95,10 @@ case "${1:-}" in
     ;;
   test-e2e)
     shift
-    docker compose -f docker/docker-compose.yml --profile test run --rm playwright-runner "$@"
+    if [ "${1:-}" = "--" ]; then
+      shift
+    fi
+    docker compose -f docker/docker-compose.yml --profile test run --rm -e PLAYWRIGHT_ARGS="$*" playwright-runner
     ;;
   quality)
     shift

@@ -3,9 +3,6 @@
  * Provides standardized auth checking for API routes.
  */
 
-import { getServerSession } from 'next-auth';
-import { authOptions } from './auth';
-
 /**
  * Custom error for server-side auth failures.
  * Thrown when a session is missing or invalid.
@@ -25,12 +22,29 @@ export class ServerAuthError extends Error {
  */
 export interface AuthenticatedSession {
   user?: {
+    id?: string;
     name?: string | null;
     email?: string | null;
     image?: string | null;
   };
   accessToken: string;
   accessTokenExpires?: number;
+}
+
+function getE2ESession(): AuthenticatedSession | null {
+  if (process.env.E2E_MODE !== '1') {
+    return null;
+  }
+
+  return {
+    user: {
+      id: 'e2e-user',
+      name: 'E2E Test User',
+      email: 'e2e@example.com',
+    },
+    accessToken: 'e2e-access-token',
+    accessTokenExpires: Date.now() + 24 * 60 * 60 * 1000,
+  };
 }
 
 /**
@@ -53,6 +67,16 @@ export interface AuthenticatedSession {
  * ```
  */
 export async function requireAuth(): Promise<AuthenticatedSession> {
+  const e2eSession = getE2ESession();
+  if (e2eSession) {
+    return e2eSession;
+  }
+
+  const [{ getServerSession }, { authOptions }] = await Promise.all([
+    import('next-auth'),
+    import('./auth'),
+  ]);
+
   const session = await getServerSession(authOptions);
 
   if (!session) {

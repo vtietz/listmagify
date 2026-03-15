@@ -3,6 +3,7 @@ import {
   isRecsAvailable,
 } from '@/lib/recs';
 import { assertAuthenticated } from '@/app/api/_shared/guard';
+import { resolveMusicProviderFromRequest } from '@/app/api/_shared/provider';
 import { isAppRouteError } from '@/lib/errors';
 import { getAppendixRecs } from '@/lib/services/recommendationService';
 
@@ -32,6 +33,7 @@ import { getAppendixRecs } from '@/lib/services/recommendationService';
 export async function POST(request: NextRequest) {
   try {
     await assertAuthenticated();
+    const { providerId } = resolveMusicProviderFromRequest(request);
 
     if (!isRecsAvailable()) {
       return NextResponse.json({
@@ -52,7 +54,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const recommendations = await getAppendixRecs(body);
+    const recommendations = await getAppendixRecs(body, providerId);
 
     return NextResponse.json({
       recommendations,

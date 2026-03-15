@@ -191,7 +191,7 @@ export function LastfmBrowseList({
               
               const cached = getCachedMatch(dto);
               const matchStatus = cached?.status ?? 'idle';
-              const matchedSpotifyTrack = cached?.spotifyTrack;
+              const matchedTrack = cached?.matchedTrack ?? cached?.spotifyTrack;
               
               const handleDragStart = () => {
                 if (!cached || cached.status === 'idle') {
@@ -255,12 +255,12 @@ export function LastfmBrowseList({
                     showScrobbleDateColumn={true}
                     showCumulativeTime={false}
                     dragType="lastfm-track"
-                    matchedTrack={matchedSpotifyTrack ? {
-                      id: matchedSpotifyTrack.id,
-                      uri: matchedSpotifyTrack.uri,
-                      name: matchedSpotifyTrack.name,
-                      artist: matchedSpotifyTrack.artists[0],
-                      durationMs: matchedSpotifyTrack.durationMs,
+                    matchedTrack={matchedTrack ? {
+                      id: matchedTrack.id,
+                      uri: matchedTrack.uri,
+                      name: matchedTrack.name,
+                      artist: matchedTrack.artists[0],
+                      durationMs: matchedTrack.durationMs,
                     } : null}
                     lastfmDto={{
                       artistName: dto.artistName,
@@ -268,7 +268,7 @@ export function LastfmBrowseList({
                       albumName: dto.albumName,
                     }}
                     onDragStart={handleDragStart}
-                    compareColor={matchedSpotifyTrack?.uri ? getCompareColorForTrack(matchedSpotifyTrack.uri) : undefined}
+                    compareColor={matchedTrack?.uri ? getCompareColorForTrack(matchedTrack.uri) : undefined}
                     isMultiSelect={lastfmSelection.length > 1}
                     selectedCount={lastfmSelection.length}
                     {...(isSelected && selectedMatchedUris.length > 0 

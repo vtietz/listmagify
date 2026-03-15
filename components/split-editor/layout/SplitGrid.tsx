@@ -14,7 +14,7 @@
 'use client';
 
 import { useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { DndContext } from '@dnd-kit/core';
 import { LogIn, Loader2 } from 'lucide-react';
 import { useSplitGridStore } from '@/hooks/useSplitGridStore';
@@ -42,6 +42,7 @@ export function SplitGrid() {
   useSplitUrlSync();
 
   const router = useRouter();
+  const searchParams = useSearchParams();
   const root = useSplitGridStore((state) => state.root);
   const panels = useSplitGridStore((state) => state.panels);
   const splitPanel = useSplitGridStore((state) => state.splitPanel);
@@ -72,10 +73,11 @@ export function SplitGrid() {
   
   // Redirect to playlists page if authenticated but no panels active
   useEffect(() => {
-    if (authenticated && !loading && (!root || panels.length === 0)) {
+    const hasLayoutParam = searchParams.has('layout');
+    if (authenticated && !loading && !hasLayoutParam && (!root || panels.length === 0)) {
       router.replace('/playlists');
     }
-  }, [authenticated, loading, root, panels.length, router]);
+  }, [authenticated, loading, root, panels.length, router, searchParams]);
   
   // Auto-show mini player when playback starts (after user dismissed it)
   useEffect(() => {

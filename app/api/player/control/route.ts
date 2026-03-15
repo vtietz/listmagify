@@ -4,6 +4,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { assertAuthenticated } from '@/app/api/_shared/guard';
+import { resolveMusicProviderFromRequest } from '@/app/api/_shared/provider';
 import { isAppRouteError } from '@/lib/errors';
 import { parseControlPayload, runPlaybackAction } from '@/lib/services/playerControlService';
 
@@ -81,9 +82,10 @@ function mapControlError(error: any): NextResponse {
 export async function POST(request: NextRequest) {
   try {
     await assertAuthenticated();
+    const { providerId } = resolveMusicProviderFromRequest(request);
     const body = await request.json();
     const payload = parseControlPayload(body);
-    await runPlaybackAction(payload);
+    await runPlaybackAction(payload, providerId);
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

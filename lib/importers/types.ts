@@ -25,11 +25,13 @@ export interface ImportedTrackDTO {
 }
 
 /**
- * Result of matching an imported track to Spotify
+ * Result of matching an imported track to a provider track.
  */
 export interface MatchResult {
   /** Original imported track */
   imported: ImportedTrackDTO;
+  /** Matched provider track (preferred provider-neutral field) */
+  matchedTrack?: MatchedTrack;
   /** Matched Spotify track (if found) */
   spotifyTrack?: SpotifyMatchedTrack;
   /** Match confidence: 'high', 'medium', 'low', 'none' */
@@ -37,15 +39,15 @@ export interface MatchResult {
   /** Match score (0-100) */
   score: number;
   /** Alternative candidates for manual selection */
-  candidates?: SpotifyMatchedTrack[];
+  candidates?: MatchedTrack[];
 }
 
 export type MatchConfidence = 'high' | 'medium' | 'low' | 'none';
 
 /**
- * Spotify track data relevant for matching
+ * Provider track data relevant for matching
  */
-export interface SpotifyMatchedTrack {
+export interface MatchedTrack {
   id: string;
   uri: string;
   name: string;
@@ -57,6 +59,9 @@ export interface SpotifyMatchedTrack {
   durationMs: number;
   popularity?: number;
 }
+
+// Backward-compatible alias for existing imports and UI usage.
+export type SpotifyMatchedTrack = MatchedTrack;
 
 /**
  * Pagination metadata for imported tracks

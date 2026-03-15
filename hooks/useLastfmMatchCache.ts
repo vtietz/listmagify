@@ -1,5 +1,5 @@
 /**
- * useLastfmMatchCache - Manages lazy matching of Last.fm tracks to Spotify
+ * useLastfmMatchCache - Manages lazy matching of Last.fm tracks to provider tracks
  * 
  * Features:
  * - In-memory cache keyed by "artist::track"
@@ -10,13 +10,15 @@
 
 import { create } from 'zustand';
 import { apiFetch } from '@/lib/api/client';
-import type { ImportedTrackDTO, MatchResult, SpotifyMatchedTrack } from '@/lib/importers/types';
+import type { ImportedTrackDTO, MatchResult, MatchedTrack } from '@/lib/importers/types';
 
 export type MatchStatus = 'idle' | 'pending' | 'matched' | 'failed';
 
 export interface CachedMatch {
   status: MatchStatus;
-  spotifyTrack?: SpotifyMatchedTrack | undefined;
+  matchedTrack?: MatchedTrack | undefined;
+  // Backward-compatible alias for existing consumers.
+  spotifyTrack?: MatchedTrack | undefined;
   confidence?: 'high' | 'medium' | 'low' | 'none' | undefined;
   score?: number | undefined;
 }
@@ -103,6 +105,10 @@ interface MatchResponse {
  */
 export function useLastfmMatch() {
   const { cache, getMatch, setMatch, setPending, clearPending } = useMatchCacheStore();
+
+  function resolveMatchedTrack(result: MatchResult): MatchedTrack | undefined {
+    return result.matchedTrack ?? result.spotifyTrack;
+  }
   
   /**
    * Match a single track (returns cached result if available)
@@ -134,8 +140,9 @@ export function useLastfmMatch() {
       }
       
       const match: CachedMatch = {
-        status: result.spotifyTrack ? 'matched' : 'failed',
-        spotifyTrack: result.spotifyTrack,
+        status: resolveMatchedTrack(result) ? 'matched' : 'failed',
+        matchedTrack: resolveMatchedTrack(result),
+        spotifyTrack: resolveMatchedTrack(result),
         confidence: result.confidence,
         score: result.score,
       };
@@ -201,8 +208,9 @@ export function useLastfmMatch() {
             if (!result || !key) continue;
             
             const match: CachedMatch = {
-              status: result.spotifyTrack ? 'matched' : 'failed',
-              spotifyTrack: result.spotifyTrack,
+              status: resolveMatchedTrack(result) ? 'matched' : 'failed',
+              matchedTrack: resolveMatchedTrack(result),
+              spotifyTrack: resolveMatchedTrack(result),
               confidence: result.confidence,
               score: result.score,
             };

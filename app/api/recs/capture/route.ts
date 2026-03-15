@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth/auth';
+import { assertAuthenticated } from '@/app/api/_shared/guard';
+import { isAppRouteError } from '@/lib/errors';
 import { 
   isRecsAvailable, 
   captureAndUpdateEdges,
@@ -30,14 +30,7 @@ import type { Track } from '@/lib/music-provider/types';
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: 'token_expired' }, { status: 401 });
-    }
-
-    if ((session as any).error === 'RefreshAccessTokenError') {
-      return NextResponse.json({ error: 'token_expired' }, { status: 401 });
-    }
+    await assertAuthenticated();
 
     if (!isRecsAvailable()) {
       return NextResponse.json({
@@ -79,6 +72,10 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
+    if (isAppRouteError(error) && error.status === 401) {
+      return NextResponse.json({ error: 'token_expired' }, { status: 401 });
+    }
+
     console.error('[api/recs/capture] Error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },

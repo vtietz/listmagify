@@ -1,0 +1,62 @@
+{
+  "snapshot_id": "test-snapshot-2",
+  "items": [
+    {
+      "added_at": "2024-02-01T00:00:00Z",
+      "track": {
+        "album": {
+          "id": "album6",
+          "name": "Test Album 6",
+          "images": []
+        },
+        "artists": [
+          {
+            "name": "Test Artist 6"
+          }
+        ],
+        "duration_ms": 180000,
+        "id": "track6",
+        "name": "Test Track 6",
+        "uri": "spotify:track:track6"
+      }
+    },
+    {
+      "added_at": "2024-02-02T00:00:00Z",
+      "track": {
+        "album": {
+          "id": "album7",
+          "name": "Test Album 7",
+          "images": []
+        },
+        "artists": [
+          {
+            "name": "Test Artist 7"
+          }
+        ],
+        "duration_ms": 205000,
+        "id": "track7",
+        "name": "Test Track 7",
+        "uri": "spotify:track:track7"
+      }
+    },
+    {
+      "added_at": "2024-02-03T00:00:00Z",
+      "track": {
+        "album": {
+          "id": "album8",
+          "name": "Test Album 8",
+          "images": []
+        },
+        "artists": [
+          {
+            "name": "Test Artist 8"
+          }
+        ],
+        "duration_ms": 230000,
+        "id": "track8",
+        "name": "Test Track 8",
+        "uri": "spotify:track:track8"
+      }
+    }
+  ]
+}
