@@ -13,7 +13,7 @@
 
 'use client';
 
-import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback, type KeyboardEvent } from 'react';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -526,9 +526,13 @@ export function AddToPlaylistDialog({ isOpen, onClose, trackUri, trackName, trac
     onClose();
   };
 
+  const handleDialogKeyDownCapture = (event: KeyboardEvent<HTMLDivElement>) => {
+    event.stopPropagation();
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md" onKeyDownCapture={handleDialogKeyDownCapture}>
         <DialogHeader>
           <DialogTitle>Add to playlist</DialogTitle>
           <div className="space-y-1 min-w-0 overflow-hidden">
