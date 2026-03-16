@@ -1,4 +1,5 @@
 import { getServerSession } from "next-auth";
+import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth/auth";
 import { serverEnv } from "@/lib/env";
 import { AuthPageLayout } from "@/components/auth/AuthPageLayout";
@@ -10,11 +11,8 @@ type Props = {
 };
 
 /**
- * Root page - Landing page shown to all users (authenticated or not).
- * Shows the landing page with features and sign-in options.
- * 
- * When authenticated: relies on AppShell (global wrapper) to show main nav
- * When not authenticated: uses AuthPageLayout with minimal header
+ * Root page - Landing page for unauthenticated users.
+ * Authenticated users with valid tokens are redirected to the app destination.
  */
 export default async function Home({ searchParams }: Props) {
   const session = await getServerSession(authOptions);
@@ -32,6 +30,11 @@ export default async function Home({ searchParams }: Props) {
   // Default return path for sign-in button
   const returnTo = next && next.startsWith("/") ? next : "/split-editor";
 
+  // If authenticated with valid session, skip landing page and go to app
+  if (hasValidSession) {
+    redirect(returnTo);
+  }
+
   // Determine message based on reason or session error
   const showMessage = reason === "expired" || !!sessionError || reason === "unauthenticated";
   const message =
@@ -40,8 +43,6 @@ export default async function Home({ searchParams }: Props) {
       : reason === "unauthenticated"
       ? "Sign in to access this page."
       : null;
-
-  const isAuthenticated = hasValidSession;
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -65,7 +66,7 @@ export default async function Home({ searchParams }: Props) {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
       <LandingPageContent
-        isAuthenticated={isAuthenticated}
+        isAuthenticated={false}
         showMessage={showMessage}
         message={message}
         returnTo={returnTo}
@@ -74,9 +75,6 @@ export default async function Home({ searchParams }: Props) {
       />
     </>
   );
-
-  // When authenticated, render content directly (global AppShell provides header/nav)
-  if (isAuthenticated) return content;
 
   // When not authenticated, use AuthPageLayout with minimal header
   return <AuthPageLayout showLogoutLink={false}>{content}</AuthPageLayout>;
