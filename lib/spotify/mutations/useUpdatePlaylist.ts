@@ -12,6 +12,23 @@ import type { InfiniteData } from '@tanstack/react-query';
 
 import type { UpdatePlaylistParams } from './types';
 
+type PlaylistMetaQuery = {
+  id: string;
+  name: string;
+  description: string;
+  owner: { id: string; displayName: string };
+  collaborative: boolean;
+  tracksTotal: number;
+  isPublic: boolean;
+};
+
+type UserPlaylistsQuery = InfiniteData<{ items: Playlist[]; nextCursor: string | null; total: number }>;
+
+type UpdatePlaylistMutationContext = {
+  previousMeta: PlaylistMetaQuery | undefined;
+  previousUserPlaylists: UserPlaylistsQuery | undefined;
+};
+
 export function useUpdatePlaylist() {
   const queryClient = useQueryClient();
 
@@ -24,34 +41,14 @@ export function useUpdatePlaylist() {
         body: JSON.stringify(updateData),
       });
     },
-    onMutate: async (params: UpdatePlaylistParams) => {
-      const previousMeta = queryClient.getQueryData<{
-        id: string;
-        name: string;
-        description: string;
-        owner: { id: string; displayName: string };
-        collaborative: boolean;
-        tracksTotal: number;
-        isPublic: boolean;
-      }>(playlistMeta(params.playlistId));
+    onMutate: async (params: UpdatePlaylistParams): Promise<UpdatePlaylistMutationContext> => {
+      const previousMeta = queryClient.getQueryData<PlaylistMetaQuery>(playlistMeta(params.playlistId));
 
-      const previousUserPlaylists = queryClient.getQueryData<
-        InfiniteData<{ items: Playlist[]; nextCursor: string | null; total: number }>
-      >(userPlaylists());
+      const previousUserPlaylists = queryClient.getQueryData<UserPlaylistsQuery>(userPlaylists());
 
       queryClient.setQueryData(
         playlistMeta(params.playlistId),
-        (current:
-          | {
-              id: string;
-              name: string;
-              description: string;
-              owner: { id: string; displayName: string };
-              collaborative: boolean;
-              tracksTotal: number;
-              isPublic: boolean;
-            }
-          | undefined) => {
+        (current: PlaylistMetaQuery | undefined) => {
           if (!current) return current;
 
           return {
@@ -65,7 +62,7 @@ export function useUpdatePlaylist() {
 
       queryClient.setQueryData(
         userPlaylists(),
-        (current: InfiniteData<{ items: Playlist[]; nextCursor: string | null; total: number }> | undefined) => {
+        (current: UserPlaylistsQuery | undefined) => {
           if (!current) return current;
 
           return {
@@ -102,7 +99,7 @@ export function useUpdatePlaylist() {
       
       // Success - no toast needed
     },
-    onError: (error: Error, params: UpdatePlaylistParams, context) => {
+    onError: (error: Error, params: UpdatePlaylistParams, context: UpdatePlaylistMutationContext | undefined) => {
       if (context?.previousMeta !== undefined) {
         queryClient.setQueryData(playlistMeta(params.playlistId), context.previousMeta);
       }

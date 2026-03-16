@@ -68,12 +68,9 @@ export function AddToMarkedButton({
     playlistsWithDuplicates: string[];
   } | null>(null);
 
-  // Get all playlists with active markers (excluding the source if specified)
+  // Get all playlists with active markers
   const playlistsWithMarkers = Object.entries(playlists)
-    .filter(([playlistId, data]) => {
-      if (excludePlaylistId && playlistId === excludePlaylistId) return false;
-      return data.markers.length > 0;
-    });
+    .filter(([, data]) => data.markers.length > 0);
 
   const hasActiveMarkers = playlistsWithMarkers.length > 0;
   const totalMarkers = playlistsWithMarkers.reduce((sum, [, data]) => sum + data.markers.length, 0);
