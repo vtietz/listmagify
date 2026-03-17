@@ -10,6 +10,7 @@ import { usePanelFocusStore, getFocusedPanelSize, getUnfocusedPanelSize } from '
 import { Panel, Group as PanelGroup, Separator as PanelResizeHandle, useDefaultLayout } from 'react-resizable-panels';
 import { cn } from '@/lib/utils';
 import { Fragment } from 'react';
+import type { CSSProperties } from 'react';
 
 interface SplitNodeViewProps {
   node: SplitNode;
@@ -34,6 +35,148 @@ interface SplitNodeViewProps {
 type VirtualizerRegister = SplitNodeViewProps['onRegisterVirtualizer'];
 type VirtualizerUnregister = SplitNodeViewProps['onUnregisterVirtualizer'];
 
+type GroupNode = Extract<SplitNode, { kind: 'group' }>;
+
+function getPanelNodeContainerClassName({
+  isPhone,
+  isSinglePanelMode,
+  isFocused,
+}: {
+  isPhone: boolean;
+  isSinglePanelMode: boolean;
+  isFocused: boolean;
+}) {
+  return cn(
+    'min-h-0 min-w-0 h-full transition-all duration-200',
+    isPhone && !isSinglePanelMode && 'cursor-pointer',
+    isPhone && !isSinglePanelMode && isFocused && 'panel-focused',
+    isPhone && !isSinglePanelMode && !isFocused && 'panel-unfocused'
+  );
+}
+
+function getPanelNodeStyle({
+  isPhone,
+  isSinglePanelMode,
+  isFocused,
+}: {
+  isPhone: boolean;
+  isSinglePanelMode: boolean;
+  isFocused: boolean;
+}): CSSProperties | undefined {
+  if (!isPhone || isSinglePanelMode) {
+    return undefined;
+  }
+
+  return {
+    flexBasis: isFocused ? getFocusedPanelSize() : getUnfocusedPanelSize(),
+    flexGrow: 0,
+    flexShrink: 0,
+  };
+}
+
+function getPanelNodeClickHandler({
+  isFocused,
+  isPhone,
+  isSinglePanelMode,
+  focusPanel,
+  panelId,
+}: {
+  isFocused: boolean;
+  isPhone: boolean;
+  isSinglePanelMode: boolean;
+  focusPanel: (id: string) => void;
+  panelId: string;
+}) {
+  if (isFocused || !isPhone || isSinglePanelMode) {
+    return undefined;
+  }
+
+  return () => {
+    focusPanel(panelId);
+  };
+}
+
+function getStorageKeyAndPanelIds({
+  groupNode,
+  isPhone,
+}: {
+  groupNode: GroupNode | null;
+  isPhone: boolean;
+}) {
+  if (!groupNode) {
+    return { storageKey: '', panelIds: [] as string[] };
+  }
+
+  const visibleForLayout = isPhone ? groupNode.children.slice(0, 2) : groupNode.children;
+  const panelIds = visibleForLayout.map((child) =>
+    child.kind === 'panel' ? child.panel.id : child.id
+  );
+
+  return {
+    storageKey: `split-${groupNode.id}`,
+    panelIds,
+  };
+}
+
+function getStorageConfig({
+  groupNode,
+  isPhone,
+}: {
+  groupNode: GroupNode | null;
+  isPhone: boolean;
+}) {
+  if (typeof window !== 'undefined' && groupNode && !isPhone) {
+    return { storage: localStorage };
+  }
+
+  return {};
+}
+
+function resolveEffectiveOrientation({
+  isPhone,
+  isTablet,
+  orientation,
+  nodeOrientation,
+}: {
+  isPhone: boolean;
+  isTablet: boolean;
+  orientation: string;
+  nodeOrientation: 'horizontal' | 'vertical';
+}) {
+  if (isPhone || isTablet) {
+    return orientation === 'portrait' ? 'vertical' : 'horizontal';
+  }
+
+  return nodeOrientation;
+}
+
+function getVisibleChildren({
+  children,
+  isPhone,
+  mobileShowOnlyFirst,
+  mobileShowOnlySecond,
+}: {
+  children: SplitNode[];
+  isPhone: boolean;
+  mobileShowOnlyFirst: boolean;
+  mobileShowOnlySecond: boolean;
+}) {
+  if (!isPhone) {
+    return children;
+  }
+
+  const initialChildren = children.slice(0, 2);
+  if (mobileShowOnlyFirst) {
+    return initialChildren.length > 0 ? [initialChildren[0]!] : [];
+  }
+
+  if (mobileShowOnlySecond) {
+    return initialChildren.length > 1 ? [initialChildren[1]!] : [];
+  }
+
+  return initialChildren;
+}
+
 function PanelNodeView({
   node,
   isPhone,
@@ -52,29 +195,21 @@ function PanelNodeView({
   onUnregisterVirtualizer: VirtualizerUnregister;
 }) {
   const isFocused = focusedPanelId === node.panel.id;
-
-  const phoneFlexStyle = isPhone && !isSinglePanelMode ? {
-    flexBasis: isFocused ? getFocusedPanelSize() : getUnfocusedPanelSize(),
-    flexGrow: 0,
-    flexShrink: 0,
-  } : {};
-
-  const handlePanelFocus = () => {
-    if (isPhone) {
-      focusPanel(node.panel.id);
-    }
-  };
+  const phoneFlexStyle = getPanelNodeStyle({ isPhone, isSinglePanelMode, isFocused });
+  const className = getPanelNodeContainerClassName({ isPhone, isSinglePanelMode, isFocused });
+  const onClick = getPanelNodeClickHandler({
+    isFocused,
+    isPhone,
+    isSinglePanelMode,
+    focusPanel,
+    panelId: node.panel.id,
+  });
 
   return (
     <div
-      className={cn(
-        'min-h-0 min-w-0 h-full transition-all duration-200',
-        isPhone && !isSinglePanelMode && 'cursor-pointer',
-        isPhone && !isSinglePanelMode && isFocused && 'panel-focused',
-        isPhone && !isSinglePanelMode && !isFocused && 'panel-unfocused'
-      )}
+      className={className}
       style={phoneFlexStyle}
-      onClick={!isFocused && isPhone && !isSinglePanelMode ? handlePanelFocus : undefined}
+      onClick={onClick}
     >
       <PlaylistPanel
         panelId={node.panel.id}
@@ -205,20 +340,14 @@ export function SplitNodeView({
 }: SplitNodeViewProps) {
   const { isPhone, isTablet, orientation, deviceType } = useDeviceType();
   const { focusedPanelId, focusPanel } = usePanelFocusStore();
+  const panelNode = node.kind === 'panel' ? node : null;
+  const groupNode = node.kind === 'group' ? node : null;
 
   // Pre-compute values for useDefaultLayout hook (must be called unconditionally)
-  const isGroupNode = node.kind === 'group';
-  const storageKey = isGroupNode ? `split-${node.id}` : '';
-  const panelIds = isGroupNode
-    ? (isPhone ? node.children.slice(0, 2) : node.children).map((child) =>
-        child.kind === 'panel' ? child.panel.id : child.id
-      )
-    : [];
+  const { storageKey, panelIds } = getStorageKeyAndPanelIds({ groupNode, isPhone });
 
   // Use localStorage to persist panel sizes (must be called unconditionally per Rules of Hooks)
-  const storageConfig = typeof window !== 'undefined' && isGroupNode && !isPhone
-    ? { storage: localStorage }
-    : {};
+  const storageConfig = getStorageConfig({ groupNode, isPhone });
 
   const { defaultLayout, onLayoutChange } = useDefaultLayout({
     id: storageKey || 'default',
@@ -226,11 +355,11 @@ export function SplitNodeView({
     ...storageConfig,
   });
 
-  if (node.kind === 'panel') {
+  if (panelNode) {
     const isSinglePanelMode = mobileShowOnlyFirst || mobileShowOnlySecond;
     return (
       <PanelNodeView
-        node={node}
+        node={panelNode}
         isPhone={isPhone}
         isSinglePanelMode={isSinglePanelMode}
         focusedPanelId={focusedPanelId}
@@ -241,22 +370,25 @@ export function SplitNodeView({
     );
   }
 
+  if (!groupNode) {
+    return null;
+  }
+
   // Group node - render container with children
-  const effectiveOrientation = (isPhone || isTablet)
-    ? (orientation === 'portrait' ? 'vertical' : 'horizontal')
-    : node.orientation;
+  const effectiveOrientation = resolveEffectiveOrientation({
+    isPhone,
+    isTablet,
+    orientation,
+    nodeOrientation: groupNode.orientation,
+  });
 
   const isHorizontal = effectiveOrientation === 'horizontal';
-
-  let visibleChildren = isPhone
-    ? node.children.slice(0, 2)
-    : node.children;
-
-  if (isPhone && mobileShowOnlyFirst && visibleChildren.length > 0) {
-    visibleChildren = [visibleChildren[0]!];
-  } else if (isPhone && mobileShowOnlySecond && visibleChildren.length > 1) {
-    visibleChildren = [visibleChildren[1]!];
-  }
+  const visibleChildren = getVisibleChildren({
+    children: groupNode.children,
+    isPhone,
+    mobileShowOnlyFirst,
+    mobileShowOnlySecond,
+  });
 
   if (isPhone) {
     return (
