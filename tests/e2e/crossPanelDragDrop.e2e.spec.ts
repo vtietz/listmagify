@@ -182,13 +182,25 @@ test.describe('Cross-Panel Split Editor', () => {
       });
     });
 
+    const playlistMetaResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'GET' &&
+        /\/api\/playlists\/test-playlist-1(?:\?|$)/.test(response.url()) &&
+        response.status() === 200,
+      { timeout: 20_000 }
+    );
+
     await page.goto('/split-editor?layout=p.test-playlist-1');
+    await playlistMetaResponse;
 
     const selectorButton = page.locator('button[title="Select playlist"]').first();
     await expect(selectorButton).toBeVisible();
-    await expect(selectorButton).toContainText('Test Playlist 1');
+    await expect(selectorButton).toContainText('Test Playlist 1', { timeout: 20_000 });
 
-    await page.locator('[title="Edit playlist info"]').first().click();
+    const editButton = page.locator('[title="Edit playlist info"]').first();
+    await expect(editButton).toBeVisible({ timeout: 20_000 });
+
+    await editButton.click();
     await expect(page.getByRole('dialog')).toBeVisible();
 
     await page.locator('#playlist-name').fill(updatedName);

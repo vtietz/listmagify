@@ -184,14 +184,37 @@ export const authOptions: AuthOptions = {
     async jwt({ token, account }: any) {
       // Initial sign-in
       if (account) {
-        const expiresAt = (account as any).expires_at 
-          ? (account as any).expires_at * 1000 
-          : Date.now() + 3600 * 1000; // Default to 1 hour if not provided
+        const accountData = account as any;
+        const rawExpiresAt = accountData.expires_at;
+        const rawExpiresIn = accountData.expires_in;
+
+        const expiresAt = (() => {
+          if (typeof rawExpiresAt === 'number' && Number.isFinite(rawExpiresAt) && rawExpiresAt > 0) {
+            // ms epoch
+            if (rawExpiresAt > 10_000_000_000) {
+              return rawExpiresAt;
+            }
+
+            // unix timestamp seconds (normal case)
+            if (rawExpiresAt > 1_000_000_000) {
+              return rawExpiresAt * 1000;
+            }
+
+            // seconds-until-expiry (defensive fallback)
+            return Date.now() + rawExpiresAt * 1000;
+          }
+
+          if (typeof rawExpiresIn === 'number' && Number.isFinite(rawExpiresIn) && rawExpiresIn > 0) {
+            return Date.now() + rawExpiresIn * 1000;
+          }
+
+          return Date.now() + 3600 * 1000;
+        })();
         
         return {
           ...token,
-          accessToken: (account as any).access_token,
-          refreshToken: (account as any).refresh_token,
+          accessToken: accountData.access_token,
+          refreshToken: accountData.refresh_token ?? token.refreshToken,
           accessTokenExpires: expiresAt,
           error: undefined,
         };

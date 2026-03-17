@@ -24,7 +24,14 @@ export function usePlaylistEvents({
       return;
     }
 
-    const unsubscribeUpdate = eventBus.on('playlist:update', () => {});
+    const unsubscribeUpdate = eventBus.on('playlist:update', ({ playlistId: id }) => {
+      if (id !== playlistId) {
+        return;
+      }
+
+      queryClient.invalidateQueries({ queryKey: playlistMeta(playlistId) });
+      queryClient.invalidateQueries({ queryKey: ['playlist-tracks-infinite', playlistId] });
+    });
     const unsubscribeReload = eventBus.on('playlist:reload', ({ playlistId: id }) => {
       if (id === playlistId) {
         // Invalidate queries - scroll restoration is handled by usePanelScrollSync

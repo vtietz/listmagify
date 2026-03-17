@@ -134,6 +134,7 @@ export function PanelToolbar({
   onDeleteDuplicates,
 }: PanelToolbarProps) {
   const [localSearch, setLocalSearch] = useState(searchQuery);
+  const [displayPlaylistName, setDisplayPlaylistName] = useState(playlistName ?? '');
   const [isUltraCompact, setIsUltraCompact] = useState(false);
   const [canSplitHorizontal, setCanSplitHorizontal] = useState(true);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -174,6 +175,10 @@ export function PanelToolbar({
     return () => observer.disconnect();
   }, []);
 
+  useEffect(() => {
+    setDisplayPlaylistName(playlistName ?? '');
+  }, [playlistName]);
+
   const handleSearchChange = useCallback((value: string) => {
     setLocalSearch(value);
     onSearchChange(value);
@@ -181,13 +186,21 @@ export function PanelToolbar({
 
   const handleUpdatePlaylist = useCallback(async (values: { name: string; description: string; isPublic: boolean }) => {
     if (!playlistId) return;
-    await updatePlaylist.mutateAsync({
-      playlistId,
-      name: values.name,
-      description: values.description,
-      isPublic: values.isPublic,
-    });
-  }, [playlistId, updatePlaylist]);
+    const previousName = displayPlaylistName;
+    setDisplayPlaylistName(values.name);
+
+    try {
+      await updatePlaylist.mutateAsync({
+        playlistId,
+        name: values.name,
+        description: values.description,
+        isPublic: values.isPublic,
+      });
+    } catch (error) {
+      setDisplayPlaylistName(previousName);
+      throw error;
+    }
+  }, [playlistId, updatePlaylist, displayPlaylistName]);
 
   // Ultra-compact dropdown header with search only
   const ultraCompactHeader = useMemo(() => {
@@ -472,7 +485,7 @@ export function PanelToolbar({
           <div className="flex-1 min-w-0">
             <PlaylistSelector
               selectedPlaylistId={playlistId}
-              selectedPlaylistName={playlistName ?? ''}
+              selectedPlaylistName={displayPlaylistName}
               onSelectPlaylist={onLoadPlaylist}
             />
           </div>
@@ -511,7 +524,7 @@ export function PanelToolbar({
           onOpenChange={setEditDialogOpen}
           mode="edit"
           initialValues={{
-            name: playlistName ?? '',
+            name: displayPlaylistName,
             description: playlistDescription ?? '',
             isPublic: playlistIsPublic ?? false,
           }}

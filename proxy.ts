@@ -7,8 +7,23 @@ function createTraceId(): string {
 }
 
 export function proxy(request: NextRequest): NextResponse {
-  const traceId = createTraceId();
+  const host = request.headers.get('host') ?? '';
+
+  // Keep a single canonical host in development to avoid OAuth state-cookie mismatches
+  // between localhost and 127.0.0.1 during Spotify sign-in callbacks.
+  if (process.env.NODE_ENV === 'development' && host.startsWith('localhost')) {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.hostname = '127.0.0.1';
+    return NextResponse.redirect(redirectUrl);
+  }
+
   const requestUrl = request.nextUrl;
+
+  if (requestUrl.pathname !== '/_next/image') {
+    return NextResponse.next();
+  }
+
+  const traceId = createTraceId();
   const accept = request.headers.get('accept') ?? '';
   const userAgent = request.headers.get('user-agent') ?? '';
   const imageUrl = requestUrl.searchParams.get('url') ?? '';
@@ -37,5 +52,5 @@ export function proxy(request: NextRequest): NextResponse {
 }
 
 export const config = {
-  matcher: ['/_next/image'],
+  matcher: ['/((?!_next/static|favicon.ico).*)'],
 };
