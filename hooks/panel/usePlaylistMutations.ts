@@ -204,7 +204,7 @@ export function usePlaylistMutations({
 
   // Build reorder actions for context menu
   const buildReorderActions = useCallback(
-    (trackPosition: number) => {
+    (trackPosition: number, playPosition?: number) => {
       if (!playlistId || !isEditable) return {};
 
       const bounds = getSelectionBounds();
@@ -218,6 +218,35 @@ export function usePlaylistMutations({
         (t) => typeof t?.position === 'number'
       );
       const totalTracks = hasStablePositions ? tracks.length : filteredTracks.length;
+
+      const canMoveBelowPlayPosition =
+        typeof playPosition === 'number' &&
+        playPosition >= 0 &&
+        playPosition < totalTracks &&
+        !(playPosition >= fromIndex && playPosition <= lastIndex);
+
+      const moveBelowPlayPosition = canMoveBelowPlayPosition
+        ? () => {
+            const targetFirstIndex =
+              playPosition < fromIndex
+                ? playPosition + 1
+                : playPosition - rangeLength + 1;
+
+            if (targetFirstIndex === fromIndex) return;
+
+            const toIndex =
+              targetFirstIndex > fromIndex
+                ? targetFirstIndex + rangeLength
+                : targetFirstIndex;
+
+            reorderTracks.mutate({
+              playlistId,
+              fromIndex,
+              toIndex,
+              rangeLength,
+            });
+          }
+        : undefined;
 
       return {
         onMoveUp:
@@ -264,6 +293,7 @@ export function usePlaylistMutations({
                 });
               }
             : undefined,
+        onMoveBelowPlayPosition: moveBelowPlayPosition,
       };
     },
     [

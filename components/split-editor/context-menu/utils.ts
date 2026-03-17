@@ -39,6 +39,14 @@ export function buildReorderItems(reorderActions: ReorderActions | undefined): M
     { key: 'move-up', icon: ChevronUp, label: 'Move up', action: reorderActions?.onMoveUp },
     { key: 'move-down', icon: ChevronDown, label: 'Move down', action: reorderActions?.onMoveDown },
     { key: 'move-bottom', icon: ChevronsDown, label: 'Move to bottom', action: reorderActions?.onMoveToBottom },
+    ...(reorderActions?.onMoveBelowPlayPosition
+      ? [{
+        key: 'move-below-play-position',
+        icon: ChevronDown,
+        label: 'Move below play position',
+        action: reorderActions.onMoveBelowPlayPosition,
+      }]
+      : []),
   ];
 }
 

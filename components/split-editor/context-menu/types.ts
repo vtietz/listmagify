@@ -6,6 +6,7 @@ export interface ReorderActions {
   onMoveDown?: (() => void) | undefined;
   onMoveToTop?: (() => void) | undefined;
   onMoveToBottom?: (() => void) | undefined;
+  onMoveBelowPlayPosition?: (() => void) | undefined;
   onPlaceBeforeMarker?: (() => void) | undefined;
   onPlaceAfterMarker?: (() => void) | undefined;
 }

@@ -96,7 +96,9 @@ interface VirtualizedTrackListContainerProps {
   /** Whether there are any active insertion markers */
   hasAnyMarkers?: boolean;
   /** Build reorder actions for a track at given position */
-  buildReorderActions?: (trackPosition: number) => Record<string, (() => void) | undefined>;
+  buildReorderActions?: (trackPosition: number, playPosition?: number) => Record<string, (() => void) | undefined>;
+  /** Current playing track position for playback-aware reorder actions */
+  activePlayPosition?: number;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────
@@ -158,6 +160,7 @@ export function VirtualizedTrackListContainer({
   onAddToAllMarkers,
   hasAnyMarkers,
   buildReorderActions,
+  activePlayPosition,
 }: VirtualizedTrackListContainerProps) {
   // ── Context menu (global store) ──────────────────────────────────────
   const contextMenu = useContextMenuStore();
@@ -288,7 +291,7 @@ export function VirtualizedTrackListContainer({
                 crossesHourBoundary={hourBoundaries.has(idx)}
                 hourNumber={hourBoundaries.get(idx) || 0}
                 markerActions={panelMarkerActions}
-                {...(buildReorderActions ? { reorderActions: buildReorderActions(pos) } : {})}
+                {...(buildReorderActions ? { reorderActions: buildReorderActions(pos, activePlayPosition) } : {})}
                 {...(contextTrackActions || onDeleteTrackDuplicates ? { contextTrackActions: buildRowContextActions(
                   contextTrackActions, onDeleteTrackDuplicates, track, pos, isRowDuplicate,
                 )! } : {})}

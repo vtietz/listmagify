@@ -60,6 +60,13 @@ export function PlaylistPanel({
   const playbackContext = usePlayerStore((s) => s.playbackContext);
   const playbackState = usePlayerStore((s) => s.playbackState);
   const isPlayingPanel = playbackContext?.sourceId === panelId;
+  const activePlayTrackIndex = playbackState?.track?.id
+    ? state.filteredTracks.findIndex((track) => track.id === playbackState.track?.id)
+    : -1;
+  const activePlayPosition =
+    isPlayingPanel && playbackState?.isPlaying && playbackState.track?.id
+      ? (state.filteredTracks[activePlayTrackIndex]?.position ?? activePlayTrackIndex)
+      : -1;
   
   // Auto-scroll during playback toggle (user preference)
   const autoScrollEnabled = useHydratedAutoScrollPlay();
@@ -300,6 +307,7 @@ export function PlaylistPanel({
                 playbackContext={playbackContext}
                 {...(hasActiveMarkers ? { hasAnyMarkers: hasActiveMarkers, onAddToAllMarkers: handleAddToAllMarkers } : {})}
                 {...(state.isEditable ? { buildReorderActions: state.buildReorderActions } : {})}
+                {...(activePlayPosition >= 0 ? { activePlayPosition } : {})}
                 {...(state.isEditable && state.handleDeleteTrackDuplicates ? { onDeleteTrackDuplicates: state.handleDeleteTrackDuplicates } : {})}
                 {...(state.isEditable ? { contextTrackActions: {
                   onRemoveFromPlaylist: state.handleDeleteSelected,
