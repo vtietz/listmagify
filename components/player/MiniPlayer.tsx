@@ -356,8 +356,6 @@ export function MiniPlayer({ isVisible, onHide, onTrackClick }: MiniPlayerProps)
   }
 
   const progressPercent = durationMs > 0 ? (localProgress / durationMs) * 100 : 0;
-  const trackClickHandler: (() => void) | undefined =
-    track.id !== null && onTrackClick ? handleTrackClick : undefined;
 
   return (
     <>
@@ -375,7 +373,7 @@ export function MiniPlayer({ isVisible, onHide, onTrackClick }: MiniPlayerProps)
             isAutoScrollEnabled={isAutoScrollEnabled}
             localProgress={localProgress}
             durationMs={durationMs}
-            {...(trackClickHandler && { onTrackClick: trackClickHandler })}
+            {...(track.id !== null && onTrackClick && { onTrackClick: handleTrackClick })}
           />
           <MiniPlayerControls
             isLoading={isLoading}
