@@ -11,28 +11,14 @@
 import { useState, useRef, useEffect, ChangeEvent, useCallback, useMemo } from 'react';
 import { 
   Search, 
-  RefreshCw, 
-  Lock, 
-  LockOpen, 
-  X, 
-  SplitSquareHorizontal, 
-  SplitSquareVertical, 
-  Move, 
-  Copy, 
-  MapPinOff, 
-  Pencil, 
-  Loader2, 
-  Save, 
-  Play,
-  Eraser,
   ListChecks,
-  ArrowDownToLine,
 } from 'lucide-react';
 import { PlaylistSelector } from './PlaylistSelector';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { PlaylistDialog } from '@/components/playlist/PlaylistDialog';
 import { AdaptiveNav, type NavItem } from '@/components/ui/adaptive-nav';
+import { buildPanelToolbarNavItems } from './panelToolbarNavItems';
 import { PlayingIndicator } from '@/components/ui/playing-indicator';
 import { useUpdatePlaylist } from '@/lib/spotify/playlistMutations';
 import { useDeviceType } from '@/hooks/useDeviceType';
@@ -225,24 +211,55 @@ export function PanelToolbar({
     );
   }, [isUltraCompact, playlistId, localSearch, handleSearchChange]);
 
-  // Build toolbar actions array using NavItem format
   const navItems: NavItem[] = useMemo(() => {
-    const items: NavItem[] = [];
+    const items = buildPanelToolbarNavItems({
+      playlistId,
+      canEditPlaylistInfo,
+      setEditDialogOpen,
+      isReloading,
+      onReload,
+      hasTracks,
+      onPlayFirst,
+      isEditable,
+      locked,
+      panelCount,
+      dndMode,
+      onDndModeToggle,
+      hasDuplicates,
+      onDeleteDuplicates,
+      isDeletingDuplicates,
+      isSorted,
+      onSaveCurrentOrder,
+      isSavingOrder,
+      insertionMarkerCount,
+      onClearInsertionMarkers,
+      autoScrollEnabled,
+      toggleAutoScroll,
+      onLockToggle,
+      showSplitCommands,
+      canSplitHorizontal,
+      onSplitHorizontal,
+      onSplitVertical,
+      isPhone,
+      isLastPanel,
+      onClose,
+      disableClose,
+    });
 
-    // Selection actions (first, so it appears leftmost in the right-aligned group)
-    // Always visible with neverOverflow - this is the most important action
     if (playlistId && onOpenSelectionMenu) {
-      items.push({
+      items.unshift({
         id: 'selection',
         icon: <ListChecks className="h-4 w-4" />,
         label: selectionCount > 0 ? `${selectionCount} selected` : 'No selection',
-        title: selectionCount > 0 ? `${selectionCount} track${selectionCount !== 1 ? 's' : ''} selected - click for actions` : 'No tracks selected',
+        title: selectionCount > 0
+          ? `${selectionCount} track${selectionCount !== 1 ? 's' : ''} selected - click for actions`
+          : 'No tracks selected',
         group: 'selection',
         disabled: selectionCount === 0,
         neverOverflow: true,
         customRender: () => (
           <Button
-            ref={selectionButtonRef as React.RefObject<HTMLButtonElement>}
+            ref={selectionButtonRef}
             variant="ghost"
             size="sm"
             onClick={() => {
@@ -253,10 +270,10 @@ export function PanelToolbar({
             }}
             disabled={selectionCount === 0}
             className={cn(
-              "h-7 px-1.5 shrink-0 gap-1",
-              selectionCount > 0 ? "text-foreground hover:text-foreground" : "text-muted-foreground"
+              'h-7 px-1.5 shrink-0 gap-1',
+              selectionCount > 0 ? 'text-foreground hover:text-foreground' : 'text-muted-foreground'
             )}
-            title={selectionCount > 0 
+            title={selectionCount > 0
               ? `${selectionCount} track${selectionCount !== 1 ? 's' : ''} selected - click for actions`
               : 'No tracks selected'
             }
@@ -272,203 +289,41 @@ export function PanelToolbar({
       });
     }
 
-    // === PLAYLIST OPTIONS GROUP ===
-    
-    // Edit Playlist Info
-    if (canEditPlaylistInfo) {
-      items.push({
-        id: 'edit',
-        icon: <Pencil className="h-4 w-4" />,
-        label: 'Edit playlist',
-        onClick: () => setEditDialogOpen(true),
-        title: 'Edit playlist info',
-        group: 'playlist',
-      });
-    }
-
-    // Reload
-    if (playlistId) {
-      items.push({
-        id: 'reload',
-        icon: <RefreshCw className="h-4 w-4" />,
-        label: isReloading ? 'Reloading…' : 'Reload playlist',
-        onClick: onReload,
-        disabled: isReloading,
-        loading: isReloading,
-        title: isReloading ? 'Reloading…' : 'Reload playlist',
-        group: 'playlist',
-      });
-    }
-
-    // Play playlist
-    if (playlistId && hasTracks && onPlayFirst) {
-      items.push({
-        id: 'play',
-        icon: <Play className="h-4 w-4" />,
-        label: 'Play',
-        onClick: onPlayFirst,
-        title: 'Play playlist',
-        group: 'playlist',
-      });
-    }
-
-    // === TRACK OPTIONS GROUP ===
-
-    // DnD Mode Options (Move/Copy mode) - only show if multiple panels exist
-    if (playlistId && isEditable && !locked && panelCount > 1) {
-      // Move mode option
-      items.push({
-        id: 'move-mode',
-        icon: <Move className="h-4 w-4" />,
-        label: 'Move between panels',
-        onClick: () => {
-          if (dndMode !== 'move') {
-            onDndModeToggle();
-          }
-        },
-        title: 'When dragging tracks to another panel, move them (removes from source)',
-        group: 'drag-mode',
-        showCheckmark: true,
-        isActive: dndMode === 'move',
-      });
-      
-      // Copy mode option
-      items.push({
-        id: 'copy-mode',
-        icon: <Copy className="h-4 w-4" />,
-        label: 'Copy between panels',
-        onClick: () => {
-          if (dndMode !== 'copy') {
-            onDndModeToggle();
-          }
-        },
-        title: 'When dragging tracks to another panel, duplicate them (keeps in source)',
-        group: 'drag-mode',
-        showCheckmark: true,
-        isActive: dndMode === 'copy',
-      });
-    }
-
-    // Delete duplicates - only show when duplicates exist
-    if (playlistId && isEditable && !locked && hasDuplicates && onDeleteDuplicates) {
-      items.push({
-        id: 'delete-duplicates',
-        icon: isDeletingDuplicates 
-          ? <Loader2 className="h-4 w-4" /> 
-          : <Eraser className="h-4 w-4" />,
-        label: isDeletingDuplicates ? 'Removing duplicates...' : 'Delete duplicates',
-        onClick: onDeleteDuplicates,
-        disabled: isDeletingDuplicates,
-        loading: isDeletingDuplicates,
-        title: 'Delete duplicates',
-        group: 'tracks',
-      });
-    }
-
-    // Save Current Order
-    if (playlistId && isEditable && !locked && isSorted && onSaveCurrentOrder) {
-      items.push({
-        id: 'save-order',
-        icon: isSavingOrder ? <Loader2 className="h-4 w-4" /> : <Save className="h-4 w-4" />,
-        label: 'Save current order',
-        onClick: onSaveCurrentOrder,
-        disabled: isSavingOrder,
-        loading: isSavingOrder,
-        title: 'Save current order',
-        group: 'tracks',
-      });
-    }
-
-    // Clear Insertion Markers
-    if (playlistId && isEditable && !locked && insertionMarkerCount > 0 && onClearInsertionMarkers) {
-      items.push({
-        id: 'clear-markers',
-        icon: <MapPinOff className="h-4 w-4" />,
-        label: `Clear ${insertionMarkerCount} marker${insertionMarkerCount > 1 ? 's' : ''}`,
-        onClick: onClearInsertionMarkers,
-        variant: 'warning',
-        badge: (
-          <span className="text-xs bg-orange-500 text-white px-1.5 py-0.5 rounded-full">
-            {insertionMarkerCount}
-          </span>
-        ),
-        title: `Clear ${insertionMarkerCount} insertion marker${insertionMarkerCount > 1 ? 's' : ''}`,
-        group: 'tracks',
-      });
-    }
-
-    // === PANEL ACTIONS GROUP ===
-
-    // Auto-scroll during playback toggle
-    items.push({
-      id: 'auto-scroll',
-      icon: <ArrowDownToLine className="h-4 w-4" />,
-      label: autoScrollEnabled ? 'Auto-scroll: On' : 'Auto-scroll: Off',
-      onClick: toggleAutoScroll,
-      showCheckmark: true,
-      isActive: autoScrollEnabled,
-      title: autoScrollEnabled 
-        ? 'Auto-scroll during playback is enabled - click to disable' 
-        : 'Enable auto-scroll to follow playing track',
-      group: 'panel',
-    });
-
-    // Lock Toggle
-    if (playlistId) {
-      items.push({
-        id: 'lock',
-        icon: locked ? <Lock className="h-4 w-4" /> : <LockOpen className="h-4 w-4" />,
-        label: locked ? 'Unlock panel' : 'Lock panel',
-        onClick: onLockToggle,
-        disabled: !isEditable,
-        title: locked ? 'Unlock panel' : 'Lock panel',
-        group: 'panel',
-      });
-    }
-
-    // Split commands (desktop only)
-    if (showSplitCommands) {
-      items.push({
-        id: 'split-horizontal',
-        icon: <SplitSquareHorizontal className="h-4 w-4" />,
-        label: canSplitHorizontal ? 'Split horizontal' : 'Split horizontal (too narrow)',
-        onClick: onSplitHorizontal,
-        disabled: !canSplitHorizontal,
-        title: canSplitHorizontal ? 'Split horizontal' : 'Panel too narrow to split',
-        group: 'panel',
-      });
-
-      items.push({
-        id: 'split-vertical',
-        icon: <SplitSquareVertical className="h-4 w-4" />,
-        label: 'Split vertical',
-        onClick: onSplitVertical,
-        title: 'Split vertical',
-        group: 'panel',
-      });
-    }
-
-    // === CLOSE GROUP (separate) ===
-    
-    // Close - always last, in its own group
-    items.push({
-      id: 'close',
-      icon: <X className="h-4 w-4" />,
-      label: isPhone ? 'Hide panel' : (isLastPanel ? 'Close panel (last)' : 'Close panel'),
-      onClick: onClose,
-      disabled: disableClose,
-      title: isPhone ? 'Hide panel' : (isLastPanel ? 'Cannot close last panel' : 'Close panel'),
-      group: 'close',
-    });
-
     return items;
   }, [
-    playlistId, hasTracks, onPlayFirst, isEditable, locked, onDeleteDuplicates, hasDuplicates, isDeletingDuplicates,
-    isReloading, onReload, dndMode, onDndModeToggle, onLockToggle, canEditPlaylistInfo,
-    isSorted, onSaveCurrentOrder, isSavingOrder, insertionMarkerCount, onClearInsertionMarkers,
-    showSplitCommands, canSplitHorizontal, onSplitHorizontal, onSplitVertical,
-    isPhone, isLastPanel, onClose, disableClose, selectionCount, onOpenSelectionMenu, panelCount,
-    autoScrollEnabled, toggleAutoScroll
+    playlistId,
+    onOpenSelectionMenu,
+    selectionCount,
+    canEditPlaylistInfo,
+    setEditDialogOpen,
+    isReloading,
+    onReload,
+    hasTracks,
+    onPlayFirst,
+    isEditable,
+    locked,
+    panelCount,
+    dndMode,
+    onDndModeToggle,
+    hasDuplicates,
+    onDeleteDuplicates,
+    isDeletingDuplicates,
+    isSorted,
+    onSaveCurrentOrder,
+    isSavingOrder,
+    insertionMarkerCount,
+    onClearInsertionMarkers,
+    autoScrollEnabled,
+    toggleAutoScroll,
+    onLockToggle,
+    showSplitCommands,
+    canSplitHorizontal,
+    onSplitHorizontal,
+    onSplitVertical,
+    isPhone,
+    isLastPanel,
+    onClose,
+    disableClose,
   ]);
 
   return (

@@ -175,7 +175,7 @@ export function SpotifyPlayer({ forceShow = false, onTrackClick }: SpotifyPlayer
     } finally {
       setIsInserting(false);
     }
-  }, [track, isInserting, playlistsWithMarkers, totalMarkers, addTracksMutation, shiftAfterMultiInsert]);
+  }, [track, isInserting, setIsInserting, playlistsWithMarkers, totalMarkers, addTracksMutation, shiftAfterMultiInsert]);
 
   const handleDeviceClick = useCallback(() => {
     refreshDevices();

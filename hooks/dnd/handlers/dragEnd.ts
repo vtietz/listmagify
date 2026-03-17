@@ -43,6 +43,206 @@ export interface DragEndContext {
   endDrag: () => void;
 }
 
+type TrackSourceData = Record<string, unknown> & {
+  type: 'track';
+  panelId?: string;
+  playlistId?: string;
+  track: Track;
+  position: number;
+};
+
+type LastfmTrackSourceData = Record<string, unknown> & {
+  type: 'lastfm-track';
+  matchedTrack: Track;
+  selectedMatchedUris?: string[];
+};
+
+type DragSourceData = TrackSourceData | LastfmTrackSourceData;
+
+type DragTargetData = Record<string, unknown> & {
+  type: 'track' | 'panel';
+  panelId?: string;
+  playlistId?: string;
+  position?: number;
+};
+
+function isDragSourceData(data: unknown): data is DragSourceData {
+  return Boolean(
+    data
+      && typeof data === 'object'
+      && 'type' in data
+      && (((data as { type?: string }).type === 'track') || ((data as { type?: string }).type === 'lastfm-track'))
+  );
+}
+
+function isDragTargetData(data: unknown): data is DragTargetData {
+  return Boolean(
+    data
+      && typeof data === 'object'
+      && 'type' in data
+      && (((data as { type?: string }).type === 'track') || ((data as { type?: string }).type === 'panel'))
+  );
+}
+
+function handleLastfmTrackDrop(
+  sourceData: LastfmTrackSourceData,
+  targetData: DragTargetData,
+  finalDropPosition: number | null,
+  ctx: DragEndContext
+): void {
+  const targetPanelId = targetData.panelId;
+  const targetPlaylistId = targetData.playlistId;
+
+  if (!targetPanelId || !targetPlaylistId) {
+    console.error('Missing target panel or playlist context');
+    return;
+  }
+
+  const targetIndex = finalDropPosition ?? (targetData.position ?? 0);
+  const dropContext: DropContext = {
+    panels: ctx.panels,
+    mutations: ctx.mutations,
+    selectedIndices: [],
+    orderedTracks: [],
+    clearSelection: useBrowsePanelStore.getState().clearLastfmSelection,
+  };
+
+  handleLastfmDrop(
+    sourceData.matchedTrack,
+    sourceData.selectedMatchedUris,
+    targetPanelId,
+    targetPlaylistId,
+    targetIndex,
+    dropContext
+  );
+}
+
+function handlePlaylistTrackDrop(
+  sourceData: TrackSourceData,
+  targetData: DragTargetData,
+  finalDropPosition: number | null,
+  selectedIndices: number[],
+  orderedTracksSnapshot: Track[],
+  ctx: DragEndContext
+): void {
+  const sourcePanelIdFromData = sourceData.panelId;
+  const targetPanelId = targetData.panelId;
+  const sourcePlaylistId = sourceData.playlistId;
+  const targetPlaylistId = targetData.playlistId;
+
+  if (sourcePanelIdFromData && !sourcePlaylistId && targetPlaylistId && targetPanelId) {
+    const targetPanel = ctx.panels.find((p) => p.id === targetPanelId);
+    handleBrowsePanelCopyDrop(
+      sourceData,
+      targetData,
+      sourceData.track,
+      targetPlaylistId,
+      targetPanelId,
+      targetPanel,
+      finalDropPosition,
+      ctx.mutations.addTracks
+    );
+    return;
+  }
+
+  if (!sourcePanelIdFromData || !targetPanelId || !sourcePlaylistId || !targetPlaylistId) {
+    console.error('Missing panel or playlist context in drag event');
+    return;
+  }
+
+  const orderedTracks = orderedTracksSnapshot.length > 0
+    ? orderedTracksSnapshot
+    : (ctx.panelVirtualizersRef.current?.get(sourcePanelIdFromData)?.filteredTracks ?? []);
+
+  const selectedTracks = selectedIndices
+    .map((idx) => orderedTracks[idx])
+    .filter((track): track is Track => track != null);
+
+  const dragTracks = selectedTracks.length > 0 ? selectedTracks : [sourceData.track];
+  const dragTrackUris = dragTracks.map((track) => track.uri);
+  const sourceIndex = sourceData.position;
+  const targetIndex = finalDropPosition ?? (targetData.position ?? 0);
+
+  logDebug('🎯 DROP:', {
+    from: selectedIndices.length > 0 ? selectedIndices : [sourceIndex],
+    to: targetIndex,
+    tracks: dragTracks.map((track) => `#${track?.position ?? '?'} ${track?.name ?? 'unknown'}`),
+  });
+
+  console.debug('[DND] end: selection', {
+    selectedCount: selectedIndices.length,
+    indices: selectedIndices.slice(0, 25),
+    dragTracksCount: dragTracks.length,
+  });
+
+  const shouldAdjust = shouldAdjustTargetIndex(finalDropPosition, dragTracks.length);
+  const effectiveTargetIndex = calculateEffectiveTargetIndex(
+    targetIndex,
+    shouldAdjust,
+    () => computeAdjustedTargetIndex(targetIndex, dragTracks, orderedTracks, sourcePlaylistId, targetPlaylistId)
+  );
+
+  const sourcePanel = ctx.panels.find((panel) => panel.id === sourcePanelIdFromData);
+  const targetPanel = ctx.panels.find((panel) => panel.id === targetPanelId);
+
+  if (!sourcePanel || !targetPanel) {
+    console.error('Could not find source or target panel');
+    return;
+  }
+
+  if (!targetPanel.isEditable) {
+    toast.error('Target playlist is not editable');
+    return;
+  }
+
+  const sourceDndMode = sourcePanel.dndMode || 'copy';
+  const { ctrlKey: isCtrlPressed } = ctx.pointerTracker.getModifiers();
+  const canInvertMode = sourcePanel.isEditable;
+  const isSamePanelSamePlaylist = sourcePanelIdFromData === targetPanelId && sourcePlaylistId === targetPlaylistId;
+
+  const effectiveMode = determineEffectiveMode(
+    isSamePanelSamePlaylist,
+    sourceDndMode,
+    isCtrlPressed,
+    canInvertMode
+  );
+
+  const dropContext: DropContext = {
+    panels: ctx.panels,
+    mutations: ctx.mutations,
+    selectedIndices,
+    orderedTracks,
+  };
+
+  if (isSamePanelSamePlaylist) {
+    handleSamePanelDrop(
+      effectiveMode,
+      sourceIndex,
+      targetIndex,
+      effectiveTargetIndex,
+      dragTracks,
+      dragTrackUris,
+      sourcePlaylistId,
+      targetPlaylistId,
+      dropContext
+    );
+    return;
+  }
+
+  handleCrossPanelDrop(
+    effectiveMode,
+    sourceIndex,
+    targetIndex,
+    effectiveTargetIndex,
+    dragTracks,
+    dragTrackUris,
+    sourcePlaylistId,
+    targetPlaylistId,
+    sourcePanel,
+    dropContext
+  );
+}
+
 /**
  * Handle drop onto player (play tracks)
  */
@@ -138,171 +338,33 @@ export function createDragEndHandler(ctx: DragEndContext) {
     const sourceData = active.data.current;
     const targetData = over.data.current;
 
-    // Source must be a track or lastfm-track
-    if (!sourceData || (sourceData.type !== 'track' && sourceData.type !== 'lastfm-track')) {
+    if (!isDragSourceData(sourceData)) {
       return;
     }
 
     // Handle drop onto player
     if (targetData?.type === 'player') {
-      handlePlayerDrop(sourceData, sourceData?.track as Track);
+      const track = sourceData.type === 'track' ? sourceData.track : sourceData.matchedTrack;
+      handlePlayerDrop(sourceData, track);
       return;
     }
 
-    // Target can be either a track or a panel
-    if (!targetData || (targetData.type !== 'track' && targetData.type !== 'panel')) {
+    if (!isDragTargetData(targetData)) {
       return;
     }
 
-    // Handle Last.fm track drops
     if (sourceData.type === 'lastfm-track') {
-      const targetPanelId = targetData.panelId;
-      const targetPlaylistId = targetData.playlistId;
-
-      if (!targetPanelId || !targetPlaylistId) {
-        console.error('Missing target panel or playlist context');
-        return;
-      }
-
-      const targetIndex = finalDropPosition ?? (targetData.position ?? 0);
-      const dropContext: DropContext = {
-        panels: ctx.panels,
-        mutations: ctx.mutations,
-        selectedIndices: [],
-        orderedTracks: [],
-        clearSelection: useBrowsePanelStore.getState().clearLastfmSelection,
-      };
-
-      handleLastfmDrop(
-        sourceData.matchedTrack,
-        sourceData.selectedMatchedUris as string[] | undefined,
-        targetPanelId,
-        targetPlaylistId,
-        targetIndex,
-        dropContext
-      );
+      handleLastfmTrackDrop(sourceData, targetData, finalDropPosition, ctx);
       return;
     }
 
-    const sourcePanelIdFromData = sourceData.panelId;
-    const targetPanelId = targetData.panelId;
-    const sourcePlaylistId = sourceData.playlistId;
-    const targetPlaylistId = targetData.playlistId;
-    const sourceTrack: Track = sourceData.track;
-    const sourceIndex: number = sourceData.position;
-
-    // Handle Spotify search results and player (copy only - no source playlist)
-    if (!sourcePlaylistId && sourcePanelIdFromData && targetPlaylistId && targetPanelId) {
-      const targetPanel = ctx.panels.find((p) => p.id === targetPanelId);
-      handleBrowsePanelCopyDrop(
-        sourceData,
-        targetData,
-        sourceTrack,
-        targetPlaylistId,
-        targetPanelId,
-        targetPanel,
-        finalDropPosition,
-        ctx.mutations.addTracks
-      );
-      return;
-    }
-
-    // Use snapshot from drag start
-    const orderedTracks = orderedTracksSnapshot.length > 0
-      ? orderedTracksSnapshot
-      : (ctx.panelVirtualizersRef.current?.get(sourcePanelIdFromData)?.filteredTracks ?? []);
-    const selectedTracks = selectedIndices.map(idx => orderedTracks[idx]).filter((t): t is Track => t != null);
-    const dragTracks = (selectedTracks.length ? selectedTracks : [sourceTrack]);
-    const dragTrackUris = dragTracks.map((t) => t.uri);
-
-    const targetIndex: number = finalDropPosition ?? (targetData.position ?? 0);
-
-    logDebug('🎯 DROP:', {
-      from: selectedIndices.length > 0 ? selectedIndices : [sourceIndex],
-      to: targetIndex,
-      tracks: dragTracks.map(t => `#${t?.position ?? '?'} ${t?.name ?? 'unknown'}`)
-    });
-
-    console.debug('[DND] end: selection', {
-      selectedCount: selectedIndices.length,
-      indices: selectedIndices.slice(0, 25),
-      dragTracksCount: dragTracks.length
-    });
-
-    // Adjustment logic using pure functions
-    const shouldAdjust = shouldAdjustTargetIndex(finalDropPosition, dragTracks.length);
-    const effectiveTargetIndex = calculateEffectiveTargetIndex(
-      targetIndex,
-      shouldAdjust,
-      () => computeAdjustedTargetIndex(targetIndex, dragTracks, orderedTracks, sourcePlaylistId, targetPlaylistId)
-    );
-
-    if (!sourcePanelIdFromData || !targetPanelId || !sourcePlaylistId || !targetPlaylistId) {
-      console.error('Missing panel or playlist context in drag event');
-      return;
-    }
-
-    // Find the panels
-    const sourcePanel = ctx.panels.find((p) => p.id === sourcePanelIdFromData);
-    const targetPanel = ctx.panels.find((p) => p.id === targetPanelId);
-
-    if (!sourcePanel || !targetPanel) {
-      console.error('Could not find source or target panel');
-      return;
-    }
-
-    if (!targetPanel.isEditable) {
-      toast.error('Target playlist is not editable');
-      return;
-    }
-
-    const sourceDndMode = sourcePanel.dndMode || 'copy';
-    const { ctrlKey: isCtrlPressed } = ctx.pointerTracker.getModifiers();
-    const canInvertMode = sourcePanel.isEditable;
-    const isSamePanelSamePlaylist = sourcePanelIdFromData === targetPanelId && sourcePlaylistId === targetPlaylistId;
-
-    const effectiveMode = determineEffectiveMode(
-      isSamePanelSamePlaylist,
-      sourceDndMode,
-      isCtrlPressed,
-      canInvertMode
-    );
-
-    const dropContext: DropContext = {
-      panels: ctx.panels,
-      mutations: ctx.mutations,
+    handlePlaylistTrackDrop(
+      sourceData,
+      targetData,
+      finalDropPosition,
       selectedIndices,
-      orderedTracks,
-    };
-
-    // Same panel, same playlist operations
-    if (isSamePanelSamePlaylist) {
-      handleSamePanelDrop(
-        effectiveMode,
-        sourceIndex,
-        targetIndex,
-        effectiveTargetIndex,
-        dragTracks,
-        dragTrackUris,
-        sourcePlaylistId,
-        targetPlaylistId,
-        dropContext
-      );
-      return;
-    }
-
-    // Cross-panel operations
-    handleCrossPanelDrop(
-      effectiveMode,
-      sourceIndex,
-      targetIndex,
-      effectiveTargetIndex,
-      dragTracks,
-      dragTrackUris,
-      sourcePlaylistId,
-      targetPlaylistId,
-      sourcePanel,
-      dropContext
+      orderedTracksSnapshot,
+      ctx
     );
   };
 }

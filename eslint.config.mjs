@@ -1,6 +1,9 @@
 import nextConfig from 'eslint-config-next';
 import tseslint from '@typescript-eslint/eslint-plugin';
 
+const COMPLEXITY_WARN_LEVEL = 12;
+const COMPLEXITY_BREAK_LEVEL = 35;
+
 const eslintConfig = [
   ...nextConfig,
   {
@@ -25,14 +28,14 @@ const eslintConfig = [
       // File size guardrail - warn at 500 lines (excluding blanks and comments)
       'max-lines': ['warn', { max: 500, skipBlankLines: true, skipComments: true }],
       
-      // Cyclomatic complexity guardrail - warn at 50 (React JSX conditionals count as decision points)
-      complexity: ['warn', { max: 50 }],
+      // Cyclomatic complexity break guardrail. Warning-level reporting is handled in quality checks.
+      complexity: ['error', { max: COMPLEXITY_BREAK_LEVEL }],
     },
   },
   {
     files: ['app/api/**/*.ts'],
     rules: {
-      complexity: ['error', { max: 12 }],
+      complexity: ['error', { max: COMPLEXITY_WARN_LEVEL }],
       'max-depth': ['error', 3],
     },
   },
