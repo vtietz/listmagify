@@ -229,7 +229,7 @@ if "%1"=="test" (
   goto :eof
 )
 if "%1"=="quality" (
-  docker compose -f docker\docker-compose.yml run --rm web sh -lc "set +e; pnpm typecheck; TYPECHECK_EXIT=\$?; pnpm lint; LINT_EXIT=\$?; echo ''; echo '[quality] Code metrics'; FILES=\$(git ls-files '*.ts' '*.tsx' '*.js' '*.jsx' ^| wc -l); LOC=\$(git ls-files '*.ts' '*.tsx' '*.js' '*.jsx' ^| xargs -r wc -l ^| tail -n1 ^| awk '{print \$1}'); echo \"[quality] Source files: \$FILES\"; echo \"[quality] Total LOC (ts/js): \$LOC\"; echo ''; echo '[quality] Complexity check (cyclomatic complexity ^> 50)'; pnpm exec eslint . --rule 'complexity: [warn, 50]' --format stylish ^|^| true; echo ''; echo \"[quality] typecheck exit code: \$TYPECHECK_EXIT\"; echo \"[quality] lint exit code: \$LINT_EXIT\"; if [ \$TYPECHECK_EXIT -ne 0 ] ^|^| [ \$LINT_EXIT -ne 0 ]; then exit 1; fi"
+  docker compose -f docker\docker-compose.yml run --rm web sh -lc "set +e; pnpm typecheck; TYPECHECK_EXIT=\$?; pnpm lint; LINT_EXIT=\$?; echo ''; echo '[quality] Code metrics'; FILES=\$(git ls-files '*.ts' '*.tsx' '*.js' '*.jsx' ^| wc -l); LOC=\$(git ls-files '*.ts' '*.tsx' '*.js' '*.jsx' ^| xargs -r wc -l ^| tail -n1 ^| awk '{print \$1}'); echo \"[quality] Source files: \$FILES\"; echo \"[quality] Total LOC (ts/js): \$LOC\"; echo ''; echo '[quality] Complexity check (cyclomatic complexity ^> 10)'; pnpm exec eslint . --rule 'complexity: [warn, 10]' --format stylish ^|^| true; echo ''; echo \"[quality] typecheck exit code: \$TYPECHECK_EXIT\"; echo \"[quality] lint exit code: \$LINT_EXIT\"; if [ \$TYPECHECK_EXIT -ne 0 ] ^|^| [ \$LINT_EXIT -ne 0 ]; then exit 1; fi"
   goto :eof
 )
 
