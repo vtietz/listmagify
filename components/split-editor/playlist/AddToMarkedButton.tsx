@@ -8,7 +8,11 @@
 'use client';
 
 import { Plus, Loader2, AlertTriangle, ArrowRight } from 'lucide-react';
-import { useInsertionPointsStore, computeInsertionPositions } from '@/hooks/useInsertionPointsStore';
+import {
+  useInsertionPointsStore,
+  computeInsertionPositions,
+  type InsertionPoint,
+} from '@/hooks/useInsertionPointsStore';
 import { useSplitGridStore, flattenPanels } from '@/hooks/useSplitGridStore';
 import { useAddTracks, useReorderTracks } from '@/lib/spotify/playlistMutations';
 import { useCompactModeStore } from '@/hooks/useCompactModeStore';
@@ -40,6 +44,223 @@ interface AddToMarkedButtonProps {
   excludePlaylistId?: string;
 }
 
+interface PlaylistMarkerData {
+  markers: InsertionPoint[];
+}
+
+type PlaylistsWithMarkers = Array<[string, PlaylistMarkerData]>;
+
+type AddClickAction = 'ignore' | 'open-playlist-dialog' | 'open-confirm-dialog' | 'proceed';
+
+interface DuplicateInfoState {
+  results: DuplicateCheckResult[];
+  playlistsWithDuplicates: string[];
+}
+
+function pluralize(count: number, singular: string, plural?: string): string {
+  if (count === 1) {
+    return singular;
+  }
+
+  return plural ?? `${singular}s`;
+}
+
+function getPlaylistsWithMarkers(playlists: Record<string, PlaylistMarkerData>): PlaylistsWithMarkers {
+  return Object.entries(playlists).filter(([, data]) => data.markers.length > 0);
+}
+
+function getAddClickAction(
+  isInserting: boolean,
+  hasActiveMarkers: boolean,
+  hiddenPlaylistCount: number,
+): AddClickAction {
+  if (isInserting) {
+    return 'ignore';
+  }
+
+  if (!hasActiveMarkers) {
+    return 'open-playlist-dialog';
+  }
+
+  if (hiddenPlaylistCount > 0) {
+    return 'open-confirm-dialog';
+  }
+
+  return 'proceed';
+}
+
+function getHiddenMarkerSummary(
+  playlistsWithMarkers: PlaylistsWithMarkers,
+  visiblePlaylistIds: Set<string>,
+): { hiddenPlaylistCount: number; hiddenMarkerCount: number } {
+  const hiddenPlaylistsWithMarkers = playlistsWithMarkers.filter(
+    ([playlistId]) => !visiblePlaylistIds.has(playlistId),
+  );
+
+  return {
+    hiddenPlaylistCount: hiddenPlaylistsWithMarkers.length,
+    hiddenMarkerCount: hiddenPlaylistsWithMarkers.reduce((sum, [, data]) => sum + data.markers.length, 0),
+  };
+}
+
+function buildButtonClassName(
+  isCompact: boolean,
+  hasActiveMarkers: boolean,
+  isInserting: boolean,
+): string {
+  return cn(
+    'flex items-center justify-center rounded transition-all',
+    isCompact ? 'h-5 w-5' : 'h-6 w-6',
+    hasActiveMarkers && !isInserting
+      ? 'text-orange-500 hover:scale-110 hover:bg-orange-500 hover:text-white'
+      : !isInserting
+        ? 'text-muted-foreground hover:scale-110 hover:text-foreground'
+        : 'text-muted-foreground/30 cursor-not-allowed',
+  );
+}
+
+function buildButtonTitle(hasActiveMarkers: boolean, totalMarkers: number): string {
+  if (!hasActiveMarkers) {
+    return 'Add to playlist';
+  }
+
+  return `Add to ${totalMarkers} marked ${pluralize(totalMarkers, 'position')}`;
+}
+
+function buildButtonAriaLabel(hasActiveMarkers: boolean, totalMarkers: number, trackName: string): string {
+  if (!hasActiveMarkers) {
+    return 'Add to playlist';
+  }
+
+  return `Add ${trackName} to ${totalMarkers} marked insertion points`;
+}
+
+async function addTrackToMarkerPositions(params: {
+  playlistId: string;
+  markers: InsertionPoint[];
+  trackUri: string;
+  addTracksMutation: ReturnType<typeof useAddTracks>;
+  shiftAfterMultiInsert: (playlistId: string) => void;
+}): Promise<number> {
+  const positions = computeInsertionPositions(params.markers, 1);
+
+  for (const position of positions) {
+    await params.addTracksMutation.mutateAsync({
+      playlistId: params.playlistId,
+      trackUris: [params.trackUri],
+      position: position.effectiveIndex,
+    });
+  }
+
+  params.shiftAfterMultiInsert(params.playlistId);
+  return positions.length;
+}
+
+async function moveExistingTracksInPlaylist(params: {
+  playlistId: string;
+  existingPositions: Array<{ position: number }>;
+  targetPosition: number;
+  reorderTracksMutation: ReturnType<typeof useReorderTracks>;
+}): Promise<number> {
+  let movedCount = 0;
+
+  for (const { position: fromIndex } of params.existingPositions) {
+    const effectiveTarget = fromIndex < params.targetPosition ? params.targetPosition - 1 : params.targetPosition;
+
+    if (fromIndex === effectiveTarget) {
+      continue;
+    }
+
+    await params.reorderTracksMutation.mutateAsync({
+      playlistId: params.playlistId,
+      fromIndex,
+      toIndex: effectiveTarget,
+      rangeLength: 1,
+    });
+    movedCount++;
+  }
+
+  return movedCount;
+}
+
+function findDuplicateResult(
+  duplicateInfo: DuplicateInfoState | null,
+  playlistId: string,
+): DuplicateCheckResult | undefined {
+  return duplicateInfo?.results.find((result) => result.playlistId === playlistId);
+}
+
+async function moveOrAddForPlaylist(params: {
+  playlistId: string;
+  playlistData: PlaylistMarkerData;
+  duplicateInfo: DuplicateInfoState | null;
+  trackUri: string;
+  addTracksMutation: ReturnType<typeof useAddTracks>;
+  reorderTracksMutation: ReturnType<typeof useReorderTracks>;
+  shiftAfterMultiInsert: (playlistId: string) => void;
+}): Promise<{ movedCount: number; addedCount: number }> {
+  const positions = computeInsertionPositions(params.playlistData.markers, 1);
+  if (positions.length === 0) {
+    return { movedCount: 0, addedCount: 0 };
+  }
+
+  const duplicateResult = findDuplicateResult(params.duplicateInfo, params.playlistId);
+  if (duplicateResult?.existingPositions?.length) {
+    const movedCount = await moveExistingTracksInPlaylist({
+      playlistId: params.playlistId,
+      existingPositions: duplicateResult.existingPositions,
+      targetPosition: positions[0]!.effectiveIndex,
+      reorderTracksMutation: params.reorderTracksMutation,
+    });
+    return { movedCount, addedCount: 0 };
+  }
+
+  const addedCount = await addTrackToMarkerPositions({
+    playlistId: params.playlistId,
+    markers: params.playlistData.markers,
+    trackUri: params.trackUri,
+    addTracksMutation: params.addTracksMutation,
+    shiftAfterMultiInsert: params.shiftAfterMultiInsert,
+  });
+  return { movedCount: 0, addedCount };
+}
+
+async function moveOrAddAcrossPlaylists(params: {
+  playlistsWithMarkers: PlaylistsWithMarkers;
+  duplicateInfo: DuplicateInfoState | null;
+  trackUri: string;
+  addTracksMutation: ReturnType<typeof useAddTracks>;
+  reorderTracksMutation: ReturnType<typeof useReorderTracks>;
+  shiftAfterMultiInsert: (playlistId: string) => void;
+}): Promise<{ movedCount: number; addedCount: number }> {
+  let movedCount = 0;
+  let addedCount = 0;
+
+  for (const [playlistId, playlistData] of params.playlistsWithMarkers) {
+    const playlistResult = await moveOrAddForPlaylist({
+      playlistId,
+      playlistData,
+      duplicateInfo: params.duplicateInfo,
+      trackUri: params.trackUri,
+      addTracksMutation: params.addTracksMutation,
+      reorderTracksMutation: params.reorderTracksMutation,
+      shiftAfterMultiInsert: params.shiftAfterMultiInsert,
+    });
+    movedCount += playlistResult.movedCount;
+    addedCount += playlistResult.addedCount;
+  }
+
+  return { movedCount, addedCount };
+}
+
+function AddButtonIcon({ isInserting, isCompact }: { isInserting: boolean; isCompact: boolean }) {
+  if (isInserting) {
+    return <Loader2 className={cn(isCompact ? 'h-3 w-3' : 'h-4 w-4', 'animate-spin')} />;
+  }
+
+  return <Plus className={isCompact ? 'h-3 w-3' : 'h-4 w-4'} />;
+}
+
 /**
  * Button to add a track to all marked insertion points across playlists.
  * Disabled when there are no active markers.
@@ -63,14 +284,10 @@ export function AddToMarkedButton({
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
   const [showPlaylistDialog, setShowPlaylistDialog] = useState(false);
-  const [duplicateInfo, setDuplicateInfo] = useState<{
-    results: DuplicateCheckResult[];
-    playlistsWithDuplicates: string[];
-  } | null>(null);
+  const [duplicateInfo, setDuplicateInfo] = useState<DuplicateInfoState | null>(null);
 
   // Get all playlists with active markers
-  const playlistsWithMarkers = Object.entries(playlists)
-    .filter(([, data]) => data.markers.length > 0);
+  const playlistsWithMarkers = getPlaylistsWithMarkers(playlists);
 
   const hasActiveMarkers = playlistsWithMarkers.length > 0;
   const totalMarkers = playlistsWithMarkers.reduce((sum, [, data]) => sum + data.markers.length, 0);
@@ -82,14 +299,9 @@ export function AddToMarkedButton({
       .map((panel) => panel.playlistId as string)
   );
 
-  // Find playlists with markers that are NOT currently visible
-  const hiddenPlaylistsWithMarkers = playlistsWithMarkers.filter(
-    ([playlistId]) => !visiblePlaylistIds.has(playlistId)
-  );
-  const hiddenPlaylistCount = hiddenPlaylistsWithMarkers.length;
-  const hiddenMarkerCount = hiddenPlaylistsWithMarkers.reduce(
-    (sum, [, data]) => sum + data.markers.length,
-    0
+  const { hiddenPlaylistCount, hiddenMarkerCount } = getHiddenMarkerSummary(
+    playlistsWithMarkers,
+    visiblePlaylistIds,
   );
 
   // Execute the actual insertion with optional skip for playlists with duplicates
@@ -158,19 +370,21 @@ export function AddToMarkedButton({
     e.stopPropagation();
     e.preventDefault();
 
-    if (isInserting) return;
-
-    // If no markers, show playlist dialog
-    if (!hasActiveMarkers) {
-      setShowPlaylistDialog(true);
-      return;
-    }
-
-    // Show confirmation dialog if there are markers in hidden playlists
-    if (hiddenPlaylistCount > 0) {
-      setShowConfirmDialog(true);
-    } else {
-      await checkAndProceed();
+    const action = getAddClickAction(isInserting, hasActiveMarkers, hiddenPlaylistCount);
+    switch (action) {
+      case 'ignore':
+        return;
+      case 'open-playlist-dialog':
+        setShowPlaylistDialog(true);
+        return;
+      case 'open-confirm-dialog':
+        setShowConfirmDialog(true);
+        return;
+      case 'proceed':
+        await checkAndProceed();
+        return;
+      default:
+        return;
     }
   };
 
@@ -205,45 +419,14 @@ export function AddToMarkedButton({
     setIsInserting(true);
 
     try {
-      let movedCount = 0;
-      let addedCount = 0;
-
-      for (const [playlistId, data] of playlistsWithMarkers) {
-        const duplicateResult = duplicateInfo?.results.find(r => r.playlistId === playlistId);
-        const positions = computeInsertionPositions(data.markers, 1);
-        if (positions.length === 0) continue;
-
-        // If track exists in this playlist, move it to marker position
-        if (duplicateResult?.existingPositions?.length) {
-          const targetPosition = positions[0]!.effectiveIndex;
-
-          for (const { position: fromIndex } of duplicateResult.existingPositions) {
-            // Calculate effective target considering shift from removal
-            const effectiveTarget = fromIndex < targetPosition ? targetPosition - 1 : targetPosition;
-            
-            if (fromIndex !== effectiveTarget) {
-              await reorderTracksMutation.mutateAsync({
-                playlistId,
-                fromIndex,
-                toIndex: effectiveTarget,
-                rangeLength: 1,
-              });
-              movedCount++;
-            }
-          }
-        } else {
-          // Track doesn't exist in this playlist, add it at marker positions
-          for (const pos of positions) {
-            await addTracksMutation.mutateAsync({
-              playlistId,
-              trackUris: [trackUri],
-              position: pos.effectiveIndex,
-            });
-            addedCount++;
-          }
-          shiftAfterMultiInsert(playlistId);
-        }
-      }
+      const { movedCount, addedCount } = await moveOrAddAcrossPlaylists({
+        playlistsWithMarkers,
+        duplicateInfo,
+        trackUri,
+        addTracksMutation,
+        reorderTracksMutation,
+        shiftAfterMultiInsert,
+      });
 
       if (movedCount > 0 && addedCount > 0) {
         // Success - no toast needed
@@ -267,31 +450,11 @@ export function AddToMarkedButton({
       <button
         onClick={handleClick}
         disabled={isInserting}
-        className={cn(
-          'flex items-center justify-center rounded transition-all',
-          isCompact ? 'h-5 w-5' : 'h-6 w-6',
-          hasActiveMarkers && !isInserting
-            ? 'text-orange-500 hover:scale-110 hover:bg-orange-500 hover:text-white'
-            : !isInserting
-            ? 'text-muted-foreground hover:scale-110 hover:text-foreground'
-            : 'text-muted-foreground/30 cursor-not-allowed',
-        )}
-        title={
-          hasActiveMarkers
-            ? `Add to ${totalMarkers} marked position${totalMarkers > 1 ? 's' : ''}`
-            : 'Add to playlist'
-        }
-        aria-label={
-          hasActiveMarkers
-            ? `Add ${trackName} to ${totalMarkers} marked insertion points`
-            : 'Add to playlist'
-        }
+        className={buildButtonClassName(isCompact, hasActiveMarkers, isInserting)}
+        title={buildButtonTitle(hasActiveMarkers, totalMarkers)}
+        aria-label={buildButtonAriaLabel(hasActiveMarkers, totalMarkers, trackName)}
       >
-        {isInserting ? (
-          <Loader2 className={cn(isCompact ? 'h-3 w-3' : 'h-4 w-4', 'animate-spin')} />
-        ) : (
-          <Plus className={isCompact ? 'h-3 w-3' : 'h-4 w-4'} />
-        )}
+        <AddButtonIcon isInserting={isInserting} isCompact={isCompact} />
       </button>
 
       {/* Playlist selector dialog (when no markers) */}
@@ -310,11 +473,11 @@ export function AddToMarkedButton({
             <AlertDialogTitle>Add to hidden playlists?</AlertDialogTitle>
             <AlertDialogDescription>
               You are about to add &quot;{trackName}&quot; to{' '}
-              <strong>{totalMarkers} marker position{totalMarkers > 1 ? 's' : ''}</strong>.
+              <strong>{totalMarkers} marker {pluralize(totalMarkers, 'position')}</strong>.
               <br /><br />
               <span className="text-orange-500 font-medium">
-                {hiddenMarkerCount} marker{hiddenMarkerCount > 1 ? 's' : ''} in{' '}
-                {hiddenPlaylistCount} playlist{hiddenPlaylistCount > 1 ? 's' : ''}{' '}
+                {hiddenMarkerCount} {pluralize(hiddenMarkerCount, 'marker')} in{' '}
+                {hiddenPlaylistCount} {pluralize(hiddenPlaylistCount, 'playlist')}{' '}
                 {hiddenPlaylistCount > 1 ? 'are' : 'is'} not currently visible.
               </span>
             </AlertDialogDescription>
@@ -341,8 +504,8 @@ export function AddToMarkedButton({
                 <p>
                   &quot;{trackName}&quot; already exists in{' '}
                   <strong>
-                    {duplicateInfo?.playlistsWithDuplicates.length ?? 0} playlist
-                    {(duplicateInfo?.playlistsWithDuplicates.length ?? 0) > 1 ? 's' : ''}
+                    {duplicateInfo?.playlistsWithDuplicates.length ?? 0}{' '}
+                    {pluralize(duplicateInfo?.playlistsWithDuplicates.length ?? 0, 'playlist')}
                   </strong>
                   .
                 </p>

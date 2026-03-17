@@ -18,10 +18,122 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { useInsertionPointsStore, computeInsertionPositions } from '@/hooks/useInsertionPointsStore';
+import {
+  useInsertionPointsStore,
+  computeInsertionPositions,
+  type InsertionPoint,
+} from '@/hooks/useInsertionPointsStore';
 import { useAddTracks } from '@/lib/spotify/playlistMutations';
 import { cn } from '@/lib/utils';
 import { toast } from '@/lib/ui/toast';
+
+interface PlaylistMarkerData {
+  markers: InsertionPoint[];
+}
+
+type PlaylistMarkerEntry = [string, PlaylistMarkerData];
+
+interface AddTracksMutationLike {
+  mutateAsync: (params: {
+    playlistId: string;
+    trackUris: string[];
+    position: number;
+  }) => Promise<unknown>;
+}
+
+function getPlaylistsWithMarkers(
+  playlists: Record<string, PlaylistMarkerData>,
+  excludePlaylistId?: string,
+): PlaylistMarkerEntry[] {
+  return Object.entries(playlists).filter(([playlistId, data]) => {
+    return data.markers.length > 0 && playlistId !== excludePlaylistId;
+  });
+}
+
+function getTotalMarkers(playlistsWithMarkers: PlaylistMarkerEntry[]): number {
+  return playlistsWithMarkers.reduce((sum, [, data]) => sum + data.markers.length, 0);
+}
+
+async function addUrisToPlaylistMarkers(
+  playlistId: string,
+  markers: InsertionPoint[],
+  uris: string[],
+  addTracksMutation: AddTracksMutationLike,
+): Promise<number> {
+  const positions = computeInsertionPositions(markers, uris.length);
+
+  for (const position of positions) {
+    await addTracksMutation.mutateAsync({
+      playlistId,
+      trackUris: uris,
+      position: position.effectiveIndex,
+    });
+  }
+
+  return markers.length;
+}
+
+async function addUrisToMarkersAcrossPlaylists(params: {
+  playlistsWithMarkers: PlaylistMarkerEntry[];
+  uris: string[];
+  addTracksMutation: AddTracksMutationLike;
+  shiftAfterMultiInsert: (playlistId: string) => void;
+}): Promise<{ successCount: number; errorCount: number }> {
+  let successCount = 0;
+  let errorCount = 0;
+
+  for (const [playlistId, playlistData] of params.playlistsWithMarkers) {
+    if (playlistData.markers.length === 0) {
+      continue;
+    }
+
+    try {
+      const insertedInPlaylist = await addUrisToPlaylistMarkers(
+        playlistId,
+        playlistData.markers,
+        params.uris,
+        params.addTracksMutation,
+      );
+
+      if (playlistData.markers.length > 1) {
+        params.shiftAfterMultiInsert(playlistId);
+      }
+
+      successCount += insertedInPlaylist;
+    } catch {
+      errorCount++;
+    }
+  }
+
+  return { successCount, errorCount };
+}
+
+function showAddResultToast(successCount: number, errorCount: number): void {
+  if (successCount > 0 && errorCount === 0) {
+    return;
+  }
+
+  if (successCount > 0 && errorCount > 0) {
+    toast.warning(
+      `Added to ${successCount} markers, failed for ${errorCount} playlist${errorCount > 1 ? 's' : ''}`,
+    );
+    return;
+  }
+
+  toast.error('Failed to add tracks to markers');
+}
+
+function buildTooltipText(selectedCount: number, hasActiveMarkers: boolean, totalMarkers: number): string {
+  if (selectedCount === 0) {
+    return 'Select tracks to add to insertion markers';
+  }
+
+  if (hasActiveMarkers) {
+    return `Add ${selectedCount} track${selectedCount > 1 ? 's' : ''} to ${totalMarkers} marker${totalMarkers > 1 ? 's' : ''}`;
+  }
+
+  return 'No insertion markers set. Right-click track rows to add markers.';
+}
 
 interface AddSelectedToMarkersButtonProps {
   /** Number of selected tracks to add */
@@ -47,12 +159,9 @@ export function AddSelectedToMarkersButton({
   const addTracksMutation = useAddTracks();
   
   // Get all playlists with active markers (excluding source playlist)
-  const playlistsWithMarkers = Object.entries(playlists)
-    .filter(([playlistId, data]) => 
-      data.markers.length > 0 && playlistId !== excludePlaylistId
-    );
+  const playlistsWithMarkers = getPlaylistsWithMarkers(playlists, excludePlaylistId);
   const hasActiveMarkers = playlistsWithMarkers.length > 0;
-  const totalMarkers = playlistsWithMarkers.reduce((sum, [, data]) => sum + data.markers.length, 0);
+  const totalMarkers = getTotalMarkers(playlistsWithMarkers);
   
   const handleClick = useCallback(async () => {
     if (selectedCount === 0 || !hasActiveMarkers) return;
@@ -67,54 +176,16 @@ export function AddSelectedToMarkersButton({
         toast.error('No tracks to add');
         return;
       }
-      
-      // Add to each playlist's markers
-      let successCount = 0;
-      let errorCount = 0;
-      
-      for (const [playlistId, playlistData] of playlistsWithMarkers) {
-        if (playlistData.markers.length === 0) continue;
-        
-        try {
-          // Compute insertion positions accounting for shifts
-          const positions = computeInsertionPositions(
-            playlistData.markers,
-            uris.length
-          );
-          
-          // Insert at each position
-          for (const position of positions) {
-            await addTracksMutation.mutateAsync({
-              playlistId,
-              trackUris: uris,
-              position: position.effectiveIndex,
-            });
-          }
-          
-          // Update markers to account for inserted tracks
-          if (playlistData.markers.length > 1) {
-            shiftAfterMultiInsert(playlistId);
-          }
-          
-          successCount += playlistData.markers.length;
-        } catch (error) {
-          console.error(`Failed to add tracks to playlist ${playlistId}:`, error);
-          errorCount++;
-        }
-      }
-      
-      // Show result toast
-      if (successCount > 0 && errorCount === 0) {
-        // Success - no toast needed
-      } else if (successCount > 0 && errorCount > 0) {
-        toast.warning(
-          `Added to ${successCount} markers, failed for ${errorCount} playlist${errorCount > 1 ? 's' : ''}`
-        );
-      } else {
-        toast.error('Failed to add tracks to markers');
-      }
-    } catch (error) {
-      console.error('Failed to add selected tracks:', error);
+
+      const { successCount, errorCount } = await addUrisToMarkersAcrossPlaylists({
+        playlistsWithMarkers,
+        uris,
+        addTracksMutation,
+        shiftAfterMultiInsert,
+      });
+
+      showAddResultToast(successCount, errorCount);
+    } catch {
       toast.error('Failed to add tracks');
     } finally {
       setIsAdding(false);
@@ -160,13 +231,7 @@ export function AddSelectedToMarkersButton({
           </Button>
         </TooltipTrigger>
         <TooltipContent>
-          {selectedCount === 0 ? (
-            <p>Select tracks to add to insertion markers</p>
-          ) : hasActiveMarkers ? (
-            <p>Add {selectedCount} track{selectedCount > 1 ? 's' : ''} to {totalMarkers} marker{totalMarkers > 1 ? 's' : ''}</p>
-          ) : (
-            <p>No insertion markers set. Right-click track rows to add markers.</p>
-          )}
+          <p>{buildTooltipText(selectedCount, hasActiveMarkers, totalMarkers)}</p>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
