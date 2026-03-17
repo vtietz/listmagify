@@ -10,6 +10,7 @@ import { createRateLimitError, createAppError } from "@/lib/errors/types";
 interface FetchOptions extends RequestInit {}
 
 const PROVIDER_STORAGE_KEY = 'music-provider-id';
+const PROVIDER_MISMATCH_RELOAD_KEY = 'provider-mismatch-reload-attempted';
 
 function isMusicProviderId(value: string | null | undefined): value is 'spotify' | 'tidal' {
   return value === 'spotify' || value === 'tidal';
@@ -67,6 +68,46 @@ export class AccessTokenExpiredError extends Error {
 let sessionExpiredHandled = false;
 let sessionExpiredTimeout: ReturnType<typeof setTimeout> | null = null;
 
+function shouldForceReloadForMissingProvider(status: number, data: unknown): boolean {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  if (status !== 400) {
+    return false;
+  }
+
+  if (!data || typeof data !== 'object') {
+    return false;
+  }
+
+  const errorValue = (data as { error?: unknown }).error;
+  if (typeof errorValue !== 'string') {
+    return false;
+  }
+
+  return errorValue.includes('Missing provider');
+}
+
+function maybeRecoverFromProviderMismatch(status: number, data: unknown): boolean {
+  if (!shouldForceReloadForMissingProvider(status, data)) {
+    return false;
+  }
+
+  const hasAttemptedReload = window.sessionStorage.getItem(PROVIDER_MISMATCH_RELOAD_KEY) === '1';
+  if (hasAttemptedReload) {
+    toast.error('App updated. Please do a full browser reload.', {
+      id: 'provider-mismatch-refresh',
+      duration: 5000,
+    });
+    return false;
+  }
+
+  window.sessionStorage.setItem(PROVIDER_MISMATCH_RELOAD_KEY, '1');
+  window.location.reload();
+  return true;
+}
+
 /**
  * Reset the session expiry handling state.
  * Called internally after redirect, exposed for testing.
@@ -76,6 +117,10 @@ export function resetSessionExpiredState() {
   if (sessionExpiredTimeout) {
     clearTimeout(sessionExpiredTimeout);
     sessionExpiredTimeout = null;
+  }
+
+  if (typeof window !== 'undefined') {
+    window.sessionStorage.removeItem(PROVIDER_MISMATCH_RELOAD_KEY);
   }
 }
 
@@ -167,6 +212,10 @@ export async function apiFetch<T = any>(
 
     // Handle other error statuses
     if (!response.ok) {
+      if (maybeRecoverFromProviderMismatch(response.status, data)) {
+        throw new ApiError('App updated, reloading to recover request context', response.status, data);
+      }
+
       const errorMessage = data.error || data.details || `Request failed: ${response.status} ${response.statusText}`;
       const apiError = new ApiError(errorMessage, response.status, data);
 

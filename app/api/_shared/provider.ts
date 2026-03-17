@@ -3,6 +3,7 @@ import { routeErrors } from '@/lib/errors';
 import { getMusicProvider, parseMusicProviderId } from '@/lib/music-provider';
 
 const PROVIDER_HINT = 'Use ?provider=spotify|tidal or x-music-provider header.';
+const FALLBACK_PROVIDER_ID = 'spotify' as const;
 
 export function resolveMusicProviderIdFromRequest(request: NextRequest) {
   const providerValue =
@@ -11,7 +12,10 @@ export function resolveMusicProviderIdFromRequest(request: NextRequest) {
     request.headers.get('x-provider');
 
   if (!providerValue) {
-    throw routeErrors.validation(`Missing provider. ${PROVIDER_HINT}`);
+    console.warn(
+      `[provider] Missing provider for ${request.nextUrl.pathname}; defaulting to '${FALLBACK_PROVIDER_ID}'.`,
+    );
+    return FALLBACK_PROVIDER_ID;
   }
 
   try {
