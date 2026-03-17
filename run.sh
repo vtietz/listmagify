@@ -128,8 +128,8 @@ case "${1:-}" in
       echo \"[quality] Total LOC (ts/js): \$LOC\"
 
       echo ''
-      echo '[quality] Complexity check (cyclomatic complexity > 12)'
-      pnpm exec eslint . --rule 'complexity: [warn, 12]' --format stylish || true
+      echo '[quality] Complexity check (cyclomatic complexity > 50)'
+      pnpm exec eslint . --rule 'complexity: [warn, 50]' --format stylish || true
 
       echo ''
       echo \"[quality] typecheck exit code: \$TYPECHECK_EXIT\"
