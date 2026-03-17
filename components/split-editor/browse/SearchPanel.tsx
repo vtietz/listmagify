@@ -47,6 +47,340 @@ interface SearchPanelProps {
   inputRef?: React.RefObject<HTMLInputElement | null>;
 }
 
+function useSearchQueryState(
+  searchQuery: string,
+  setSearchQuery: (query: string) => void,
+  clearSpotifySelection: () => void
+) {
+  const [localQuery, setLocalQuery] = useState(searchQuery);
+  const debouncedQuery = useDebouncedValue(localQuery, 300);
+
+  useEffect(() => {
+    setLocalQuery(searchQuery);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    setSearchQuery(debouncedQuery);
+    clearSpotifySelection();
+  }, [debouncedQuery, setSearchQuery, clearSpotifySelection]);
+
+  return {
+    localQuery,
+    setLocalQuery,
+    debouncedQuery,
+  };
+}
+
+function useFocusWhenActive(isActive: boolean, inputRef: React.RefObject<HTMLInputElement | null>) {
+  useEffect(() => {
+    if (!isActive || !inputRef.current) {
+      return;
+    }
+
+    const timeoutId = setTimeout(() => inputRef.current?.focus(), 100);
+    return () => clearTimeout(timeoutId);
+  }, [isActive, inputRef]);
+}
+
+function useSearchSortState() {
+  const [sortKey, setSortKey] = useState<SortKey>('position');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+
+  const handleSort = useCallback((key: SortKey) => {
+    if (key === sortKey) {
+      setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+      return;
+    }
+
+    setSortKey(key);
+    setSortDirection('asc');
+  }, [sortKey]);
+
+  return {
+    sortKey,
+    sortDirection,
+    handleSort,
+  };
+}
+
+function useLoadNextSearchPageOnScroll({
+  scrollRef,
+  hasNextPage,
+  isFetchingNextPage,
+  fetchNextPage,
+}: {
+  scrollRef: React.RefObject<HTMLDivElement | null>;
+  hasNextPage: boolean;
+  isFetchingNextPage: boolean;
+  fetchNextPage: () => void;
+}) {
+  useEffect(() => {
+    const scrollElement = scrollRef.current;
+    if (!scrollElement) {
+      return;
+    }
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = scrollElement;
+      const scrollBottom = scrollHeight - scrollTop - clientHeight;
+
+      if (scrollBottom < 200 && hasNextPage && !isFetchingNextPage) {
+        fetchNextPage();
+      }
+    };
+
+    scrollElement.addEventListener('scroll', handleScroll, { passive: true });
+    return () => scrollElement.removeEventListener('scroll', handleScroll);
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage, scrollRef]);
+}
+
+function SearchInputBar({
+  inputRef,
+  localQuery,
+  onChange,
+  onClear,
+  hasAnyMarkers,
+  selectedCount,
+  getTrackUris,
+}: {
+  inputRef: React.RefObject<HTMLInputElement | null>;
+  localQuery: string;
+  onChange: (value: string) => void;
+  onClear: () => void;
+  hasAnyMarkers: boolean;
+  selectedCount: number;
+  getTrackUris: () => string[];
+}) {
+  return (
+    <div className="px-3 py-2 border-b border-border">
+      <div className="relative flex items-center gap-1.5">
+        <div className="relative flex-1">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            ref={inputRef}
+            type="text"
+            placeholder="Search tracks, artists, albums..."
+            value={localQuery}
+            onChange={(e) => onChange(e.target.value)}
+            className="h-9 pl-9 pr-8 text-sm"
+          />
+          {localQuery ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6"
+              onClick={onClear}
+              aria-label="Clear search"
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          ) : null}
+        </div>
+
+        {hasAnyMarkers ? (
+          <AddSelectedToMarkersButton
+            selectedCount={selectedCount}
+            getTrackUris={getTrackUris}
+            className="h-9 w-9 shrink-0"
+          />
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function SearchResultsState({
+  isLoading,
+  isError,
+  debouncedQuery,
+  hasTracks,
+  children,
+}: {
+  isLoading: boolean;
+  isError: boolean;
+  debouncedQuery: string;
+  hasTracks: boolean;
+  children: React.ReactNode;
+}) {
+  if (isLoading && debouncedQuery) {
+    return (
+      <div className="flex items-center justify-center h-32">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return <div className="flex items-center justify-center h-32 text-sm text-destructive">Failed to search. Please try again.</div>;
+  }
+
+  if (!debouncedQuery) {
+    return <div className="flex items-center justify-center h-32 text-sm text-muted-foreground">Enter a search term to find tracks</div>;
+  }
+
+  if (!hasTracks) {
+    return (
+      <div className="flex items-center justify-center h-32 text-sm text-muted-foreground">
+        No tracks found for &quot;{debouncedQuery}&quot;
+      </div>
+    );
+  }
+
+  return <>{children}</>;
+}
+
+function SearchTracksVirtualList({
+  sortableIds,
+  scrollRef,
+  sortKey,
+  sortDirection,
+  onSort,
+  virtualizer,
+  sortedTracks,
+  spotifySelection,
+  getSelectedTracks,
+  isLiked,
+  onToggleLiked,
+  isTrackPlaying,
+  isTrackLoading,
+  playTrack,
+  pausePlayback,
+  getCompareColorForTrack,
+  onSelect,
+  onClick,
+  isFetchingNextPage,
+}: {
+  sortableIds: string[];
+  scrollRef: React.RefObject<HTMLDivElement | null>;
+  sortKey: SortKey;
+  sortDirection: SortDirection;
+  onSort: (key: SortKey) => void;
+  virtualizer: ReturnType<typeof useVirtualizer<HTMLDivElement, Element>>;
+  sortedTracks: Track[];
+  spotifySelection: number[];
+  getSelectedTracks: () => Track[];
+  isLiked: (trackId: string) => boolean;
+  onToggleLiked: (trackId: string, currentlyLiked: boolean) => void;
+  isTrackPlaying: (trackId: string) => boolean;
+  isTrackLoading: (uri: string) => boolean;
+  playTrack: (trackUri: string) => void;
+  pausePlayback: () => void;
+  getCompareColorForTrack: (trackUri: string) => string;
+  onSelect: (_selectionKey: string, index: number, event: React.MouseEvent) => void;
+  onClick: (_selectionKey: string, index: number) => void;
+  isFetchingNextPage: boolean;
+}) {
+  return (
+    <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
+      <div ref={scrollRef} className="h-full overflow-auto">
+        <div className="relative w-full">
+          <TableHeader
+            isEditable={false}
+            sortKey={sortKey}
+            sortDirection={sortDirection}
+            onSort={onSort}
+            showLikedColumn={true}
+          />
+          <div
+            style={{
+              height: virtualizer.getTotalSize(),
+              position: 'relative',
+            }}
+          >
+            {virtualizer.getVirtualItems().map((virtualRow) => {
+              const track = sortedTracks[virtualRow.index];
+              if (!track) {
+                return null;
+              }
+
+              const trackId = track.id || track.uri;
+              const position = track.position ?? virtualRow.index;
+              const compositeId = makeCompositeId(SEARCH_PANEL_ID, trackId, position);
+              const liked = track.id ? isLiked(track.id) : false;
+              const isCurrentSelected = spotifySelection.includes(virtualRow.index);
+              const selectedTracksForDrag = isCurrentSelected && spotifySelection.length > 0
+                ? getSelectedTracks()
+                : undefined;
+
+              return (
+                <div
+                  key={compositeId}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    transform: `translateY(${virtualRow.start}px)`,
+                  }}
+                >
+                  <TrackRow
+                    track={track}
+                    index={virtualRow.index}
+                    selectionKey={compositeId}
+                    isSelected={isCurrentSelected}
+                    isEditable={false}
+                    locked={false}
+                    onSelect={onSelect}
+                    onClick={onClick}
+                    panelId={SEARCH_PANEL_ID}
+                    dndMode="copy"
+                    isDragSourceSelected={false}
+                    showLikedColumn={true}
+                    isLiked={liked}
+                    onToggleLiked={onToggleLiked}
+                    isPlaying={track.id ? isTrackPlaying(track.id) : false}
+                    isPlaybackLoading={isTrackLoading(track.uri)}
+                    onPlay={playTrack}
+                    onPause={pausePlayback}
+                    compareColor={getCompareColorForTrack(track.uri)}
+                    isMultiSelect={spotifySelection.length > 1}
+                    selectedCount={spotifySelection.length}
+                    selectedTracks={selectedTracksForDrag}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {isFetchingNextPage ? (
+          <div className="flex items-center justify-center py-4">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : null}
+      </div>
+    </SortableContext>
+  );
+}
+
+function SearchPanelContextMenu({
+  shouldShow,
+  contextMenu,
+  onClose,
+}: {
+  shouldShow: boolean;
+  contextMenu: ReturnType<typeof useContextMenuStore.getState>;
+  onClose: () => void;
+}) {
+  if (!shouldShow || !contextMenu.track) {
+    return null;
+  }
+
+  return (
+    <TrackContextMenu
+      track={contextMenu.track}
+      isOpen={true}
+      onClose={onClose}
+      {...(contextMenu.position ? { position: contextMenu.position } : {})}
+      {...(contextMenu.markerActions ? { markerActions: contextMenu.markerActions } : {})}
+      {...(contextMenu.trackActions ? { trackActions: contextMenu.trackActions } : {})}
+      isMultiSelect={contextMenu.isMultiSelect}
+      selectedCount={contextMenu.selectedCount}
+      isEditable={false}
+    />
+  );
+}
+
 export function SearchPanel({ isActive = true, inputRef: externalInputRef }: SearchPanelProps) {
   const { 
     searchQuery, 
@@ -77,35 +411,15 @@ export function SearchPanel({ isActive = true, inputRef: externalInputRef }: Sea
   const scrollRef = useRef<HTMLDivElement>(null);
   const internalInputRef = useRef<HTMLInputElement>(null);
   const inputRef = externalInputRef ?? internalInputRef;
-  
-  // Sorting state
-  const [sortKey, setSortKey] = useState<SortKey>('position');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
-  
-  // Local input state for immediate feedback
-  const [localQuery, setLocalQuery] = useState(searchQuery);
-  
-  // Debounce the search query to avoid too many API calls
-  const debouncedQuery = useDebouncedValue(localQuery, 300);
-  
-  // Sync local state when store changes
-  useEffect(() => {
-    setLocalQuery(searchQuery);
-  }, [searchQuery]);
-  
-  // Update store when debounced value changes
-  useEffect(() => {
-    setSearchQuery(debouncedQuery);
-    // Clear selection when search query changes
-    clearSpotifySelection();
-  }, [debouncedQuery, setSearchQuery, clearSpotifySelection]);
-  
-  // Focus input when panel becomes active
-  useEffect(() => {
-    if (isActive && inputRef.current) {
-      setTimeout(() => inputRef.current?.focus(), 100);
-    }
-  }, [isActive, inputRef]);
+
+  const { sortKey, sortDirection, handleSort } = useSearchSortState();
+  const { localQuery, setLocalQuery, debouncedQuery } = useSearchQueryState(
+    searchQuery,
+    setSearchQuery,
+    clearSpotifySelection
+  );
+
+  useFocusWhenActive(isActive, inputRef);
   
   // Search query for API
   const {
@@ -148,16 +462,6 @@ export function SearchPanel({ isActive = true, inputRef: externalInputRef }: Sea
     sortKey,
     sortDirection,
   });
-  
-  // Handle sort column click
-  const handleSort = useCallback((key: SortKey) => {
-    if (key === sortKey) {
-      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortKey(key);
-      setSortDirection('asc');
-    }
-  }, [sortKey]);
   
   // Create composite IDs for sortable context
   const sortableIds = useMemo(() => {
@@ -212,23 +516,14 @@ export function SearchPanel({ isActive = true, inputRef: externalInputRef }: Sea
     }
   }, [isCompact]);
   
-  // Auto-load more when scrolling near the bottom
-  useEffect(() => {
-    const scrollElement = scrollRef.current;
-    if (!scrollElement) return;
-    
-    const handleScroll = () => {
-      const { scrollTop, scrollHeight, clientHeight } = scrollElement;
-      const scrollBottom = scrollHeight - scrollTop - clientHeight;
-      
-      if (scrollBottom < 200 && hasNextPage && !isFetchingNextPage) {
-        fetchNextPage();
-      }
-    };
-    
-    scrollElement.addEventListener('scroll', handleScroll, { passive: true });
-    return () => scrollElement.removeEventListener('scroll', handleScroll);
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+  useLoadNextSearchPageOnScroll({
+    scrollRef,
+    hasNextPage: Boolean(hasNextPage),
+    isFetchingNextPage,
+    fetchNextPage: () => {
+      void fetchNextPage();
+    },
+  });
   
   // Handle liked toggle
   const handleToggleLiked = useCallback((trackId: string, currentlyLiked: boolean) => {
@@ -271,160 +566,51 @@ export function SearchPanel({ isActive = true, inputRef: externalInputRef }: Sea
   
   return (
     <div className="flex-1 min-h-0 flex flex-col">
-      {/* Search input */}
-      <div className="px-3 py-2 border-b border-border">
-        <div className="relative flex items-center gap-1.5">
-          <div className="relative flex-1">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              ref={inputRef}
-              type="text"
-              placeholder="Search tracks, artists, albums..."
-              value={localQuery}
-              onChange={(e) => setLocalQuery(e.target.value)}
-              className="h-9 pl-9 pr-8 text-sm"
-            />
-            {localQuery && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6"
-                onClick={() => setLocalQuery('')}
-                aria-label="Clear search"
-              >
-                <X className="h-3 w-3" />
-              </Button>
-            )}
-          </div>
-          
-          {/* Add selected to markers button - always show when markers exist, disabled when nothing selected */}
-          {hasAnyMarkers && (
-            <AddSelectedToMarkersButton
-              selectedCount={spotifySelection.length}
-              getTrackUris={getSelectedTrackUris}
-              className="h-9 w-9 shrink-0"
-            />
-          )}
-        </div>
-      </div>
-      
-      {/* Results */}
+      <SearchInputBar
+        inputRef={inputRef}
+        localQuery={localQuery}
+        onChange={setLocalQuery}
+        onClear={() => setLocalQuery('')}
+        hasAnyMarkers={hasAnyMarkers}
+        selectedCount={spotifySelection.length}
+        getTrackUris={getSelectedTrackUris}
+      />
+
       <div className="flex-1 min-h-0 overflow-hidden">
-        {isLoading && debouncedQuery ? (
-          <div className="flex items-center justify-center h-32">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
-        ) : isError ? (
-          <div className="flex items-center justify-center h-32 text-sm text-destructive">
-            Failed to search. Please try again.
-          </div>
-        ) : !debouncedQuery ? (
-          <div className="flex items-center justify-center h-32 text-sm text-muted-foreground">
-            Enter a search term to find tracks
-          </div>
-        ) : sortedTracks.length === 0 ? (
-          <div className="flex items-center justify-center h-32 text-sm text-muted-foreground">
-            No tracks found for &quot;{debouncedQuery}&quot;
-          </div>
-        ) : (
-          <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
-            <div
-              ref={scrollRef}
-              className="h-full overflow-auto"
-            >
-              <div className="relative w-full">
-                <TableHeader
-                  isEditable={false}
-                  sortKey={sortKey}
-                  sortDirection={sortDirection}
-                  onSort={handleSort}
-                  showLikedColumn={true}
-                />
-                <div
-                  style={{
-                    height: virtualizer.getTotalSize(),
-                    position: 'relative',
-                  }}
-                >
-                  {virtualizer.getVirtualItems().map((virtualRow) => {
-                    const track = sortedTracks[virtualRow.index];
-                    if (!track) return null;
-                    const trackId = track.id || track.uri;
-                    const position = track.position ?? virtualRow.index;
-                    const compositeId = makeCompositeId(SEARCH_PANEL_ID, trackId, position);
-                    const liked = track.id ? isLiked(track.id) : false;
-                    
-                    // Get selected tracks if current track is in selection
-                    const isCurrentSelected = spotifySelection.includes(virtualRow.index);
-                    const selectedTracksForDrag = isCurrentSelected && spotifySelection.length > 0 
-                      ? getSelectedTracks() 
-                      : undefined;
-                    
-                    return (
-                      <div
-                        key={compositeId}
-                        style={{
-                          position: 'absolute',
-                          top: 0,
-                          left: 0,
-                          width: '100%',
-                          transform: `translateY(${virtualRow.start}px)`,
-                        }}
-                      >
-                        <TrackRow
-                          track={track}
-                          index={virtualRow.index}
-                          selectionKey={compositeId}
-                          isSelected={isCurrentSelected}
-                          isEditable={false}
-                          locked={false}
-                          onSelect={handleSelect}
-                          onClick={handleClick}
-                          panelId={SEARCH_PANEL_ID}
-                          dndMode="copy"
-                          isDragSourceSelected={false}
-                          showLikedColumn={true}
-                          isLiked={liked}
-                          onToggleLiked={handleToggleLiked}
-                          isPlaying={track.id ? isTrackPlaying(track.id) : false}
-                          isPlaybackLoading={isTrackLoading(track.uri)}
-                          onPlay={playTrack}
-                          onPause={pausePlayback}
-                          compareColor={getCompareColorForTrack(track.uri)}
-                          isMultiSelect={spotifySelection.length > 1}
-                          selectedCount={spotifySelection.length}
-                          selectedTracks={selectedTracksForDrag}
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-              
-              {/* Loading more indicator */}
-              {isFetchingNextPage && (
-                <div className="flex items-center justify-center py-4">
-                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                </div>
-              )}
-            </div>
-          </SortableContext>
-        )}
-        
-        {/* Context menu for this panel */}
-        {shouldShowContextMenu && contextMenu.track && (
-          <TrackContextMenu
-            track={contextMenu.track}
-            isOpen={true}
-            onClose={closeContextMenu}
-            {...(contextMenu.position ? { position: contextMenu.position } : {})}
-            {...(contextMenu.markerActions ? { markerActions: contextMenu.markerActions } : {})}
-            {...(contextMenu.trackActions ? { trackActions: contextMenu.trackActions } : {})}
-            isMultiSelect={contextMenu.isMultiSelect}
-            selectedCount={contextMenu.selectedCount}
-            isEditable={false}
+        <SearchResultsState
+          isLoading={isLoading}
+          isError={isError}
+          debouncedQuery={debouncedQuery}
+          hasTracks={sortedTracks.length > 0}
+        >
+          <SearchTracksVirtualList
+            sortableIds={sortableIds}
+            scrollRef={scrollRef}
+            sortKey={sortKey}
+            sortDirection={sortDirection}
+            onSort={handleSort}
+            virtualizer={virtualizer}
+            sortedTracks={sortedTracks}
+            spotifySelection={spotifySelection}
+            getSelectedTracks={getSelectedTracks}
+            isLiked={isLiked}
+            onToggleLiked={handleToggleLiked}
+            isTrackPlaying={isTrackPlaying}
+            isTrackLoading={isTrackLoading}
+            playTrack={playTrack}
+            pausePlayback={pausePlayback}
+            getCompareColorForTrack={getCompareColorForTrack}
+            onSelect={handleSelect}
+            onClick={handleClick}
+            isFetchingNextPage={isFetchingNextPage}
           />
-        )}
+        </SearchResultsState>
+
+        <SearchPanelContextMenu
+          shouldShow={shouldShowContextMenu}
+          contextMenu={contextMenu}
+          onClose={closeContextMenu}
+        />
       </div>
     </div>
   );

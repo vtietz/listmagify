@@ -46,6 +46,297 @@ interface PlaylistPanelProps {
   onUnregisterVirtualizer: ((panelId: string) => void) | undefined;
 }
 
+type PlaylistPanelState = ReturnType<typeof usePlaylistPanelState>;
+type PlaylistPanelViewState = Omit<PlaylistPanelState, 'scrollRef' | 'scrollDroppableRef' | 'virtualizerRef'>;
+
+function getPlaylistPanelClassName({
+  isPlayingPanel,
+  isActiveDropTarget,
+}: {
+  isPlayingPanel: boolean;
+  isActiveDropTarget: boolean;
+}) {
+  if (isPlayingPanel) {
+    return 'flex flex-col h-full border-2 rounded-lg overflow-hidden transition-all border-green-500 shadow-[0_0_10px_rgba(34,197,94,0.3)]';
+  }
+
+  if (isActiveDropTarget) {
+    return 'flex flex-col h-full border-2 rounded-lg overflow-hidden transition-all border-primary bg-primary/10';
+  }
+
+  return 'flex flex-col h-full border-2 rounded-lg overflow-hidden transition-all border-border bg-card';
+}
+
+function getActivePlayPosition({
+  isPlayingPanel,
+  playbackState,
+  filteredTracks,
+}: {
+  isPlayingPanel: boolean;
+  playbackState: ReturnType<typeof usePlayerStore.getState>['playbackState'];
+  filteredTracks: Track[];
+}) {
+  if (!isPlayingPanel || !playbackState?.isPlaying || !playbackState.track?.id) {
+    return -1;
+  }
+
+  const activeTrackIndex = filteredTracks.findIndex((track) => track.id === playbackState.track?.id);
+  return filteredTracks[activeTrackIndex]?.position ?? activeTrackIndex;
+}
+
+function buildTrackListOptionalProps({
+  isDragSource,
+  hasActiveMarkers,
+  handleAddToAllMarkers,
+  isEditable,
+  buildReorderActions,
+  activePlayPosition,
+  handleDeleteTrackDuplicates,
+  handleDeleteSelected,
+}: {
+  isDragSource: boolean;
+  hasActiveMarkers: boolean;
+  handleAddToAllMarkers: () => void;
+  isEditable: boolean;
+  buildReorderActions: PlaylistPanelViewState['buildReorderActions'];
+  activePlayPosition: number;
+  handleDeleteTrackDuplicates: PlaylistPanelViewState['handleDeleteTrackDuplicates'];
+  handleDeleteSelected: PlaylistPanelViewState['handleDeleteSelected'];
+}) {
+  const optionalProps: Record<string, unknown> = { isDragSource };
+
+  if (hasActiveMarkers) {
+    optionalProps.hasAnyMarkers = hasActiveMarkers;
+    optionalProps.onAddToAllMarkers = handleAddToAllMarkers;
+  }
+
+  if (isEditable) {
+    optionalProps.buildReorderActions = buildReorderActions;
+    optionalProps.contextTrackActions = {
+      onRemoveFromPlaylist: handleDeleteSelected,
+      canRemove: true,
+    };
+  }
+
+  if (activePlayPosition >= 0) {
+    optionalProps.activePlayPosition = activePlayPosition;
+  }
+
+  if (isEditable && handleDeleteTrackDuplicates) {
+    optionalProps.onDeleteTrackDuplicates = handleDeleteTrackDuplicates;
+  }
+
+  return optionalProps;
+}
+
+function PlaylistTrackListState({
+  panelId,
+  state,
+  playbackContext,
+  isDragSource,
+  hasActiveMarkers,
+  handleAddToAllMarkers,
+  activePlayPosition,
+}: {
+  panelId: string;
+  state: PlaylistPanelViewState;
+  playbackContext: ReturnType<typeof usePlayerStore.getState>['playbackContext'];
+  isDragSource: boolean;
+  hasActiveMarkers: boolean;
+  handleAddToAllMarkers: () => void;
+  activePlayPosition: number;
+}) {
+  if (state.isLoading) {
+    return <LoadingSkeletonList />;
+  }
+
+  if (state.error) {
+    return <ErrorPanel error={state.error} />;
+  }
+
+  if (state.filteredTracks.length === 0) {
+    return <EmptyTrackList searchQuery={state.searchQuery} />;
+  }
+
+  const optionalProps = buildTrackListOptionalProps({
+    isDragSource,
+    hasActiveMarkers,
+    handleAddToAllMarkers,
+    isEditable: state.isEditable,
+    buildReorderActions: state.buildReorderActions,
+    activePlayPosition,
+    handleDeleteTrackDuplicates: state.handleDeleteTrackDuplicates,
+    handleDeleteSelected: state.handleDeleteSelected,
+  });
+
+  return (
+    <div className="relative min-w-fit">
+      <TableHeader
+        isEditable={state.isEditable}
+        sortKey={state.sortKey}
+        sortDirection={state.sortDirection}
+        onSort={state.handleSort}
+        showLikedColumn={true}
+        isCollaborative={state.hasMultipleContributors}
+      />
+      <VirtualizedTrackListContainer
+        panelId={panelId}
+        playlistId={state.playlistId!}
+        isEditable={state.isEditable}
+        canDrag={state.canDrag}
+        dndMode={state.dndMode}
+        searchQuery={state.searchQuery}
+        isSorted={state.isSorted}
+        totalSize={state.virtualizer.getTotalSize()}
+        rowHeight={state.rowHeight}
+        virtualItems={state.items}
+        filteredTracks={state.filteredTracks}
+        selection={state.selection}
+        activeMarkerIndices={state.activeMarkerIndices}
+        hasMultipleContributors={state.hasMultipleContributors}
+        hourBoundaries={state.hourBoundaries}
+        cumulativeDurations={state.cumulativeDurations}
+        selectionKey={state.selectionKey}
+        isLiked={state.isLiked}
+        isTrackPlaying={state.isTrackPlaying}
+        isTrackLoading={state.isTrackLoading}
+        isDuplicate={state.isDuplicate}
+        isSoftDuplicate={state.isSoftDuplicate}
+        isOtherInstanceSelected={state.isOtherInstanceSelected}
+        getCompareColorForTrack={state.getCompareColorForTrack}
+        getProfile={state.getProfile}
+        handleTrackSelect={state.handleTrackSelect}
+        handleTrackClick={state.handleTrackClick}
+        handleToggleLiked={state.handleToggleLiked}
+        playTrack={state.playTrack}
+        pausePlayback={state.pausePlayback}
+        playbackContext={playbackContext}
+        {...optionalProps}
+      />
+    </div>
+  );
+}
+
+function PlaylistPanelBody({
+  panelId,
+  state,
+  isPlayingPanel,
+  isActiveDropTarget,
+  isDragSource,
+  scrollDroppableRef,
+  playbackContext,
+  handleOpenSelectionMenu,
+  handleAddToAllMarkers,
+  hasActiveMarkers,
+  activePlayPosition,
+}: {
+  panelId: string;
+  state: PlaylistPanelViewState;
+  isPlayingPanel: boolean;
+  isActiveDropTarget: boolean;
+  isDragSource: boolean;
+  scrollDroppableRef: PlaylistPanelState['scrollDroppableRef'];
+  playbackContext: ReturnType<typeof usePlayerStore.getState>['playbackContext'];
+  handleOpenSelectionMenu: (position: { x: number; y: number }) => void;
+  handleAddToAllMarkers: () => void;
+  hasActiveMarkers: boolean;
+  activePlayPosition: number;
+}) {
+  return (
+    <div
+      data-testid="playlist-panel"
+      data-editable={state.isEditable}
+      className={getPlaylistPanelClassName({ isPlayingPanel, isActiveDropTarget })}
+      onMouseEnter={() => state.setIsMouseOver(true)}
+      onMouseLeave={() => state.setIsMouseOver(false)}
+    >
+      <PanelToolbar
+        panelId={panelId}
+        playlistId={state.playlistId ?? null}
+        playlistName={state.playlistName}
+        playlistDescription={state.playlistDescription}
+        playlistIsPublic={state.playlistIsPublic}
+        isEditable={state.isEditable}
+        dndMode={state.dndMode}
+        locked={state.locked}
+        searchQuery={state.searchQuery}
+        isReloading={state.isReloading}
+        sortKey={state.sortKey}
+        sortDirection={state.sortDirection}
+        insertionMarkerCount={state.activeMarkerIndices.size}
+        isSorted={state.isSorted}
+        isSavingOrder={state.isSavingOrder}
+        selectionCount={state.selection.size}
+        panelCount={state.panelCount}
+        hasTracks={state.hasTracks}
+        hasDuplicates={state.hasDuplicates}
+        isDeletingDuplicates={state.isDeletingDuplicates}
+        isPlayingPanel={isPlayingPanel}
+        onOpenSelectionMenu={handleOpenSelectionMenu}
+        onClearSelection={state.clearSelection}
+        onSearchChange={state.handleSearchChange}
+        onSortChange={(key, direction) => {
+          state.setSortKey(key);
+          state.setSortDirection(direction);
+        }}
+        onReload={state.handleReload}
+        onClose={state.handleClose}
+        onSplitHorizontal={state.handleSplitHorizontal}
+        onSplitVertical={state.handleSplitVertical}
+        onDndModeToggle={state.handleDndModeToggle}
+        onLockToggle={state.handleLockToggle}
+        onLoadPlaylist={state.handleLoadPlaylist}
+        onClearInsertionMarkers={() => state.playlistId && state.clearInsertionMarkers(state.playlistId)}
+        onSaveCurrentOrder={state.handleSaveCurrentOrder}
+        onPlayFirst={state.handlePlayFirst}
+        onDeleteDuplicates={state.handleDeleteAllDuplicates}
+      />
+
+      <div
+        ref={scrollDroppableRef}
+        data-testid="track-list-scroll"
+        className="flex-1 overflow-auto focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+        style={{
+          paddingBottom: TRACK_ROW_HEIGHT * 2,
+          overscrollBehaviorX: 'none',
+          overscrollBehaviorY: 'contain',
+          willChange: 'scroll-position',
+          touchAction: 'auto',
+          WebkitOverflowScrolling: 'touch',
+        }}
+        role="listbox"
+        aria-multiselectable="true"
+        aria-activedescendant={state.focusedIndex !== null ? `option-${panelId}-${state.focusedIndex}` : undefined}
+        tabIndex={0}
+        onKeyDown={state.handleKeyDownNavigation}
+      >
+        <PlaylistTrackListState
+          panelId={panelId}
+          state={state}
+          playbackContext={playbackContext}
+          isDragSource={isDragSource}
+          hasActiveMarkers={hasActiveMarkers}
+          handleAddToAllMarkers={handleAddToAllMarkers}
+          activePlayPosition={activePlayPosition}
+        />
+
+        {state.isAutoLoading && (
+          <div className="p-3 text-center text-xs text-muted-foreground">
+            Loading all tracks for this playlist… ({state.tracks.length} loaded)
+          </div>
+        )}
+      </div>
+
+      <ConfirmDeleteDialog
+        open={state.showDeleteConfirmation}
+        count={state.selection.size}
+        onOpenChange={state.setShowDeleteConfirmation}
+        onConfirm={state.handleConfirmMultiDelete}
+      />
+    </div>
+  );
+}
+
 export function PlaylistPanel({
   panelId,
   onRegisterVirtualizer,
@@ -61,13 +352,11 @@ export function PlaylistPanel({
   const playbackContext = usePlayerStore((s) => s.playbackContext);
   const playbackState = usePlayerStore((s) => s.playbackState);
   const isPlayingPanel = playbackContext?.sourceId === panelId;
-  const activePlayTrackIndex = playbackState?.track?.id
-    ? state.filteredTracks.findIndex((track) => track.id === playbackState.track?.id)
-    : -1;
-  const activePlayPosition =
-    isPlayingPanel && playbackState?.isPlaying && playbackState.track?.id
-      ? (state.filteredTracks[activePlayTrackIndex]?.position ?? activePlayTrackIndex)
-      : -1;
+  const activePlayPosition = getActivePlayPosition({
+    isPlayingPanel,
+    playbackState,
+    filteredTracks: state.filteredTracks,
+  });
   
   // Auto-scroll during playback toggle (user preference)
   const autoScrollEnabled = useHydratedAutoScrollPlay();
@@ -133,163 +422,18 @@ export function PlaylistPanel({
   }
 
   return (
-    <div 
-      data-testid="playlist-panel"
-      data-editable={state.isEditable}
-      className={`flex flex-col h-full border-2 rounded-lg overflow-hidden transition-all ${
-        isPlayingPanel
-          ? 'border-green-500 shadow-[0_0_10px_rgba(34,197,94,0.3)]'
-          : isActiveDropTarget
-          ? 'border-primary bg-primary/10'
-          : 'border-border bg-card'
-      }`}
-      onMouseEnter={() => state.setIsMouseOver(true)}
-      onMouseLeave={() => state.setIsMouseOver(false)}
-    >
-      <PanelToolbar
-        panelId={panelId}
-        playlistId={state.playlistId}
-        playlistName={state.playlistName}
-        playlistDescription={state.playlistDescription}
-        playlistIsPublic={state.playlistIsPublic}
-        isEditable={state.isEditable}
-        dndMode={state.dndMode}
-        locked={state.locked}
-        searchQuery={state.searchQuery}
-        isReloading={state.isReloading}
-        sortKey={state.sortKey}
-        sortDirection={state.sortDirection}
-        insertionMarkerCount={state.activeMarkerIndices.size}
-        isSorted={state.isSorted}
-        isSavingOrder={state.isSavingOrder}
-        selectionCount={state.selection.size}
-        panelCount={state.panelCount}
-        hasTracks={state.hasTracks}
-        hasDuplicates={state.hasDuplicates}
-        isDeletingDuplicates={state.isDeletingDuplicates}
-        isPlayingPanel={isPlayingPanel}
-        onOpenSelectionMenu={handleOpenSelectionMenu}
-        onClearSelection={state.clearSelection}
-        onSearchChange={state.handleSearchChange}
-        onSortChange={(key, direction) => {
-          state.setSortKey(key);
-          state.setSortDirection(direction);
-        }}
-        onReload={state.handleReload}
-        onClose={state.handleClose}
-        onSplitHorizontal={state.handleSplitHorizontal}
-        onSplitVertical={state.handleSplitVertical}
-        onDndModeToggle={state.handleDndModeToggle}
-        onLockToggle={state.handleLockToggle}
-        onLoadPlaylist={state.handleLoadPlaylist}
-        onClearInsertionMarkers={() => state.playlistId && state.clearInsertionMarkers(state.playlistId)}
-        onSaveCurrentOrder={state.handleSaveCurrentOrder}
-        onPlayFirst={state.handlePlayFirst}
-        onDeleteDuplicates={state.handleDeleteAllDuplicates}
-      />
-
-      <div
-        ref={scrollDroppableRef}
-        data-testid="track-list-scroll"
-        className="flex-1 overflow-auto focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
-        style={{ 
-          paddingBottom: TRACK_ROW_HEIGHT * 2, 
-          overscrollBehaviorX: 'none', 
-          overscrollBehaviorY: 'contain',
-          willChange: 'scroll-position',
-          touchAction: 'auto',
-          WebkitOverflowScrolling: 'touch',
-        }}
-        role="listbox"
-        aria-multiselectable="true"
-        aria-activedescendant={state.focusedIndex !== null ? `option-${panelId}-${state.focusedIndex}` : undefined}
-        tabIndex={0}
-        onKeyDown={state.handleKeyDownNavigation}
-      >
-        {/* Loading state */}
-        {state.isLoading && <LoadingSkeletonList />}
-
-        {/* Error state */}
-        {state.error && <ErrorPanel error={state.error} />}
-
-        {/* Empty state */}
-        {!state.isLoading && !state.error && state.filteredTracks.length === 0 && (
-          <EmptyTrackList searchQuery={state.searchQuery} />
-        )}
-
-        {/* Track list */}
-        {!state.isLoading && !state.error && state.filteredTracks.length > 0 && (
-          <>
-            <div className="relative min-w-fit">
-              <TableHeader
-                isEditable={state.isEditable}
-                sortKey={state.sortKey}
-                sortDirection={state.sortDirection}
-                onSort={state.handleSort}
-                showLikedColumn={true}
-                isCollaborative={state.hasMultipleContributors}
-              />
-              <VirtualizedTrackListContainer
-                panelId={panelId}
-                playlistId={state.playlistId!}
-                isEditable={state.isEditable}
-                canDrag={state.canDrag}
-                dndMode={state.dndMode}
-                {...(isDragSource !== undefined ? { isDragSource } : {})}
-                searchQuery={state.searchQuery}
-                isSorted={state.isSorted}
-                totalSize={state.virtualizer.getTotalSize()}
-                rowHeight={state.rowHeight}
-                virtualItems={state.items}
-                filteredTracks={state.filteredTracks}
-                selection={state.selection}
-                activeMarkerIndices={state.activeMarkerIndices}
-                hasMultipleContributors={state.hasMultipleContributors}
-                hourBoundaries={state.hourBoundaries}
-                cumulativeDurations={state.cumulativeDurations}
-                selectionKey={state.selectionKey}
-                isLiked={state.isLiked}
-                isTrackPlaying={state.isTrackPlaying}
-                isTrackLoading={state.isTrackLoading}
-                isDuplicate={state.isDuplicate}
-                isSoftDuplicate={state.isSoftDuplicate}
-                isOtherInstanceSelected={state.isOtherInstanceSelected}
-                getCompareColorForTrack={state.getCompareColorForTrack}
-                getProfile={state.getProfile}
-                handleTrackSelect={state.handleTrackSelect}
-                handleTrackClick={state.handleTrackClick}
-                handleToggleLiked={state.handleToggleLiked}
-                playTrack={state.playTrack}
-                pausePlayback={state.pausePlayback}
-                playbackContext={playbackContext}
-                {...(hasActiveMarkers ? { hasAnyMarkers: hasActiveMarkers, onAddToAllMarkers: handleAddToAllMarkers } : {})}
-                {...(state.isEditable ? { buildReorderActions: state.buildReorderActions } : {})}
-                {...(activePlayPosition >= 0 ? { activePlayPosition } : {})}
-                {...(state.isEditable && state.handleDeleteTrackDuplicates ? { onDeleteTrackDuplicates: state.handleDeleteTrackDuplicates } : {})}
-                {...(state.isEditable ? { contextTrackActions: {
-                  onRemoveFromPlaylist: state.handleDeleteSelected,
-                  canRemove: true,
-                } } : {})}
-              />
-            </div>
-          </>
-        )}
-
-        {/* Auto-loading indicator */}
-        {state.isAutoLoading && (
-          <div className="p-3 text-center text-xs text-muted-foreground">
-            Loading all tracks for this playlist… ({state.tracks.length} loaded)
-          </div>
-        )}
-      </div>
-
-      {/* Delete confirmation dialog for keyboard-triggered multi-track delete */}
-      <ConfirmDeleteDialog
-        open={state.showDeleteConfirmation}
-        count={state.selection.size}
-        onOpenChange={state.setShowDeleteConfirmation}
-        onConfirm={state.handleConfirmMultiDelete}
-      />
-    </div>
+    <PlaylistPanelBody
+      panelId={panelId}
+      state={state}
+      isPlayingPanel={isPlayingPanel}
+      isActiveDropTarget={isActiveDropTarget}
+      isDragSource={isDragSource}
+      scrollDroppableRef={scrollDroppableRef}
+      playbackContext={playbackContext}
+      handleOpenSelectionMenu={handleOpenSelectionMenu}
+      handleAddToAllMarkers={handleAddToAllMarkers}
+      hasActiveMarkers={hasActiveMarkers}
+      activePlayPosition={activePlayPosition}
+    />
   );
 }

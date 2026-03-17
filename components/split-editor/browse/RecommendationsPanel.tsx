@@ -29,7 +29,8 @@ import type { Track } from '@/lib/music-provider/types';
 
 /** Virtual panel ID for recommendations (used in DnD composite IDs) */
 export const RECS_PANEL_ID = 'recs-panel';
-const EMPTY_RECOMMENDATIONS: Array<{ track?: Track }> = [];
+type RecommendationItem = { trackId: string; score: number; rank: number; track?: Track };
+const EMPTY_RECOMMENDATIONS: RecommendationItem[] = [];
 
 interface RecommendationsPanelProps {
   /** Selected track IDs from split panels */
@@ -154,6 +155,288 @@ function ContentState({
   );
 }
 
+function usePanelWidth(containerRef: React.RefObject<HTMLDivElement | null>) {
+  const [panelWidth, setPanelWidth] = useState(0);
+
+  useEffect(() => {
+    const element = containerRef.current;
+    if (!element) {
+      return;
+    }
+
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setPanelWidth(entry.contentRect.width);
+      }
+    });
+
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [containerRef]);
+
+  return panelWidth;
+}
+
+function useRecommendationsFilter(allRecommendations: RecommendationItem[]) {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [displayLimit, setDisplayLimit] = useState(20);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const loadMoreTriggerRef = useRef<HTMLDivElement>(null);
+
+  const filteredRecommendations = useMemo(() => {
+    const query = searchQuery.trim();
+    if (!query) {
+      return allRecommendations;
+    }
+
+    return allRecommendations.filter((recommendation) => {
+      const track = recommendation.track;
+      if (!track) {
+        return false;
+      }
+
+      return (
+        (track.name ? matchesAllWords(track.name, query) : false)
+        || track.artists?.some((artist) => matchesAllWords(artist, query))
+        || (track.album?.name ? matchesAllWords(track.album.name, query) : false)
+      );
+    });
+  }, [allRecommendations, searchQuery]);
+
+  const recommendations = useMemo(
+    () => filteredRecommendations.slice(0, displayLimit),
+    [filteredRecommendations, displayLimit]
+  );
+
+  const hasMore = filteredRecommendations.length > displayLimit;
+
+  useEffect(() => {
+    const trigger = loadMoreTriggerRef.current;
+    if (!trigger || !hasMore) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setDisplayLimit((prev) => prev + 20);
+        }
+      },
+      {
+        root: scrollContainerRef.current,
+        rootMargin: '100px',
+        threshold: 0,
+      }
+    );
+
+    observer.observe(trigger);
+    return () => observer.disconnect();
+  }, [hasMore]);
+
+  useEffect(() => {
+    setDisplayLimit(20);
+  }, [searchQuery]);
+
+  return {
+    searchQuery,
+    setSearchQuery,
+    recommendations,
+    filteredRecommendations,
+    hasMore,
+    scrollContainerRef,
+    loadMoreTriggerRef,
+  };
+}
+
+function useRecommendationsSelection(
+  recommendations: RecommendationItem[]
+) {
+  const [recsSelection, setRecsSelection] = useState<number[]>([]);
+
+  const onSelect = useCallback((_selectionKey: string, index: number, event: React.MouseEvent) => {
+    if (event.shiftKey || event.ctrlKey || event.metaKey) {
+      setRecsSelection((prev) => {
+        const selectionIndex = prev.indexOf(index);
+        if (selectionIndex >= 0) {
+          return prev.filter((value) => value !== index);
+        }
+
+        return [...prev, index];
+      });
+      return;
+    }
+
+    setRecsSelection([index]);
+  }, []);
+
+  const onClick = useCallback((_selectionKey: string, index: number) => {
+    setRecsSelection([index]);
+  }, []);
+
+  const getSelectedTracks = useCallback((): Track[] => {
+    return [...recsSelection]
+      .sort((a, b) => a - b)
+      .map((idx) => recommendations[idx]?.track)
+      .filter((track): track is Track => track !== undefined);
+  }, [recsSelection, recommendations]);
+
+  return {
+    recsSelection,
+    onSelect,
+    onClick,
+    getSelectedTracks,
+  };
+}
+
+function RecommendationsExpandedPanel({
+  containerRef,
+  showHeader,
+  onToggleExpand,
+  recommendations,
+  filteredRecommendations,
+  hasMore,
+  searchQuery,
+  setSearchQuery,
+  contentProps,
+  contextMenu,
+  shouldShowContextMenu,
+  closeContextMenu,
+}: {
+  containerRef: React.RefObject<HTMLDivElement | null>;
+  showHeader: boolean;
+  onToggleExpand: () => void;
+  recommendations: RecommendationItem[];
+  filteredRecommendations: RecommendationItem[];
+  hasMore: boolean;
+  searchQuery: string;
+  setSearchQuery: (query: string) => void;
+  contentProps: Omit<ContentStateProps, 'recommendations' | 'hasMore' | 'searchQuery'>;
+  contextMenu: ReturnType<typeof useContextMenuStore.getState>;
+  shouldShowContextMenu: boolean;
+  closeContextMenu: () => void;
+}) {
+  return (
+    <div ref={containerRef} className="border-t border-border bg-background flex flex-col h-full">
+      {showHeader ? (
+        <div
+          className="flex items-center justify-between px-3 py-2 border-b border-border bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors flex-shrink-0"
+          onClick={onToggleExpand}
+        >
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-primary" />
+            <span className="text-sm font-medium">Recommendations</span>
+            {filteredRecommendations.length > 0 ? (
+              <span className="text-xs text-muted-foreground">
+                ({recommendations.length}{hasMore ? `/${filteredRecommendations.length}` : ''} tracks)
+              </span>
+            ) : null}
+          </div>
+          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+        </div>
+      ) : null}
+
+      <div className="px-3 py-2 border-b border-border flex-shrink-0">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Filter recommendations..."
+            className="h-9 pl-9 text-sm"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      </div>
+
+      <ContentState
+        {...contentProps}
+        recommendations={recommendations}
+        hasMore={hasMore}
+        searchQuery={searchQuery}
+      />
+
+      {shouldShowContextMenu && contextMenu.track ? (
+        <TrackContextMenu
+          track={contextMenu.track}
+          isOpen={true}
+          onClose={closeContextMenu}
+          {...(contextMenu.position ? { position: contextMenu.position } : {})}
+          {...(contextMenu.markerActions ? { markerActions: contextMenu.markerActions } : {})}
+          {...(contextMenu.trackActions ? { trackActions: contextMenu.trackActions } : {})}
+          isMultiSelect={contextMenu.isMultiSelect}
+          selectedCount={contextMenu.selectedCount}
+          isEditable={false}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function isRecommendationsHeaderVisible(isPhone: boolean, panelWidth: number): boolean {
+  return !isPhone && panelWidth >= 400;
+}
+
+function shouldShowRecommendationsContextMenu(contextMenu: ReturnType<typeof useContextMenuStore.getState>): boolean {
+  return contextMenu.isOpen && contextMenu.panelId === RECS_PANEL_ID;
+}
+
+function getRecommendationsRowHeight(isCompact: boolean): number {
+  return isCompact ? TRACK_ROW_HEIGHT_COMPACT : TRACK_ROW_HEIGHT;
+}
+
+function useRecommendationTrackUris(
+  recommendations: Array<{ trackId: string; score: number; rank: number; track?: Track }>
+) {
+  return useMemo(
+    () => recommendations
+      .map((recommendation) => recommendation.track?.uri)
+      .filter((uri): uri is string => Boolean(uri)),
+    [recommendations]
+  );
+}
+
+function useRecommendationActions(playlistId: string | undefined) {
+  const { toggleLiked } = useSavedTracksIndex();
+  const dismissMutation = useDismissRecommendation();
+
+  const handleToggleLiked = useCallback((trackId: string, currentlyLiked: boolean) => {
+    toggleLiked(trackId, currentlyLiked);
+  }, [toggleLiked]);
+
+  const handleDismiss = useCallback((trackId: string) => {
+    dismissMutation.mutate({ trackId, contextId: playlistId });
+  }, [dismissMutation, playlistId]);
+
+  return {
+    handleToggleLiked,
+    handleDismiss,
+  };
+}
+
+function renderNonExpandedRecommendationsState({
+  selectedTrackIds,
+  isExpanded,
+  onToggleExpand,
+}: {
+  selectedTrackIds: string[];
+  isExpanded: boolean;
+  onToggleExpand: () => void;
+}) {
+  if (selectedTrackIds.length === 0) {
+    if (!isExpanded) {
+      return <EmptyStateCollapsed onToggleExpand={onToggleExpand} />;
+    }
+
+    return <EmptyStateExpanded onToggleExpand={onToggleExpand} />;
+  }
+
+  if (!isExpanded) {
+    return <CollapsedPanel selectedTrackIds={selectedTrackIds} onToggleExpand={onToggleExpand} />;
+  }
+
+  return null;
+}
+
 export function RecommendationsPanel({
   selectedTrackIds,
   excludeTrackIds = [],
@@ -164,34 +447,15 @@ export function RecommendationsPanel({
 }: RecommendationsPanelProps) {
   const isCompact = useHydratedCompactMode();
   const { isPhone } = useDeviceType();
-  const { isLiked, toggleLiked } = useSavedTracksIndex();
-  const dismissMutation = useDismissRecommendation();
-  const [panelWidth, setPanelWidth] = useState(0);
+  const { isLiked } = useSavedTracksIndex();
   const containerRef = useRef<HTMLDivElement>(null);
-  
-  // Selection state for recommendations
-  const [recsSelection, setRecsSelection] = useState<number[]>([]);
+  const panelWidth = usePanelWidth(containerRef);
   
   // Compare mode: get distribution for coloring (recs panel not included in calculation)
   const isCompareEnabled = useCompareModeStore((s) => s.isEnabled);
-  
-  // Track panel width for responsive header
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
 
-    const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        setPanelWidth(entry.contentRect.width);
-      }
-    });
-
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-  
   // Hide header on narrow panels (< 400px) or on mobile
-  const showHeader = !isPhone && panelWidth >= 400;
+  const showHeader = isRecommendationsHeaderVisible(isPhone, panelWidth);
   const compareDistribution = useCompareModeStore((s) => s.distribution);
   const getCompareColorForTrack = useCallback((trackUri: string) => {
     return getTrackCompareColor(trackUri, compareDistribution, isCompareEnabled);
@@ -200,13 +464,7 @@ export function RecommendationsPanel({
   // Context menu store
   const contextMenu = useContextMenuStore();
   const closeContextMenu = useContextMenuStore((s) => s.closeMenu);
-  const shouldShowContextMenu = contextMenu.isOpen && contextMenu.panelId === RECS_PANEL_ID;
-  
-  // Search/filter state
-  const [searchQuery, setSearchQuery] = useState('');
-  
-  // Load more state - start with 20, increment by 20
-  const [displayLimit, setDisplayLimit] = useState(20);
+  const shouldShowContextMenu = shouldShowRecommendationsContextMenu(contextMenu);
 
   // Fetch recommendations based on selected tracks (fetch more than we display for filtering)
   const {
@@ -224,209 +482,80 @@ export function RecommendationsPanel({
 
   const allRecommendations = data?.recommendations ?? EMPTY_RECOMMENDATIONS;
   const isEnabled = data?.enabled ?? true;
-  
-  // Filter recommendations by search query (words can match in any order)
-  const filteredRecommendations = useMemo(() => {
-    const query = searchQuery.trim();
-    if (!query) return allRecommendations;
-    return allRecommendations.filter((r: { track?: Track }) => {
-      const track = r.track;
-      if (!track) return false;
-      return (
-        (track.name ? matchesAllWords(track.name, query) : false) ||
-        track.artists?.some(a => matchesAllWords(a, query)) ||
-        (track.album?.name ? matchesAllWords(track.album.name, query) : false)
-      );
-    });
-  }, [allRecommendations, searchQuery]);
-  
-  // Apply display limit for "load more" functionality
-  const recommendations = useMemo(() => 
-    filteredRecommendations.slice(0, displayLimit),
-    [filteredRecommendations, displayLimit]
-  );
-  
-  const hasMore = filteredRecommendations.length > displayLimit;
-  
-  // Scroll container ref for infinite scroll
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const loadMoreTriggerRef = useRef<HTMLDivElement>(null);
-  
-  // Infinite scroll: load more when trigger element is visible
-  useEffect(() => {
-    const trigger = loadMoreTriggerRef.current;
-    if (!trigger || !hasMore) return;
-    
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0]?.isIntersecting) {
-          setDisplayLimit(prev => prev + 20);
-        }
-      },
-      {
-        root: scrollContainerRef.current,
-        rootMargin: '100px', // Load 100px before reaching the end
-        threshold: 0,
-      }
-    );
-    
-    observer.observe(trigger);
-    return () => observer.disconnect();
-  }, [hasMore]);
-  
-  // Reset display limit when search changes
-  useEffect(() => {
-    setDisplayLimit(20);
-  }, [searchQuery]);
+  const {
+    searchQuery,
+    setSearchQuery,
+    recommendations,
+    filteredRecommendations,
+    hasMore,
+    scrollContainerRef,
+    loadMoreTriggerRef,
+  } = useRecommendationsFilter(allRecommendations);
 
   // Extract tracks for playback
-  const trackUris = useMemo((): string[] => 
-    recommendations
-      .map((r: { trackId: string; score: number; rank: number; track?: Track }) => r.track?.uri)
-      .filter((uri: string | undefined): uri is string => !!uri),
-    [recommendations]
-  );
+  const trackUris = useRecommendationTrackUris(recommendations);
 
   // Playback integration
   const { isTrackPlaying, isTrackLoading, playTrack, pausePlayback } = useTrackPlayback({
     trackUris,
   });
 
-  // Handle liked toggle
-  const handleToggleLiked = useCallback((trackId: string, currentlyLiked: boolean) => {
-    toggleLiked(trackId, currentlyLiked);
-  }, [toggleLiked]);
+  const { handleToggleLiked, handleDismiss } = useRecommendationActions(playlistId);
 
-  // Handle dismiss
-  const handleDismiss = useCallback((trackId: string) => {
-    dismissMutation.mutate({ trackId, contextId: playlistId });
-  }, [dismissMutation, playlistId]);
+  const {
+    recsSelection,
+    onSelect: handleSelect,
+    onClick: handleClick,
+    getSelectedTracks,
+  } = useRecommendationsSelection(recommendations);
 
-  // Handle track selection with modifier keys
-  const handleSelect = useCallback((_selectionKey: string, index: number, event: React.MouseEvent) => {
-    // Toggle selection based on modifier keys
-    if (event.shiftKey || event.ctrlKey || event.metaKey) {
-      setRecsSelection(prev => {
-        const idx = prev.indexOf(index);
-        if (idx >= 0) {
-          return prev.filter(i => i !== index);
-        }
-        return [...prev, index];
-      });
-    } else {
-      setRecsSelection([index]);
-    }
-  }, []);
-  
-  // Handle click (single select)
-  const handleClick = useCallback((_selectionKey: string, index: number) => {
-    setRecsSelection([index]);
-  }, []);
-  
-  // Get selected tracks for drag operations
-  const getSelectedTracks = useCallback((): Track[] => {
-    return recsSelection
-      .sort((a, b) => a - b)
-      .map((idx) => recommendations[idx]?.track)
-      .filter((t): t is Track => t !== undefined);
-  }, [recsSelection, recommendations]);
+  const rowHeight = getRecommendationsRowHeight(isCompact);
+  const nonExpandedState = renderNonExpandedRecommendationsState({
+    selectedTrackIds,
+    isExpanded,
+    onToggleExpand,
+  });
 
-  // Dynamic row height
-  const rowHeight = isCompact ? TRACK_ROW_HEIGHT_COMPACT : TRACK_ROW_HEIGHT;
-
-  // Show message when no tracks selected
-  if (selectedTrackIds.length === 0) {
-    if (!isExpanded) {
-      return <EmptyStateCollapsed onToggleExpand={onToggleExpand} />;
-    }
-    return <EmptyStateExpanded onToggleExpand={onToggleExpand} />;
+  if (nonExpandedState) {
+    return nonExpandedState;
   }
 
-  // Collapsed state
-  if (!isExpanded) {
-    return <CollapsedPanel selectedTrackIds={selectedTrackIds} onToggleExpand={onToggleExpand} />;
-  }
+  const contentProps: Omit<ContentStateProps, 'recommendations' | 'hasMore' | 'searchQuery'> = {
+    isEnabled,
+    isLoading,
+    isError,
+    loadMoreTriggerRef,
+    scrollContainerRef,
+    rowHeight,
+    isLiked,
+    onToggleLiked: handleToggleLiked,
+    onDismiss: handleDismiss,
+    isTrackPlaying,
+    isTrackLoading,
+    onPlay: playTrack,
+    onPause: pausePlayback,
+    onSelect: handleSelect,
+    onClick: handleClick,
+    getCompareColorForTrack,
+    recsSelection,
+    getSelectedTracks,
+  };
 
   return (
-    <div 
-      ref={containerRef}
-      className="border-t border-border bg-background flex flex-col h-full"
-    >
-      {/* Header - hidden on narrow panels */}
-      {showHeader && (
-        <div 
-          className="flex items-center justify-between px-3 py-2 border-b border-border bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors flex-shrink-0"
-          onClick={onToggleExpand}
-        >
-          <div className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-primary" />
-            <span className="text-sm font-medium">
-              Recommendations
-            </span>
-            {filteredRecommendations.length > 0 && (
-              <span className="text-xs text-muted-foreground">
-                ({recommendations.length}{hasMore ? `/${filteredRecommendations.length}` : ''} tracks)
-              </span>
-            )}
-          </div>
-          <ChevronDown className="h-4 w-4 text-muted-foreground" />
-        </div>
-      )}
-      
-      {/* Search bar */}
-      <div className="px-3 py-2 border-b border-border flex-shrink-0">
-        <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Filter recommendations..."
-            className="h-9 pl-9 text-sm"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>
-      </div>
-
-      {/* Content */}
-      <ContentState
-        isEnabled={isEnabled}
-        isLoading={isLoading}
-        isError={isError}
-        recommendations={recommendations}
-        hasMore={hasMore}
-        searchQuery={searchQuery}
-        loadMoreTriggerRef={loadMoreTriggerRef}
-        scrollContainerRef={scrollContainerRef}
-        rowHeight={rowHeight}
-        isLiked={isLiked}
-        onToggleLiked={handleToggleLiked}
-        onDismiss={handleDismiss}
-        isTrackPlaying={isTrackPlaying}
-        isTrackLoading={isTrackLoading}
-        onPlay={playTrack}
-        onPause={pausePlayback}
-        onSelect={handleSelect}
-        onClick={handleClick}
-        getCompareColorForTrack={getCompareColorForTrack}
-        recsSelection={recsSelection}
-        getSelectedTracks={getSelectedTracks}
-      />
-      
-      {/* Context menu for this panel */}
-      {shouldShowContextMenu && contextMenu.track && (
-        <TrackContextMenu
-          track={contextMenu.track}
-          isOpen={true}
-          onClose={closeContextMenu}
-          {...(contextMenu.position ? { position: contextMenu.position } : {})}
-          {...(contextMenu.markerActions ? { markerActions: contextMenu.markerActions } : {})}
-          {...(contextMenu.trackActions ? { trackActions: contextMenu.trackActions } : {})}
-          isMultiSelect={contextMenu.isMultiSelect}
-          selectedCount={contextMenu.selectedCount}
-          isEditable={false}
-        />
-      )}
-    </div>
+    <RecommendationsExpandedPanel
+      containerRef={containerRef}
+      showHeader={showHeader}
+      onToggleExpand={onToggleExpand}
+      recommendations={recommendations}
+      filteredRecommendations={filteredRecommendations}
+      hasMore={hasMore}
+      searchQuery={searchQuery}
+      setSearchQuery={setSearchQuery}
+      contentProps={contentProps}
+      contextMenu={contextMenu}
+      shouldShowContextMenu={shouldShowContextMenu}
+      closeContextMenu={closeContextMenu}
+    />
   );
 }
 

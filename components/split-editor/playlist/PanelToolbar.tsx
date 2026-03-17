@@ -81,73 +81,160 @@ interface PanelToolbarProps {
   onDeleteDuplicates?: () => void;
 }
 
-export function PanelToolbar({
-  panelId: _panelId,
+function createSelectionNavItem({
+  selectionCount,
+  onOpenSelectionMenu,
+}: {
+  selectionCount: number;
+  onOpenSelectionMenu: (position: { x: number; y: number }) => void;
+}): NavItem {
+  return {
+    id: 'selection',
+    icon: <ListChecks className="h-4 w-4" />,
+    label: selectionCount > 0 ? `${selectionCount} selected` : 'No selection',
+    title: selectionCount > 0
+      ? `${selectionCount} track${selectionCount !== 1 ? 's' : ''} selected - click for actions`
+      : 'No tracks selected',
+    group: 'selection',
+    disabled: selectionCount === 0,
+    neverOverflow: true,
+    customRender: () => (
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={(event) => {
+          const rect = event.currentTarget.getBoundingClientRect();
+          onOpenSelectionMenu({ x: rect.left, y: rect.bottom + 4 });
+        }}
+        disabled={selectionCount === 0}
+        className={cn(
+          'h-7 px-1.5 shrink-0 gap-1',
+          selectionCount > 0 ? 'text-foreground hover:text-foreground' : 'text-muted-foreground'
+        )}
+        title={selectionCount > 0
+          ? `${selectionCount} track${selectionCount !== 1 ? 's' : ''} selected - click for actions`
+          : 'No tracks selected'
+        }
+      >
+        <ListChecks className="h-4 w-4" />
+        {selectionCount > 0 ? (
+          <span className="text-sm font-semibold text-orange-500 tabular-nums">{selectionCount}</span>
+        ) : null}
+      </Button>
+    ),
+  };
+}
+
+function buildToolbarItems({
   playlistId,
-  playlistName,
-  playlistDescription,
-  playlistIsPublic,
+  canEditPlaylistInfo,
+  setEditDialogOpen,
+  isReloading,
+  onReload,
+  hasTracks,
+  onPlayFirst,
   isEditable,
   locked,
+  panelCount,
   dndMode,
-  searchQuery,
-  isReloading = false,
-  sortKey: _sortKey = 'position',
-  sortDirection: _sortDirection = 'asc',
-  insertionMarkerCount = 0,
-  isSorted = false,
-  isSavingOrder = false,
-  selectionCount = 0,
-  onOpenSelectionMenu,
-  onClearSelection: _onClearSelection,
-  panelCount = 1,
-  hasTracks = false,
-  hasDuplicates = false,
-  isDeletingDuplicates = false,
-  isPlayingPanel = false,
-  onSearchChange,
-  onSortChange: _onSortChange,
-  onReload,
-  onClose,
+  onDndModeToggle,
+  hasDuplicates,
+  onDeleteDuplicates,
+  isDeletingDuplicates,
+  isSorted,
+  onSaveCurrentOrder,
+  isSavingOrder,
+  insertionMarkerCount,
+  onClearInsertionMarkers,
+  autoScrollEnabled,
+  toggleAutoScroll,
+  onLockToggle,
+  showSplitCommands,
+  canSplitHorizontal,
   onSplitHorizontal,
   onSplitVertical,
-  onDndModeToggle,
-  onLockToggle,
-  onLoadPlaylist,
-  onClearInsertionMarkers,
-  onSaveCurrentOrder,
-  onPlayFirst,
-  onDeleteDuplicates,
-}: PanelToolbarProps) {
-  const [localSearch, setLocalSearch] = useState(searchQuery);
-  const [displayPlaylistName, setDisplayPlaylistName] = useState(playlistName ?? '');
+  isPhone,
+  isLastPanel,
+  onClose,
+  disableClose,
+}: {
+  playlistId: string | null;
+  canEditPlaylistInfo: boolean;
+  setEditDialogOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  isReloading: boolean;
+  onReload: () => void;
+  hasTracks: boolean;
+  onPlayFirst?: (() => void) | undefined;
+  isEditable: boolean;
+  locked: boolean;
+  panelCount: number;
+  dndMode: 'move' | 'copy';
+  onDndModeToggle: () => void;
+  hasDuplicates: boolean;
+  onDeleteDuplicates?: (() => void) | undefined;
+  isDeletingDuplicates: boolean;
+  isSorted: boolean;
+  onSaveCurrentOrder?: (() => void) | undefined;
+  isSavingOrder: boolean;
+  insertionMarkerCount: number;
+  onClearInsertionMarkers?: (() => void) | undefined;
+  autoScrollEnabled: boolean;
+  toggleAutoScroll: () => void;
+  onLockToggle: () => void;
+  showSplitCommands: boolean;
+  canSplitHorizontal: boolean;
+  onSplitHorizontal: () => void;
+  onSplitVertical: () => void;
+  isPhone: boolean;
+  isLastPanel: boolean;
+  onClose: () => void;
+  disableClose: boolean;
+}): NavItem[] {
+  const items = buildPanelToolbarNavItems({
+    playlistId,
+    canEditPlaylistInfo,
+    setEditDialogOpen,
+    isReloading,
+    onReload,
+    hasTracks,
+    onPlayFirst,
+    isEditable,
+    locked,
+    panelCount,
+    dndMode,
+    onDndModeToggle,
+    hasDuplicates,
+    onDeleteDuplicates,
+    isDeletingDuplicates,
+    isSorted,
+    onSaveCurrentOrder,
+    isSavingOrder,
+    insertionMarkerCount,
+    onClearInsertionMarkers,
+    autoScrollEnabled,
+    toggleAutoScroll,
+    onLockToggle,
+    showSplitCommands,
+    canSplitHorizontal,
+    onSplitHorizontal,
+    onSplitVertical,
+    isPhone,
+    isLastPanel,
+    onClose,
+    disableClose,
+  });
+  return items;
+}
+
+function useToolbarLayoutState(toolbarRef: React.RefObject<HTMLDivElement | null>) {
   const [isUltraCompact, setIsUltraCompact] = useState(false);
   const [canSplitHorizontal, setCanSplitHorizontal] = useState(true);
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const toolbarRef = useRef<HTMLDivElement>(null);
-  const selectionButtonRef = useRef<HTMLButtonElement>(null);
-  
-  const updatePlaylist = useUpdatePlaylist();
-  const { isPhone } = useDeviceType();
-  const isLiked = playlistId ? isLikedSongsPlaylist(playlistId) : false;
-  const canEditPlaylistInfo = !!(playlistId && isEditable && !isLiked);
-  
-  // Auto-scroll during playback toggle
-  const autoScrollEnabled = useHydratedAutoScrollPlay();
-  const toggleAutoScroll = useAutoScrollPlayStore((s) => s.toggle);
-  
-  // On mobile, hide split commands (use bottom nav panel toggle instead)
-  const showSplitCommands = !isPhone;
-  
-  // Disable close button when it's the last panel (desktop)
-  // On mobile, close means hide (like Panel 2 toggle), so never disable
-  const isLastPanel = panelCount <= 1;
-  const disableClose = !isPhone && isLastPanel;
 
-  // Track toolbar width for ultra-compact mode and split constraints
   useEffect(() => {
-    const el = toolbarRef.current;
-    if (!el) return;
+    const element = toolbarRef.current;
+    if (!element) {
+      return;
+    }
 
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
@@ -157,21 +244,58 @@ export function PanelToolbar({
       }
     });
 
-    observer.observe(el);
+    observer.observe(element);
     return () => observer.disconnect();
-  }, []);
+  }, [toolbarRef]);
 
-  useEffect(() => {
-    setDisplayPlaylistName(playlistName ?? '');
-  }, [playlistName]);
+  return {
+    isUltraCompact,
+    canSplitHorizontal,
+  };
+}
+
+function useToolbarSearch(onSearchChange: PanelToolbarProps['onSearchChange'], searchQuery: string) {
+  const [localSearch, setLocalSearch] = useState(searchQuery);
 
   const handleSearchChange = useCallback((value: string) => {
     setLocalSearch(value);
     onSearchChange(value);
   }, [onSearchChange]);
 
+  return {
+    localSearch,
+    handleSearchChange,
+  };
+}
+
+function usePlaylistEditState({
+  playlistId,
+  playlistName,
+  playlistDescription,
+  playlistIsPublic,
+  isEditable,
+}: {
+  playlistId: string | null;
+  playlistName: string | undefined;
+  playlistDescription: string | undefined;
+  playlistIsPublic: boolean | undefined;
+  isEditable: boolean;
+}) {
+  const [displayPlaylistName, setDisplayPlaylistName] = useState(playlistName ?? '');
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const updatePlaylist = useUpdatePlaylist();
+  const isLiked = playlistId !== null && isLikedSongsPlaylist(playlistId);
+  const canEditPlaylistInfo = Boolean(playlistId && isEditable && !isLiked);
+
+  useEffect(() => {
+    setDisplayPlaylistName(playlistName ?? '');
+  }, [playlistName]);
+
   const handleUpdatePlaylist = useCallback(async (values: { name: string; description: string; isPublic: boolean }) => {
-    if (!playlistId) return;
+    if (!playlistId) {
+      return;
+    }
+
     const previousName = displayPlaylistName;
     setDisplayPlaylistName(values.name);
 
@@ -188,31 +312,156 @@ export function PanelToolbar({
     }
   }, [playlistId, updatePlaylist, displayPlaylistName]);
 
-  // Ultra-compact dropdown header with search only
-  const ultraCompactHeader = useMemo(() => {
-    if (!isUltraCompact || !playlistId) return undefined;
-    
-    return (
-      <>
-        {/* Search */}
-        <div className="px-2 py-1.5">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-            <Input
-              type="text"
-              placeholder="Search..."
-              value={localSearch}
-              onChange={(e: ChangeEvent<HTMLInputElement>) => handleSearchChange(e.target.value)}
-              className="pl-9 h-8 text-sm"
-            />
-          </div>
-        </div>
-      </>
-    );
-  }, [isUltraCompact, playlistId, localSearch, handleSearchChange]);
+  const editDialog = canEditPlaylistInfo ? (
+    <PlaylistDialog
+      open={editDialogOpen}
+      onOpenChange={setEditDialogOpen}
+      mode="edit"
+      initialValues={{
+        name: displayPlaylistName,
+        description: playlistDescription ?? '',
+        isPublic: playlistIsPublic ?? false,
+      }}
+      onSubmit={handleUpdatePlaylist}
+      isSubmitting={updatePlaylist.isPending}
+    />
+  ) : null;
 
-  const navItems: NavItem[] = useMemo(() => {
-    const items = buildPanelToolbarNavItems({
+  return {
+    displayPlaylistName,
+    setEditDialogOpen,
+    editDialog,
+    canEditPlaylistInfo,
+  };
+}
+
+function ToolbarSearchInput({
+  localSearch,
+  handleSearchChange,
+  isPhone,
+  compact,
+}: {
+  localSearch: string;
+  handleSearchChange: (value: string) => void;
+  isPhone: boolean;
+  compact: boolean;
+}) {
+  return (
+    <div className={compact ? 'relative' : 'relative flex-1 min-w-0 basis-0'}>
+      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+      <Input
+        type="text"
+        placeholder="Search..."
+        value={localSearch}
+        onChange={(e: ChangeEvent<HTMLInputElement>) => handleSearchChange(e.target.value)}
+        className={compact ? 'pl-9 h-8 text-sm' : cn('pl-9 h-9 text-sm', isPhone && 'h-8')}
+      />
+    </div>
+  );
+}
+
+function useUltraCompactHeader({
+  isUltraCompact,
+  playlistId,
+  localSearch,
+  handleSearchChange,
+  isPhone,
+}: {
+  isUltraCompact: boolean;
+  playlistId: string | null;
+  localSearch: string;
+  handleSearchChange: (value: string) => void;
+  isPhone: boolean;
+}) {
+  return useMemo(() => {
+    if (!isUltraCompact || !playlistId) {
+      return undefined;
+    }
+
+    return (
+      <div className="px-2 py-1.5">
+        <ToolbarSearchInput
+          localSearch={localSearch}
+          handleSearchChange={handleSearchChange}
+          isPhone={isPhone}
+          compact={true}
+        />
+      </div>
+    );
+  }, [isUltraCompact, playlistId, localSearch, handleSearchChange, isPhone]);
+}
+
+function useToolbarNavItems({
+  playlistId,
+  canEditPlaylistInfo,
+  setEditDialogOpen,
+  isReloading,
+  onReload,
+  hasTracks,
+  onPlayFirst,
+  isEditable,
+  locked,
+  panelCount,
+  dndMode,
+  onDndModeToggle,
+  hasDuplicates,
+  onDeleteDuplicates,
+  isDeletingDuplicates,
+  isSorted,
+  onSaveCurrentOrder,
+  isSavingOrder,
+  insertionMarkerCount,
+  onClearInsertionMarkers,
+  autoScrollEnabled,
+  toggleAutoScroll,
+  onLockToggle,
+  showSplitCommands,
+  canSplitHorizontal,
+  onSplitHorizontal,
+  onSplitVertical,
+  isPhone,
+  isLastPanel,
+  onClose,
+  disableClose,
+  onOpenSelectionMenu,
+  selectionCount,
+}: {
+  playlistId: string | null;
+  canEditPlaylistInfo: boolean;
+  setEditDialogOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  isReloading: boolean;
+  onReload: () => void;
+  hasTracks: boolean;
+  onPlayFirst?: (() => void) | undefined;
+  isEditable: boolean;
+  locked: boolean;
+  panelCount: number;
+  dndMode: 'move' | 'copy';
+  onDndModeToggle: () => void;
+  hasDuplicates: boolean;
+  onDeleteDuplicates?: (() => void) | undefined;
+  isDeletingDuplicates: boolean;
+  isSorted: boolean;
+  onSaveCurrentOrder?: (() => void) | undefined;
+  isSavingOrder: boolean;
+  insertionMarkerCount: number;
+  onClearInsertionMarkers?: (() => void) | undefined;
+  autoScrollEnabled: boolean;
+  toggleAutoScroll: () => void;
+  onLockToggle: () => void;
+  showSplitCommands: boolean;
+  canSplitHorizontal: boolean;
+  onSplitHorizontal: () => void;
+  onSplitVertical: () => void;
+  isPhone: boolean;
+  isLastPanel: boolean;
+  onClose: () => void;
+  disableClose: boolean;
+  onOpenSelectionMenu?: ((position: { x: number; y: number }) => void) | undefined;
+  selectionCount: number;
+}) {
+  return useMemo(() => {
+    const items = buildToolbarItems({
       playlistId,
       canEditPlaylistInfo,
       setEditDialogOpen,
@@ -246,54 +495,19 @@ export function PanelToolbar({
       disableClose,
     });
 
-    if (playlistId && onOpenSelectionMenu) {
-      items.unshift({
-        id: 'selection',
-        icon: <ListChecks className="h-4 w-4" />,
-        label: selectionCount > 0 ? `${selectionCount} selected` : 'No selection',
-        title: selectionCount > 0
-          ? `${selectionCount} track${selectionCount !== 1 ? 's' : ''} selected - click for actions`
-          : 'No tracks selected',
-        group: 'selection',
-        disabled: selectionCount === 0,
-        neverOverflow: true,
-        customRender: () => (
-          <Button
-            ref={selectionButtonRef}
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              const rect = selectionButtonRef.current?.getBoundingClientRect();
-              if (rect) {
-                onOpenSelectionMenu({ x: rect.left, y: rect.bottom + 4 });
-              }
-            }}
-            disabled={selectionCount === 0}
-            className={cn(
-              'h-7 px-1.5 shrink-0 gap-1',
-              selectionCount > 0 ? 'text-foreground hover:text-foreground' : 'text-muted-foreground'
-            )}
-            title={selectionCount > 0
-              ? `${selectionCount} track${selectionCount !== 1 ? 's' : ''} selected - click for actions`
-              : 'No tracks selected'
-            }
-          >
-            <ListChecks className="h-4 w-4" />
-            {selectionCount > 0 && (
-              <span className="text-sm font-semibold text-orange-500 tabular-nums">
-                {selectionCount}
-              </span>
-            )}
-          </Button>
-        ),
-      });
+    if (!playlistId || !onOpenSelectionMenu) {
+      return items;
     }
 
-    return items;
+    return [
+      createSelectionNavItem({
+        selectionCount,
+        onOpenSelectionMenu,
+      }),
+      ...items,
+    ];
   }, [
     playlistId,
-    onOpenSelectionMenu,
-    selectionCount,
     canEditPlaylistInfo,
     setEditDialogOpen,
     isReloading,
@@ -324,17 +538,44 @@ export function PanelToolbar({
     isLastPanel,
     onClose,
     disableClose,
+    onOpenSelectionMenu,
+    selectionCount,
   ]);
+}
 
+function PanelToolbarContent({
+  toolbarRef,
+  isPlayingPanel,
+  playlistId,
+  displayPlaylistName,
+  onLoadPlaylist,
+  showSearch,
+  localSearch,
+  handleSearchChange,
+  isPhone,
+  navItems,
+  ultraCompactHeader,
+  editDialog,
+}: {
+  toolbarRef: React.RefObject<HTMLDivElement | null>;
+  isPlayingPanel: boolean;
+  playlistId: string | null;
+  displayPlaylistName: string;
+  onLoadPlaylist: (playlistId: string) => void;
+  showSearch: boolean;
+  localSearch: string;
+  handleSearchChange: (value: string) => void;
+  isPhone: boolean;
+  navItems: NavItem[];
+  ultraCompactHeader: React.ReactNode;
+  editDialog: React.ReactNode;
+}) {
   return (
     <div
       ref={toolbarRef}
       className="flex items-center gap-1 border-b border-border bg-card relative z-30"
     >
-      
-      {/* Playlist selector + search share available width - approx 50% */}
       <div className="flex flex-1 min-w-0 basis-0 items-center gap-1">
-        {/* Playlist selector - always visible, with playing indicator */}
         <div className="flex-1 min-w-0 basis-0 flex items-center gap-2">
           {isPlayingPanel && <PlayingIndicator size="sm" className="ml-2 shrink-0" />}
           <div className="flex-1 min-w-0">
@@ -346,22 +587,16 @@ export function PanelToolbar({
           </div>
         </div>
 
-        {/* Search - only in normal mode */}
-        {playlistId && !isUltraCompact && (
-          <div className="relative flex-1 min-w-0 basis-0">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-            <Input
-              type="text"
-              placeholder="Search..."
-              value={localSearch}
-              onChange={(e: ChangeEvent<HTMLInputElement>) => handleSearchChange(e.target.value)}
-              className={cn("pl-9 h-9 text-sm", isPhone && "h-8")}
-            />
-          </div>
+        {showSearch && (
+          <ToolbarSearchInput
+            localSearch={localSearch}
+            handleSearchChange={handleSearchChange}
+            isPhone={isPhone}
+            compact={false}
+          />
         )}
       </div>
 
-      {/* AdaptiveNav handles all actions with automatic overflow - aligned right, takes remaining ~50% */}
       <div className="flex flex-1 min-w-0 basis-0 justify-end">
         <AdaptiveNav
           items={navItems}
@@ -372,21 +607,200 @@ export function PanelToolbar({
         />
       </div>
 
-      {/* Edit playlist dialog */}
-      {canEditPlaylistInfo && (
-        <PlaylistDialog
-          open={editDialogOpen}
-          onOpenChange={setEditDialogOpen}
-          mode="edit"
-          initialValues={{
-            name: displayPlaylistName,
-            description: playlistDescription ?? '',
-            isPublic: playlistIsPublic ?? false,
-          }}
-          onSubmit={handleUpdatePlaylist}
-          isSubmitting={updatePlaylist.isPending}
-        />
-      )}
+      {editDialog}
     </div>
   );
+}
+
+type ResolvedPanelToolbarProps = Omit<PanelToolbarProps,
+  | 'isReloading'
+  | 'sortKey'
+  | 'sortDirection'
+  | 'insertionMarkerCount'
+  | 'isSorted'
+  | 'isSavingOrder'
+  | 'selectionCount'
+  | 'panelCount'
+  | 'hasTracks'
+  | 'hasDuplicates'
+  | 'isDeletingDuplicates'
+  | 'isPlayingPanel'
+> & {
+  isReloading: boolean;
+  sortKey: SortKey;
+  sortDirection: SortDirection;
+  insertionMarkerCount: number;
+  isSorted: boolean;
+  isSavingOrder: boolean;
+  selectionCount: number;
+  panelCount: number;
+  hasTracks: boolean;
+  hasDuplicates: boolean;
+  isDeletingDuplicates: boolean;
+  isPlayingPanel: boolean;
+};
+
+const DEFAULT_PANEL_TOOLBAR_PROPS: Pick<ResolvedPanelToolbarProps,
+  | 'isReloading'
+  | 'sortKey'
+  | 'sortDirection'
+  | 'insertionMarkerCount'
+  | 'isSorted'
+  | 'isSavingOrder'
+  | 'selectionCount'
+  | 'panelCount'
+  | 'hasTracks'
+  | 'hasDuplicates'
+  | 'isDeletingDuplicates'
+  | 'isPlayingPanel'
+> = {
+  isReloading: false,
+  sortKey: 'position',
+  sortDirection: 'asc',
+  insertionMarkerCount: 0,
+  isSorted: false,
+  isSavingOrder: false,
+  selectionCount: 0,
+  panelCount: 1,
+  hasTracks: false,
+  hasDuplicates: false,
+  isDeletingDuplicates: false,
+  isPlayingPanel: false,
+};
+
+function resolvePanelToolbarProps(props: PanelToolbarProps): ResolvedPanelToolbarProps {
+  return {
+    ...DEFAULT_PANEL_TOOLBAR_PROPS,
+    ...props,
+  } as ResolvedPanelToolbarProps;
+}
+
+function PanelToolbarInner({
+  panelId: _panelId,
+  playlistId,
+  playlistName,
+  playlistDescription,
+  playlistIsPublic,
+  isEditable,
+  locked,
+  dndMode,
+  searchQuery,
+  isReloading,
+  sortKey: _sortKey,
+  sortDirection: _sortDirection,
+  insertionMarkerCount,
+  isSorted,
+  isSavingOrder,
+  selectionCount,
+  onOpenSelectionMenu,
+  onClearSelection: _onClearSelection,
+  panelCount,
+  hasTracks,
+  hasDuplicates,
+  isDeletingDuplicates,
+  isPlayingPanel,
+  onSearchChange,
+  onSortChange: _onSortChange,
+  onReload,
+  onClose,
+  onSplitHorizontal,
+  onSplitVertical,
+  onDndModeToggle,
+  onLockToggle,
+  onLoadPlaylist,
+  onClearInsertionMarkers,
+  onSaveCurrentOrder,
+  onPlayFirst,
+  onDeleteDuplicates,
+}: ResolvedPanelToolbarProps) {
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  const { isUltraCompact, canSplitHorizontal } = useToolbarLayoutState(toolbarRef);
+
+  const { localSearch, handleSearchChange } = useToolbarSearch(onSearchChange, searchQuery);
+  const {
+    displayPlaylistName,
+    setEditDialogOpen,
+    editDialog,
+    canEditPlaylistInfo,
+  } = usePlaylistEditState({
+    playlistId,
+    playlistName,
+    playlistDescription,
+    playlistIsPublic,
+    isEditable,
+  });
+  const { isPhone } = useDeviceType();
+  const autoScrollEnabled = useHydratedAutoScrollPlay();
+  const toggleAutoScroll = useAutoScrollPlayStore((s) => s.toggle);
+
+  const showSplitCommands = !isPhone;
+  const isLastPanel = panelCount <= 1;
+  const disableClose = !isPhone && isLastPanel;
+
+  const navItems = useToolbarNavItems({
+    playlistId,
+    canEditPlaylistInfo,
+    setEditDialogOpen,
+    isReloading,
+    onReload,
+    hasTracks,
+    onPlayFirst,
+    isEditable,
+    locked,
+    panelCount,
+    dndMode,
+    onDndModeToggle,
+    hasDuplicates,
+    onDeleteDuplicates,
+    isDeletingDuplicates,
+    isSorted,
+    onSaveCurrentOrder,
+    isSavingOrder,
+    insertionMarkerCount,
+    onClearInsertionMarkers,
+    autoScrollEnabled,
+    toggleAutoScroll,
+    onLockToggle,
+    showSplitCommands,
+    canSplitHorizontal,
+    onSplitHorizontal,
+    onSplitVertical,
+    isPhone,
+    isLastPanel,
+    onClose,
+    disableClose,
+    onOpenSelectionMenu,
+    selectionCount,
+  });
+
+  const ultraCompactHeader = useUltraCompactHeader({
+    isUltraCompact,
+    playlistId,
+    localSearch,
+    handleSearchChange,
+    isPhone,
+  });
+
+  const showSearch = Boolean(playlistId && !isUltraCompact);
+
+  return (
+    <PanelToolbarContent
+      toolbarRef={toolbarRef}
+      isPlayingPanel={isPlayingPanel}
+      playlistId={playlistId}
+      displayPlaylistName={displayPlaylistName}
+      onLoadPlaylist={onLoadPlaylist}
+      showSearch={showSearch}
+      localSearch={localSearch}
+      handleSearchChange={handleSearchChange}
+      isPhone={isPhone}
+      navItems={navItems}
+      ultraCompactHeader={ultraCompactHeader}
+      editDialog={editDialog}
+    />
+  );
+}
+
+export function PanelToolbar(props: PanelToolbarProps) {
+  return <PanelToolbarInner {...resolvePanelToolbarProps(props)} />;
 }
