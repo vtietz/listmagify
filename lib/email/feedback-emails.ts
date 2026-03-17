@@ -31,13 +31,14 @@ function getNpsEmoji(score: number): string {
 
 function buildFeedbackTextBody(params: FeedbackEmailParams): string {
   const { npsScore, comment, userId, name, email } = params;
+  const score = npsScore as number;
   const hasScore = npsScore !== null;
   const hasComment = comment && comment.trim().length > 0;
   return [
     'NEW FEEDBACK RECEIVED',
     '='.repeat(50),
     '',
-    hasScore ? `NPS Score: ${npsScore}/10 (${getNpsCategory(npsScore!)}) ${getNpsEmoji(npsScore!)}` : '',
+    hasScore ? `NPS Score: ${score}/10 (${getNpsCategory(score)}) ${getNpsEmoji(score)}` : '',
     '',
     hasComment ? `Comment:\n${comment}` : 'No comment provided.',
     '',
@@ -53,23 +54,25 @@ function buildFeedbackTextBody(params: FeedbackEmailParams): string {
 
 function buildFeedbackHtmlBody(params: FeedbackEmailParams): string {
   const { npsScore, comment, userId, name, email } = params;
+  const score = npsScore as number;
   const hasScore = npsScore !== null;
   const hasComment = comment && comment.trim().length > 0;
+  const validComment = comment as string;
   return `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
       <h2>📝 New Feedback Received</h2>
       
       ${hasScore ? `
-        <div style="background: ${npsScore! >= 9 ? '#d1fae5' : npsScore! >= 7 ? '#fef3c7' : '#fee2e2'}; padding: 20px; border-radius: 8px; margin: 20px 0;">
-          <h3 style="margin-top: 0;">NPS Score: ${npsScore}/10 ${getNpsEmoji(npsScore!)}</h3>
-          <p style="margin: 0; color: #666; font-size: 14px;">${getNpsCategory(npsScore!)}</p>
+        <div style="background: ${score >= 9 ? '#d1fae5' : score >= 7 ? '#fef3c7' : '#fee2e2'}; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3 style="margin-top: 0;">NPS Score: ${score}/10 ${getNpsEmoji(score)}</h3>
+          <p style="margin: 0; color: #666; font-size: 14px;">${getNpsCategory(score)}</p>
         </div>
       ` : ''}
       
       ${hasComment ? `
         <div style="background: #f0f9ff; padding: 20px; border-radius: 8px; border-left: 4px solid #0ea5e9; margin: 20px 0;">
           <strong>Comment:</strong>
-          <p style="margin: 10px 0 0 0; white-space: pre-wrap;">${escapeHtml(comment!)}</p>
+          <p style="margin: 10px 0 0 0; white-space: pre-wrap;">${escapeHtml(validComment)}</p>
         </div>
       ` : '<p style="color: #888;">No comment provided.</p>'}
       

@@ -264,6 +264,7 @@ export async function apiFetch<T = any>(
       handleUnauthorizedResponse(data);
     }
 
+    // split()[0] is always defined at runtime; ?? needed for noUncheckedIndexedAccess
     const requestPath = url.split("?")[0] ?? url;
     const shouldOpenErrorDialog = process.env.NEXT_PUBLIC_E2E_MODE !== '1';
 
