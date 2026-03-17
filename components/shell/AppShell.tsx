@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { Suspense, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { useBrowsePanelStore } from "@/hooks/useBrowsePanelStore";
 import { usePlayerStore } from "@/hooks/usePlayerStore";
@@ -26,6 +26,14 @@ type AppShellProps = {
   headerTitle?: string;
   children?: React.ReactNode;
 };
+
+function PlayerWithSuspense() {
+  return (
+    <Suspense fallback={null}>
+      <SpotifyPlayer />
+    </Suspense>
+  );
+}
 
 /**
  * AppShell - Unified layout component for the entire app.
@@ -122,7 +130,7 @@ export function AppShell({ headerTitle = "Listmagify", children }: AppShellProps
         <main className="flex-1 min-h-0 overflow-hidden">{children}</main>
         {/* On phone, SplitGrid handles player via bottom nav toggle */}
         {/* Split editor renders player inside its DndContext for drag support */}
-        {!isPhone && !isSplitEditor && <SpotifyPlayer />}
+        {!isPhone && !isSplitEditor && <PlayerWithSuspense />}
         {!isPhone && (
           <div className="flex-shrink-0 px-4 py-1 border-t border-border">
             <AppFooter />
@@ -154,7 +162,7 @@ export function AppShell({ headerTitle = "Listmagify", children }: AppShellProps
       {/* On phone, player is handled by split-editor's bottom nav */}
       {!isPhone && (
         <div className="flex-shrink-0 bg-background">
-          <SpotifyPlayer />
+          <PlayerWithSuspense />
           <div className="px-4 py-2 border-t border-border">
             <AppFooter />
           </div>
