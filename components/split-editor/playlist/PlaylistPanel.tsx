@@ -8,7 +8,7 @@
 
 'use client';
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback } from 'react';
 import { usePlaylistPanelState } from '@/hooks/usePlaylistPanelState';
 import { useContextMenuStore } from '@/hooks/useContextMenuStore';
 import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
@@ -17,6 +17,7 @@ import { usePlaylistSelectionMenu } from '@/hooks/usePlaylistSelectionMenu';
 import { useVirtualizerRegistration } from '@/hooks/useVirtualizerRegistration';
 import { usePlayerStore } from '@/hooks/usePlayerStore';
 import { useHydratedAutoScrollPlay } from '@/hooks/useAutoScrollPlayStore';
+import { useAutoScrollPlayback } from '@/hooks/useAutoScrollPlayback';
 import { useDndStateStore } from '@/hooks/dnd';
 import { PanelToolbar } from './PanelToolbar';
 import { TableHeader } from '../TableHeader';
@@ -70,60 +71,16 @@ export function PlaylistPanel({
   
   // Auto-scroll during playback toggle (user preference)
   const autoScrollEnabled = useHydratedAutoScrollPlay();
-  const prevAutoScrollRef = useRef(autoScrollEnabled);
-  
-  // Immediately scroll to playing track when toggle is enabled (any panel with the track)
-  useEffect(() => {
-    const wasDisabled = !prevAutoScrollRef.current;
-    const isNowEnabled = autoScrollEnabled;
-    prevAutoScrollRef.current = autoScrollEnabled;
-    
-    // If just enabled, scroll immediately to playing track (in any panel that has it)
-    if (wasDisabled && isNowEnabled) {
-      if (!playbackState?.track?.id || !state.virtualizer || !state.playlistId) return;
-      
-      const trackId = playbackState.track.id;
-      const trackIndex = state.filteredTracks.findIndex((track) => track.id === trackId);
-      
-      if (trackIndex !== -1) {
-        try {
-          // Scroll to show track with 3 items before it
-          const targetIndex = Math.max(0, trackIndex - 3);
-          state.virtualizer.scrollToIndex(targetIndex, { align: 'start', behavior: 'smooth' });
-        } catch (error) {
-          console.error('[PlaylistPanel] Failed to scroll to playing track:', error);
-        }
-      }
-    }
-  }, [autoScrollEnabled, playbackState?.track?.id, state.virtualizer, state.filteredTracks, state.playlistId]);
-  
-  // Auto-scroll during playback when track changes (only in source panel, when near bottom)
-  useEffect(() => {
-    // Only auto-scroll on track change if toggle is enabled and this is the source panel
-    if (!autoScrollEnabled || !isPlayingPanel) return;
-    if (!playbackState?.track?.id || !state.virtualizer || !state.playlistId) return;
-    
-    const trackId = playbackState.track.id;
-    const trackIndex = state.filteredTracks.findIndex((track) => track.id === trackId);
-    
-    if (trackIndex === -1) return;
-    
-    try {
-      const range = state.virtualizer.range;
-      if (!range) return;
-      
-      const visibleEnd = range.endIndex;
-      const isNearBottom = trackIndex >= (visibleEnd - 2);
-      
-      if (isNearBottom) {
-        // Track is near the bottom of visible area - scroll to show more ahead
-        const targetIndex = Math.min(trackIndex + 3, state.filteredTracks.length - 1);
-        state.virtualizer.scrollToIndex(targetIndex, { align: 'end', behavior: 'smooth' });
-      }
-    } catch (error) {
-      console.error('[PlaylistPanel] Failed to auto-scroll during playback:', error);
-    }
-  }, [autoScrollEnabled, isPlayingPanel, playbackState?.track?.id, state.virtualizer, state.filteredTracks, state.playlistId]);
+
+  useAutoScrollPlayback({
+    panelId,
+    isPlayingPanel,
+    autoScrollEnabled,
+    playbackState,
+    filteredTracks: state.filteredTracks,
+    virtualizer: state.virtualizer,
+    playlistId: state.playlistId,
+  });
   
   // Get togglePoint from insertion points store (for marker actions)
   const togglePoint = useInsertionPointsStore((s) => s.togglePoint);

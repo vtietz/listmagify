@@ -18,6 +18,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { DndContext } from '@dnd-kit/core';
 import { LogIn, Loader2 } from 'lucide-react';
 import { useSplitGridStore } from '@/hooks/useSplitGridStore';
+import type { PanelConfig } from '@/hooks/useSplitGridStore';
 import { useBrowsePanelStore } from '@/hooks/useBrowsePanelStore';
 import { useDndOrchestrator } from '@/hooks/useDndOrchestrator';
 import { useSplitUrlSync } from '@/hooks/useSplitUrlSync';
@@ -36,6 +37,99 @@ import { SpotifyPlayer, MiniPlayer } from '@/components/player';
 import { SignInButton } from '@/components/auth/SignInButton';
 import { toast } from '@/lib/ui/toast';
 import { cn } from '@/lib/utils';
+
+function PlayerSection({
+  isPhone,
+  showMobilePlayer,
+  hasTrack,
+  isMiniPlayerHidden,
+  isSmallHeight,
+  onHide,
+  scrollToTrack,
+}: {
+  isPhone: boolean;
+  showMobilePlayer: boolean;
+  hasTrack: boolean;
+  isMiniPlayerHidden: boolean;
+  isSmallHeight: boolean;
+  onHide: () => void;
+  scrollToTrack?: (trackId: string) => void;
+}) {
+  if (isPhone) {
+    if (showMobilePlayer) {
+      return <SpotifyPlayer forceShow={true} {...(scrollToTrack ? { onTrackClick: scrollToTrack } : {})} />;
+    }
+    if (hasTrack && !isMiniPlayerHidden) {
+      return <MiniPlayer isVisible={true} onHide={onHide} {...(scrollToTrack ? { onTrackClick: scrollToTrack } : {})} />;
+    }
+    return null;
+  }
+
+  if (isSmallHeight) {
+    if (hasTrack && !isMiniPlayerHidden) {
+      return <MiniPlayer isVisible={true} onHide={onHide} {...(scrollToTrack ? { onTrackClick: scrollToTrack } : {})} />;
+    }
+    return null;
+  }
+
+  return <SpotifyPlayer {...(scrollToTrack ? { onTrackClick: scrollToTrack } : {})} />;
+}
+
+function MobileOverlayContent({
+  activeOverlay,
+  hasPanel2,
+  panels,
+  root,
+  registerVirtualizer,
+  unregisterVirtualizer,
+}: {
+  activeOverlay: string;
+  hasPanel2: boolean;
+  panels: PanelConfig[];
+  root: import('@/hooks/useSplitGridStore').SplitNode;
+  registerVirtualizer: Parameters<typeof SplitNodeView>[0]['onRegisterVirtualizer'];
+  unregisterVirtualizer: Parameters<typeof SplitNodeView>[0]['onUnregisterVirtualizer'];
+}) {
+  return (
+    <div className="mobile-panel-secondary border-t border-border">
+      {activeOverlay === 'panel2' && hasPanel2 && (
+        <div className="h-full p-1">
+          <SplitNodeView
+            node={root}
+            onRegisterVirtualizer={registerVirtualizer}
+            onUnregisterVirtualizer={unregisterVirtualizer}
+            isRoot={true}
+            mobileShowOnlySecond={true}
+          />
+        </div>
+      )}
+      {activeOverlay === 'search' && (
+        <div className="h-full flex flex-col bg-background">
+          <SearchPanel isActive={true} />
+        </div>
+      )}
+      {activeOverlay === 'recs' && (
+        <div className="h-full flex flex-col bg-background">
+          <RecommendationsPanel
+            selectedTrackIds={panels.flatMap(p =>
+              Array.from(p.selection instanceof Set ? p.selection : [])
+                .map(key => key.split('::')[0])
+                .filter((id): id is string => !!id)
+            )}
+            excludeTrackIds={[]}
+            {...(panels.find(p => p.playlistId)?.playlistId ? { playlistId: panels.find(p => p.playlistId)!.playlistId! } : {})}
+            isExpanded={true}
+            onToggleExpand={() => {}}
+            height={undefined}
+          />
+        </div>
+      )}
+      {activeOverlay === 'lastfm' && (
+        <BrowsePanel defaultTab="lastfm" isMobileOverlay={true} />
+      )}
+    </div>
+  );
+}
 
 export function SplitGrid() {
   // Sync split grid state with URL for sharing/bookmarking
@@ -175,7 +269,6 @@ export function SplitGrid() {
   // Derived state for mobile overlays
   const hasPanel2 = panels.length >= 2;
   const showMobileOverlay = isPhone && activeOverlay !== 'none' && activeOverlay !== 'player';
-  const isPanel2Mode = activeOverlay === 'panel2';
   const showMobilePlayer = isPhone && activeOverlay === 'player';
 
   return (
@@ -229,77 +322,27 @@ export function SplitGrid() {
 
           {/* Phone: Overlay area (Panel 2 or Browse) */}
           {isPhone && showMobileOverlay && (
-            <div className="mobile-panel-secondary border-t border-border">
-              {/* Panel 2 overlay */}
-              {isPanel2Mode && hasPanel2 && (
-                <div className="h-full p-1">
-                  <SplitNodeView
-                    node={root}
-                    onRegisterVirtualizer={registerVirtualizer}
-                    onUnregisterVirtualizer={unregisterVirtualizer}
-                    isRoot={true}
-                    mobileShowOnlySecond={true}
-                  />
-                </div>
-              )}
-              {/* Browse overlay */}
-              {activeOverlay === 'search' && (
-                <div className="h-full flex flex-col bg-background">
-                  <SearchPanel isActive={true} />
-                </div>
-              )}
-              {activeOverlay === 'recs' && (
-                <div className="h-full flex flex-col bg-background">
-                  <RecommendationsPanel
-                    selectedTrackIds={panels.flatMap(p => 
-                      Array.from(p.selection instanceof Set ? p.selection : [])
-                        .map(key => key.split('::')[0])
-                        .filter((id): id is string => !!id)
-                    )}
-                    excludeTrackIds={[]}
-                    {...(panels.find(p => p.playlistId)?.playlistId ? { playlistId: panels.find(p => p.playlistId)!.playlistId! } : {})}
-                    isExpanded={true}
-                    onToggleExpand={() => {}}
-                    height={undefined}
-                  />
-                </div>
-              )}
-              {activeOverlay === 'lastfm' && (
-                <BrowsePanel defaultTab="lastfm" isMobileOverlay={true} />
-              )}
-            </div>
+            <MobileOverlayContent
+              activeOverlay={activeOverlay}
+              hasPanel2={hasPanel2}
+              panels={panels}
+              root={root}
+              registerVirtualizer={registerVirtualizer}
+              unregisterVirtualizer={unregisterVirtualizer}
+            />
           )}
         </div>
 
         {/* Player section */}
-        {/* Phone: Use MiniPlayer when playing (not in player overlay mode) */}
-        {/* Desktop with small height: Use MiniPlayer */}
-        {/* Otherwise: Use full SpotifyPlayer */}
-        {isPhone ? (
-          // Phone layout: MiniPlayer when playing, full player when overlay is open
-          showMobilePlayer ? (
-            <SpotifyPlayer forceShow={true} onTrackClick={scrollToTrack} />
-          ) : hasTrack && !isMiniPlayerHidden ? (
-            <MiniPlayer 
-              isVisible={true} 
-              onHide={() => setMiniPlayerHidden(true)}
-              onTrackClick={scrollToTrack}
-            />
-          ) : null
-        ) : (
-          // Desktop/Tablet layout: MiniPlayer for small heights, full player otherwise
-          isSmallHeight ? (
-            hasTrack && !isMiniPlayerHidden ? (
-              <MiniPlayer 
-                isVisible={true} 
-                onHide={() => setMiniPlayerHidden(true)}
-                onTrackClick={scrollToTrack}
-              />
-            ) : null
-          ) : (
-            <SpotifyPlayer onTrackClick={scrollToTrack} />
-          )
-        )}
+        <PlayerSection
+          isPhone={isPhone}
+          showMobilePlayer={showMobilePlayer}
+          hasTrack={hasTrack}
+          isMiniPlayerHidden={isMiniPlayerHidden}
+          isSmallHeight={isSmallHeight}
+          onHide={() => setMiniPlayerHidden(true)}
+          scrollToTrack={scrollToTrack}
+        />
 
         {/* Phone: Bottom navigation */}
         {isPhone && (
