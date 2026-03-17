@@ -38,6 +38,172 @@ import { formatDuration } from '@/lib/utils/format';
 import { toast } from '@/lib/ui/toast';
 import { MarqueeText } from '@/components/ui/marquee-text';
 import { useHydratedAutoScrollText } from '@/hooks/useAutoScrollTextStore';
+import type { PlaybackTrack } from '@/lib/music-provider/types';
+
+function MiniPlayerControls({
+  isLoading,
+  isPlaying,
+  onPrevious,
+  onTogglePlayPause,
+  onNext,
+}: {
+  isLoading: boolean;
+  isPlaying: boolean;
+  onPrevious: () => void;
+  onTogglePlayPause: () => void;
+  onNext: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-0.5 shrink-0">
+      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onPrevious} disabled={isLoading}>
+        <SkipBack className="h-3.5 w-3.5" />
+      </Button>
+      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onTogglePlayPause} disabled={isLoading}>
+        {isLoading ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : isPlaying ? (
+          <Pause className="h-4 w-4" />
+        ) : (
+          <Play className="h-4 w-4 ml-0.5" />
+        )}
+      </Button>
+      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onNext} disabled={isLoading}>
+        <SkipForward className="h-3.5 w-3.5" />
+      </Button>
+    </div>
+  );
+}
+
+function MiniPlayerActions({
+  trackId,
+  trackUri,
+  isLiked,
+  hasActiveMarkers,
+  totalMarkers,
+  isInserting,
+  deviceIsActive,
+  onToggleLike,
+  onAddClick,
+  onDeviceClick,
+  onHide,
+}: {
+  trackId: string | null;
+  trackUri: string;
+  isLiked: boolean;
+  hasActiveMarkers: boolean;
+  totalMarkers: number;
+  isInserting: boolean;
+  deviceIsActive: boolean;
+  onToggleLike: () => void;
+  onAddClick: () => void;
+  onDeviceClick: () => void;
+  onHide: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-0.5 shrink-0">
+      {trackId && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className={cn('h-7 w-7', isLiked && 'text-green-500')}
+          onClick={onToggleLike}
+        >
+          <Heart className={cn('h-3.5 w-3.5', isLiked && 'fill-current')} />
+        </Button>
+      )}
+      {trackUri && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className={cn('h-7 w-7', hasActiveMarkers ? 'text-orange-500' : 'text-muted-foreground')}
+          onClick={onAddClick}
+          disabled={isInserting}
+          title={
+            hasActiveMarkers
+              ? `Add to ${totalMarkers} marked position${totalMarkers > 1 ? 's' : ''}`
+              : 'Add to playlist'
+          }
+        >
+          {isInserting ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Plus className="h-3.5 w-3.5" />
+          )}
+        </Button>
+      )}
+      <Button
+        variant="ghost"
+        size="icon"
+        className={cn('h-7 w-7', deviceIsActive && 'text-green-500')}
+        onClick={onDeviceClick}
+      >
+        <MonitorSpeaker className="h-3.5 w-3.5" />
+      </Button>
+      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onHide}>
+        <X className="h-3.5 w-3.5" />
+      </Button>
+    </div>
+  );
+}
+
+function MiniPlayerTrackInfo({
+  track,
+  isAutoScrollEnabled,
+  localProgress,
+  durationMs,
+  onTrackClick,
+}: {
+  track: PlaybackTrack;
+  isAutoScrollEnabled: boolean;
+  localProgress: number;
+  durationMs: number;
+  onTrackClick?: () => void;
+}) {
+  return (
+    <>
+      {track.albumImage && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={track.albumImage}
+          alt={track.albumName ?? 'Album art'}
+          className={cn(
+            'h-8 w-8 rounded object-contain bg-black/10 shrink-0',
+            onTrackClick && 'cursor-pointer hover:opacity-80 transition-opacity'
+          )}
+          onClick={onTrackClick}
+          title={onTrackClick ? 'Click to scroll to this track in playlists' : undefined}
+        />
+      )}
+      <div
+        className={cn(
+          'flex-1 min-w-0 overflow-hidden',
+          onTrackClick && 'cursor-pointer hover:opacity-80 transition-opacity'
+        )}
+        onClick={onTrackClick}
+        title={onTrackClick ? 'Click to scroll to this track in playlists' : undefined}
+      >
+        <MarqueeText
+          isAutoScrollEnabled={isAutoScrollEnabled}
+          className="text-xs font-medium leading-tight"
+          title={track.name}
+        >
+          {track.name}
+        </MarqueeText>
+        <MarqueeText
+          isAutoScrollEnabled={isAutoScrollEnabled}
+          className="text-[10px] text-muted-foreground leading-tight"
+          title={track.artists.join(', ')}
+        >
+          {track.artists.join(', ')}
+        </MarqueeText>
+      </div>
+      <div className="text-[10px] text-muted-foreground tabular-nums shrink-0 flex flex-col items-end leading-tight">
+        <div>{formatDuration(localProgress)}</div>
+        <div>{formatDuration(durationMs)}</div>
+      </div>
+    </>
+  );
+}
 
 interface MiniPlayerProps {
   /** Whether to show the mini player (controlled externally) */
@@ -190,6 +356,8 @@ export function MiniPlayer({ isVisible, onHide, onTrackClick }: MiniPlayerProps)
   }
 
   const progressPercent = durationMs > 0 ? (localProgress / durationMs) * 100 : 0;
+  const trackClickHandler: (() => void) | undefined =
+    track.id !== null && onTrackClick ? handleTrackClick : undefined;
 
   return (
     <>
@@ -202,153 +370,33 @@ export function MiniPlayer({ isVisible, onHide, onTrackClick }: MiniPlayerProps)
         
         {/* Content - above progress bar */}
         <div className="relative flex items-center gap-2 flex-1 min-w-0 z-10">
-          {/* Album art */}
-          {track.albumImage && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={track.albumImage}
-              alt={track.albumName ?? 'Album art'}
-              className={cn(
-                "h-8 w-8 rounded object-contain bg-black/10 shrink-0",
-                track.id && onTrackClick && "cursor-pointer hover:opacity-80 transition-opacity"
-              )}
-              onClick={handleTrackClick}
-              title={track.id && onTrackClick ? "Click to scroll to this track in playlists" : undefined}
-            />
-          )}
-
-          {/* Track info - with auto-scroll */}
-          <div 
-            className={cn(
-              "flex-1 min-w-0 overflow-hidden",
-              track.id && onTrackClick && "cursor-pointer hover:opacity-80 transition-opacity"
-            )}
-            onClick={handleTrackClick}
-            title={track.id && onTrackClick ? "Click to scroll to this track in playlists" : undefined}
-          >
-            <MarqueeText
-              isAutoScrollEnabled={isAutoScrollEnabled}
-              className="text-xs font-medium leading-tight"
-              title={track.name}
-            >
-              {track.name}
-            </MarqueeText>
-            <MarqueeText
-              isAutoScrollEnabled={isAutoScrollEnabled}
-              className="text-[10px] text-muted-foreground leading-tight"
-              title={track.artists.join(', ')}
-            >
-              {track.artists.join(', ')}
-            </MarqueeText>
-          </div>
-
-          {/* Time display - stacked vertically to save horizontal space */}
-          <div className="text-[10px] text-muted-foreground tabular-nums shrink-0 flex flex-col items-end leading-tight">
-            <div>{formatDuration(localProgress)}</div>
-            <div>{formatDuration(durationMs)}</div>
-          </div>
-
-          {/* Control buttons */}
-          <div className="flex items-center gap-0.5 shrink-0">
-            {/* Previous */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={previous}
-              disabled={isLoading}
-            >
-              <SkipBack className="h-3.5 w-3.5" />
-            </Button>
-
-            {/* Play/Pause */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              onClick={togglePlayPause}
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : isPlaying ? (
-                <Pause className="h-4 w-4" />
-              ) : (
-                <Play className="h-4 w-4 ml-0.5" />
-              )}
-            </Button>
-
-            {/* Next */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={next}
-              disabled={isLoading}
-            >
-              <SkipForward className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-
-          {/* Action buttons */}
-          <div className="flex items-center gap-0.5 shrink-0">
-            {/* Heart/Like */}
-            {track.id && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className={cn('h-7 w-7', isLiked && 'text-green-500')}
-                onClick={handleToggleLike}
-              >
-                <Heart className={cn("h-3.5 w-3.5", isLiked && "fill-current")} />
-              </Button>
-            )}
-
-            {/* Plus/Add button */}
-            {track.uri && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className={cn(
-                  'h-7 w-7',
-                  hasActiveMarkers ? 'text-orange-500' : 'text-muted-foreground'
-                )}
-                onClick={handleAddClick}
-                disabled={isInserting}
-                title={
-                  hasActiveMarkers
-                    ? `Add to ${totalMarkers} marked position${totalMarkers > 1 ? 's' : ''}`
-                    : 'Add to playlist'
-                }
-              >
-                {isInserting ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Plus className="h-3.5 w-3.5" />
-                )}
-              </Button>
-            )}
-
-            {/* Device selector */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className={cn('h-7 w-7', device?.isActive && 'text-green-500')}
-              onClick={handleDeviceClick}
-            >
-              <MonitorSpeaker className="h-3.5 w-3.5" />
-            </Button>
-
-            {/* Close button */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={onHide}
-            >
-              <X className="h-3.5 w-3.5" />
-            </Button>
-          </div>
+          <MiniPlayerTrackInfo
+            track={track}
+            isAutoScrollEnabled={isAutoScrollEnabled}
+            localProgress={localProgress}
+            durationMs={durationMs}
+            {...(trackClickHandler && { onTrackClick: trackClickHandler })}
+          />
+          <MiniPlayerControls
+            isLoading={isLoading}
+            isPlaying={isPlaying}
+            onPrevious={previous}
+            onTogglePlayPause={togglePlayPause}
+            onNext={next}
+          />
+          <MiniPlayerActions
+            trackId={track.id}
+            trackUri={track.uri}
+            isLiked={isLiked}
+            hasActiveMarkers={hasActiveMarkers}
+            totalMarkers={totalMarkers}
+            isInserting={isInserting}
+            deviceIsActive={device?.isActive ?? false}
+            onToggleLike={handleToggleLike}
+            onAddClick={handleAddClick}
+            onDeviceClick={handleDeviceClick}
+            onHide={onHide}
+          />
         </div>
       </div>
 
