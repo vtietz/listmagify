@@ -17,8 +17,8 @@ type AppLogoProps = {
 export function AppLogo({ size = "sm", asLink = true }: AppLogoProps) {
   const isLarge = size === "lg";
   
-  // Always link to landing page
-  const href = "/";
+  // Link with explicit landing flag so authenticated users can still open the marketing page.
+  const href = "/?landing=1";
   
   const content = (
     <div className={`flex items-center ${isLarge ? "flex-col gap-4" : "gap-2"}`}>

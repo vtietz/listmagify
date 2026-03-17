@@ -7,7 +7,7 @@ import { LandingPageContent } from "@/components/landing/LandingPageContent";
 import { PageVisitTracker } from "@/components/analytics/PageVisitTracker";
 
 type Props = {
-  searchParams: Promise<{ next?: string; reason?: string; error?: string }>;
+  searchParams: Promise<{ next?: string; reason?: string; error?: string; landing?: string }>;
 };
 
 /**
@@ -16,7 +16,7 @@ type Props = {
  */
 export default async function Home({ searchParams }: Props) {
   const session = await getServerSession(authOptions);
-  const { next, reason, error } = await searchParams;
+  const { next, reason, error, landing } = await searchParams;
   const isAccessRequestEnabled = serverEnv.ACCESS_REQUEST_ENABLED ?? false;
 
   // Check for session error (e.g., revoked refresh token)
@@ -30,8 +30,11 @@ export default async function Home({ searchParams }: Props) {
   // Default return path for sign-in button
   const returnTo = next && next.startsWith("/") ? next : "/split-editor";
 
+  const forceLanding = landing === "1";
+
   // If authenticated with valid session, skip landing page and go to app
-  if (hasValidSession) {
+  // unless user intentionally opened landing via logo (?landing=1)
+  if (hasValidSession && !forceLanding) {
     redirect(returnTo);
   }
 
