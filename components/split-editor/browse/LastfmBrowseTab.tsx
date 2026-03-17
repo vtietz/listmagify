@@ -55,6 +55,130 @@ interface LastfmBrowseTabProps {
   isActive?: boolean;
 }
 
+type SelectionMode = 'range' | 'toggle' | 'single';
+
+function shouldMatchTrack(cached: { status?: string } | undefined): boolean {
+  return !cached || cached.status === 'idle';
+}
+
+function resolveSelectionMode(event: React.MouseEvent, lastfmAnchorIndex: number | null): SelectionMode {
+  if (event.shiftKey && lastfmAnchorIndex !== null) {
+    return 'range';
+  }
+
+  if (event.ctrlKey || event.metaKey) {
+    return 'toggle';
+  }
+
+  return 'single';
+}
+
+function triggerTrackMatchIfNeeded(
+  dto: IndexedTrackDTO,
+  getCachedMatch: (dto: IndexedTrackDTO) => any,
+  matchTrack: (dto: IndexedTrackDTO) => void,
+): void {
+  const cached = getCachedMatch(dto);
+  if (shouldMatchTrack(cached)) {
+    matchTrack(dto);
+  }
+}
+
+function handleRangeSelection(params: {
+  allTracks: Array<{ _lastfmDto: IndexedTrackDTO }>;
+  lastfmAnchorIndex: number;
+  index: number;
+  selectLastfmRange: (anchorIndex: number, index: number) => void;
+  getCachedMatch: (dto: IndexedTrackDTO) => any;
+  matchTracks: (tracks: IndexedTrackDTO[]) => Promise<Map<string, any>>;
+}): void {
+  const start = Math.min(params.lastfmAnchorIndex, params.index);
+  const end = Math.max(params.lastfmAnchorIndex, params.index);
+  params.selectLastfmRange(params.lastfmAnchorIndex, params.index);
+
+  const tracksToMatch = params.allTracks
+    .slice(start, end + 1)
+    .map((track) => track._lastfmDto)
+    .filter((dto) => shouldMatchTrack(params.getCachedMatch(dto)));
+
+  if (tracksToMatch.length > 0) {
+    void params.matchTracks(tracksToMatch);
+  }
+}
+
+function getSelectedDtos(lastfmSelection: number[], allLastfmTracks: IndexedTrackDTO[]): IndexedTrackDTO[] {
+  return lastfmSelection
+    .map((idx) => allLastfmTracks[idx])
+    .filter((track): track is IndexedTrackDTO => track !== undefined);
+}
+
+function extractMatchedUri(match: any): string | null {
+  const matchedTrack = match?.matchedTrack ?? match?.spotifyTrack;
+  if (!matchedTrack) {
+    return null;
+  }
+
+  if (match?.status !== 'matched') {
+    return null;
+  }
+
+  if (match.confidence !== 'high' && match.confidence !== 'medium') {
+    return null;
+  }
+
+  return matchedTrack.uri;
+}
+
+function collectMatchedUris(
+  selectedTracks: IndexedTrackDTO[],
+  matchResults: Map<string, any>,
+): { matchedUris: string[]; unmatchedCount: number } {
+  const matchedUris: string[] = [];
+  let unmatchedCount = 0;
+
+  for (const track of selectedTracks) {
+    const key = makeMatchKeyFromDTO(track);
+    const uri = extractMatchedUri(matchResults.get(key));
+    if (uri) {
+      matchedUris.push(uri);
+    } else {
+      unmatchedCount++;
+    }
+  }
+
+  return { matchedUris, unmatchedCount };
+}
+
+function isHighOrMediumConfidenceMatch(cached: any): boolean {
+  return cached?.confidence === 'high' || cached?.confidence === 'medium';
+}
+
+function collectSelectedMatchedUris(params: {
+  lastfmSelection: number[];
+  allLastfmTracks: IndexedTrackDTO[];
+  getCachedMatch: (dto: IndexedTrackDTO) => any;
+}): string[] {
+  if (params.lastfmSelection.length === 0) {
+    return [];
+  }
+
+  const uris: string[] = [];
+  for (const idx of params.lastfmSelection) {
+    const track = params.allLastfmTracks[idx];
+    if (!track) {
+      continue;
+    }
+
+    const cached = params.getCachedMatch(track);
+    const matchedTrack = cached?.matchedTrack ?? cached?.spotifyTrack;
+    if (matchedTrack?.uri && isHighOrMediumConfidenceMatch(cached)) {
+      uris.push(matchedTrack.uri);
+    }
+  }
+
+  return uris;
+}
+
 export function LastfmBrowseTab({ isActive = true }: LastfmBrowseTabProps) {
   const {
     lastfmUsername,
@@ -190,23 +314,11 @@ export function LastfmBrowseTab({ isActive = true }: LastfmBrowseTabProps) {
   
   // Compute matched URIs for all selected tracks (used for multi-select drag)
   const selectedMatchedUris = useMemo(() => {
-    if (lastfmSelection.length === 0) return [];
-    
-    const uris: string[] = [];
-    // Use lastfmSelection directly as it's already ordered by selection order
-    for (const idx of lastfmSelection) {
-      const track = allLastfmTracks[idx];
-      if (!track) continue;
-      
-      const cached = getCachedMatch(track);
-      const matchedTrack = cached?.matchedTrack ?? cached?.spotifyTrack;
-      if (matchedTrack?.uri && 
-          (cached?.confidence === 'high' || cached?.confidence === 'medium')) {
-        uris.push(matchedTrack.uri);
-      }
-    }
-    
-    return uris;
+    return collectSelectedMatchedUris({
+      lastfmSelection,
+      allLastfmTracks,
+      getCachedMatch,
+    });
   }, [lastfmSelection, allLastfmTracks, getCachedMatch]);
   
   // Get selected tracks as Track objects for drag overlay
@@ -270,46 +382,26 @@ export function LastfmBrowseTab({ isActive = true }: LastfmBrowseTabProps) {
   const handleSelect = useCallback((_selectionKey: string, index: number, event: React.MouseEvent) => {
     const track = allTracks[index];
     if (!track) return;
-    
-    // Shift+click: range selection from anchor to current
-    if (event.shiftKey && lastfmAnchorIndex !== null) {
-      const start = Math.min(lastfmAnchorIndex, index);
-      const end = Math.max(lastfmAnchorIndex, index);
-      
-      // Select range
-      selectLastfmRange(lastfmAnchorIndex, index);
-      
-      // Trigger matching for all tracks in range
-      const tracksToMatch = allTracks.slice(start, end + 1)
-        .filter(t => {
-          const cached = getCachedMatch(t._lastfmDto);
-          return !cached || cached.status === 'idle';
-        })
-        .map(t => t._lastfmDto);
-      
-      if (tracksToMatch.length > 0) {
-        matchTracks(tracksToMatch);
-      }
-    } else if (event.ctrlKey || event.metaKey) {
-      // Ctrl/Cmd+click: toggle individual selection
-      toggleLastfmSelection(index);
-      
-      // Trigger matching for the track
-      const cached = getCachedMatch(track._lastfmDto);
-      if (!cached || cached.status === 'idle') {
-        matchTrack(track._lastfmDto);
-      }
-    } else {
-      // Plain click: single select (clears others)
-      clearLastfmSelection();
-      toggleLastfmSelection(index);
-      
-      // Trigger matching for the track
-      const cached = getCachedMatch(track._lastfmDto);
-      if (!cached || cached.status === 'idle') {
-        matchTrack(track._lastfmDto);
-      }
+
+    const mode = resolveSelectionMode(event, lastfmAnchorIndex);
+    if (mode === 'range' && lastfmAnchorIndex !== null) {
+      handleRangeSelection({
+        allTracks,
+        lastfmAnchorIndex,
+        index,
+        selectLastfmRange,
+        getCachedMatch,
+        matchTracks,
+      });
+      return;
     }
+
+    if (mode === 'single') {
+      clearLastfmSelection();
+    }
+
+    toggleLastfmSelection(index);
+    triggerTrackMatchIfNeeded(track._lastfmDto, getCachedMatch, matchTrack);
   }, [allTracks, lastfmAnchorIndex, toggleLastfmSelection, selectLastfmRange, clearLastfmSelection, getCachedMatch, matchTrack, matchTracks]);
   
   // Handle click (single select)
@@ -322,10 +414,7 @@ export function LastfmBrowseTab({ isActive = true }: LastfmBrowseTabProps) {
     toggleLastfmSelection(index);
     
     // Trigger matching
-    const cached = getCachedMatch(track._lastfmDto);
-    if (!cached || cached.status === 'idle') {
-      matchTrack(track._lastfmDto);
-    }
+    triggerTrackMatchIfNeeded(track._lastfmDto, getCachedMatch, matchTrack);
   }, [allTracks, clearLastfmSelection, toggleLastfmSelection, getCachedMatch, matchTrack]);
   
   // Handle liked toggle (only for matched tracks)
@@ -340,40 +429,15 @@ export function LastfmBrowseTab({ isActive = true }: LastfmBrowseTabProps) {
   // This is now a callback that returns URIs for the unified button
   const getSelectedTrackUris = useCallback(async (): Promise<string[]> => {
     if (lastfmSelection.length === 0) return [];
-    
-    // Get selected tracks in selection order (CTRL+click order preserved)
-    const selectedTracks = lastfmSelection
-      .map((idx) => allLastfmTracks[idx])
-      .filter((t): t is IndexedTrackDTO => t !== undefined);
-    
+
+    const selectedTracks = getSelectedDtos(lastfmSelection, allLastfmTracks);
     if (selectedTracks.length === 0) {
       toast.error('No tracks selected');
       return [];
     }
-    
-    // Match all selected tracks (batch)
+
     const matchResults = await matchTracks(selectedTracks);
-    
-    // Get matched URIs (only high/medium confidence)
-    const matchedUris: string[] = [];
-    let unmatchedCount = 0;
-    
-    for (const track of selectedTracks) {
-      const key = makeMatchKeyFromDTO(track);
-      const match = matchResults.get(key);
-      
-      const matchedTrack = match?.matchedTrack ?? match?.spotifyTrack;
-      if (match?.status === 'matched' && matchedTrack) {
-        // Accept high/medium confidence matches
-        if (match.confidence === 'high' || match.confidence === 'medium') {
-          matchedUris.push(matchedTrack.uri);
-        } else {
-          unmatchedCount++;
-        }
-      } else {
-        unmatchedCount++;
-      }
-    }
+    const { matchedUris, unmatchedCount } = collectMatchedUris(selectedTracks, matchResults);
     
     if (matchedUris.length === 0) {
       toast.error(`Could not match any of the ${selectedTracks.length} selected tracks`);

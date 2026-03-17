@@ -12,7 +12,11 @@ import { Plus, Loader2 } from 'lucide-react';
 import { useState, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { useCompactModeStore } from '@/hooks/useCompactModeStore';
-import { useInsertionPointsStore, computeInsertionPositions } from '@/hooks/useInsertionPointsStore';
+import {
+  useInsertionPointsStore,
+  computeInsertionPositions,
+  type InsertionPoint,
+} from '@/hooks/useInsertionPointsStore';
 import { useLastfmMatch, type CachedMatch } from '@/hooks/useLastfmMatchCache';
 import { useAddTracks } from '@/lib/spotify/playlistMutations';
 import { toast } from '@/lib/ui/toast';
@@ -23,6 +27,71 @@ interface LastfmAddToMarkedButtonProps {
   lastfmTrack: ImportedTrackDTO;
   /** Track name for toast messages */
   trackName: string;
+}
+
+interface PlaylistMarkerData {
+  markers: InsertionPoint[];
+}
+
+type PlaylistsWithMarkers = Array<[string, PlaylistMarkerData]>;
+
+function getPlaylistsWithMarkers(playlists: Record<string, PlaylistMarkerData>): PlaylistsWithMarkers {
+  return Object.entries(playlists).filter(([, data]) => data.markers.length > 0);
+}
+
+function buildMatchFailureMessage(trackName: string, reason: 'not-found' | 'low-confidence'): string {
+  if (reason === 'low-confidence') {
+    return `Low confidence match for "${trackName}" - please verify manually`;
+  }
+
+  return `Could not find "${trackName}" from provider search`;
+}
+
+async function ensureMatchedTrackUri(params: {
+  cached: CachedMatch | undefined;
+  matchTrack: (dto: ImportedTrackDTO) => Promise<CachedMatch>;
+  lastfmTrack: ImportedTrackDTO;
+  trackName: string;
+}): Promise<{ trackUri?: string; error?: string }> {
+  let match: CachedMatch | undefined = params.cached;
+
+  if (!match || match.status === 'idle' || match.status === 'pending') {
+    match = await params.matchTrack(params.lastfmTrack);
+  }
+
+  const matchedTrack = match.matchedTrack ?? match.spotifyTrack;
+  if (match.status !== 'matched' || !matchedTrack) {
+    return { error: buildMatchFailureMessage(params.trackName, 'not-found') };
+  }
+
+  if (match.confidence === 'low' || match.confidence === 'none') {
+    return { error: buildMatchFailureMessage(params.trackName, 'low-confidence') };
+  }
+
+  return { trackUri: matchedTrack.uri };
+}
+
+async function addTrackToAllMarkers(params: {
+  playlistsWithMarkers: PlaylistsWithMarkers;
+  trackUri: string;
+  addTracksMutation: ReturnType<typeof useAddTracks>;
+  shiftAfterMultiInsert: (playlistId: string) => void;
+}): Promise<void> {
+  for (const [playlistId, data] of params.playlistsWithMarkers) {
+    const positions = computeInsertionPositions(data.markers, 1);
+
+    for (const pos of positions) {
+      await params.addTracksMutation.mutateAsync({
+        playlistId,
+        trackUris: [params.trackUri],
+        position: pos.effectiveIndex,
+      });
+    }
+
+    if (data.markers.length > 1) {
+      params.shiftAfterMultiInsert(playlistId);
+    }
+  }
 }
 
 /**
@@ -41,8 +110,7 @@ export function LastfmAddToMarkedButton({
   const [isInserting, setIsInserting] = useState(false);
 
   // Get all playlists with active markers
-  const playlistsWithMarkers = Object.entries(playlists)
-    .filter(([, data]) => data.markers.length > 0);
+  const playlistsWithMarkers = getPlaylistsWithMarkers(playlists);
 
   const hasActiveMarkers = playlistsWithMarkers.length > 0;
   const totalMarkers = playlistsWithMarkers.reduce((sum, [, data]) => sum + data.markers.length, 0);
@@ -60,48 +128,24 @@ export function LastfmAddToMarkedButton({
     setIsInserting(true);
 
     try {
-      // Step 1: Match the track if not already matched
-      let match: CachedMatch | undefined = cached;
-      
-      if (!match || match.status === 'idle' || match.status === 'pending') {
-        match = await matchTrack(lastfmTrack);
-      }
+      const { trackUri, error } = await ensureMatchedTrackUri({
+        cached,
+        matchTrack,
+        lastfmTrack,
+        trackName,
+      });
 
-      const matchedTrack = match.matchedTrack ?? match.spotifyTrack;
-
-      // Check if match was successful
-      if (match.status !== 'matched' || !matchedTrack) {
-        toast.error(`Could not find "${trackName}" from provider search`);
-        setIsInserting(false);
+      if (!trackUri) {
+        toast.error(error ?? `Could not match "${trackName}"`);
         return;
       }
 
-      // Check confidence level
-      if (match.confidence === 'low' || match.confidence === 'none') {
-        toast.error(`Low confidence match for "${trackName}" - please verify manually`);
-        setIsInserting(false);
-        return;
-      }
-
-      const trackUri = matchedTrack.uri;
-
-      // Step 2: Insert at each playlist's markers
-      for (const [playlistId, data] of playlistsWithMarkers) {
-        const positions = computeInsertionPositions(data.markers, 1);
-
-        for (const pos of positions) {
-          await addTracksMutation.mutateAsync({
-            playlistId,
-            trackUris: [trackUri],
-            position: pos.effectiveIndex,
-          });
-        }
-
-        // Shift markers after multi-insert
-        if (data.markers.length > 1) {
-          shiftAfterMultiInsert(playlistId);
-        }
-      }
+      await addTrackToAllMarkers({
+        playlistsWithMarkers,
+        trackUri,
+        addTracksMutation,
+        shiftAfterMultiInsert,
+      });
 
       // Success - no toast needed
 
