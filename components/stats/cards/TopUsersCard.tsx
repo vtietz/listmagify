@@ -16,6 +16,298 @@ interface TopUsersCardProps {
   dateRange: { from: string; to: string };
 }
 
+function formatUserDate(value: string | null): string {
+  if (!value) {
+    return 'N/A';
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return 'N/A';
+  }
+
+  return date.toISOString().slice(0, 10);
+}
+
+function getTopUsersDescription(showUserDetails: boolean): string {
+  return showUserDetails
+    ? 'Click a user to see full details - Click column headers to sort'
+    : 'User details disabled (no personal data fetched) - Click column headers to sort';
+}
+
+function getNextSortState(
+  currentSortBy: UserSortField,
+  currentSortDirection: SortDirection,
+  field: UserSortField,
+): { sortBy: UserSortField; sortDirection: SortDirection } {
+  if (currentSortBy === field) {
+    return {
+      sortBy: currentSortBy,
+      sortDirection: currentSortDirection === 'desc' ? 'asc' : 'desc',
+    };
+  }
+
+  return { sortBy: field, sortDirection: 'desc' };
+}
+
+function SortIcon({
+  field,
+  sortBy,
+  sortDirection,
+}: {
+  field: UserSortField;
+  sortBy: UserSortField;
+  sortDirection: SortDirection;
+}) {
+  if (sortBy !== field) {
+    return <ArrowUpDown className="h-3 w-3" />;
+  }
+
+  return sortDirection === 'desc'
+    ? <ArrowDown className="h-3 w-3" />
+    : <ArrowUp className="h-3 w-3" />;
+}
+
+function SortableColumnButton({
+  label,
+  field,
+  sortBy,
+  sortDirection,
+  onSort,
+}: {
+  label: string;
+  field: UserSortField;
+  sortBy: UserSortField;
+  sortDirection: SortDirection;
+  onSort: (field: UserSortField) => void;
+}) {
+  return (
+    <button onClick={() => onSort(field)} className="hover:text-foreground flex items-center gap-1 ml-auto">
+      {label} <SortIcon field={field} sortBy={sortBy} sortDirection={sortDirection} />
+    </button>
+  );
+}
+
+function TopUsersTableHeader({
+  sortBy,
+  sortDirection,
+  onSort,
+}: {
+  sortBy: UserSortField;
+  sortDirection: SortDirection;
+  onSort: (field: UserSortField) => void;
+}) {
+  return (
+    <div className="grid grid-cols-12 text-xs text-muted-foreground font-medium pb-2 border-b">
+      <div className="col-span-1">#</div>
+      <div className="col-span-3">User</div>
+      <div className="col-span-2 text-right">
+        <SortableColumnButton
+          label="Events"
+          field="eventCount"
+          sortBy={sortBy}
+          sortDirection={sortDirection}
+          onSort={onSort}
+        />
+      </div>
+      <div className="col-span-1 text-right">
+        <SortableColumnButton
+          label="BYOK/Std"
+          field="byokLogins"
+          sortBy={sortBy}
+          sortDirection={sortDirection}
+          onSort={onSort}
+        />
+      </div>
+      <div className="col-span-2 text-right">
+        <SortableColumnButton
+          label="First Login"
+          field="firstLoginAt"
+          sortBy={sortBy}
+          sortDirection={sortDirection}
+          onSort={onSort}
+        />
+      </div>
+      <div className="col-span-3 text-right">
+        <SortableColumnButton
+          label="Last Active"
+          field="lastActive"
+          sortBy={sortBy}
+          sortDirection={sortDirection}
+          onSort={onSort}
+        />
+      </div>
+    </div>
+  );
+}
+
+function TopUsersRow({
+  user,
+  index,
+  page,
+  pageSize,
+  showUserDetails,
+  onSelect,
+}: {
+  user: TopUser;
+  index: number;
+  page: number;
+  pageSize: number;
+  showUserDetails: boolean;
+  onSelect: (user: TopUser) => void;
+}) {
+  const title = showUserDetails
+    ? 'Click to view user details'
+    : 'User details disabled (set STATS_SHOW_USER_DETAILS=true to enable)';
+
+  return (
+    <div
+      className={cn(
+        'grid grid-cols-12 text-sm items-center py-1.5 hover:bg-muted/50 rounded',
+        showUserDetails && 'cursor-pointer',
+      )}
+      onClick={showUserDetails ? () => onSelect(user) : undefined}
+      title={title}
+    >
+      <div className="col-span-1 text-muted-foreground">{page * pageSize + index + 1}</div>
+      <div className="col-span-3 font-mono text-xs truncate" title={user.userHash}>
+        {user.userHash.slice(0, 12)}...
+      </div>
+      <div className="col-span-2 text-right font-medium">{user.eventCount}</div>
+      <div className="col-span-1 text-right" title={`BYOK: ${user.byokLogins}, Standard: ${user.regularLogins}`}>
+        <span className="text-cyan-600">{user.byokLogins}</span>
+        <span className="text-muted-foreground">/{user.regularLogins}</span>
+      </div>
+      <div className="col-span-2 text-right text-xs text-muted-foreground">{formatUserDate(user.firstLoginAt)}</div>
+      <div className="col-span-3 text-right text-xs text-muted-foreground">{formatUserDate(user.lastActive)}</div>
+    </div>
+  );
+}
+
+function TopUsersPagination({
+  page,
+  pageSize,
+  total,
+  hasMore,
+  setPage,
+}: {
+  page: number;
+  pageSize: number;
+  total: number;
+  hasMore: boolean;
+  setPage: (updater: (page: number) => number) => void;
+}) {
+  const totalPages = Math.ceil(total / pageSize);
+  if (totalPages <= 1) {
+    return null;
+  }
+
+  return (
+    <div className="flex items-center justify-between mt-4 pt-4 border-t">
+      <span className="text-xs text-muted-foreground">
+        Showing {page * pageSize + 1}-{Math.min((page + 1) * pageSize, total)} of {total}
+      </span>
+      <div className="flex gap-1">
+        <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0}>
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => setPage((p) => p + 1)} disabled={!hasMore}>
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function TopUsersContent({
+  isLoading,
+  users,
+  page,
+  pageSize,
+  sortBy,
+  sortDirection,
+  showUserDetails,
+  pagination,
+  onSort,
+  onSelectUser,
+  setPage,
+}: {
+  isLoading: boolean;
+  users: TopUser[];
+  page: number;
+  pageSize: number;
+  sortBy: UserSortField;
+  sortDirection: SortDirection;
+  showUserDetails: boolean;
+  pagination: TopUsersResponse['pagination'] | undefined;
+  onSort: (field: UserSortField) => void;
+  onSelectUser: (user: TopUser) => void;
+  setPage: (updater: (page: number) => number) => void;
+}) {
+  if (isLoading) {
+    return <div className="py-8 text-center text-muted-foreground">Loading...</div>;
+  }
+
+  if (users.length === 0) {
+    return <div className="py-8 text-center text-muted-foreground">No user activity recorded</div>;
+  }
+
+  return (
+    <>
+      <div className="space-y-2">
+        <TopUsersTableHeader sortBy={sortBy} sortDirection={sortDirection} onSort={onSort} />
+        {users.map((user, index) => (
+          <TopUsersRow
+            key={`user-${page * pageSize + index}`}
+            user={user}
+            index={index}
+            page={page}
+            pageSize={pageSize}
+            showUserDetails={showUserDetails}
+            onSelect={onSelectUser}
+          />
+        ))}
+      </div>
+
+      <TopUsersPagination
+        page={page}
+        pageSize={pageSize}
+        total={pagination?.total ?? 0}
+        hasMore={pagination?.hasMore ?? false}
+        setPage={setPage}
+      />
+    </>
+  );
+}
+
+function TopUsersDetailsDialog({
+  showUserDetails,
+  selectedUser,
+  clearSelection,
+}: {
+  showUserDetails: boolean;
+  selectedUser: TopUser | null;
+  clearSelection: () => void;
+}) {
+  if (!showUserDetails || !selectedUser) {
+    return null;
+  }
+
+  return (
+    <UserDetailDialog
+      userId={selectedUser.userId}
+      userHash={selectedUser.userHash}
+      eventCount={selectedUser.eventCount}
+      tracksAdded={selectedUser.tracksAdded}
+      tracksRemoved={selectedUser.tracksRemoved}
+      lastActive={selectedUser.lastActive}
+      firstLoginAt={selectedUser.firstLoginAt}
+      open={true}
+      onOpenChange={(open) => !open && clearSelection()}
+    />
+  );
+}
+
 export function TopUsersCard({ dateRange }: TopUsersCardProps) {
   const [page, setPage] = useState(0);
   const [sortBy, setSortBy] = useState<UserSortField>('eventCount');
@@ -57,30 +349,12 @@ export function TopUsersCard({ dateRange }: TopUsersCardProps) {
 
   const users: TopUser[] = data?.data ?? [];
   const pagination = data?.pagination;
-  const totalPages = pagination ? Math.ceil(pagination.total / pageSize) : 0;
-
-  const formatDate = (value: string | null) => {
-    if (!value) return 'N/A';
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return 'N/A';
-    return date.toISOString().slice(0, 10);
-  };
 
   const toggleSort = (field: UserSortField) => {
-    if (sortBy === field) {
-      setSortDirection(sortDirection === 'desc' ? 'asc' : 'desc');
-    } else {
-      setSortBy(field);
-      setSortDirection('desc');
-    }
+    const nextSort = getNextSortState(sortBy, sortDirection, field);
+    setSortBy(nextSort.sortBy);
+    setSortDirection(nextSort.sortDirection);
     setPage(0);
-  };
-
-  const getSortIcon = (field: UserSortField) => {
-    if (sortBy !== field) return <ArrowUpDown className="h-3 w-3" />;
-    return sortDirection === 'desc' 
-      ? <ArrowDown className="h-3 w-3" /> 
-      : <ArrowUp className="h-3 w-3" />;
   };
 
   return (
@@ -91,127 +365,29 @@ export function TopUsersCard({ dateRange }: TopUsersCardProps) {
           Top Users (by activity)
         </CardTitle>
         <CardDescription>
-          {showUserDetails 
-            ? 'Click a user to see full details - Click column headers to sort' 
-            : 'User details disabled (no personal data fetched) - Click column headers to sort'}
+          {getTopUsersDescription(showUserDetails)}
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {isLoading ? (
-          <div className="py-8 text-center text-muted-foreground">Loading...</div>
-        ) : users.length === 0 ? (
-          <div className="py-8 text-center text-muted-foreground">
-            No user activity recorded
-          </div>
-        ) : (
-          <>
-            <div className="space-y-2">
-              <div className="grid grid-cols-12 text-xs text-muted-foreground font-medium pb-2 border-b">
-                <div className="col-span-1">#</div>
-                <div className="col-span-3">User</div>
-                <div className="col-span-2 text-right">
-                  <button 
-                    onClick={() => toggleSort('eventCount')}
-                    className="hover:text-foreground flex items-center gap-1 ml-auto"
-                  >
-                    Events {getSortIcon('eventCount')}
-                  </button>
-                </div>
-                <div className="col-span-1 text-right">
-                  <button 
-                    onClick={() => toggleSort('byokLogins')}
-                    className="hover:text-foreground flex items-center gap-1 ml-auto"
-                  >
-                    BYOK/Std {getSortIcon('byokLogins')}
-                  </button>
-                </div>
-                <div className="col-span-2 text-right">
-                  <button 
-                    onClick={() => toggleSort('firstLoginAt')}
-                    className="hover:text-foreground flex items-center gap-1 ml-auto"
-                  >
-                    First Login {getSortIcon('firstLoginAt')}
-                  </button>
-                </div>
-                <div className="col-span-3 text-right">
-                  <button 
-                    onClick={() => toggleSort('lastActive')}
-                    className="hover:text-foreground flex items-center gap-1 ml-auto"
-                  >
-                    Last Active {getSortIcon('lastActive')}
-                  </button>
-                </div>
-              </div>
-              {users.map((user, i) => (
-                <div 
-                  key={`user-${page * pageSize + i}`}
-                  className={cn(
-                    "grid grid-cols-12 text-sm items-center py-1.5 hover:bg-muted/50 rounded",
-                    showUserDetails && "cursor-pointer"
-                  )}
-                  onClick={showUserDetails ? () => setSelectedUser(user) : undefined}
-                  title={showUserDetails ? "Click to view user details" : "User details disabled (set STATS_SHOW_USER_DETAILS=true to enable)"}
-                >
-                  <div className="col-span-1 text-muted-foreground">{page * pageSize + i + 1}</div>
-                  <div className="col-span-3 font-mono text-xs truncate" title={user.userHash}>
-                    {user.userHash.slice(0, 12)}...
-                  </div>
-                  <div className="col-span-2 text-right font-medium">{user.eventCount}</div>
-                  <div className="col-span-1 text-right" title={`BYOK: ${user.byokLogins}, Standard: ${user.regularLogins}`}>
-                    <span className="text-cyan-600">{user.byokLogins}</span>
-                    <span className="text-muted-foreground">/{user.regularLogins}</span>
-                  </div>
-                  <div className="col-span-2 text-right text-xs text-muted-foreground">
-                    {formatDate(user.firstLoginAt)}
-                  </div>
-                  <div className="col-span-3 text-right text-xs text-muted-foreground">
-                    {formatDate(user.lastActive)}
-                  </div>
-                </div>
-              ))}
-            </div>
-            
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between mt-4 pt-4 border-t">
-                <span className="text-xs text-muted-foreground">
-                  Showing {page * pageSize + 1}-{Math.min((page + 1) * pageSize, pagination?.total ?? 0)} of {pagination?.total ?? 0}
-                </span>
-                <div className="flex gap-1">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setPage(p => Math.max(0, p - 1))}
-                    disabled={page === 0}
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setPage(p => p + 1)}
-                    disabled={!pagination?.hasMore}
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            )}
-          </>
-        )}
+        <TopUsersContent
+          isLoading={isLoading}
+          users={users}
+          page={page}
+          pageSize={pageSize}
+          sortBy={sortBy}
+          sortDirection={sortDirection}
+          showUserDetails={showUserDetails}
+          pagination={pagination}
+          onSort={toggleSort}
+          onSelectUser={setSelectedUser}
+          setPage={setPage}
+        />
 
-        {showUserDetails && selectedUser && (
-          <UserDetailDialog
-            userId={selectedUser.userId}
-            userHash={selectedUser.userHash}
-            eventCount={selectedUser.eventCount}
-            tracksAdded={selectedUser.tracksAdded}
-            tracksRemoved={selectedUser.tracksRemoved}
-            lastActive={selectedUser.lastActive}
-            firstLoginAt={selectedUser.firstLoginAt}
-            open={!!selectedUser}
-            onOpenChange={(open) => !open && setSelectedUser(null)}
-          />
-        )}
+        <TopUsersDetailsDialog
+          showUserDetails={showUserDetails}
+          selectedUser={selectedUser}
+          clearSelection={() => setSelectedUser(null)}
+        />
       </CardContent>
     </Card>
   );

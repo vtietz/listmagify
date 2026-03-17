@@ -11,6 +11,78 @@ interface AuthenticationStatsCardProps {
   dateRange: { from: string; to: string };
 }
 
+type DailyAuthStat = {
+  date: string;
+  successes: number;
+  failures: number;
+  byokSuccesses: number;
+};
+
+function DailyAuthBar({ day, maxValue }: { day: DailyAuthStat; maxValue: number }) {
+  const total = day.successes + day.failures;
+  const regularSuccesses = day.successes - day.byokSuccesses;
+  const segments = [
+    {
+      key: 'failures',
+      count: day.failures,
+      className: 'bg-red-500/80 rounded-t hover:bg-red-500 transition-colors',
+    },
+    {
+      key: 'byok',
+      count: day.byokSuccesses,
+      className: 'bg-purple-500/80 rounded-t hover:bg-purple-500 transition-colors',
+    },
+    {
+      key: 'regular',
+      count: regularSuccesses,
+      className: 'bg-green-500/80 rounded-t hover:bg-green-500 transition-colors',
+    },
+  ]
+    .map((segment) => ({
+      ...segment,
+      height: total > 0 ? (segment.count / maxValue) * 100 : 0,
+    }))
+    .filter((segment) => segment.count > 0 && segment.height > 0);
+
+  const tooltipRows = [
+    { key: 'regular', count: regularSuccesses, className: 'text-green-500', label: 'regular' },
+    { key: 'byok', count: day.byokSuccesses, className: 'text-purple-500', label: 'BYOK' },
+    {
+      key: 'failures',
+      count: day.failures,
+      className: 'text-red-500',
+      label: `failure${day.failures !== 1 ? 's' : ''}`,
+      icon: '✗',
+    },
+  ].filter((row) => row.count > 0);
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div className="flex-1 flex flex-col justify-end gap-0.5">
+          {segments.map((segment) => (
+            <div
+              key={`${day.date}-${segment.key}`}
+              className={segment.className}
+              style={{ height: `${segment.height}%`, minHeight: '2px' }}
+            />
+          ))}
+        </div>
+      </TooltipTrigger>
+      <TooltipContent>
+        <div className="text-sm">
+          <div className="font-medium">{formatDate(day.date)}</div>
+          {tooltipRows.map((row) => (
+            <div key={`${day.date}-${row.key}`} className={row.className}>
+              {row.icon ?? '✓'} {row.count} {row.label}
+            </div>
+          ))}
+        </div>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 export function AuthenticationStatsCard({ dateRange }: AuthenticationStatsCardProps) {
   const dateRangeKey = `${dateRange.from}_${dateRange.to}`;
 
@@ -88,48 +160,9 @@ export function AuthenticationStatsCard({ dateRange }: AuthenticationStatsCardPr
               <div>
                 <div className="text-sm font-medium mb-3">Daily Authentication Activity</div>
                 <div className="flex items-end gap-1 h-32">
-                  {stats.dailyStats.map((d: { date: string; successes: number; failures: number; byokSuccesses: number }) => {
-                    const total = d.successes + d.failures;
-                    const regularSuccesses = d.successes - d.byokSuccesses;
-                    const regularHeight = total > 0 ? (regularSuccesses / maxValue) * 100 : 0;
-                    const byokHeight = total > 0 ? (d.byokSuccesses / maxValue) * 100 : 0;
-                    const failureHeight = total > 0 ? (d.failures / maxValue) * 100 : 0;
-                    
-                    return (
-                      <Tooltip key={d.date}>
-                        <TooltipTrigger asChild>
-                          <div className="flex-1 flex flex-col justify-end gap-0.5">
-                            {d.failures > 0 && (
-                              <div
-                                className="bg-red-500/80 rounded-t hover:bg-red-500 transition-colors"
-                                style={{ height: `${failureHeight}%`, minHeight: failureHeight > 0 ? '2px' : '0' }}
-                              />
-                            )}
-                            {d.byokSuccesses > 0 && (
-                              <div
-                                className="bg-purple-500/80 rounded-t hover:bg-purple-500 transition-colors"
-                                style={{ height: `${byokHeight}%`, minHeight: byokHeight > 0 ? '2px' : '0' }}
-                              />
-                            )}
-                            {regularSuccesses > 0 && (
-                              <div
-                                className="bg-green-500/80 rounded-t hover:bg-green-500 transition-colors"
-                                style={{ height: `${regularHeight}%`, minHeight: regularHeight > 0 ? '2px' : '0' }}
-                              />
-                            )}
-                          </div>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <div className="text-sm">
-                            <div className="font-medium">{formatDate(d.date)}</div>
-                            {regularSuccesses > 0 && <div className="text-green-500">✓ {regularSuccesses} regular</div>}
-                            {d.byokSuccesses > 0 && <div className="text-purple-500">✓ {d.byokSuccesses} BYOK</div>}
-                            {d.failures > 0 && <div className="text-red-500">✗ {d.failures} failure{d.failures !== 1 ? 's' : ''}</div>}
-                          </div>
-                        </TooltipContent>
-                      </Tooltip>
-                    );
-                  })}
+                  {stats.dailyStats.map((d: { date: string; successes: number; failures: number; byokSuccesses: number }) => (
+                    <DailyAuthBar key={d.date} day={d} maxValue={maxValue} />
+                  ))}
                 </div>
                 <div className="flex items-center gap-4 mt-2 text-xs">
                   <div className="flex items-center gap-1">
