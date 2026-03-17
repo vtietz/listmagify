@@ -74,6 +74,8 @@ When asked to reduce code size/complexity, do **not** only split files mechanica
 - Keep clear boundaries between domain logic, orchestration, and transport/UI layers.
 - Ensure each module has a single clear purpose and a stable interface.
 - Remove duplication and dead branches before introducing new abstractions.
+- Avoid over-engineering or premature abstraction; focus on clarity and maintainability.
+- Organize (new) modules in subfolders by domain or layer to improve discoverability and reduce coupling.
 
 ## Architecture Boundaries
 
