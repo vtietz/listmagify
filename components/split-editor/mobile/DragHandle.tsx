@@ -30,6 +30,42 @@ interface DragHandleProps {
   className?: string;
 }
 
+function shouldRenderDragHandle(isDesktop: boolean, hasTouch: boolean): boolean {
+  return !(isDesktop && !hasTouch);
+}
+
+function buildDragHandleClassName(
+  disabled: boolean,
+  isDragging: boolean,
+  className?: string,
+): string {
+  return cn(
+    'drag-handle',
+    'flex items-center justify-center self-center',
+    'select-none',
+    disabled && 'opacity-30 cursor-not-allowed',
+    !disabled && 'cursor-grab active:cursor-grabbing',
+    isDragging && 'opacity-70',
+    !disabled && 'active:bg-accent/50 rounded',
+    'transition-colors duration-100',
+    className,
+  );
+}
+
+function buildDragListeners(
+  listeners: SyntheticListenerMap | undefined,
+  disabled: boolean,
+): React.HTMLAttributes<HTMLDivElement> {
+  if (disabled || !listeners) {
+    return {};
+  }
+
+  return {
+    onPointerDown: listeners.onPointerDown as React.PointerEventHandler<HTMLDivElement> | undefined,
+    onKeyDown: listeners.onKeyDown as React.KeyboardEventHandler<HTMLDivElement> | undefined,
+  };
+}
+
 export function DragHandle({
   disabled = false,
   listeners,
@@ -45,34 +81,15 @@ export function DragHandle({
     e.preventDefault();
   }, []);
 
-  // Don't render on desktop
-  if (isDesktop && !hasTouch) {
+  if (!shouldRenderDragHandle(isDesktop, hasTouch)) {
     return null;
   }
 
-  // Filter listeners to only pass touch/pointer events, not click
-  // Type assertion needed because dnd-kit uses Function type
-  const dragListeners = listeners ? {
-    onPointerDown: listeners.onPointerDown as React.PointerEventHandler<HTMLDivElement> | undefined,
-    onKeyDown: listeners.onKeyDown as React.KeyboardEventHandler<HTMLDivElement> | undefined,
-  } : {};
+  const dragListeners = buildDragListeners(listeners, disabled);
 
   return (
     <div
-      className={cn(
-        'drag-handle',
-        'flex items-center justify-center self-center',
-        'select-none',
-        // Visual states
-        disabled && 'opacity-30 cursor-not-allowed',
-        !disabled && 'cursor-grab active:cursor-grabbing',
-        isDragging && 'opacity-70',
-        // Touch feedback
-        !disabled && 'active:bg-accent/50 rounded',
-        // Transition for smooth visual feedback
-        'transition-colors duration-100',
-        className
-      )}
+      className={buildDragHandleClassName(disabled, isDragging, className)}
       style={{ touchAction: 'none' }}
       onClick={handleClick}
       onMouseDown={handleClick}
@@ -80,7 +97,7 @@ export function DragHandle({
       aria-label={disabled ? 'Drag disabled' : 'Drag to reorder'}
       aria-disabled={disabled}
       tabIndex={disabled ? -1 : 0}
-      {...(!disabled ? dragListeners : {})}
+      {...dragListeners}
     >
       <GripVertical
         className={cn(

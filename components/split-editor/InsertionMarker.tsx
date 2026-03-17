@@ -26,6 +26,105 @@ interface InsertionMarkerProps {
   totalTracks: number;
 }
 
+function shouldRenderInsertionMarker(isActive: boolean, showToggle: boolean): boolean {
+  return isActive || showToggle;
+}
+
+function shouldRenderAfterLastLine(
+  isActive: boolean,
+  index: number,
+  totalTracks: number,
+): boolean {
+  return isActive && index >= totalTracks;
+}
+
+function buildToggleButtonClassName(isCompact: boolean, isActive: boolean): string {
+  return cn(
+    'absolute pointer-events-auto',
+    'flex items-center justify-center rounded-full',
+    'transition-all duration-150',
+    'focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-1',
+    isCompact ? 'w-4 h-4 -left-1' : 'w-5 h-5 -left-1',
+    isActive
+      ? 'bg-orange-500 text-white hover:bg-orange-600'
+      : 'bg-muted text-muted-foreground hover:bg-orange-100 hover:text-orange-600 dark:hover:bg-orange-950',
+  );
+}
+
+function buildToggleButtonStyle(isCompact: boolean): React.CSSProperties {
+  return {
+    top: isCompact ? '-8px' : '-10px',
+  };
+}
+
+function buildToggleAriaLabel(isActive: boolean, index: number): string {
+  const row = index + 1;
+  return isActive
+    ? `Remove insertion point before row ${row}`
+    : `Add insertion point before row ${row}`;
+}
+
+function ToggleIcon({ isActive, isCompact }: { isActive: boolean; isCompact: boolean }): React.ReactNode {
+  if (isActive) {
+    return <X className={cn(isCompact ? 'w-2.5 h-2.5' : 'w-3 h-3')} />;
+  }
+
+  return <Plus className={cn(isCompact ? 'w-2.5 h-2.5' : 'w-3 h-3')} />;
+}
+
+function AfterLastLine({ isActive, index, totalTracks }: {
+  isActive: boolean;
+  index: number;
+  totalTracks: number;
+}): React.ReactNode {
+  if (!shouldRenderAfterLastLine(isActive, index, totalTracks)) {
+    return null;
+  }
+
+  return (
+    <div
+      className="absolute left-0 w-full h-[3px] bg-orange-500 pointer-events-none"
+      style={{
+        boxShadow: '0 0 6px rgba(249, 115, 22, 0.7)',
+        top: '-1.5px',
+      }}
+    />
+  );
+}
+
+function ToggleButton({
+  showToggle,
+  handleToggle,
+  isCompact,
+  isActive,
+  index,
+}: {
+  showToggle: boolean;
+  handleToggle: (e: React.MouseEvent) => void;
+  isCompact: boolean;
+  isActive: boolean;
+  index: number;
+}): React.ReactNode {
+  if (!showToggle) {
+    return null;
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleToggle}
+      onMouseDown={(e) => e.stopPropagation()}
+      className={buildToggleButtonClassName(isCompact, isActive)}
+      style={buildToggleButtonStyle(isCompact)}
+      aria-pressed={isActive}
+      aria-label={buildToggleAriaLabel(isActive, index)}
+      title={isActive ? 'Remove insertion point' : 'Add insertion point'}
+    >
+      <ToggleIcon isActive={isActive} isCompact={isCompact} />
+    </button>
+  );
+}
+
 /**
  * Renders an orange line indicator showing an insertion point.
  * Includes a toggle button on the left side to add/remove the marker.
@@ -48,7 +147,7 @@ export function InsertionMarker({
   };
 
   // Only render if marker is active or we need to show the toggle
-  if (!isActive && !showToggle) {
+  if (!shouldRenderInsertionMarker(isActive, showToggle)) {
     return null;
   }
 
@@ -69,46 +168,16 @@ export function InsertionMarker({
        * This overlay only renders the toggle button for "after last item" markers
        * where there's no TrackRow to show the line.
        */}
-      {isActive && index >= totalTracks && (
-        <div
-          className="absolute left-0 w-full h-[3px] bg-orange-500 pointer-events-none"
-          style={{
-            boxShadow: '0 0 6px rgba(249, 115, 22, 0.7)',
-            top: '-1.5px',
-          }}
-        />
-      )}
+      <AfterLastLine isActive={isActive} index={index} totalTracks={totalTracks} />
 
       {/* Toggle button - positioned at the left edge */}
-      {showToggle && (
-        <button
-          type="button"
-          onClick={handleToggle}
-          onMouseDown={(e) => e.stopPropagation()}
-          className={cn(
-            'absolute pointer-events-auto',
-            'flex items-center justify-center rounded-full',
-            'transition-all duration-150',
-            'focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-1',
-            isCompact ? 'w-4 h-4 -left-1' : 'w-5 h-5 -left-1',
-            isActive
-              ? 'bg-orange-500 text-white hover:bg-orange-600'
-              : 'bg-muted text-muted-foreground hover:bg-orange-100 hover:text-orange-600 dark:hover:bg-orange-950',
-          )}
-          style={{
-            top: isCompact ? '-8px' : '-10px',
-          }}
-          aria-pressed={isActive}
-          aria-label={isActive ? `Remove insertion point before row ${index + 1}` : `Add insertion point before row ${index + 1}`}
-          title={isActive ? 'Remove insertion point' : 'Add insertion point'}
-        >
-          {isActive ? (
-            <X className={cn(isCompact ? 'w-2.5 h-2.5' : 'w-3 h-3')} />
-          ) : (
-            <Plus className={cn(isCompact ? 'w-2.5 h-2.5' : 'w-3 h-3')} />
-          )}
-        </button>
-      )}
+      <ToggleButton
+        showToggle={showToggle}
+        handleToggle={handleToggle}
+        isCompact={isCompact}
+        isActive={isActive}
+        index={index}
+      />
     </div>
   );
 }

@@ -69,6 +69,84 @@ interface PlayPauseButtonProps {
   onClick: (e: React.MouseEvent) => void;
 }
 
+type PlayPauseVisualState = 'loading' | 'remote-playing' | 'playing' | 'idle';
+
+function getPlayPauseVisualState(
+  isLoading: boolean,
+  isPlaying: boolean,
+  isPlayingFromThisPanel: boolean,
+): PlayPauseVisualState {
+  if (isLoading) {
+    return 'loading';
+  }
+
+  if (isPlaying && !isPlayingFromThisPanel) {
+    return 'remote-playing';
+  }
+
+  if (isPlaying) {
+    return 'playing';
+  }
+
+  return 'idle';
+}
+
+function buildPlayPauseClassName(
+  isCompact: boolean,
+  isLocalFile: boolean,
+  state: PlayPauseVisualState,
+): string {
+  return cn(
+    'flex items-center justify-center rounded-full transition-all',
+    isCompact ? 'h-5 w-5' : 'h-6 w-6',
+    isLocalFile && 'opacity-30 cursor-not-allowed',
+    !isLocalFile && 'hover:scale-110 hover:bg-green-500 hover:text-white',
+    state === 'remote-playing'
+      ? 'border-2 border-green-500 text-green-500'
+      : state === 'playing'
+        ? 'bg-green-500 text-white'
+        : 'text-muted-foreground',
+  );
+}
+
+function buildPlayPauseTitle(isLocalFile: boolean, state: PlayPauseVisualState): string {
+  if (isLocalFile) {
+    return 'Local files cannot be played';
+  }
+
+  if (state === 'remote-playing') {
+    return 'Playing from another playlist or device';
+  }
+
+  if (state === 'playing') {
+    return 'Pause';
+  }
+
+  return 'Play';
+}
+
+function buildPlayPauseAriaLabel(state: PlayPauseVisualState): string {
+  return state === 'playing' || state === 'remote-playing' ? 'Pause track' : 'Play track';
+}
+
+function PlayPauseIcon({
+  state,
+  isCompact,
+}: {
+  state: PlayPauseVisualState;
+  isCompact: boolean;
+}): React.ReactNode {
+  if (state === 'loading') {
+    return <Loader2 className={isCompact ? 'h-3 w-3 animate-spin' : 'h-4 w-4 animate-spin'} />;
+  }
+
+  if (state === 'playing') {
+    return <Pause className={isCompact ? 'h-3 w-3' : 'h-4 w-4'} />;
+  }
+
+  return <Play className={isCompact ? 'h-3 w-3 ml-0.5' : 'h-4 w-4 ml-0.5'} />;
+}
+
 export function PlayPauseButton({ 
   isCompact, 
   isPlaying, 
@@ -77,45 +155,17 @@ export function PlayPauseButton({
   isPlayingFromThisPanel = true,
   onClick 
 }: PlayPauseButtonProps) {
-  // Show hollow circle if playing but not from this panel
-  const showHollowCircle = isPlaying && !isPlayingFromThisPanel;
+  const state = getPlayPauseVisualState(isLoading, isPlaying, isPlayingFromThisPanel);
   
   return (
     <button
       onClick={onClick}
       disabled={isLocalFile || isLoading}
-      className={cn(
-        'flex items-center justify-center rounded-full transition-all',
-        isCompact ? 'h-5 w-5' : 'h-6 w-6',
-        isLocalFile && 'opacity-30 cursor-not-allowed',
-        !isLocalFile && 'hover:scale-110 hover:bg-green-500 hover:text-white',
-        showHollowCircle 
-          ? 'border-2 border-green-500 text-green-500'
-          : isPlaying 
-            ? 'bg-green-500 text-white' 
-            : 'text-muted-foreground',
-      )}
-      title={
-        isLocalFile
-          ? 'Local files cannot be played'
-          : showHollowCircle
-            ? 'Playing from another playlist or device'
-            : isPlaying
-              ? 'Pause'
-              : 'Play'
-      }
-      aria-label={isPlaying ? 'Pause track' : 'Play track'}
+      className={buildPlayPauseClassName(isCompact, isLocalFile, state)}
+      title={buildPlayPauseTitle(isLocalFile, state)}
+      aria-label={buildPlayPauseAriaLabel(state)}
     >
-      {isLoading ? (
-        <Loader2 className={isCompact ? 'h-3 w-3 animate-spin' : 'h-4 w-4 animate-spin'} />
-      ) : showHollowCircle ? (
-        // Play triangle with hollow circle border for playing from another source
-        <Play className={isCompact ? 'h-3 w-3 ml-0.5' : 'h-4 w-4 ml-0.5'} />
-      ) : isPlaying ? (
-        <Pause className={isCompact ? 'h-3 w-3' : 'h-4 w-4'} />
-      ) : (
-        <Play className={isCompact ? 'h-3 w-3 ml-0.5' : 'h-4 w-4 ml-0.5'} />
-      )}
+      <PlayPauseIcon state={state} isCompact={isCompact} />
     </button>
   );
 }
@@ -136,6 +186,43 @@ interface InsertionToggleButtonProps {
   onClick: (e: React.MouseEvent) => void;
 }
 
+function buildInsertionEdgeClassName(edge: 'top' | 'bottom', isCompact: boolean): string {
+  if (edge === 'bottom') {
+    return isCompact ? '-bottom-2' : '-bottom-2.5';
+  }
+
+  return isCompact ? '-top-2' : '-top-2.5';
+}
+
+function buildInsertionToggleTitle(edge: 'top' | 'bottom', hasMarker: boolean): string {
+  if (hasMarker) {
+    return 'Remove insertion marker';
+  }
+
+  return edge === 'bottom' ? 'Add insertion marker after this row' : 'Add insertion marker before this row';
+}
+
+function buildInsertionToggleAriaLabel(edge: 'top' | 'bottom', hasMarker: boolean, rowIndex: number): string {
+  const rowNumber = rowIndex + 1;
+  if (edge === 'bottom') {
+    return hasMarker
+      ? `Remove insertion point after row ${rowNumber}`
+      : `Add insertion point after row ${rowNumber}`;
+  }
+
+  return hasMarker
+    ? `Remove insertion point before row ${rowNumber}`
+    : `Add insertion point before row ${rowNumber}`;
+}
+
+function buildInsertionToggleStateClass(hasMarker: boolean): string {
+  if (hasMarker) {
+    return 'bg-orange-500 text-white hover:bg-orange-600';
+  }
+
+  return 'bg-muted text-muted-foreground hover:bg-orange-100 hover:text-orange-600 dark:hover:bg-orange-950';
+}
+
 export function InsertionToggleButton({ 
   isCompact, 
   edge, 
@@ -150,26 +237,12 @@ export function InsertionToggleButton({
         'absolute z-20 rounded-full transition-all duration-150',
         'focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-1',
         isCompact ? 'w-4 h-4 -left-1' : 'w-5 h-5 -left-1.5',
-        // Position at top or bottom based on edge
-        edge === 'bottom'
-          ? (isCompact ? '-bottom-2' : '-bottom-2.5')
-          : (isCompact ? '-top-2' : '-top-2.5'),
-        // Show as active if there's a marker at the relevant position
-        hasMarker
-          ? 'bg-orange-500 text-white hover:bg-orange-600'
-          : 'bg-muted text-muted-foreground hover:bg-orange-100 hover:text-orange-600 dark:hover:bg-orange-950',
+        buildInsertionEdgeClassName(edge, isCompact),
+        buildInsertionToggleStateClass(hasMarker),
       )}
-      title={
-        edge === 'bottom'
-          ? (hasMarker ? 'Remove insertion marker' : 'Add insertion marker after this row')
-          : (hasMarker ? 'Remove insertion marker' : 'Add insertion marker before this row')
-      }
+      title={buildInsertionToggleTitle(edge, hasMarker)}
       aria-pressed={hasMarker}
-      aria-label={
-        edge === 'bottom'
-          ? (hasMarker ? `Remove insertion point after row ${rowIndex + 1}` : `Add insertion point after row ${rowIndex + 1}`)
-          : (hasMarker ? `Remove insertion point before row ${rowIndex + 1}` : `Add insertion point before row ${rowIndex + 1}`)
-      }
+      aria-label={buildInsertionToggleAriaLabel(edge, hasMarker, rowIndex)}
     >
       <MapPin className={cn(isCompact ? 'w-2.5 h-2.5' : 'w-3 h-3', 'mx-auto')} />
     </button>
