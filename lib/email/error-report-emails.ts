@@ -31,18 +31,9 @@ interface ErrorReportEmailParams {
   appVersion: string;
 }
 
-/**
- * Send error report notification email.
- * If SMTP is not configured, logs to console instead.
- */
-export async function sendErrorReportEmail(params: ErrorReportEmailParams): Promise<void> {
-  const { to, reportId, userName, error, userDescription, environment, appVersion } = params;
-
-  const transporter = createEmailTransporter();
-
-  const subject = `[Listmagify Error Report] ${error.category}: ${error.message.slice(0, 50)}`;
-
-  const textBody = [
+function buildErrorEmailTextBody(params: ErrorReportEmailParams): string {
+  const { reportId, userName, error, userDescription, environment, appVersion } = params;
+  return [
     `ERROR REPORT: ${reportId}`,
     '='.repeat(50),
     '',
@@ -78,8 +69,11 @@ export async function sendErrorReportEmail(params: ErrorReportEmailParams): Prom
   ]
     .filter(Boolean)
     .join('\n');
+}
 
-  const htmlBody = `
+function buildErrorEmailHtmlBody(params: ErrorReportEmailParams): string {
+  const { reportId, userName, error, userDescription, environment, appVersion } = params;
+  return `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 700px; margin: 0 auto;">
       <h2 style="color: #ef4444;">🚨 Error Report: ${reportId}</h2>
       
@@ -158,6 +152,19 @@ export async function sendErrorReportEmail(params: ErrorReportEmailParams): Prom
       </p>
     </div>
   `;
+}
+
+/**
+ * Send error report notification email.
+ * If SMTP is not configured, logs to console instead.
+ */
+export async function sendErrorReportEmail(params: ErrorReportEmailParams): Promise<void> {
+  const { to, error } = params;
+
+  const transporter = createEmailTransporter();
+  const subject = `[Listmagify Error Report] ${error.category}: ${error.message.slice(0, 50)}`;
+  const textBody = buildErrorEmailTextBody(params);
+  const htmlBody = buildErrorEmailHtmlBody(params);
 
   // If SMTP is not configured, just log the error report
   if (!transporter) {

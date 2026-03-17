@@ -8,6 +8,7 @@
 'use client';
 
 import { useMemo, useCallback, useState, useRef, useEffect } from 'react';
+import type React from 'react';
 import { Sparkles, X, Loader2, ChevronUp, ChevronDown, Search } from 'lucide-react';
 import { useSeedRecommendations, useDismissRecommendation } from '@/hooks/useRecommendations';
 import { useSavedTracksIndex } from '@/hooks/useSavedTracksIndex';
@@ -44,6 +45,171 @@ interface RecommendationsPanelProps {
   height?: number | undefined;
   /** Callback when a track is dragged from recommendations */
   onTrackDragStart?: (track: Track) => void;
+}
+
+function EmptyStateCollapsed({ onToggleExpand }: { onToggleExpand: () => void }) {
+  return (
+    <div
+      className="border-t border-border bg-muted/50 px-3 py-2 cursor-pointer hover:bg-muted transition-colors"
+      onClick={onToggleExpand}
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Sparkles className="h-4 w-4 text-primary" />
+          <span>Select tracks to get recommendations</span>
+        </div>
+        <ChevronUp className="h-4 w-4 text-muted-foreground" />
+      </div>
+    </div>
+  );
+}
+
+function EmptyStateExpanded({ onToggleExpand }: { onToggleExpand: () => void }) {
+  return (
+    <div className="border-t border-border bg-background flex flex-col h-full">
+      <div
+        className="flex items-center justify-between px-3 py-2 border-b border-border bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors flex-shrink-0"
+        onClick={onToggleExpand}
+      >
+        <div className="flex items-center gap-2">
+          <Sparkles className="h-4 w-4 text-primary" />
+          <span className="text-sm font-medium">Recommendations</span>
+        </div>
+        <ChevronDown className="h-4 w-4 text-muted-foreground" />
+      </div>
+      <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
+        <div className="text-center p-4">
+          <Sparkles className="h-8 w-8 mx-auto mb-2 text-muted-foreground/50" />
+          <p>Select one or more tracks to get recommendations</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CollapsedPanel({ selectedTrackIds, onToggleExpand }: { selectedTrackIds: string[]; onToggleExpand: () => void }) {
+  return (
+    <div
+      className="border-t border-border bg-muted/50 px-3 py-2 cursor-pointer hover:bg-muted transition-colors"
+      onClick={onToggleExpand}
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Sparkles className="h-4 w-4 text-primary" />
+          <span>
+            Recommendations based on {selectedTrackIds.length} selected track{selectedTrackIds.length !== 1 ? 's' : ''}
+          </span>
+        </div>
+        <ChevronUp className="h-4 w-4 text-muted-foreground" />
+      </div>
+    </div>
+  );
+}
+
+interface ContentStateProps {
+  isEnabled: boolean;
+  isLoading: boolean;
+  isError: boolean;
+  recommendations: Array<{ trackId: string; score: number; rank: number; track?: Track }>;
+  hasMore: boolean;
+  searchQuery: string;
+  loadMoreTriggerRef: React.RefObject<HTMLDivElement | null>;
+  scrollContainerRef: React.RefObject<HTMLDivElement | null>;
+  rowHeight: number;
+  isLiked: (trackId: string) => boolean;
+  onToggleLiked: (trackId: string, currentlyLiked: boolean) => void;
+  onDismiss: (trackId: string) => void;
+  isTrackPlaying: (trackId: string) => boolean;
+  isTrackLoading: (uri: string) => boolean;
+  onPlay: (trackUri: string) => void;
+  onPause: () => void;
+  onSelect: (_selectionKey: string, index: number, event: React.MouseEvent) => void;
+  onClick: (_selectionKey: string, index: number) => void;
+  getCompareColorForTrack: (trackUri: string) => string;
+  recsSelection: number[];
+  getSelectedTracks: () => Track[];
+}
+
+function ContentState({
+  isEnabled,
+  isLoading,
+  isError,
+  recommendations,
+  hasMore,
+  searchQuery,
+  loadMoreTriggerRef,
+  scrollContainerRef,
+  rowHeight,
+  isLiked,
+  onToggleLiked,
+  onDismiss,
+  isTrackPlaying,
+  isTrackLoading,
+  onPlay,
+  onPause,
+  onSelect,
+  onClick,
+  getCompareColorForTrack,
+  recsSelection,
+  getSelectedTracks,
+}: ContentStateProps) {
+  return (
+    <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+      {!isEnabled ? (
+        <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
+          <div className="text-center p-4">
+            <p>Recommendations are not enabled.</p>
+            <p className="text-xs mt-1">Set RECS_ENABLED=true to enable.</p>
+          </div>
+        </div>
+      ) : isLoading ? (
+        <div className="flex items-center justify-center h-full">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      ) : isError ? (
+        <div className="flex items-center justify-center h-full text-sm text-destructive">
+          Failed to load recommendations
+        </div>
+      ) : recommendations.length === 0 ? (
+        <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
+          <div className="text-center p-4">
+            <p>{searchQuery ? 'No matches found.' : 'No recommendations found.'}</p>
+            <p className="text-xs mt-1">
+              {searchQuery ? 'Try a different search term.' : 'Add more playlists to build recommendation data.'}
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-auto">
+          <RecommendationsList
+            recommendations={recommendations}
+            rowHeight={rowHeight}
+            isLiked={isLiked}
+            onToggleLiked={onToggleLiked}
+            onDismiss={onDismiss}
+            isTrackPlaying={isTrackPlaying}
+            isTrackLoading={isTrackLoading}
+            onPlay={onPlay}
+            onPause={onPause}
+            onSelect={onSelect}
+            onClick={onClick}
+            getCompareColorForTrack={getCompareColorForTrack}
+            recsSelection={recsSelection}
+            getSelectedTracks={getSelectedTracks}
+          />
+          {hasMore && (
+            <div
+              ref={loadMoreTriggerRef}
+              className="h-8 flex items-center justify-center text-xs text-muted-foreground"
+            >
+              <Loader2 className="h-3 w-3 animate-spin mr-1" />
+              Loading...
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function RecommendationsPanel({
@@ -229,62 +395,14 @@ export function RecommendationsPanel({
   // Show message when no tracks selected
   if (selectedTrackIds.length === 0) {
     if (!isExpanded) {
-      return (
-        <div 
-          className="border-t border-border bg-muted/50 px-3 py-2 cursor-pointer hover:bg-muted transition-colors"
-          onClick={onToggleExpand}
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Sparkles className="h-4 w-4 text-primary" />
-              <span>Select tracks to get recommendations</span>
-            </div>
-            <ChevronUp className="h-4 w-4 text-muted-foreground" />
-          </div>
-        </div>
-      );
+      return <EmptyStateCollapsed onToggleExpand={onToggleExpand} />;
     }
-    
-    return (
-      <div className="border-t border-border bg-background flex flex-col h-full">
-        <div 
-          className="flex items-center justify-between px-3 py-2 border-b border-border bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors flex-shrink-0"
-          onClick={onToggleExpand}
-        >
-          <div className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-primary" />
-            <span className="text-sm font-medium">Recommendations</span>
-          </div>
-          <ChevronDown className="h-4 w-4 text-muted-foreground" />
-        </div>
-        <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
-          <div className="text-center p-4">
-            <Sparkles className="h-8 w-8 mx-auto mb-2 text-muted-foreground/50" />
-            <p>Select one or more tracks to get recommendations</p>
-          </div>
-        </div>
-      </div>
-    );
+    return <EmptyStateExpanded onToggleExpand={onToggleExpand} />;
   }
 
   // Collapsed state
   if (!isExpanded) {
-    return (
-      <div 
-        className="border-t border-border bg-muted/50 px-3 py-2 cursor-pointer hover:bg-muted transition-colors"
-        onClick={onToggleExpand}
-      >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Sparkles className="h-4 w-4 text-primary" />
-            <span>
-              Recommendations based on {selectedTrackIds.length} selected track{selectedTrackIds.length !== 1 ? 's' : ''}
-            </span>
-          </div>
-          <ChevronUp className="h-4 w-4 text-muted-foreground" />
-        </div>
-      </div>
-    );
+    return <CollapsedPanel selectedTrackIds={selectedTrackIds} onToggleExpand={onToggleExpand} />;
   }
 
   return (
@@ -328,64 +446,29 @@ export function RecommendationsPanel({
       </div>
 
       {/* Content */}
-      <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
-        {!isEnabled ? (
-          <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
-            <div className="text-center p-4">
-              <p>Recommendations are not enabled.</p>
-              <p className="text-xs mt-1">Set RECS_ENABLED=true to enable.</p>
-            </div>
-          </div>
-        ) : isLoading ? (
-          <div className="flex items-center justify-center h-full">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
-        ) : isError ? (
-          <div className="flex items-center justify-center h-full text-sm text-destructive">
-            Failed to load recommendations
-          </div>
-        ) : recommendations.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
-            <div className="text-center p-4">
-              <p>{searchQuery ? 'No matches found.' : 'No recommendations found.'}</p>
-              <p className="text-xs mt-1">
-                {searchQuery ? 'Try a different search term.' : 'Add more playlists to build recommendation data.'}
-              </p>
-            </div>
-          </div>
-        ) : (
-          <>
-            <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-auto">
-              <RecommendationsList
-                recommendations={recommendations}
-                rowHeight={rowHeight}
-                isLiked={isLiked}
-                onToggleLiked={handleToggleLiked}
-                onDismiss={handleDismiss}
-                isTrackPlaying={isTrackPlaying}
-                isTrackLoading={isTrackLoading}
-                onPlay={playTrack}
-                onPause={pausePlayback}
-                onSelect={handleSelect}
-                onClick={handleClick}
-                getCompareColorForTrack={getCompareColorForTrack}
-                recsSelection={recsSelection}
-                getSelectedTracks={getSelectedTracks}
-              />
-              {/* Invisible trigger for infinite scroll - inside scroll container */}
-              {hasMore && (
-                <div 
-                  ref={loadMoreTriggerRef} 
-                  className="h-8 flex items-center justify-center text-xs text-muted-foreground"
-                >
-                  <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                  Loading...
-                </div>
-              )}
-            </div>
-          </>
-        )}
-      </div>
+      <ContentState
+        isEnabled={isEnabled}
+        isLoading={isLoading}
+        isError={isError}
+        recommendations={recommendations}
+        hasMore={hasMore}
+        searchQuery={searchQuery}
+        loadMoreTriggerRef={loadMoreTriggerRef}
+        scrollContainerRef={scrollContainerRef}
+        rowHeight={rowHeight}
+        isLiked={isLiked}
+        onToggleLiked={handleToggleLiked}
+        onDismiss={handleDismiss}
+        isTrackPlaying={isTrackPlaying}
+        isTrackLoading={isTrackLoading}
+        onPlay={playTrack}
+        onPause={pausePlayback}
+        onSelect={handleSelect}
+        onClick={handleClick}
+        getCompareColorForTrack={getCompareColorForTrack}
+        recsSelection={recsSelection}
+        getSelectedTracks={getSelectedTracks}
+      />
       
       {/* Context menu for this panel */}
       {shouldShowContextMenu && contextMenu.track && (

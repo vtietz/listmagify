@@ -20,27 +20,13 @@ export function getCountryFromIP(ip: string | null): string | null {
   if (!ip) return null;
   
   // Skip private/local IPs
+  const is172Private = /^172\.(1[6-9]|2\d|3[01])\./.test(ip);
   if (
     ip === '127.0.0.1' ||
     ip === '::1' ||
     ip.startsWith('192.168.') ||
     ip.startsWith('10.') ||
-    ip.startsWith('172.16.') ||
-    ip.startsWith('172.17.') ||
-    ip.startsWith('172.18.') ||
-    ip.startsWith('172.19.') ||
-    ip.startsWith('172.20.') ||
-    ip.startsWith('172.21.') ||
-    ip.startsWith('172.22.') ||
-    ip.startsWith('172.23.') ||
-    ip.startsWith('172.24.') ||
-    ip.startsWith('172.25.') ||
-    ip.startsWith('172.26.') ||
-    ip.startsWith('172.27.') ||
-    ip.startsWith('172.28.') ||
-    ip.startsWith('172.29.') ||
-    ip.startsWith('172.30.') ||
-    ip.startsWith('172.31.')
+    is172Private
   ) {
     return null;
   }

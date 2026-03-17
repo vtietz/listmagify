@@ -1,19 +1,10 @@
-/**
- * Recursive component for rendering split tree nodes.
- * - GroupNode: renders a resizable container with children
- * - PanelNode: renders a PlaylistPanel
- * 
- * Includes responsive behavior for phones and tablets:
- * - Phone: max 2 panels, focus-based sizing (65%/35%), no resizing
- * - Tablet/Desktop: resizable panels with drag handles and localStorage persistence
- */
-
 'use client';
 
 import type { SplitNode } from '@/hooks/useSplitGridStore';
 import { PlaylistPanel } from '../playlist/PlaylistPanel';
 import type { Track } from '@/lib/music-provider/types';
 import type { Virtualizer } from '@tanstack/react-virtual';
+import type { Layout } from 'react-resizable-panels';
 import { useDeviceType } from '@/hooks/useDeviceType';
 import { usePanelFocusStore, getFocusedPanelSize, getUnfocusedPanelSize } from '@/hooks/usePanelFocusStore';
 import { Panel, Group as PanelGroup, Separator as PanelResizeHandle, useDefaultLayout } from 'react-resizable-panels';
@@ -40,127 +31,125 @@ interface SplitNodeViewProps {
   mobileShowOnlySecond?: boolean;
 }
 
-export function SplitNodeView({
+type VirtualizerRegister = SplitNodeViewProps['onRegisterVirtualizer'];
+type VirtualizerUnregister = SplitNodeViewProps['onUnregisterVirtualizer'];
+
+function PanelNodeView({
   node,
+  isPhone,
+  isSinglePanelMode,
+  focusedPanelId,
+  focusPanel,
   onRegisterVirtualizer,
   onUnregisterVirtualizer,
-  isRoot = false,
-  mobileShowOnlyFirst = false,
-  mobileShowOnlySecond = false,
-}: SplitNodeViewProps) {
-  const { isPhone, isTablet, orientation, deviceType } = useDeviceType();
-  const { focusedPanelId, focusPanel } = usePanelFocusStore();
+}: {
+  node: Extract<SplitNode, { kind: 'panel' }>;
+  isPhone: boolean;
+  isSinglePanelMode: boolean;
+  focusedPanelId: string | null;
+  focusPanel: (id: string) => void;
+  onRegisterVirtualizer: VirtualizerRegister;
+  onUnregisterVirtualizer: VirtualizerUnregister;
+}) {
+  const isFocused = focusedPanelId === node.panel.id;
 
-  // Pre-compute values for useDefaultLayout hook (must be called unconditionally)
-  const isGroupNode = node.kind === 'group';
-  const storageKey = isGroupNode ? `split-${node.id}` : '';
-  const panelIds = isGroupNode 
-    ? (isPhone ? node.children.slice(0, 2) : node.children).map((child) => 
-        child.kind === 'panel' ? child.panel.id : child.id
-      )
-    : [];
-  
-  // Use localStorage to persist panel sizes (must be called unconditionally per Rules of Hooks)
-  const storageConfig = typeof window !== 'undefined' && isGroupNode && !isPhone
-    ? { storage: localStorage }
-    : {};
-  
-  const { defaultLayout, onLayoutChange } = useDefaultLayout({
-    id: storageKey || 'default',
-    panelIds,
-    ...storageConfig,
-  });
+  const phoneFlexStyle = isPhone && !isSinglePanelMode ? {
+    flexBasis: isFocused ? getFocusedPanelSize() : getUnfocusedPanelSize(),
+    flexGrow: 0,
+    flexShrink: 0,
+  } : {};
 
-  if (node.kind === 'panel') {
-    // Determine if this panel is focused (for phone layout)
-    const isFocused = focusedPanelId === node.panel.id;
-    
-    // When showing only one panel (mobile overlay mode), don't apply focus-based sizing
-    // The panel should fill its container completely
-    const isSinglePanelMode = mobileShowOnlyFirst || mobileShowOnlySecond;
-    
-    // Phone-specific: calculate flex basis based on focus (only when multiple panels visible)
-    const phoneFlexStyle = isPhone && !isSinglePanelMode ? {
-      flexBasis: isFocused ? getFocusedPanelSize() : getUnfocusedPanelSize(),
-      flexGrow: 0,
-      flexShrink: 0,
-    } : {};
+  const handlePanelFocus = () => {
+    if (isPhone) {
+      focusPanel(node.panel.id);
+    }
+  };
 
-    // Handle panel header tap for focus (phones only)
-    const handlePanelFocus = () => {
-      if (isPhone) {
-        focusPanel(node.panel.id);
-      }
-    };
+  return (
+    <div
+      className={cn(
+        'min-h-0 min-w-0 h-full transition-all duration-200',
+        isPhone && !isSinglePanelMode && 'cursor-pointer',
+        isPhone && !isSinglePanelMode && isFocused && 'panel-focused',
+        isPhone && !isSinglePanelMode && !isFocused && 'panel-unfocused'
+      )}
+      style={phoneFlexStyle}
+      onClick={!isFocused && isPhone && !isSinglePanelMode ? handlePanelFocus : undefined}
+    >
+      <PlaylistPanel
+        panelId={node.panel.id}
+        onRegisterVirtualizer={onRegisterVirtualizer}
+        onUnregisterVirtualizer={onUnregisterVirtualizer}
+      />
+    </div>
+  );
+}
 
-    return (
-      <div 
-        className={cn(
-          'min-h-0 min-w-0 h-full transition-all duration-200',
-          isPhone && !isSinglePanelMode && 'cursor-pointer',
-          isPhone && !isSinglePanelMode && isFocused && 'panel-focused',
-          isPhone && !isSinglePanelMode && !isFocused && 'panel-unfocused'
-        )}
-        style={phoneFlexStyle}
-        onClick={!isFocused && isPhone && !isSinglePanelMode ? handlePanelFocus : undefined}
-      >
-        <PlaylistPanel
-          panelId={node.panel.id}
+function PhoneGroupView({
+  isHorizontal,
+  visibleChildren,
+  deviceType,
+  orientation,
+  onRegisterVirtualizer,
+  onUnregisterVirtualizer,
+  mobileShowOnlyFirst,
+  mobileShowOnlySecond,
+}: {
+  isHorizontal: boolean;
+  visibleChildren: SplitNode[];
+  deviceType: string;
+  orientation: string;
+  onRegisterVirtualizer: VirtualizerRegister;
+  onUnregisterVirtualizer: VirtualizerUnregister;
+  mobileShowOnlyFirst: boolean;
+  mobileShowOnlySecond: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        'h-full w-full min-h-0 min-w-0 flex gap-2 split-container',
+        isHorizontal ? 'flex-row' : 'flex-col'
+      )}
+      data-device={deviceType}
+      data-orientation={orientation}
+    >
+      {visibleChildren.map((child) => (
+        <SplitNodeView
+          key={child.kind === 'panel' ? child.panel.id : child.id}
+          node={child}
           onRegisterVirtualizer={onRegisterVirtualizer}
           onUnregisterVirtualizer={onUnregisterVirtualizer}
+          mobileShowOnlyFirst={mobileShowOnlyFirst}
+          mobileShowOnlySecond={mobileShowOnlySecond}
         />
-      </div>
-    );
-  }
+      ))}
+    </div>
+  );
+}
 
-  // Group node - render container with children
-  // Responsive orientation: phones and tablets follow screen orientation
-  const effectiveOrientation = (isPhone || isTablet)
-    ? (orientation === 'portrait' ? 'vertical' : 'horizontal')
-    : node.orientation;
-  
-  const isHorizontal = effectiveOrientation === 'horizontal';
-  
-  // Phone: limit to 2 panels, or filter based on mobile props
-  let visibleChildren = isPhone 
-    ? node.children.slice(0, 2) 
-    : node.children;
-  
-  // Mobile overlay filtering: show only first or second panel
-  if (isPhone && mobileShowOnlyFirst && visibleChildren.length > 0) {
-    visibleChildren = [visibleChildren[0]!];
-  } else if (isPhone && mobileShowOnlySecond && visibleChildren.length > 1) {
-    visibleChildren = [visibleChildren[1]!];
-  }
-  
-  // Use flexbox for phone (for focus-based sizing), grid for others
-  if (isPhone) {
-    return (
-      <div
-        className={cn(
-          'h-full w-full min-h-0 min-w-0 flex gap-2 split-container',
-          isHorizontal ? 'flex-row' : 'flex-col'
-        )}
-        data-device={deviceType}
-        data-orientation={orientation}
-      >
-        {visibleChildren.map((child) => (
-          <SplitNodeView
-            key={child.kind === 'panel' ? child.panel.id : child.id}
-            node={child}
-            onRegisterVirtualizer={onRegisterVirtualizer}
-            onUnregisterVirtualizer={onUnregisterVirtualizer}
-            mobileShowOnlyFirst={mobileShowOnlyFirst}
-            mobileShowOnlySecond={mobileShowOnlySecond}
-          />
-        ))}
-      </div>
-    );
-  }
-  
-  // Tablet and Desktop: use react-resizable-panels for drag-to-resize functionality
-  // (panelIds and storage already computed at top for Rules of Hooks compliance)
-  
+function ResizableGroupView({
+  isHorizontal,
+  storageKey,
+  isRoot,
+  deviceType,
+  orientation,
+  defaultLayout,
+  onLayoutChange,
+  visibleChildren,
+  onRegisterVirtualizer,
+  onUnregisterVirtualizer,
+}: {
+  isHorizontal: boolean;
+  storageKey: string;
+  isRoot: boolean;
+  deviceType: string;
+  orientation: string;
+  defaultLayout: Layout | undefined;
+  onLayoutChange: (layout: Layout) => void | undefined;
+  visibleChildren: SplitNode[];
+  onRegisterVirtualizer: VirtualizerRegister;
+  onUnregisterVirtualizer: VirtualizerUnregister;
+}) {
   return (
     <PanelGroup
       id={storageKey}
@@ -205,3 +194,98 @@ export function SplitNodeView({
     </PanelGroup>
   );
 }
+
+export function SplitNodeView({
+  node,
+  onRegisterVirtualizer,
+  onUnregisterVirtualizer,
+  isRoot = false,
+  mobileShowOnlyFirst = false,
+  mobileShowOnlySecond = false,
+}: SplitNodeViewProps) {
+  const { isPhone, isTablet, orientation, deviceType } = useDeviceType();
+  const { focusedPanelId, focusPanel } = usePanelFocusStore();
+
+  // Pre-compute values for useDefaultLayout hook (must be called unconditionally)
+  const isGroupNode = node.kind === 'group';
+  const storageKey = isGroupNode ? `split-${node.id}` : '';
+  const panelIds = isGroupNode
+    ? (isPhone ? node.children.slice(0, 2) : node.children).map((child) =>
+        child.kind === 'panel' ? child.panel.id : child.id
+      )
+    : [];
+
+  // Use localStorage to persist panel sizes (must be called unconditionally per Rules of Hooks)
+  const storageConfig = typeof window !== 'undefined' && isGroupNode && !isPhone
+    ? { storage: localStorage }
+    : {};
+
+  const { defaultLayout, onLayoutChange } = useDefaultLayout({
+    id: storageKey || 'default',
+    panelIds,
+    ...storageConfig,
+  });
+
+  if (node.kind === 'panel') {
+    const isSinglePanelMode = mobileShowOnlyFirst || mobileShowOnlySecond;
+    return (
+      <PanelNodeView
+        node={node}
+        isPhone={isPhone}
+        isSinglePanelMode={isSinglePanelMode}
+        focusedPanelId={focusedPanelId}
+        focusPanel={focusPanel}
+        onRegisterVirtualizer={onRegisterVirtualizer}
+        onUnregisterVirtualizer={onUnregisterVirtualizer}
+      />
+    );
+  }
+
+  // Group node - render container with children
+  const effectiveOrientation = (isPhone || isTablet)
+    ? (orientation === 'portrait' ? 'vertical' : 'horizontal')
+    : node.orientation;
+
+  const isHorizontal = effectiveOrientation === 'horizontal';
+
+  let visibleChildren = isPhone
+    ? node.children.slice(0, 2)
+    : node.children;
+
+  if (isPhone && mobileShowOnlyFirst && visibleChildren.length > 0) {
+    visibleChildren = [visibleChildren[0]!];
+  } else if (isPhone && mobileShowOnlySecond && visibleChildren.length > 1) {
+    visibleChildren = [visibleChildren[1]!];
+  }
+
+  if (isPhone) {
+    return (
+      <PhoneGroupView
+        isHorizontal={isHorizontal}
+        visibleChildren={visibleChildren}
+        deviceType={deviceType}
+        orientation={orientation}
+        onRegisterVirtualizer={onRegisterVirtualizer}
+        onUnregisterVirtualizer={onUnregisterVirtualizer}
+        mobileShowOnlyFirst={mobileShowOnlyFirst}
+        mobileShowOnlySecond={mobileShowOnlySecond}
+      />
+    );
+  }
+
+  return (
+    <ResizableGroupView
+      isHorizontal={isHorizontal}
+      storageKey={storageKey}
+      isRoot={isRoot}
+      deviceType={deviceType}
+      orientation={orientation}
+      defaultLayout={defaultLayout}
+      onLayoutChange={onLayoutChange}
+      visibleChildren={visibleChildren}
+      onRegisterVirtualizer={onRegisterVirtualizer}
+      onUnregisterVirtualizer={onUnregisterVirtualizer}
+    />
+  );
+}
+

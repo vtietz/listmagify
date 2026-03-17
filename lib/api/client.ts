@@ -6,6 +6,7 @@
 import { toast } from "@/lib/ui/toast";
 import { reportError, useErrorStore } from "@/lib/errors/store";
 import { createRateLimitError, createAppError } from "@/lib/errors/types";
+import type { AppError } from "@/lib/errors/types";
 
 interface FetchOptions extends RequestInit {}
 
@@ -140,6 +141,110 @@ export function resetSessionExpiredState() {
  * }
  * ```
  */
+function isKnownApiError(error: unknown): error is AccessTokenExpiredError | ApiError | RateLimitApiError {
+  return (
+    error instanceof AccessTokenExpiredError ||
+    error instanceof ApiError ||
+    error instanceof RateLimitApiError
+  );
+}
+
+function toNetworkApiError(error: unknown): ApiError {
+  const message = error instanceof Error ? error.message : "Network request failed";
+  return new ApiError(message, 0, null);
+}
+
+async function parseJsonSafely(response: Response): Promise<any> {
+  try {
+    return await response.json();
+  } catch {
+    return {};
+  }
+}
+
+function reportAndOpenDialog(appError: AppError, shouldOpenErrorDialog: boolean): void {
+  reportError(appError);
+  if (shouldOpenErrorDialog) {
+    useErrorStore.getState().openDialog(appError);
+  }
+}
+
+function resolveErrorDetails(data: any): string | undefined {
+  return data.details || (data.error && typeof data.error === 'object' ? JSON.stringify(data.error) : undefined);
+}
+
+function buildUserNotApprovedAppError(response: Response, requestPath: string): AppError {
+  return createAppError({
+    message: 'Your account is not approved yet',
+    details: 'Please request access from the homepage. The administrator needs to add you to the Spotify Developer Dashboard.',
+    category: 'auth',
+    severity: 'warning',
+    statusCode: response.status,
+    ...(requestPath ? { requestPath } : {}),
+  });
+}
+
+function buildGenericAppError(response: Response, data: any, errorMessage: string, requestPath: string): AppError {
+  const details = resolveErrorDetails(data);
+  return createAppError({
+    message: errorMessage,
+    ...(details !== undefined && { details }),
+    category: 'api',
+    severity: response.status >= 500 ? 'error' : 'warning',
+    statusCode: response.status,
+    ...(requestPath ? { requestPath } : {}),
+  });
+}
+
+
+function handleUnauthorizedResponse(data: any): never {
+  const isLoginPage = window.location.pathname === '/login';
+  if (!isLoginPage && !sessionExpiredHandled) {
+    sessionExpiredHandled = true;
+    toast.error("Your session has expired. Redirecting to login...", {
+      id: 'session-expired',
+      duration: 3000,
+    });
+    sessionExpiredTimeout = setTimeout(() => {
+      const nextPath = window.location.pathname;
+      window.location.href = `/login?reason=expired&next=${encodeURIComponent(nextPath)}`;
+    }, 1500);
+  }
+  throw new AccessTokenExpiredError(data.error || "Session expired");
+}
+
+function handleRateLimitResponse(response: Response, data: any, requestPath: string, shouldOpenErrorDialog: boolean): never {
+  const retryAfter = response.headers.get("Retry-After");
+  const retryAfterMs = retryAfter ? parseInt(retryAfter, 10) * 1000 : 60 * 60 * 1000;
+  const rateLimitError = createRateLimitError(retryAfterMs, requestPath);
+  reportError(rateLimitError);
+  if (shouldOpenErrorDialog) {
+    useErrorStore.getState().openDialog(rateLimitError);
+  }
+  throw new RateLimitApiError(rateLimitError.message, retryAfterMs, data);
+}
+
+function handleErrorResponse(response: Response, data: any, requestPath: string, shouldOpenErrorDialog: boolean): never {
+  if (maybeRecoverFromProviderMismatch(response.status, data)) {
+    throw new ApiError('App updated, reloading to recover request context', response.status, data);
+  }
+
+  const errorMessage = data.error || data.details || `Request failed: ${response.status} ${response.statusText}`;
+  const apiError = new ApiError(errorMessage, response.status, data);
+  const suppressDialog = requestPath === '/api/player/control' && data.error === 'no_active_device';
+
+  if (data.error === 'user_not_approved') {
+    reportAndOpenDialog(buildUserNotApprovedAppError(response, requestPath), shouldOpenErrorDialog);
+    throw apiError;
+  }
+
+  if (!suppressDialog) {
+    reportAndOpenDialog(buildGenericAppError(response, data, errorMessage, requestPath), shouldOpenErrorDialog);
+  }
+
+  throw apiError;
+}
+
 export async function apiFetch<T = any>(
   url: string,
   options: FetchOptions = {}
@@ -152,132 +257,29 @@ export async function apiFetch<T = any>(
       headers.set('x-music-provider', providerId);
     }
 
-    const response = await fetch(resolvedUrl, {
-      ...options,
-      headers,
-    });
-    const data = await response.json().catch(() => ({}));
+    const response = await fetch(resolvedUrl, { ...options, headers });
+    const data = await parseJsonSafely(response);
 
-    // Handle 401 Unauthorized - token expired
     if (response.status === 401 || data.error === "token_expired") {
-      // Don't redirect if already on login page (prevents infinite loop)
-      const isLoginPage = window.location.pathname === '/login';
-      
-      // Deduplicate: only show toast and redirect once per session expiry
-      if (!isLoginPage && !sessionExpiredHandled) {
-        sessionExpiredHandled = true;
-        
-        // Show a single toast with a unique ID to prevent duplicates
-        toast.error("Your session has expired. Redirecting to login...", {
-          id: 'session-expired',
-          duration: 3000,
-        });
-        
-        // Redirect to login after a brief delay to show the toast
-        // Only use pathname as next (not query params to avoid nested encoding)
-        sessionExpiredTimeout = setTimeout(() => {
-          const nextPath = window.location.pathname;
-          window.location.href = `/login?reason=expired&next=${encodeURIComponent(nextPath)}`;
-        }, 1500);
-      }
-      
-      throw new AccessTokenExpiredError(data.error || "Session expired");
+      handleUnauthorizedResponse(data);
     }
 
-    const requestPath = url.split("?")[0];
+    // split()[0] is always defined at runtime; ?? needed for noUncheckedIndexedAccess
+    const requestPath = url.split("?")[0] ?? url;
     const shouldOpenErrorDialog = process.env.NEXT_PUBLIC_E2E_MODE !== '1';
 
-    // Handle 429 Rate Limit - report to error store
     if (response.status === 429) {
-      const retryAfter = response.headers.get("Retry-After");
-      const retryAfterMs = retryAfter 
-        ? parseInt(retryAfter, 10) * 1000 
-        : 60 * 60 * 1000; // Default to 1 hour
-      
-      // Remove query params for reporting
-      const rateLimitError = createRateLimitError(retryAfterMs, requestPath);
-      
-      // Report to error store and show dialog
-      reportError(rateLimitError);
-      if (shouldOpenErrorDialog) {
-        useErrorStore.getState().openDialog(rateLimitError);
-      }
-      
-      throw new RateLimitApiError(
-        rateLimitError.message,
-        retryAfterMs,
-        data
-      );
+      handleRateLimitResponse(response, data, requestPath, shouldOpenErrorDialog);
     }
 
-    // Handle other error statuses
     if (!response.ok) {
-      if (maybeRecoverFromProviderMismatch(response.status, data)) {
-        throw new ApiError('App updated, reloading to recover request context', response.status, data);
-      }
-
-      const errorMessage = data.error || data.details || `Request failed: ${response.status} ${response.statusText}`;
-      const apiError = new ApiError(errorMessage, response.status, data);
-
-      // Suppress dialog for known non-critical errors
-      const suppressDialog =
-        requestPath === '/api/player/control' && data?.error === 'no_active_device';
-      
-      // Handle user not approved error with helpful message
-      if (data?.error === 'user_not_approved') {
-        const appError = createAppError({
-          message: 'Your account is not approved yet',
-          details: 'Please request access from the homepage. The administrator needs to add you to the Spotify Developer Dashboard.',
-          category: 'auth',
-          severity: 'warning',
-          statusCode: response.status,
-          ...(requestPath ? { requestPath } : {}),
-        });
-        
-        reportError(appError);
-        if (shouldOpenErrorDialog) {
-          useErrorStore.getState().openDialog(appError);
-        }
-        throw apiError;
-      }
-      
-      // Report API errors to error store and show dialog (except auth errors handled above)
-      if (!suppressDialog) {
-        const appError = createAppError({
-          message: errorMessage,
-          details: data.details || (data.error && typeof data.error === 'object' ? JSON.stringify(data.error) : undefined),
-          category: 'api',
-          severity: response.status >= 500 ? 'error' : 'warning',
-          statusCode: response.status,
-          ...(requestPath ? { requestPath } : {}),
-        });
-        
-        reportError(appError);
-        if (shouldOpenErrorDialog) {
-          useErrorStore.getState().openDialog(appError);
-        }
-      }
-      
-      throw apiError;
+      handleErrorResponse(response, data, requestPath, shouldOpenErrorDialog);
     }
 
     return data as T;
   } catch (error) {
-    // Re-throw known error types as-is
-    if (
-      error instanceof AccessTokenExpiredError || 
-      error instanceof ApiError ||
-      error instanceof RateLimitApiError
-    ) {
-      throw error;
-    }
-
-    // Wrap network errors
-    throw new ApiError(
-      error instanceof Error ? error.message : "Network request failed",
-      0,
-      null
-    );
+    if (isKnownApiError(error)) throw error;
+    throw toNetworkApiError(error);
   }
 }
 

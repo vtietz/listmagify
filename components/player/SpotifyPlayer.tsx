@@ -23,6 +23,70 @@ import { toast } from '@/lib/ui/toast';
 import { cn } from '@/lib/utils';
 import { useDeviceType } from '@/hooks/useDeviceType';
 
+function useInsertionMarkers() {
+  const playlists = useInsertionPointsStore((s) => s.playlists);
+  const shiftAfterMultiInsert = useInsertionPointsStore((s) => s.shiftAfterMultiInsert);
+  const addTracksMutation = useAddTracks();
+  const [isInserting, setIsInserting] = useState(false);
+
+  const playlistsWithMarkers = Object.entries(playlists).filter(
+    ([, data]) => data.markers.length > 0
+  );
+  const hasActiveMarkers = playlistsWithMarkers.length > 0;
+  const totalMarkers = playlistsWithMarkers.reduce((sum, [, data]) => sum + data.markers.length, 0);
+
+  return { isInserting, setIsInserting, hasActiveMarkers, totalMarkers, playlistsWithMarkers, addTracksMutation, shiftAfterMultiInsert };
+}
+
+function useProgressAnimation({
+  isPlaying,
+  isSeekDragging,
+  durationMs,
+  progressMs,
+}: {
+  isPlaying: boolean;
+  isSeekDragging: boolean;
+  durationMs: number;
+  progressMs: number;
+}): number {
+  const [localProgress, setLocalProgress] = useState(progressMs);
+  const rafRef = useRef<number>(0);
+
+  useEffect(() => {
+    if (!isSeekDragging) {
+      setLocalProgress(progressMs);
+    }
+  }, [progressMs, isSeekDragging]);
+
+  useEffect(() => {
+    if (!isPlaying || isSeekDragging || !durationMs) return;
+
+    let lastFrameTime = Date.now();
+
+    const animate = () => {
+      const now = Date.now();
+      const elapsed = now - lastFrameTime;
+
+      if (elapsed >= 33) {
+        setLocalProgress(prev => Math.min(prev + elapsed, durationMs));
+        lastFrameTime = now;
+      }
+
+      rafRef.current = requestAnimationFrame(animate);
+    };
+
+    rafRef.current = requestAnimationFrame(animate);
+
+    return () => {
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+      }
+    };
+  }, [isPlaying, isSeekDragging, durationMs]);
+
+  return localProgress;
+}
+
 interface SpotifyPlayerProps {
   /** Force the player to show regardless of isPlayerVisible state (for mobile overlay) */
   forceShow?: boolean;
@@ -56,26 +120,23 @@ export function SpotifyPlayer({ forceShow = false, onTrackClick }: SpotifyPlayer
     refreshDevices,
   } = useSpotifyPlayer();
 
-  const [localProgress, setLocalProgress] = useState(0);
-  const [isSeekDragging, _setIsSeekDragging] = useState(false);
-  const lastUpdateRef = useRef<number>(0);
-  const rafRef = useRef<number>(0);
-
   const track = playbackState?.track;
   const device = playbackState?.device;
   const progressMs = playbackState?.progressMs ?? 0;
   const durationMs = track?.durationMs ?? 0;
 
-  const playlists = useInsertionPointsStore((s) => s.playlists);
-  const shiftAfterMultiInsert = useInsertionPointsStore((s) => s.shiftAfterMultiInsert);
-  const addTracksMutation = useAddTracks();
-  const [isInserting, setIsInserting] = useState(false);
+  const [isSeekDragging, _setIsSeekDragging] = useState(false);
+  const localProgress = useProgressAnimation({ isPlaying, isSeekDragging, durationMs, progressMs });
 
-  const playlistsWithMarkers = Object.entries(playlists).filter(
-    ([, data]) => data.markers.length > 0
-  );
-  const hasActiveMarkers = playlistsWithMarkers.length > 0;
-  const totalMarkers = playlistsWithMarkers.reduce((sum, [, data]) => sum + data.markers.length, 0);
+  const {
+    isInserting,
+    setIsInserting,
+    hasActiveMarkers,
+    totalMarkers,
+    playlistsWithMarkers,
+    addTracksMutation,
+    shiftAfterMultiInsert,
+  } = useInsertionMarkers();
 
   const { isLiked, toggleLiked } = useSavedTracksIndex();
   const trackIsLiked = track?.id ? isLiked(track.id) : false;
@@ -129,44 +190,7 @@ export function SpotifyPlayer({ forceShow = false, onTrackClick }: SpotifyPlayer
     },
   });
 
-  useEffect(() => {
-    if (!isSeekDragging) {
-      setLocalProgress(progressMs);
-      lastUpdateRef.current = Date.now();
-    }
-  }, [progressMs, isSeekDragging]);
-
-  useEffect(() => {
-    if (!isPlaying || isSeekDragging || !durationMs) return;
-
-    let lastFrameTime = Date.now();
-    
-    const animate = () => {
-      const now = Date.now();
-      const elapsed = now - lastFrameTime;
-      
-      if (elapsed >= 33) {
-        setLocalProgress(prev => {
-          const newProgress = prev + elapsed;
-          return Math.min(newProgress, durationMs);
-        });
-        lastFrameTime = now;
-      }
-      
-      rafRef.current = requestAnimationFrame(animate);
-    };
-
-    rafRef.current = requestAnimationFrame(animate);
-
-    return () => {
-      if (rafRef.current) {
-        cancelAnimationFrame(rafRef.current);
-      }
-    };
-  }, [isPlaying, isSeekDragging, durationMs]);
-
   const handleSeek = useCallback((positionMs: number) => {
-    setLocalProgress(positionMs);
     seek(positionMs);
   }, [seek]);
 
