@@ -18,6 +18,109 @@ type PlaylistListItemProps = {
   className?: string;
 };
 
+function canEditPlaylist(
+  playlist: Playlist,
+  userId: string | undefined,
+  isLiked: boolean,
+): boolean {
+  return Boolean(!isLiked && userId && playlist.owner?.id === userId);
+}
+
+function playPlaylistIfPlayable(params: {
+  isLiked: boolean;
+  playlistId: string;
+  play: (args: { contextUri: string }) => void;
+}): void {
+  if (params.isLiked) {
+    return;
+  }
+
+  params.play({
+    contextUri: `spotify:playlist:${params.playlistId}`,
+  });
+}
+
+function PlaylistListCover({
+  cover,
+  playlistName,
+  isLiked,
+}: {
+  cover: string | undefined;
+  playlistName: string;
+  isLiked: boolean;
+}) {
+  if (cover) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={cover}
+        alt={playlistName}
+        className="w-full h-full object-cover"
+        loading="lazy"
+      />
+    );
+  }
+
+  if (isLiked) {
+    return (
+      <div className="w-full h-full grid place-items-center bg-gradient-to-br from-indigo-600 to-purple-500">
+        <Heart className="w-5 h-5 text-white fill-white" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full h-full grid place-items-center text-muted-foreground">
+      <span className="text-[8px]">No cover</span>
+    </div>
+  );
+}
+
+function PlaylistListActions({
+  isEditable,
+  isPlayerVisible,
+  isLiked,
+  playlistName,
+  onEdit,
+  onPlay,
+}: {
+  isEditable: boolean;
+  isPlayerVisible: boolean;
+  isLiked: boolean;
+  playlistName: string;
+  onEdit: (e: React.MouseEvent) => void;
+  onPlay: (e: React.MouseEvent) => void;
+}) {
+  return (
+    <div className="flex items-center gap-1 shrink-0">
+      {isEditable && (
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onEdit}
+          className="h-7 w-7 text-muted-foreground hover:text-foreground"
+          title="Edit playlist"
+          aria-label={`Edit ${playlistName}`}
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </Button>
+      )}
+      {isPlayerVisible && !isLiked && (
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onPlay}
+          className="h-7 w-7 text-green-500 hover:text-green-400"
+          title={`Play ${playlistName}`}
+          aria-label={`Play ${playlistName}`}
+        >
+          <Play className="h-4 w-4" fill="currentColor" />
+        </Button>
+      )}
+    </div>
+  );
+}
+
 /**
  * Compact list item view for playlists.
  * Shows playlist cover, name, and track count in a horizontal row.
@@ -31,8 +134,7 @@ export function PlaylistListItem({ playlist, className }: PlaylistListItemProps)
   
   const cover = playlist.image?.url;
   const isLiked = isLikedSongsPlaylist(playlist.id);
-  // Only allow editing if user owns the playlist (not Liked Songs, not imported)
-  const isEditable = !isLiked && user?.id && playlist.owner?.id === user.id;
+  const isEditable = canEditPlaylist(playlist, user?.id, isLiked);
   
   const handleEditClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -43,11 +145,10 @@ export function PlaylistListItem({ playlist, className }: PlaylistListItemProps)
   const handlePlayClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    
-    if (isLiked) return;
-    
-    play({
-      contextUri: `spotify:playlist:${playlist.id}`,
+    playPlaylistIfPlayable({
+      isLiked,
+      playlistId: playlist.id,
+      play,
     });
   }, [isLiked, playlist.id, play]);
 
@@ -73,23 +174,7 @@ export function PlaylistListItem({ playlist, className }: PlaylistListItemProps)
       >
         {/* Small cover image */}
         <div className="w-10 h-10 flex-shrink-0 rounded overflow-hidden bg-muted">
-          {cover ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={cover}
-              alt={playlist.name}
-              className="w-full h-full object-cover"
-              loading="lazy"
-            />
-          ) : isLiked ? (
-            <div className="w-full h-full grid place-items-center bg-gradient-to-br from-indigo-600 to-purple-500">
-              <Heart className="w-5 h-5 text-white fill-white" />
-            </div>
-          ) : (
-            <div className="w-full h-full grid place-items-center text-muted-foreground">
-              <span className="text-[8px]">No cover</span>
-            </div>
-          )}
+          <PlaylistListCover cover={cover} playlistName={playlist.name} isLiked={isLiked} />
         </div>
         
         {/* Playlist info */}
@@ -101,32 +186,14 @@ export function PlaylistListItem({ playlist, className }: PlaylistListItemProps)
         </div>
 
         {/* Action buttons */}
-        <div className="flex items-center gap-1 shrink-0">
-          {isEditable && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleEditClick}
-              className="h-7 w-7 text-muted-foreground hover:text-foreground"
-              title="Edit playlist"
-              aria-label={`Edit ${playlist.name}`}
-            >
-              <Pencil className="h-3.5 w-3.5" />
-            </Button>
-          )}
-          {isPlayerVisible && !isLiked && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handlePlayClick}
-              className="h-7 w-7 text-green-500 hover:text-green-400"
-              title={`Play ${playlist.name}`}
-              aria-label={`Play ${playlist.name}`}
-            >
-              <Play className="h-4 w-4" fill="currentColor" />
-            </Button>
-          )}
-        </div>
+        <PlaylistListActions
+          isEditable={Boolean(isEditable)}
+          isPlayerVisible={isPlayerVisible}
+          isLiked={isLiked}
+          playlistName={playlist.name}
+          onEdit={handleEditClick}
+          onPlay={handlePlayClick}
+        />
       </Link>
 
       {/* Edit dialog */}

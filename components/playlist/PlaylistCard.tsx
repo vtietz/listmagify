@@ -19,6 +19,128 @@ type PlaylistCardProps = {
   className?: string;
 };
 
+function canEditPlaylist(
+  playlist: Playlist,
+  userId: string | undefined,
+  isLiked: boolean,
+): boolean {
+  return Boolean(!isLiked && userId && playlist.owner?.id === userId);
+}
+
+function playPlaylistIfPlayable(params: {
+  isLiked: boolean;
+  playlistId: string;
+  play: (args: { contextUri: string }) => void;
+}): void {
+  if (params.isLiked) {
+    return;
+  }
+
+  params.play({
+    contextUri: `spotify:playlist:${params.playlistId}`,
+  });
+}
+
+function buildPlaylistSubtitle(playlist: Playlist, isCompact: boolean): string {
+  const tracksTotal = playlist.tracksTotal ?? 0;
+  if (isCompact) {
+    return `${tracksTotal} tracks`;
+  }
+
+  return `by ${playlist.ownerName ?? "Unknown"} • ${tracksTotal} tracks`;
+}
+
+function PlaylistArtwork({
+  cover,
+  playlistName,
+  isLiked,
+  isCompact,
+}: {
+  cover: string | undefined;
+  playlistName: string;
+  isLiked: boolean;
+  isCompact: boolean;
+}) {
+  if (cover) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={cover}
+        alt={playlistName}
+        className="w-full h-full object-contain bg-black/20 transition-transform group-hover:scale-[1.02]"
+        loading="lazy"
+      />
+    );
+  }
+
+  if (isLiked) {
+    return (
+      <div className="w-full h-full grid place-items-center bg-gradient-to-br from-indigo-600 to-purple-500">
+        <Heart className={cn("text-white fill-white", isCompact ? "w-8 h-8" : "w-16 h-16")} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full h-full grid place-items-center text-sm text-muted-foreground">
+      No cover
+    </div>
+  );
+}
+
+function PlaylistCardActions({
+  isEditable,
+  isPlayerVisible,
+  isLiked,
+  isCompact,
+  playlistName,
+  onEdit,
+  onPlay,
+}: {
+  isEditable: boolean;
+  isPlayerVisible: boolean;
+  isLiked: boolean;
+  isCompact: boolean;
+  playlistName: string;
+  onEdit: (e: React.MouseEvent) => void;
+  onPlay: (e: React.MouseEvent) => void;
+}) {
+  return (
+    <div className="flex items-center gap-1 shrink-0">
+      {isEditable && (
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onEdit}
+          className={cn(
+            "text-muted-foreground hover:text-foreground",
+            isCompact ? "h-5 w-5" : "h-6 w-6"
+          )}
+          title="Edit playlist"
+          aria-label={`Edit ${playlistName}`}
+        >
+          <Pencil className={cn(isCompact ? "h-3 w-3" : "h-3.5 w-3.5")} />
+        </Button>
+      )}
+      {isPlayerVisible && !isLiked && (
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onPlay}
+          className={cn(
+            "text-green-500 hover:text-green-400 hover:scale-110",
+            isCompact ? "h-5 w-5" : "h-6 w-6"
+          )}
+          title={`Play ${playlistName}`}
+          aria-label={`Play ${playlistName}`}
+        >
+          <Play className={cn(isCompact ? "h-3.5 w-3.5" : "h-4 w-4")} fill="currentColor" />
+        </Button>
+      )}
+    </div>
+  );
+}
+
 export function PlaylistCard({ playlist, className }: PlaylistCardProps) {
   const { isCompact } = useCompactModeStore();
   const { user } = useSessionUser();
@@ -29,8 +151,7 @@ export function PlaylistCard({ playlist, className }: PlaylistCardProps) {
   
   const cover = playlist.image?.url;
   const isLiked = isLikedSongsPlaylist(playlist.id);
-  // Only allow editing if user owns the playlist (not Liked Songs, not imported)
-  const isEditable = !isLiked && user?.id && playlist.owner?.id === user.id;
+  const isEditable = canEditPlaylist(playlist, user?.id, isLiked);
   
   const handleEditClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -41,14 +162,10 @@ export function PlaylistCard({ playlist, className }: PlaylistCardProps) {
   const handlePlayClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    
-    // For Liked Songs, we can't use a context URI - would need to load all tracks
-    // For now, just navigate to the playlist (playing is handled there)
-    if (isLiked) return;
-    
-    // Play the playlist using context URI
-    play({
-      contextUri: `spotify:playlist:${playlist.id}`,
+    playPlaylistIfPlayable({
+      isLiked,
+      playlistId: playlist.id,
+      play,
     });
   }, [isLiked, playlist.id, play]);
 
@@ -73,66 +190,29 @@ export function PlaylistCard({ playlist, className }: PlaylistCardProps) {
       >
         {/* Artwork container - per Spotify guidelines: no overlays, rounded corners (4px small, 8px large) */}
         <div className="aspect-square w-full bg-muted overflow-hidden rounded-t-lg">
-          {cover ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={cover}
-              alt={playlist.name}
-              // Use object-contain to avoid cropping artwork per Spotify guidelines
-              className="w-full h-full object-contain bg-black/20 transition-transform group-hover:scale-[1.02]"
-              loading="lazy"
-            />
-          ) : isLiked ? (
-            <div className="w-full h-full grid place-items-center bg-gradient-to-br from-indigo-600 to-purple-500">
-              <Heart className={cn("text-white fill-white", isCompact ? "w-8 h-8" : "w-16 h-16")} />
-            </div>
-          ) : (
-            <div className="w-full h-full grid place-items-center text-sm text-muted-foreground">
-              No cover
-            </div>
-          )}
+          <PlaylistArtwork
+            cover={cover}
+            playlistName={playlist.name}
+            isLiked={isLiked}
+            isCompact={isCompact}
+          />
         </div>
         {/* Controls moved outside artwork per Spotify guidelines - no overlays on artwork */}
         <div className={cn("space-y-0.5", isCompact ? "p-1.5" : "p-3 space-y-1")}>
           <div className="flex items-start justify-between gap-1">
             <div className={cn("font-medium line-clamp-1 flex-1 min-w-0", isCompact && "text-xs")}>{playlist.name}</div>
-            <div className="flex items-center gap-1 shrink-0">
-              {/* Edit button - only show for playlists owned by current user */}
-              {isEditable && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={handleEditClick}
-                  className={cn(
-                    "text-muted-foreground hover:text-foreground",
-                    isCompact ? "h-5 w-5" : "h-6 w-6"
-                  )}
-                  title="Edit playlist"
-                  aria-label={`Edit ${playlist.name}`}
-                >
-                  <Pencil className={cn(isCompact ? "h-3 w-3" : "h-3.5 w-3.5")} />
-                </Button>
-              )}
-              {/* Play button - show when player is visible, works for all playlists except Liked Songs */}
-              {isPlayerVisible && !isLiked && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={handlePlayClick}
-                  className={cn(
-                    "text-green-500 hover:text-green-400 hover:scale-110",
-                    isCompact ? "h-5 w-5" : "h-6 w-6"
-                  )}
-                  title={`Play ${playlist.name}`}
-                  aria-label={`Play ${playlist.name}`}
-                >
-                  <Play className={cn(isCompact ? "h-3.5 w-3.5" : "h-4 w-4")} fill="currentColor" />
-                </Button>
-              )}
-            </div>
+            <PlaylistCardActions
+              isEditable={Boolean(isEditable)}
+              isPlayerVisible={isPlayerVisible}
+              isLiked={isLiked}
+              isCompact={isCompact}
+              playlistName={playlist.name}
+              onEdit={handleEditClick}
+              onPlay={handlePlayClick}
+            />
           </div>
           <div className={cn("text-muted-foreground line-clamp-1", isCompact ? "text-[10px]" : "text-xs")}>
-            {isCompact ? playlist.tracksTotal ?? 0 : `by ${playlist.ownerName ?? "Unknown"} • ${playlist.tracksTotal ?? 0}`} tracks
+            {buildPlaylistSubtitle(playlist, isCompact)}
           </div>
         </div>
       </Link>
