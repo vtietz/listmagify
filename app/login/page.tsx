@@ -9,6 +9,20 @@ type Props = {
   searchParams: Promise<{ next?: string; reason?: string }>;
 };
 
+function resolveReturnTo(next: string | undefined): string {
+  return next && next.startsWith("/") ? next : "/split-editor";
+}
+
+function resolveLoginMessage(reason: string | undefined, sessionError: string | undefined): string | null {
+  if (reason === "expired" || sessionError) {
+    return "Your session has expired. Please sign in again.";
+  }
+  if (reason === "unauthenticated") {
+    return "Sign in to access this page.";
+  }
+  return null;
+}
+
 /**
  * Login page that handles session expiration and authentication redirects.
  * Reuses shared auth components for a consistent, focused login experience.
@@ -21,30 +35,17 @@ export default async function LoginPage({ searchParams }: Props) {
   const { next, reason } = await searchParams;
   const isAccessRequestEnabled = serverEnv.ACCESS_REQUEST_ENABLED ?? false;
 
-  // Default return path if none specified
-  const returnTo = next && next.startsWith("/") ? next : "/split-editor";
-
-  // Check for session error (e.g., revoked refresh token)
+  const returnTo = resolveReturnTo(next);
   const sessionError = (session as { error?: string } | null)?.error;
-  
-  // Additional validation: ensure session has a valid access token
-  // This prevents auto-redirect when session exists but token is invalid
   const hasAccessToken = session && (session as any).accessToken;
   const hasValidSession = session && !sessionError && hasAccessToken;
 
-  // If authenticated with valid session, redirect to intended destination
   if (hasValidSession) {
     redirect(returnTo);
   }
 
-  // Determine message based on reason or session error
-  const showMessage = reason === "expired" || !!sessionError || reason === "unauthenticated";
-  const message =
-    reason === "expired" || sessionError
-      ? "Your session has expired. Please sign in again."
-      : reason === "unauthenticated"
-      ? "Sign in to access this page."
-      : null;
+  const message = resolveLoginMessage(reason, sessionError);
+  const showMessage = message !== null;
 
   return (
     <AuthPageLayout showLogoutLink={false}>

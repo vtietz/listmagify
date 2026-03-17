@@ -10,6 +10,20 @@ type Props = {
   searchParams: Promise<{ next?: string; reason?: string; error?: string; landing?: string }>;
 };
 
+function resolveReturnTo(next: string | undefined): string {
+  return next && next.startsWith("/") ? next : "/split-editor";
+}
+
+function resolveHomeMessage(reason: string | undefined, sessionError: string | undefined): string | null {
+  if (reason === "expired" || sessionError) {
+    return "Your session has expired. Please sign in again.";
+  }
+  if (reason === "unauthenticated") {
+    return "Sign in to access this page.";
+  }
+  return null;
+}
+
 /**
  * Root page - Landing page for unauthenticated users.
  * Authenticated users with valid tokens are redirected to the app destination.
@@ -19,33 +33,18 @@ export default async function Home({ searchParams }: Props) {
   const { next, reason, error, landing } = await searchParams;
   const isAccessRequestEnabled = serverEnv.ACCESS_REQUEST_ENABLED ?? false;
 
-  // Check for session error (e.g., revoked refresh token)
   const sessionError = (session as { error?: string } | null)?.error;
-  
-  // Additional validation: ensure session has a valid access token
-  // This prevents showing "Open App" when the session exists but token is invalid
   const hasAccessToken = session && (session as any).accessToken;
   const hasValidSession = session && !sessionError && hasAccessToken;
-
-  // Default return path for sign-in button
-  const returnTo = next && next.startsWith("/") ? next : "/split-editor";
-
+  const returnTo = resolveReturnTo(next);
   const forceLanding = landing === "1";
 
-  // If authenticated with valid session, skip landing page and go to app
-  // unless user intentionally opened landing via logo (?landing=1)
   if (hasValidSession && !forceLanding) {
     redirect(returnTo);
   }
 
-  // Determine message based on reason or session error
-  const showMessage = reason === "expired" || !!sessionError || reason === "unauthenticated";
-  const message =
-    reason === "expired" || sessionError
-      ? "Your session has expired. Please sign in again."
-      : reason === "unauthenticated"
-      ? "Sign in to access this page."
-      : null;
+  const message = resolveHomeMessage(reason, sessionError);
+  const showMessage = message !== null;
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -79,6 +78,5 @@ export default async function Home({ searchParams }: Props) {
     </>
   );
 
-  // When not authenticated, use AuthPageLayout with minimal header
   return <AuthPageLayout showLogoutLink={false}>{content}</AuthPageLayout>;
 }

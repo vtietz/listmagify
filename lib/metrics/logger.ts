@@ -52,6 +52,35 @@ export function hashUserId(spotifyUserId: string): string {
     .substring(0, 32); // Truncate for reasonable storage
 }
 
+function toSuccessFlag(success: boolean | undefined): number | null {
+  if (success === undefined) return null;
+  return success ? 1 : 0;
+}
+
+function toBoolFlag(value: boolean | undefined): 0 | 1 {
+  return value ? 1 : 0;
+}
+
+function buildEventValues(params: EventParams): (string | number | null)[] {
+  const userId = params.userId || null;
+  const userHash = params.userId ? hashUserId(params.userId) : null;
+  const metaJson = params.meta ? JSON.stringify(params.meta) : null;
+  return [
+    userId,
+    userHash,
+    params.event,
+    params.source || 'api',
+    params.entityType || null,
+    params.entityId || null,
+    params.count ?? null,
+    params.durationMs ?? null,
+    toSuccessFlag(params.success),
+    params.errorCode || null,
+    toBoolFlag(params.isByok),
+    metaJson,
+  ];
+}
+
 /**
  * Insert an event into the metrics database.
  * Silently no-ops if metrics are disabled.
@@ -61,27 +90,10 @@ export function insertEvent(params: EventParams): void {
   if (!db) return;
 
   try {
-    const userId = params.userId || null;
-    const userHash = params.userId ? hashUserId(params.userId) : null;
-    const metaJson = params.meta ? JSON.stringify(params.meta) : null;
-
     execute(
       `INSERT INTO events (user_id, user_hash, event, source, entity_type, entity_id, count, duration_ms, success, error_code, is_byok, meta_json)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        userId,
-        userHash,
-        params.event,
-        params.source || 'api',
-        params.entityType || null,
-        params.entityId || null,
-        params.count ?? null,
-        params.durationMs ?? null,
-        params.success !== undefined ? (params.success ? 1 : 0) : null,
-        params.errorCode || null,
-        params.isByok ? 1 : 0,
-        metaJson
-      ]
+      buildEventValues(params)
     );
   } catch (error) {
     // Log but don't throw - metrics should never break the app

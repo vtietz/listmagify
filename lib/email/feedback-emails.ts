@@ -29,28 +29,15 @@ function getNpsEmoji(score: number): string {
   return '😞';
 }
 
-/**
- * Send feedback notification email.
- * If SMTP is not configured, logs to console instead.
- */
-export async function sendFeedbackEmail(params: FeedbackEmailParams): Promise<void> {
-  const { to, npsScore, comment, userId, name, email } = params;
-
-  const transporter = createEmailTransporter();
-
-  // Build email content
+function buildFeedbackTextBody(params: FeedbackEmailParams): string {
+  const { npsScore, comment, userId, name, email } = params;
   const hasScore = npsScore !== null;
   const hasComment = comment && comment.trim().length > 0;
-
-  const subject = hasScore
-    ? `[Listmagify Feedback] ${getNpsCategory(npsScore)} (${npsScore}/10) ${getNpsEmoji(npsScore)}`
-    : '[Listmagify Feedback] New comment';
-
-  const textBody = [
+  return [
     'NEW FEEDBACK RECEIVED',
     '='.repeat(50),
     '',
-    hasScore ? `NPS Score: ${npsScore}/10 (${getNpsCategory(npsScore)}) ${getNpsEmoji(npsScore)}` : '',
+    hasScore ? `NPS Score: ${npsScore}/10 (${getNpsCategory(npsScore!)}) ${getNpsEmoji(npsScore!)}` : '',
     '',
     hasComment ? `Comment:\n${comment}` : 'No comment provided.',
     '',
@@ -62,22 +49,27 @@ export async function sendFeedbackEmail(params: FeedbackEmailParams): Promise<vo
   ]
     .filter(Boolean)
     .join('\n');
+}
 
-  const htmlBody = `
+function buildFeedbackHtmlBody(params: FeedbackEmailParams): string {
+  const { npsScore, comment, userId, name, email } = params;
+  const hasScore = npsScore !== null;
+  const hasComment = comment && comment.trim().length > 0;
+  return `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
       <h2>📝 New Feedback Received</h2>
       
       ${hasScore ? `
-        <div style="background: ${npsScore >= 9 ? '#d1fae5' : npsScore >= 7 ? '#fef3c7' : '#fee2e2'}; padding: 20px; border-radius: 8px; margin: 20px 0;">
-          <h3 style="margin-top: 0;">NPS Score: ${npsScore}/10 ${getNpsEmoji(npsScore)}</h3>
-          <p style="margin: 0; color: #666; font-size: 14px;">${getNpsCategory(npsScore)}</p>
+        <div style="background: ${npsScore! >= 9 ? '#d1fae5' : npsScore! >= 7 ? '#fef3c7' : '#fee2e2'}; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3 style="margin-top: 0;">NPS Score: ${npsScore}/10 ${getNpsEmoji(npsScore!)}</h3>
+          <p style="margin: 0; color: #666; font-size: 14px;">${getNpsCategory(npsScore!)}</p>
         </div>
       ` : ''}
       
       ${hasComment ? `
         <div style="background: #f0f9ff; padding: 20px; border-radius: 8px; border-left: 4px solid #0ea5e9; margin: 20px 0;">
           <strong>Comment:</strong>
-          <p style="margin: 10px 0 0 0; white-space: pre-wrap;">${escapeHtml(comment)}</p>
+          <p style="margin: 10px 0 0 0; white-space: pre-wrap;">${escapeHtml(comment!)}</p>
         </div>
       ` : '<p style="color: #888;">No comment provided.</p>'}
       
@@ -91,6 +83,25 @@ export async function sendFeedbackEmail(params: FeedbackEmailParams): Promise<vo
       </p>
     </div>
   `;
+}
+
+/**
+ * Send feedback notification email.
+ * If SMTP is not configured, logs to console instead.
+ */
+export async function sendFeedbackEmail(params: FeedbackEmailParams): Promise<void> {
+  const { to, npsScore } = params;
+
+  const transporter = createEmailTransporter();
+
+  const hasScore = npsScore !== null;
+
+  const subject = hasScore
+    ? `[Listmagify Feedback] ${getNpsCategory(npsScore!)} (${npsScore}/10) ${getNpsEmoji(npsScore!)}`
+    : '[Listmagify Feedback] New comment';
+
+  const textBody = buildFeedbackTextBody(params);
+  const htmlBody = buildFeedbackHtmlBody(params);
 
   // If SMTP is not configured, just log the feedback
   if (!transporter) {

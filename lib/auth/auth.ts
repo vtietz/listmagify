@@ -1,15 +1,84 @@
 import SpotifyProvider from "next-auth/providers/spotify";
 import type { AuthOptions } from "next-auth";
-import { serverEnv, summarizeEnv } from "@/lib/env";
+import { serverEnv } from "@/lib/env";
 import { logAuthEvent, startSession } from "@/lib/metrics";
 import { getDb } from "@/lib/metrics/db";
 
-console.debug(
-  `[auth] env=${summarizeEnv()} | CALLBACK=${new URL(
-    "/api/auth/callback/spotify",
-    serverEnv.NEXTAUTH_URL
-  ).toString()}`
-);
+async function fetchSpotifyUserId(accessToken: string, fallback: string): Promise<string> {
+  try {
+    const meRes = await fetch('https://api.spotify.com/v1/me', {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (meRes.ok) {
+      const meData = await meRes.json();
+      return meData.id;
+    }
+  } catch {
+    // Fall back to providerAccountId
+  }
+  return fallback;
+}
+
+async function linkUserToAccessRequest(db: ReturnType<typeof getDb>, spotifyUserId: string, email: string | undefined): Promise<void> {
+  if (!db || !email) return;
+  try {
+    db.prepare(`
+      UPDATE access_requests 
+      SET user_id = ? 
+      WHERE email = ? 
+        AND status = 'approved' 
+        AND user_id IS NULL
+    `).run(spotifyUserId, email);
+  } catch (err) {
+    console.error('[auth] Failed to link user_id to access request:', err);
+  }
+}
+
+
+function resolveClientCredentials(token: Record<string, any>): { clientId: string; clientSecret: string } {
+  return {
+    clientId: token.byok?.clientId || serverEnv.SPOTIFY_CLIENT_ID,
+    clientSecret: token.byok?.clientSecret || serverEnv.SPOTIFY_CLIENT_SECRET,
+  };
+}
+
+function formatDebugUser(user: any): string {
+  return user?.email ?? user?.name ?? '[unknown]';
+}
+
+function extractSignInData(message: any): {
+  providerAccountId: string | undefined;
+  accessToken: string | undefined;
+  email: string | undefined;
+  userAgent: string | undefined;
+  provider: string | undefined;
+  debugUser: string;
+} {
+  const account = message?.account;
+  const user = message?.user;
+  return {
+    providerAccountId: account?.providerAccountId,
+    accessToken: account?.access_token,
+    email: user?.email,
+    userAgent: user?.userAgent,
+    provider: account?.provider,
+    debugUser: formatDebugUser(user),
+  };
+}
+
+
+function buildRefreshedToken(token: Record<string, any>, data: any): Record<string, any> {
+  const expiresInMs = (data.expires_in ?? 3600) * 1000;
+  return {
+    ...token,
+    accessToken: data.access_token,
+    accessTokenExpires: Date.now() + expiresInMs,
+    refreshToken: data.refresh_token ?? token.refreshToken,
+    isByok: token.isByok,
+    error: undefined,
+  };
+}
+
 /**
  * Refresh Spotify access token using the stored refresh token.
  * Supports both default credentials and BYOK (Bring Your Own Key) credentials.
@@ -21,9 +90,7 @@ async function refreshAccessToken(token: Record<string, any>) {
       throw new Error("Missing refresh token");
     }
 
-    // Use BYOK credentials if present, otherwise use default server credentials
-    const clientId = token.byok?.clientId || serverEnv.SPOTIFY_CLIENT_ID;
-    const clientSecret = token.byok?.clientSecret || serverEnv.SPOTIFY_CLIENT_SECRET;
+    const { clientId, clientSecret } = resolveClientCredentials(token);
 
     const params = new URLSearchParams({
       grant_type: "refresh_token",
@@ -41,7 +108,6 @@ async function refreshAccessToken(token: Record<string, any>) {
     const data = await res.json();
 
     if (!res.ok) {
-      // Check if it's a revoked token error (expected - user revoked permissions)
       if (data.error === 'invalid_grant' && data.error_description?.includes('revoked')) {
         console.debug('[auth] Refresh token revoked by user (expected) - session will expire');
       } else {
@@ -55,31 +121,13 @@ async function refreshAccessToken(token: Record<string, any>) {
       );
     }
 
-    const expiresInMs = (data.expires_in ?? 3600) * 1000;
-
-    return {
-      ...token,
-      accessToken: data.access_token,
-      accessTokenExpires: Date.now() + expiresInMs,
-      // Some providers only return a new refresh_token sometimes.
-      refreshToken: data.refresh_token ?? token.refreshToken,
-      isByok: token.isByok, // Preserve BYOK flag
-      error: undefined,
-    };
+    return buildRefreshedToken(token, data);
   } catch (error) {
-    // Don't log full error for revoked tokens (expected user action)
     if (error instanceof Error && error.message.includes('revoked')) {
-      return {
-        ...token,
-        error: "RefreshAccessTokenError",
-      };
+      return { ...token, error: "RefreshAccessTokenError" };
     }
-    
     console.warn("[auth] refreshAccessToken error", error);
-    return {
-      ...token,
-      error: "RefreshAccessTokenError",
-    };
+    return { ...token, error: "RefreshAccessTokenError" };
   }
 }
 
@@ -271,53 +319,22 @@ export const authOptions: AuthOptions = {
   events: {
     async signIn(message: any) {
       try {
-        const providerAccountId = message?.account?.providerAccountId;
-        const accessToken = message?.account?.access_token;
-        
-        // Fetch the actual Spotify user ID from /me endpoint
-        let spotifyUserId = providerAccountId;
-        if (accessToken) {
-          try {
-            const meRes = await fetch('https://api.spotify.com/v1/me', {
-              headers: { Authorization: `Bearer ${accessToken}` },
-            });
-            if (meRes.ok) {
-              const meData = await meRes.json();
-              spotifyUserId = meData.id;
-            }
-          } catch {
-            // Fall back to providerAccountId
-          }
-        }
-        
+        const { providerAccountId, accessToken, email, userAgent, provider, debugUser } = extractSignInData(message);
+        const spotifyUserId = accessToken
+          ? await fetchSpotifyUserId(accessToken, providerAccountId ?? '')
+          : providerAccountId;
+
         console.debug("[auth] NextAuth signIn", {
-          provider: message?.account?.provider,
+          provider,
           providerAccountId,
           spotifyUserId,
-          user: message?.user?.email ?? message?.user?.name ?? "[unknown]",
+          user: debugUser,
         });
-        
-        // Log metrics (fire-and-forget)
+
         if (spotifyUserId) {
           logAuthEvent('login_success', spotifyUserId);
-          startSession(spotifyUserId, message?.user?.userAgent);
-          
-          // Link user_id to access request (if exists)
-          try {
-            const db = getDb();
-            if (db && message?.user?.email) {
-              // Find approved access request by email and update with user_id
-              db.prepare(`
-                UPDATE access_requests 
-                SET user_id = ? 
-                WHERE email = ? 
-                  AND status = 'approved' 
-                  AND user_id IS NULL
-              `).run(spotifyUserId, message.user.email);
-            }
-          } catch (err) {
-            console.error('[auth] Failed to link user_id to access request:', err);
-          }
+          startSession(spotifyUserId, userAgent);
+          await linkUserToAccessRequest(getDb(), spotifyUserId, email);
         }
       } catch {
         // noop
