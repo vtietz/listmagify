@@ -74,6 +74,20 @@ describe('PlaylistSelector', () => {
     expect(screen.getByText('My Playlist 1')).toBeInTheDocument();
   });
 
+  it('prefers loaded selected playlist name over stale prop fallback', async () => {
+    renderComponent(
+      {
+        selectedPlaylistId: 'playlist1',
+        selectedPlaylistName: 'Stale Playlist Name',
+      }
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('combobox')).toHaveTextContent('My Playlist 1');
+      expect(screen.getByRole('combobox')).not.toHaveTextContent('Stale Playlist Name');
+    });
+  });
+
   it('should open dropdown when clicking the button', async () => {
     const user = userEvent.setup();
     renderComponent();

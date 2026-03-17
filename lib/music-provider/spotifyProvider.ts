@@ -32,6 +32,7 @@ type SpotifyProviderDependencies = {
 
 const DEFAULT_BASE = 'https://api.spotify.com/v1';
 const DEFAULT_PROVIDER_ID = 'spotify';
+const REAL_SPOTIFY_HOSTS = new Set(['api.spotify.com', 'accounts.spotify.com']);
 
 function getEffectiveBaseUrl(): string {
   if (process.env.E2E_MODE === '1') {
@@ -54,11 +55,24 @@ function getSafeRequestPath(path: string): string {
 }
 
 function buildUrl(path: string, baseUrl?: string): string {
-  if (path.startsWith('http')) {
-    return path;
+  const resolvedUrl = path.startsWith('http')
+    ? path
+    : `${baseUrl ?? getEffectiveBaseUrl()}${path}`;
+
+  if (process.env.E2E_MODE === '1') {
+    try {
+      const hostname = new URL(resolvedUrl).hostname;
+      if (REAL_SPOTIFY_HOSTS.has(hostname)) {
+        throw new Error(`[spotify] Real Spotify host is blocked in E2E mode: ${resolvedUrl}`);
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('blocked in E2E mode')) {
+        throw error;
+      }
+    }
   }
 
-  return `${baseUrl ?? getEffectiveBaseUrl()}${path}`;
+  return resolvedUrl;
 }
 
 function buildHeaders(token: string, initHeaders?: HeadersInit): Headers {

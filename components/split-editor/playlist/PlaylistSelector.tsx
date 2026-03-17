@@ -248,9 +248,9 @@ export function PlaylistSelector({ selectedPlaylistId, selectedPlaylistName, onS
           {isLikedSongsPlaylist(selectedPlaylistId) && (
             <Heart className="h-3.5 w-3.5 fill-[#9759f5] text-[#9759f5] shrink-0" />
           )}
-          {selectedPlaylistName || 
-           (isLikedSongsPlaylist(selectedPlaylistId) ? LIKED_SONGS_METADATA.name : null) || 
-           selected?.name || 
+          {(isLikedSongsPlaylist(selectedPlaylistId) ? LIKED_SONGS_METADATA.name : null) ||
+           selected?.name ||
+           selectedPlaylistName ||
            'Select a playlist...'}
         </span>
         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />

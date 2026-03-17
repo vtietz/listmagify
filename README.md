@@ -164,6 +164,23 @@ All commands run inside Docker:
 | Run arbitrary command | `./run.sh exec <cmd>` |
 | Run docker compose cmd | `./run.sh compose <cmd>` |
 
+### E2E Test Architecture (Mock-Only)
+
+E2E tests are designed to run against the local Spotify mock service, never the real Spotify API:
+
+- `web-test` runs with `E2E_MODE=1` and `SPOTIFY_BASE_URL=http://spotify-mock:8080/v1`
+- API auth checks are bypassed with a deterministic E2E session in `E2E_MODE`
+- Provider transport blocks real Spotify hosts in `E2E_MODE` to fail fast on misconfiguration
+- Unit tests also block direct calls to `api.spotify.com` and `accounts.spotify.com`
+
+Recommended E2E flow:
+
+```bash
+./run.sh exec pnpm test:stack:up
+./run.sh exec pnpm test:e2e
+./run.sh exec pnpm test:stack:down
+```
+
 ### Spotify Integration Boundaries
 
 Spotify API and token handling are now split into explicit layers to reduce route complexity:

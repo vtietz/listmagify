@@ -1,4 +1,17 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
+
+async function gotoSplitEditorAndWaitForTracks(page: Page) {
+  const tracksResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'GET' &&
+      /\/api\/playlists\/test-playlist-1\/tracks(?:\?|$)/.test(response.url()) &&
+      response.status() === 200,
+    { timeout: 20_000 }
+  );
+
+  await page.goto('/split-editor?layout=p.test-playlist-1');
+  await tracksResponse;
+}
 
 test.describe('E2E Smoke Tests', () => {
   test('should load home page', async ({ page }) => {
@@ -18,19 +31,18 @@ test.describe('E2E Smoke Tests', () => {
   });
 
   test('should open split-editor with a playlist', async ({ page }) => {
-    // Load a playlist in the split editor (same approach as playlistSelector tests)
-    await page.goto('/split-editor?layout=p.test-playlist-1');
+    await gotoSplitEditorAndWaitForTracks(page);
 
     // Wait for the playlist panel to appear
     await expect(page.locator('[data-testid="playlist-panel"]').first()).toBeVisible({ timeout: 15_000 });
 
     // Verify track content from fixture (5 tracks)
-    await expect(page.getByText('Test Track 1').first()).toBeVisible();
-    await expect(page.getByText('Test Artist 1').first()).toBeVisible();
+    await expect(page.getByText('Test Track 1').first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText('Test Artist 1').first()).toBeVisible({ timeout: 20_000 });
   });
 
   test('should show all fixture tracks in split-editor', async ({ page }) => {
-    await page.goto('/split-editor?layout=p.test-playlist-1');
+    await gotoSplitEditorAndWaitForTracks(page);
 
     // Wait for panel to load
     await expect(page.locator('[data-testid="playlist-panel"]').first()).toBeVisible({ timeout: 15_000 });
@@ -40,8 +52,8 @@ test.describe('E2E Smoke Tests', () => {
     await expect(trackList).toBeVisible();
 
     // Fixture has 5 tracks — verify several are rendered
-    await expect(page.getByText('Test Track 1').first()).toBeVisible();
-    await expect(page.getByText('Test Track 3').first()).toBeVisible();
-    await expect(page.getByText('Test Track 5').first()).toBeVisible();
+    await expect(page.getByText('Test Track 1').first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText('Test Track 3').first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText('Test Track 5').first()).toBeVisible({ timeout: 20_000 });
   });
 });

@@ -23,32 +23,74 @@ interface UnapprovedUserDialogProps {
   showRequestAccess?: boolean;
 }
 
+type OAuthErrorState = {
+  shouldOpen: boolean;
+  title: string;
+  description: string;
+  showDevModeHint: boolean;
+};
+
+export function getOAuthErrorState(error?: string): OAuthErrorState {
+  if (!error) {
+    return {
+      shouldOpen: false,
+      title: 'Access Denied',
+      description: 'Your Spotify account may not be in the approved users list for this app.',
+      showDevModeHint: true,
+    };
+  }
+
+  if (error === 'access_denied' || error === 'AccessDenied') {
+    return {
+      shouldOpen: true,
+      title: 'Access Denied',
+      description: 'Your Spotify account may not be in the approved users list for this app.',
+      showDevModeHint: true,
+    };
+  }
+
+  if (error === 'Configuration') {
+    return {
+      shouldOpen: true,
+      title: 'Configuration Error',
+      description: 'There is a configuration issue with the Spotify OAuth. Please contact the administrator.',
+      showDevModeHint: false,
+    };
+  }
+
+  if (error === 'OAuthCallback') {
+    return {
+      shouldOpen: true,
+      title: 'Sign-In Failed',
+      description: 'Spotify sign-in could not be completed. Please try again.',
+      showDevModeHint: false,
+    };
+  }
+
+  return {
+    shouldOpen: false,
+    title: 'Access Denied',
+    description: 'Your Spotify account may not be in the approved users list for this app.',
+    showDevModeHint: true,
+  };
+}
+
 /**
  * Dialog shown when a user tries to log in but is not in the approved users list.
  * This happens when the app is in Spotify development mode.
  */
 export function UnapprovedUserDialog({ error, showRequestAccess: _showRequestAccess = false }: UnapprovedUserDialogProps) {
   const [open, setOpen] = useState(false);
+  const errorState = getOAuthErrorState(error);
 
   // Show dialog when there's an OAuth error
   // NextAuth error codes: OAuthCallback, Configuration, AccessDenied
   // Spotify returns: access_denied
   useEffect(() => {
-    if (error && (
-      error === 'access_denied' || 
-      error === 'AccessDenied' || 
-      error === 'OAuthCallback' ||
-      error === 'Configuration'
-    )) {
+    if (errorState.shouldOpen) {
       setOpen(true);
     }
-  }, [error]);
-
-  // Determine error message based on error type
-  const errorTitle = error === 'Configuration' ? 'Configuration Error' : 'Access Denied';
-  const errorDescription = error === 'Configuration' 
-    ? 'There is a configuration issue with the Spotify OAuth. Please contact the administrator.'
-    : 'Your Spotify account may not be in the approved users list for this app.';
+  }, [errorState.shouldOpen]);
 
   return (
     <>
@@ -57,11 +99,11 @@ export function UnapprovedUserDialog({ error, showRequestAccess: _showRequestAcc
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-yellow-500" />
-              {errorTitle}
+              {errorState.title}
             </DialogTitle>
             <DialogDescription className="space-y-3 pt-2">
-              {errorDescription}
-              {error !== 'Configuration' && (
+              {errorState.description}
+              {errorState.showDevModeHint && (
                 <>
                   <br />
                   This app is currently in Spotify{' '}
