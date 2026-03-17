@@ -157,7 +157,7 @@ function MiniPlayerTrackInfo({
   isAutoScrollEnabled: boolean;
   localProgress: number;
   durationMs: number;
-  onTrackClick?: () => void;
+  onTrackClick?: (() => void) | undefined;
 }) {
   return (
     <>
@@ -205,13 +205,229 @@ function MiniPlayerTrackInfo({
   );
 }
 
+function useMiniPlayerProgress(progressMs: number, isPlaying: boolean, durationMs: number) {
+  const [localProgress, setLocalProgress] = useState(progressMs);
+  const rafRef = useRef<number>(0);
+
+  useEffect(() => {
+    setLocalProgress(progressMs);
+  }, [progressMs]);
+
+  useEffect(() => {
+    if (!isPlaying || !durationMs) {
+      return;
+    }
+
+    let lastFrameTime = Date.now();
+
+    const animate = () => {
+      const now = Date.now();
+      const elapsed = now - lastFrameTime;
+
+      if (elapsed >= 33) {
+        setLocalProgress((prev) => Math.min(prev + elapsed, durationMs));
+        lastFrameTime = now;
+      }
+
+      rafRef.current = requestAnimationFrame(animate);
+    };
+
+    rafRef.current = requestAnimationFrame(animate);
+
+    return () => {
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+      }
+    };
+  }, [isPlaying, durationMs]);
+
+  return localProgress;
+}
+
+function useMiniTrackLike(trackId: string | null | undefined) {
+  const { isLiked: checkIsLiked, toggleLiked } = useSavedTracksIndex();
+  const isLiked = trackId ? checkIsLiked(trackId) : false;
+
+  const handleToggleLike = useCallback(() => {
+    if (!trackId) {
+      return;
+    }
+
+    toggleLiked(trackId, isLiked);
+  }, [trackId, isLiked, toggleLiked]);
+
+  return { isLiked, handleToggleLike };
+}
+
+function useMiniInsertionMarkers(track?: PlaybackTrack | null) {
+  const playlists = useInsertionPointsStore((s) => s.playlists);
+  const shiftAfterMultiInsert = useInsertionPointsStore((s) => s.shiftAfterMultiInsert);
+  const addTracksMutation = useAddTracks();
+  const [isInserting, setIsInserting] = useState(false);
+  const [showPlaylistDialog, setShowPlaylistDialog] = useState(false);
+
+  const playlistsWithMarkers = Object.entries(playlists).filter(([, data]) => data.markers.length > 0);
+  const hasActiveMarkers = playlistsWithMarkers.length > 0;
+  const totalMarkers = playlistsWithMarkers.reduce((sum, [, data]) => sum + data.markers.length, 0);
+
+  const handleAddToMarkers = useCallback(async () => {
+    if (!track?.uri || isInserting) {
+      return;
+    }
+
+    setIsInserting(true);
+
+    try {
+      let insertedCount = 0;
+
+      for (const [playlistId, data] of playlistsWithMarkers) {
+        if (data.markers.length === 0) {
+          continue;
+        }
+
+        const positions = computeInsertionPositions(data.markers, 1);
+
+        await addTracksMutation.mutateAsync({
+          playlistId,
+          trackUris: [track.uri],
+          position: positions[0]!.effectiveIndex,
+        });
+
+        insertedCount += 1;
+        shiftAfterMultiInsert(playlistId);
+      }
+
+      toast.success(
+        `Added "${track.name}" to ${insertedCount} playlist${insertedCount > 1 ? 's' : ''} (${totalMarkers} marker${totalMarkers > 1 ? 's' : ''})`
+      );
+    } catch (error) {
+      console.error('[MiniPlayer] Failed to add to markers:', error);
+      toast.error('Failed to add track to markers');
+    } finally {
+      setIsInserting(false);
+    }
+  }, [track, isInserting, playlistsWithMarkers, totalMarkers, addTracksMutation, shiftAfterMultiInsert]);
+
+  const handleAddClick = useCallback(() => {
+    if (hasActiveMarkers) {
+      void handleAddToMarkers();
+      return;
+    }
+
+    setShowPlaylistDialog(true);
+  }, [hasActiveMarkers, handleAddToMarkers]);
+
+  return {
+    hasActiveMarkers,
+    totalMarkers,
+    isInserting,
+    showPlaylistDialog,
+    setShowPlaylistDialog,
+    handleAddClick,
+  };
+}
+
+function getTrackClickHandler(
+  track: PlaybackTrack | null | undefined,
+  onTrackClick?: (trackId: string) => void
+): (() => void) | undefined {
+  if (!track?.id || !onTrackClick) {
+    return undefined;
+  }
+
+  return () => onTrackClick(track.id!);
+}
+
+function MiniPlayerBody({
+  track,
+  deviceIsActive,
+  isAutoScrollEnabled,
+  localProgress,
+  durationMs,
+  isLoading,
+  isPlaying,
+  isLiked,
+  hasActiveMarkers,
+  totalMarkers,
+  isInserting,
+  onTrackClick,
+  onPrevious,
+  onTogglePlayPause,
+  onNext,
+  onToggleLike,
+  onAddClick,
+  onDeviceClick,
+  onHide,
+}: {
+  track: PlaybackTrack;
+  deviceIsActive: boolean;
+  isAutoScrollEnabled: boolean;
+  localProgress: number;
+  durationMs: number;
+  isLoading: boolean;
+  isPlaying: boolean;
+  isLiked: boolean;
+  hasActiveMarkers: boolean;
+  totalMarkers: number;
+  isInserting: boolean;
+  onTrackClick?: (() => void) | undefined;
+  onPrevious: () => void;
+  onTogglePlayPause: () => void;
+  onNext: () => void;
+  onToggleLike: () => void;
+  onAddClick: () => void;
+  onDeviceClick: () => void;
+  onHide: () => void;
+}) {
+  const progressPercent = durationMs > 0 ? (localProgress / durationMs) * 100 : 0;
+
+  return (
+    <div className="h-11 border-t border-border bg-background/95 backdrop-blur flex items-center px-2 gap-2 relative overflow-hidden">
+      <div
+        className="absolute inset-0 bg-primary/10 transition-all duration-150 ease-linear"
+        style={{ width: `${progressPercent}%` }}
+      />
+
+      <div className="relative flex items-center gap-2 flex-1 min-w-0 z-10">
+        <MiniPlayerTrackInfo
+          track={track}
+          isAutoScrollEnabled={isAutoScrollEnabled}
+          localProgress={localProgress}
+          durationMs={durationMs}
+          onTrackClick={onTrackClick}
+        />
+        <MiniPlayerControls
+          isLoading={isLoading}
+          isPlaying={isPlaying}
+          onPrevious={onPrevious}
+          onTogglePlayPause={onTogglePlayPause}
+          onNext={onNext}
+        />
+        <MiniPlayerActions
+          trackId={track.id}
+          trackUri={track.uri}
+          isLiked={isLiked}
+          hasActiveMarkers={hasActiveMarkers}
+          totalMarkers={totalMarkers}
+          isInserting={isInserting}
+          deviceIsActive={deviceIsActive}
+          onToggleLike={onToggleLike}
+          onAddClick={onAddClick}
+          onDeviceClick={onDeviceClick}
+          onHide={onHide}
+        />
+      </div>
+    </div>
+  );
+}
+
 interface MiniPlayerProps {
   /** Whether to show the mini player (controlled externally) */
   isVisible: boolean;
   /** Callback to hide the mini player */
   onHide: () => void;
   /** Callback when user clicks on track info to scroll to track in playlists */
-  onTrackClick?: (trackId: string) => void;
+  onTrackClick?: ((trackId: string) => void) | undefined;
 }
 
 export function MiniPlayer({ isVisible, onHide, onTrackClick }: MiniPlayerProps) {
@@ -231,9 +447,6 @@ export function MiniPlayer({ isVisible, onHide, onTrackClick }: MiniPlayerProps)
     refreshDevices,
   } = useSpotifyPlayer();
 
-  const [localProgress, setLocalProgress] = useState(0);
-  const lastUpdateRef = useRef<number>(0);
-  const rafRef = useRef<number>(0);
   const isAutoScrollEnabled = useHydratedAutoScrollText();
 
   const track = playbackState?.track;
@@ -242,161 +455,51 @@ export function MiniPlayer({ isVisible, onHide, onTrackClick }: MiniPlayerProps)
   const durationMs = track?.durationMs ?? 0;
   const trackId = track?.id;
 
-  // Query liked status for current track
-  const { isLiked: checkIsLiked, toggleLiked } = useSavedTracksIndex();
-  const isLiked = trackId ? checkIsLiked(trackId) : false;
-
-  // Insertion markers state
-  const playlists = useInsertionPointsStore((s) => s.playlists);
-  const shiftAfterMultiInsert = useInsertionPointsStore((s) => s.shiftAfterMultiInsert);
-  const addTracksMutation = useAddTracks();
-  const [isInserting, setIsInserting] = useState(false);
-  const [showPlaylistDialog, setShowPlaylistDialog] = useState(false);
-
-  const playlistsWithMarkers = Object.entries(playlists).filter(
-    ([, data]) => data.markers.length > 0
-  );
-  const hasActiveMarkers = playlistsWithMarkers.length > 0;
-  const totalMarkers = playlistsWithMarkers.reduce((sum, [, data]) => sum + data.markers.length, 0);
-
-  const handleToggleLike = useCallback(() => {
-    if (!trackId) return;
-    toggleLiked(trackId, isLiked);
-  }, [trackId, isLiked, toggleLiked]);
-
-  const handleAddToMarkers = useCallback(async () => {
-    if (!track?.uri || isInserting) return;
-
-    setIsInserting(true);
-    try {
-      let insertedCount = 0;
-
-      for (const [playlistId, data] of playlistsWithMarkers) {
-        if (data.markers.length === 0) continue;
-
-        const positions = computeInsertionPositions(data.markers, 1);
-
-        await addTracksMutation.mutateAsync({
-          playlistId,
-          trackUris: [track.uri],
-          position: positions[0]!.effectiveIndex,
-        });
-
-        insertedCount++;
-        shiftAfterMultiInsert(playlistId);
-      }
-
-      toast.success(`Added "${track.name}" to ${insertedCount} playlist${insertedCount > 1 ? 's' : ''} (${totalMarkers} marker${totalMarkers > 1 ? 's' : ''})`);
-    } catch (error) {
-      console.error('[MiniPlayer] Failed to add to markers:', error);
-      toast.error('Failed to add track to markers');
-    } finally {
-      setIsInserting(false);
-    }
-  }, [track, isInserting, playlistsWithMarkers, totalMarkers, addTracksMutation, shiftAfterMultiInsert]);
-
-  const handleAddClick = useCallback(() => {
-    if (hasActiveMarkers) {
-      handleAddToMarkers();
-    } else {
-      setShowPlaylistDialog(true);
-    }
-  }, [hasActiveMarkers, handleAddToMarkers]);
+  const localProgress = useMiniPlayerProgress(progressMs, isPlaying, durationMs);
+  const { isLiked, handleToggleLike } = useMiniTrackLike(trackId);
+  const {
+    hasActiveMarkers,
+    totalMarkers,
+    isInserting,
+    showPlaylistDialog,
+    setShowPlaylistDialog,
+    handleAddClick,
+  } = useMiniInsertionMarkers(track);
 
   const handleDeviceClick = useCallback(() => {
     refreshDevices();
     openDeviceSelector();
   }, [refreshDevices, openDeviceSelector]);
-
-  const handleTrackClick = useCallback(() => {
-    if (track?.id && onTrackClick) {
-      onTrackClick(track.id);
-    }
-  }, [track?.id, onTrackClick]);
-
-  // Update progress from playback state
-  useEffect(() => {
-    setLocalProgress(progressMs);
-    lastUpdateRef.current = Date.now();
-  }, [progressMs]);
-
-  // Animate progress during playback
-  useEffect(() => {
-    if (!isPlaying || !durationMs) return;
-
-    let lastFrameTime = Date.now();
-    
-    const animate = () => {
-      const now = Date.now();
-      const elapsed = now - lastFrameTime;
-      
-      if (elapsed >= 33) {
-        setLocalProgress(prev => {
-          const newProgress = prev + elapsed;
-          return Math.min(newProgress, durationMs);
-        });
-        lastFrameTime = now;
-      }
-      
-      rafRef.current = requestAnimationFrame(animate);
-    };
-
-    rafRef.current = requestAnimationFrame(animate);
-
-    return () => {
-      if (rafRef.current) {
-        cancelAnimationFrame(rafRef.current);
-      }
-    };
-  }, [isPlaying, durationMs]);
+  const trackClickHandler = getTrackClickHandler(track, onTrackClick);
 
   // Don't render if not visible or no track
   if (!isVisible || !track) {
     return null;
   }
 
-  const progressPercent = durationMs > 0 ? (localProgress / durationMs) * 100 : 0;
-
   return (
     <>
-      <div className="h-11 border-t border-border bg-background/95 backdrop-blur flex items-center px-2 gap-2 relative overflow-hidden">
-        {/* Progress bar - subtle background line */}
-        <div 
-          className="absolute inset-0 bg-primary/10 transition-all duration-150 ease-linear"
-          style={{ width: `${progressPercent}%` }}
-        />
-        
-        {/* Content - above progress bar */}
-        <div className="relative flex items-center gap-2 flex-1 min-w-0 z-10">
-          <MiniPlayerTrackInfo
-            track={track}
-            isAutoScrollEnabled={isAutoScrollEnabled}
-            localProgress={localProgress}
-            durationMs={durationMs}
-            {...(track.id !== null && onTrackClick && { onTrackClick: handleTrackClick })}
-          />
-          <MiniPlayerControls
-            isLoading={isLoading}
-            isPlaying={isPlaying}
-            onPrevious={previous}
-            onTogglePlayPause={togglePlayPause}
-            onNext={next}
-          />
-          <MiniPlayerActions
-            trackId={track.id}
-            trackUri={track.uri}
-            isLiked={isLiked}
-            hasActiveMarkers={hasActiveMarkers}
-            totalMarkers={totalMarkers}
-            isInserting={isInserting}
-            deviceIsActive={device?.isActive ?? false}
-            onToggleLike={handleToggleLike}
-            onAddClick={handleAddClick}
-            onDeviceClick={handleDeviceClick}
-            onHide={onHide}
-          />
-        </div>
-      </div>
+      <MiniPlayerBody
+        track={track}
+        deviceIsActive={device?.isActive ?? false}
+        isAutoScrollEnabled={isAutoScrollEnabled}
+        localProgress={localProgress}
+        durationMs={durationMs}
+        isLoading={isLoading}
+        isPlaying={isPlaying}
+        isLiked={isLiked}
+        hasActiveMarkers={hasActiveMarkers}
+        totalMarkers={totalMarkers}
+        isInserting={isInserting}
+        onTrackClick={trackClickHandler}
+        onPrevious={previous}
+        onTogglePlayPause={togglePlayPause}
+        onNext={next}
+        onToggleLike={handleToggleLike}
+        onAddClick={handleAddClick}
+        onDeviceClick={handleDeviceClick}
+        onHide={onHide}
+      />
 
       {/* Playlist selector dialog (when no markers) */}
       <AddToPlaylistDialog

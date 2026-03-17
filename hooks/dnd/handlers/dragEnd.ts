@@ -117,6 +117,89 @@ function handleLastfmTrackDrop(
   );
 }
 
+type PlaylistDropContextData = {
+  sourcePanelId: string;
+  targetPanelId: string;
+  sourcePlaylistId: string;
+  targetPlaylistId: string;
+};
+
+function isBrowseSourceDrop(sourceData: TrackSourceData, targetData: DragTargetData): boolean {
+  return Boolean(sourceData.panelId && !sourceData.playlistId && targetData.playlistId && targetData.panelId);
+}
+
+function resolvePlaylistDropContext(sourceData: TrackSourceData, targetData: DragTargetData): PlaylistDropContextData | null {
+  const sourcePanelId = sourceData.panelId;
+  const targetPanelId = targetData.panelId;
+  const sourcePlaylistId = sourceData.playlistId;
+  const targetPlaylistId = targetData.playlistId;
+
+  if (!sourcePanelId || !targetPanelId || !sourcePlaylistId || !targetPlaylistId) {
+    console.error('Missing panel or playlist context in drag event');
+    return null;
+  }
+
+  return {
+    sourcePanelId,
+    targetPanelId,
+    sourcePlaylistId,
+    targetPlaylistId,
+  };
+}
+
+function resolveOrderedTracks(
+  sourcePanelId: string,
+  orderedTracksSnapshot: Track[],
+  panelVirtualizersRef: DragEndContext['panelVirtualizersRef']
+): Track[] {
+  if (orderedTracksSnapshot.length > 0) {
+    return orderedTracksSnapshot;
+  }
+
+  return panelVirtualizersRef.current?.get(sourcePanelId)?.filteredTracks ?? [];
+}
+
+function resolveDragTracks(
+  sourceTrack: Track,
+  selectedIndices: number[],
+  orderedTracks: Track[]
+): { dragTracks: Track[]; dragTrackUris: string[] } {
+  const selectedTracks = selectedIndices
+    .map((idx) => orderedTracks[idx])
+    .filter((track): track is Track => track != null);
+
+  const dragTracks = selectedTracks.length > 0 ? selectedTracks : [sourceTrack];
+  return {
+    dragTracks,
+    dragTrackUris: dragTracks.map((track) => track.uri),
+  };
+}
+
+function resolveSourceAndTargetPanels(
+  panels: PanelConfig[],
+  sourcePanelId: string,
+  targetPanelId: string
+): { sourcePanel: PanelConfig; targetPanel: PanelConfig } | null {
+  const sourcePanel = panels.find((panel) => panel.id === sourcePanelId);
+  const targetPanel = panels.find((panel) => panel.id === targetPanelId);
+
+  if (!sourcePanel || !targetPanel) {
+    console.error('Could not find source or target panel');
+    return null;
+  }
+
+  return { sourcePanel, targetPanel };
+}
+
+function canDropToTarget(targetPanel: PanelConfig): boolean {
+  if (targetPanel.isEditable) {
+    return true;
+  }
+
+  toast.error('Target playlist is not editable');
+  return false;
+}
+
 function handlePlaylistTrackDrop(
   sourceData: TrackSourceData,
   targetData: DragTargetData,
@@ -125,13 +208,11 @@ function handlePlaylistTrackDrop(
   orderedTracksSnapshot: Track[],
   ctx: DragEndContext
 ): void {
-  const sourcePanelIdFromData = sourceData.panelId;
-  const targetPanelId = targetData.panelId;
-  const sourcePlaylistId = sourceData.playlistId;
-  const targetPlaylistId = targetData.playlistId;
+  if (isBrowseSourceDrop(sourceData, targetData)) {
+    const targetPanelId = targetData.panelId!;
+    const targetPlaylistId = targetData.playlistId!;
+    const targetPanel = ctx.panels.find((panel) => panel.id === targetPanelId);
 
-  if (sourcePanelIdFromData && !sourcePlaylistId && targetPlaylistId && targetPanelId) {
-    const targetPanel = ctx.panels.find((p) => p.id === targetPanelId);
     handleBrowsePanelCopyDrop(
       sourceData,
       targetData,
@@ -145,21 +226,15 @@ function handlePlaylistTrackDrop(
     return;
   }
 
-  if (!sourcePanelIdFromData || !targetPanelId || !sourcePlaylistId || !targetPlaylistId) {
-    console.error('Missing panel or playlist context in drag event');
+  const dropContextData = resolvePlaylistDropContext(sourceData, targetData);
+  if (!dropContextData) {
     return;
   }
 
-  const orderedTracks = orderedTracksSnapshot.length > 0
-    ? orderedTracksSnapshot
-    : (ctx.panelVirtualizersRef.current?.get(sourcePanelIdFromData)?.filteredTracks ?? []);
+  const { sourcePanelId, targetPanelId, sourcePlaylistId, targetPlaylistId } = dropContextData;
+  const orderedTracks = resolveOrderedTracks(sourcePanelId, orderedTracksSnapshot, ctx.panelVirtualizersRef);
+  const { dragTracks, dragTrackUris } = resolveDragTracks(sourceData.track, selectedIndices, orderedTracks);
 
-  const selectedTracks = selectedIndices
-    .map((idx) => orderedTracks[idx])
-    .filter((track): track is Track => track != null);
-
-  const dragTracks = selectedTracks.length > 0 ? selectedTracks : [sourceData.track];
-  const dragTrackUris = dragTracks.map((track) => track.uri);
   const sourceIndex = sourceData.position;
   const targetIndex = finalDropPosition ?? (targetData.position ?? 0);
 
@@ -182,23 +257,19 @@ function handlePlaylistTrackDrop(
     () => computeAdjustedTargetIndex(targetIndex, dragTracks, orderedTracks, sourcePlaylistId, targetPlaylistId)
   );
 
-  const sourcePanel = ctx.panels.find((panel) => panel.id === sourcePanelIdFromData);
-  const targetPanel = ctx.panels.find((panel) => panel.id === targetPanelId);
-
-  if (!sourcePanel || !targetPanel) {
-    console.error('Could not find source or target panel');
+  const panelPair = resolveSourceAndTargetPanels(ctx.panels, sourcePanelId, targetPanelId);
+  if (!panelPair) {
     return;
   }
 
-  if (!targetPanel.isEditable) {
-    toast.error('Target playlist is not editable');
+  if (!canDropToTarget(panelPair.targetPanel)) {
     return;
   }
 
-  const sourceDndMode = sourcePanel.dndMode || 'copy';
+  const sourceDndMode = panelPair.sourcePanel.dndMode || 'copy';
   const { ctrlKey: isCtrlPressed } = ctx.pointerTracker.getModifiers();
-  const canInvertMode = sourcePanel.isEditable;
-  const isSamePanelSamePlaylist = sourcePanelIdFromData === targetPanelId && sourcePlaylistId === targetPlaylistId;
+  const canInvertMode = panelPair.sourcePanel.isEditable;
+  const isSamePanelSamePlaylist = sourcePanelId === targetPanelId && sourcePlaylistId === targetPlaylistId;
 
   const effectiveMode = determineEffectiveMode(
     isSamePanelSamePlaylist,
@@ -238,7 +309,7 @@ function handlePlaylistTrackDrop(
     dragTrackUris,
     sourcePlaylistId,
     targetPlaylistId,
-    sourcePanel,
+      panelPair.sourcePanel,
     dropContext
   );
 }

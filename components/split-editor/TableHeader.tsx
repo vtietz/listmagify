@@ -9,6 +9,7 @@ import { ArrowUp, ArrowDown, Heart, Play, Plus, TrendingUp, Calendar, Users, Tim
 import { useCompactModeStore } from '@/hooks/useCompactModeStore';
 import { useDragHandle } from './mobile/DragHandle';
 import type { SortKey, SortDirection } from '@/hooks/usePlaylistSort';
+import type { LucideIcon } from 'lucide-react';
 
 interface TableHeaderProps {
   isEditable: boolean;
@@ -66,33 +67,31 @@ export function getTrackGridStyle(
   options?: Pick<TrackGridOptions, 'showMatchStatusColumn' | 'showCustomAddColumn' | 'showScrobbleDateColumn' | 'showCumulativeTime' | 'showDragHandle'>,
   _isMobile: boolean = false // Unused - always use same layout
 ) {
-  // Build columns array dynamically - same layout for all devices
-  const columns: string[] = [];
-  
-  // Drag handle column - first column on touch devices (44px touch target)
-  if (options?.showDragHandle) columns.push('44px');
-  
-  // Prefix columns (before standard track columns)
-  if (options?.showMatchStatusColumn) columns.push('20px'); // Match status indicator
-  if (options?.showCustomAddColumn) columns.push('20px');   // Custom add button (e.g., Last.fm)
-  
-  if (showContributorColumn) columns.push('20px'); // Contributor avatar
-  if (showPlayColumn) columns.push('20px');        // Play button
-  if (showAddToMarkedColumn) columns.push('20px'); // Add to marked button
-  columns.push('20px');                            // Heart (liked)
-  columns.push('28px');                            // Position #
-  columns.push('minmax(100px, 3fr)');              // Title - larger share for more visibility
-  columns.push('minmax(60px, 1.5fr)');             // Artist
-  columns.push('minmax(60px, 1fr)');               // Album
-  // Date column: wider for scrobble dates (e.g., "3 Jan, 10:24"), narrow for just year
-  columns.push(options?.showScrobbleDateColumn ? '90px' : '36px');
-  columns.push('36px');                            // Popularity
-  columns.push('44px');                            // Time
-  // Cumulative time column (default: show)
-  if (options?.showCumulativeTime !== false) {
-    columns.push('52px');                          // Cumulative time
-  }
-  
+  const optionalColumns: Array<[boolean, string]> = [
+    [Boolean(options?.showDragHandle), '44px'],
+    [Boolean(options?.showMatchStatusColumn), '20px'],
+    [Boolean(options?.showCustomAddColumn), '20px'],
+    [showContributorColumn, '20px'],
+    [showPlayColumn, '20px'],
+    [showAddToMarkedColumn, '20px'],
+  ];
+
+  const dateColumn = options?.showScrobbleDateColumn ? '90px' : '36px';
+  const cumulativeColumn = options?.showCumulativeTime === false ? [] : ['52px'];
+
+  const columns = [
+    ...optionalColumns.filter(([isVisible]) => isVisible).map(([, width]) => width),
+    '20px',
+    '28px',
+    'minmax(100px, 3fr)',
+    'minmax(60px, 1.5fr)',
+    'minmax(60px, 1fr)',
+    dateColumn,
+    '36px',
+    '44px',
+    ...cumulativeColumn,
+  ];
+
   return { gridTemplateColumns: columns.join(' ') };
 }
 
@@ -103,6 +102,169 @@ export const TRACK_GRID_STYLE = {
 export const TRACK_GRID_STYLE_WITH_ALBUM = {
   gridTemplateColumns: '20px 20px 20px 28px minmax(80px, 2fr) minmax(60px, 1fr) minmax(60px, 1fr) 36px 36px 44px',
 };
+
+interface PrefixIconColumn {
+  key: string;
+  title: string;
+  icon: LucideIcon;
+}
+
+function getPrefixIconColumns({
+  showDragHandle,
+  showMatchStatusColumn,
+  showCustomAddColumn,
+  isCollaborative,
+  showPlayButton,
+  showStandardAddColumn,
+}: {
+  showDragHandle: boolean;
+  showMatchStatusColumn: boolean;
+  showCustomAddColumn: boolean;
+  isCollaborative: boolean;
+  showPlayButton: boolean;
+  showStandardAddColumn: boolean;
+}): PrefixIconColumn[] {
+  const columns: Array<{ isVisible: boolean; column: PrefixIconColumn }> = [
+    {
+      isVisible: showDragHandle,
+      column: { key: 'drag-handle', title: 'Drag handle', icon: GripVertical },
+    },
+    {
+      isVisible: showMatchStatusColumn,
+      column: { key: 'match-status', title: 'Match status', icon: Radio },
+    },
+    {
+      isVisible: showCustomAddColumn,
+      column: { key: 'custom-add', title: 'Add to marked insertion points', icon: Plus },
+    },
+    {
+      isVisible: isCollaborative,
+      column: { key: 'contributor', title: 'Added by', icon: Users },
+    },
+    {
+      isVisible: showPlayButton,
+      column: { key: 'play', title: 'Play', icon: Play },
+    },
+    {
+      isVisible: showStandardAddColumn,
+      column: { key: 'add', title: 'Add to marked insertion points', icon: Plus },
+    },
+  ];
+
+  return columns.filter((entry) => entry.isVisible).map((entry) => entry.column);
+}
+
+function HeaderIconCell({
+  icon: Icon,
+  title,
+  iconClass,
+}: {
+  icon: LucideIcon;
+  title: string;
+  iconClass: string;
+}) {
+  return (
+    <div className="flex items-center justify-center" title={title}>
+      <Icon className={iconClass} />
+    </div>
+  );
+}
+
+function SortableLabelButton({
+  label,
+  keyName,
+  sortKey,
+  sortDirection,
+  onSort,
+  isCompact,
+  align = 'left',
+}: {
+  label: string;
+  keyName: SortKey;
+  sortKey: SortKey;
+  sortDirection: SortDirection;
+  onSort: (key: SortKey) => void;
+  isCompact: boolean;
+  align?: 'left' | 'right';
+}) {
+  const isActive = sortKey === keyName;
+  const SortIcon = sortDirection === 'asc' ? ArrowUp : ArrowDown;
+
+  return (
+    <button
+      onClick={() => onSort(keyName)}
+      className={[
+        'flex items-center gap-1 w-full h-full font-medium uppercase tracking-wide hover:text-foreground transition-colors',
+        isActive ? 'text-foreground' : 'text-muted-foreground',
+        align === 'right' ? 'justify-end' : '',
+        isCompact ? 'text-[10px]' : 'text-xs',
+      ].join(' ')}
+      title={`Sort by ${label}`}
+    >
+      <span className="truncate">{label}</span>
+      {isActive ? (
+        <SortIcon className={isCompact ? 'h-2.5 w-2.5 flex-shrink-0' : 'h-3 w-3 flex-shrink-0'} />
+      ) : null}
+    </button>
+  );
+}
+
+function SortableIconButton({
+  icon: Icon,
+  keyName,
+  sortKey,
+  sortDirection,
+  onSort,
+  isCompact,
+  title,
+}: {
+  icon: LucideIcon;
+  keyName: SortKey;
+  sortKey: SortKey;
+  sortDirection: SortDirection;
+  onSort: (key: SortKey) => void;
+  isCompact: boolean;
+  title: string;
+}) {
+  const isActive = sortKey === keyName;
+  const SortIcon = sortDirection === 'asc' ? ArrowUp : ArrowDown;
+
+  return (
+    <div className="flex items-center justify-center" title={title}>
+      <button
+        onClick={() => onSort(keyName)}
+        className={`flex items-center gap-0.5 transition-colors hover:text-foreground ${isActive ? 'text-foreground' : 'text-muted-foreground'}`}
+      >
+        <Icon className={isCompact ? 'h-2.5 w-2.5' : 'h-3 w-3'} />
+        {isActive ? <SortIcon className={isCompact ? 'h-2 w-2' : 'h-2.5 w-2.5'} /> : null}
+      </button>
+    </div>
+  );
+}
+
+function LikedStatusHeader({ showLikedColumn, iconClass }: { showLikedColumn: boolean; iconClass: string }) {
+  if (!showLikedColumn) {
+    return <div />;
+  }
+
+  return (
+    <div className="flex items-center justify-center" title="Liked status">
+      <Heart className={iconClass} />
+    </div>
+  );
+}
+
+function CumulativeTimeHeader({ showCumulativeTime, iconClass }: { showCumulativeTime: boolean; iconClass: string }) {
+  if (!showCumulativeTime) {
+    return null;
+  }
+
+  return (
+    <div className="flex items-center justify-end" title="Cumulative time from start">
+      <Timer className={iconClass} />
+    </div>
+  );
+}
 
 export function TableHeader({ 
   isEditable: _isEditable, 
@@ -116,21 +278,30 @@ export function TableHeader({
   showScrobbleDateColumn = false,
   showCumulativeTime = true,
 }: TableHeaderProps) {
-  const SortIcon = sortDirection === 'asc' ? ArrowUp : ArrowDown;
   const { isCompact } = useCompactModeStore();
+  const iconClass = isCompact ? 'h-2.5 w-2.5' : 'h-3 w-3';
   
   // Always show play button regardless of player visibility
-  const shouldShowPlayButton = true;
+  const showPlayButton = true;
   
   // Mobile drag handle visibility (matches TrackRow)
   const { showHandle: showDragHandle } = useDragHandle();
   
   // Always show standard add column (unless using custom add column for Last.fm)
   const showStandardAddColumn = !showCustomAddColumn;
+
+  const prefixIconColumns = getPrefixIconColumns({
+    showDragHandle,
+    showMatchStatusColumn,
+    showCustomAddColumn,
+    isCollaborative,
+    showPlayButton,
+    showStandardAddColumn,
+  });
   
   // Dynamic grid style based on visible columns
   const gridStyle = getTrackGridStyle(
-    shouldShowPlayButton, 
+    showPlayButton, 
     showStandardAddColumn, 
     isCollaborative, 
     {
@@ -142,27 +313,6 @@ export function TableHeader({
     }
   );
 
-  const renderColumnHeader = (label: string, key: SortKey, align: 'left' | 'right' = 'left') => {
-    const isActive = sortKey === key;
-    
-    return (
-      <button
-        onClick={() => onSort(key)}
-        className={`
-          flex items-center gap-1 w-full h-full font-medium uppercase tracking-wide
-          hover:text-foreground transition-colors
-          ${isActive ? 'text-foreground' : 'text-muted-foreground'}
-          ${align === 'right' ? 'justify-end' : ''}
-          ${isCompact ? 'text-[10px]' : 'text-xs'}
-        `}
-        title={`Sort by ${label}`}
-      >
-        <span className="truncate">{label}</span>
-        {isActive && <SortIcon className={isCompact ? 'h-2.5 w-2.5 flex-shrink-0' : 'h-3 w-3 flex-shrink-0'} />}
-      </button>
-    );
-  };
-
   // Same layout for all devices
   return (
     <div 
@@ -170,100 +320,96 @@ export function TableHeader({
       className={`sticky top-0 z-20 border-b border-border bg-card backdrop-blur-sm text-muted-foreground ${TRACK_GRID_CLASSES} ${isCompact ? 'h-8 ' + TRACK_GRID_CLASSES_COMPACT : 'h-10 ' + TRACK_GRID_CLASSES_NORMAL}`}
       style={gridStyle}
     >
-      {/* Drag handle column - for touch devices */}
-      {showDragHandle && (
-        <div className="flex items-center justify-center" title="Drag handle">
-          <GripVertical className={isCompact ? 'h-2.5 w-2.5' : 'h-3 w-3'} />
-        </div>
-      )}
+      {prefixIconColumns.map((column) => (
+        <HeaderIconCell key={column.key} icon={column.icon} title={column.title} iconClass={iconClass} />
+      ))}
 
-      {/* Match status column - for Last.fm import */}
-      {showMatchStatusColumn && (
-        <div className="flex items-center justify-center" title="Match status">
-          <Radio className={isCompact ? 'h-2.5 w-2.5' : 'h-3 w-3'} />
-        </div>
-      )}
-
-      {/* Custom add column - for Last.fm import */}
-      {showCustomAddColumn && (
-        <div className="flex items-center justify-center" title="Add to marked insertion points">
-          <Plus className={isCompact ? 'h-2.5 w-2.5' : 'h-3 w-3'} />
-        </div>
-      )}
-
-      {/* Contributor column - only for collaborative playlists */}
-      {isCollaborative && (
-        <div className="flex items-center justify-center" title="Added by">
-          <Users className={isCompact ? 'h-2.5 w-2.5' : 'h-3 w-3'} />
-        </div>
-      )}
-
-      {/* Play button column - only when player is visible */}
-      {shouldShowPlayButton && (
-        <div className="flex items-center justify-center" title="Play">
-          <Play className={isCompact ? 'h-2.5 w-2.5' : 'h-3 w-3'} />
-        </div>
-      )}
-
-      {/* Add to marked column - only when markers exist and not using custom add */}
-      {showStandardAddColumn && (
-        <div className="flex items-center justify-center" title="Add to marked insertion points">
-          <Plus className={isCompact ? 'h-2.5 w-2.5' : 'h-3 w-3'} />
-        </div>
-      )}
-
-      {/* Liked status column */}
-      {showLikedColumn ? (
-        <div className="flex items-center justify-center" title="Liked status">
-          <Heart className={isCompact ? 'h-2.5 w-2.5' : 'h-3 w-3'} />
-        </div>
-      ) : (
-        <div />
-      )}
+      <LikedStatusHeader showLikedColumn={showLikedColumn} iconClass={iconClass} />
 
       {/* Position */}
-      <div>{renderColumnHeader('#', 'position')}</div>
+      <div>
+        <SortableLabelButton
+          label="#"
+          keyName="position"
+          sortKey={sortKey}
+          sortDirection={sortDirection}
+          onSort={onSort}
+          isCompact={isCompact}
+        />
+      </div>
 
       {/* Title */}
-      <div>{renderColumnHeader('Title', 'name')}</div>
+      <div>
+        <SortableLabelButton
+          label="Title"
+          keyName="name"
+          sortKey={sortKey}
+          sortDirection={sortDirection}
+          onSort={onSort}
+          isCompact={isCompact}
+        />
+      </div>
 
       {/* Artist */}
-      <div>{renderColumnHeader('Artist', 'artist')}</div>
+      <div>
+        <SortableLabelButton
+          label="Artist"
+          keyName="artist"
+          sortKey={sortKey}
+          sortDirection={sortDirection}
+          onSort={onSort}
+          isCompact={isCompact}
+        />
+      </div>
 
       {/* Album */}
-      <div>{renderColumnHeader('Album', 'album')}</div>
+      <div>
+        <SortableLabelButton
+          label="Album"
+          keyName="album"
+          sortKey={sortKey}
+          sortDirection={sortDirection}
+          onSort={onSort}
+          isCompact={isCompact}
+        />
+      </div>
 
       {/* Year - sortable by release date */}
-      <div className="flex items-center justify-center" title="Release Year">
-        <button
-          onClick={() => onSort('year')}
-          className={`flex items-center gap-0.5 transition-colors hover:text-foreground ${sortKey === 'year' ? 'text-foreground' : 'text-muted-foreground'}`}
-        >
-          <Calendar className={isCompact ? 'h-2.5 w-2.5' : 'h-3 w-3'} />
-          {sortKey === 'year' && <SortIcon className={isCompact ? 'h-2 w-2' : 'h-2.5 w-2.5'} />}
-        </button>
-      </div>
+      <SortableIconButton
+        icon={Calendar}
+        keyName="year"
+        sortKey={sortKey}
+        sortDirection={sortDirection}
+        onSort={onSort}
+        isCompact={isCompact}
+        title="Release Year"
+      />
 
       {/* Popularity */}
-      <div className="flex items-center justify-center" title="Popularity">
-        <button
-          onClick={() => onSort('popularity')}
-          className={`flex items-center gap-0.5 transition-colors hover:text-foreground ${sortKey === 'popularity' ? 'text-foreground' : 'text-muted-foreground'}`}
-        >
-          <TrendingUp className={isCompact ? 'h-2.5 w-2.5' : 'h-3 w-3'} />
-          {sortKey === 'popularity' && <SortIcon className={isCompact ? 'h-2 w-2' : 'h-2.5 w-2.5'} />}
-        </button>
-      </div>
+      <SortableIconButton
+        icon={TrendingUp}
+        keyName="popularity"
+        sortKey={sortKey}
+        sortDirection={sortDirection}
+        onSort={onSort}
+        isCompact={isCompact}
+        title="Popularity"
+      />
 
       {/* Duration - right aligned */}
-      <div className="text-right">{renderColumnHeader('Time', 'duration', 'right')}</div>
+      <div className="text-right">
+        <SortableLabelButton
+          label="Time"
+          keyName="duration"
+          sortKey={sortKey}
+          sortDirection={sortDirection}
+          onSort={onSort}
+          isCompact={isCompact}
+          align="right"
+        />
+      </div>
 
-      {/* Cumulative duration */}
-      {showCumulativeTime && (
-        <div className="flex items-center justify-end" title="Cumulative time from start">
-          <Timer className={isCompact ? 'h-2.5 w-2.5' : 'h-3 w-3'} />
-        </div>
-      )}
+      <CumulativeTimeHeader showCumulativeTime={showCumulativeTime} iconClass={iconClass} />
     </div>
   );
 }

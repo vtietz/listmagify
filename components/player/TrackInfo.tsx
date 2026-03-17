@@ -23,31 +23,129 @@ interface TrackInfoProps {
     durationMs: number;
   };
   isMobileDevice: boolean;
-  onTrackClick?: (trackId: string) => void;
+  onTrackClick?: ((trackId: string) => void) | undefined;
 }
 
-export function TrackInfo({ track, isMobileDevice, onTrackClick }: TrackInfoProps) {
-  const isAutoScrollEnabled = useHydratedAutoScrollText();
-  
-  const handleTrackClick = () => {
-    if (track.id && onTrackClick) {
-      onTrackClick(track.id);
-    }
-  };
-  
-  // Convert to Track format for drag data
-  const trackForDrag: Track | null = track ? {
+function getTrackContainerClassName(isDraggable: boolean, isDragging: boolean, hasTrackId: boolean): string {
+  return cn(
+    'flex items-center gap-3 min-w-0 group/track-info rounded-md p-1 -m-1 transition-colors',
+    isDraggable && 'cursor-grab hover:bg-accent/50 touch-action-none',
+    isDragging && 'opacity-50 cursor-grabbing',
+    !hasTrackId && 'cursor-default'
+  );
+}
+
+function getDragTitle(trackId: string | null, isDraggable: boolean): string {
+  if (!trackId) {
+    return 'Local files cannot be added to playlists';
+  }
+
+  return isDraggable ? 'Drag to add to a playlist' : '';
+}
+
+function toTrackForDrag(track: TrackInfoProps['track']): Track {
+  return {
     id: track.id,
     uri: track.uri,
     name: track.name,
     artists: track.artists,
-    artistObjects: track.artists.map(name => ({ id: null, name })),
+    artistObjects: track.artists.map((name) => ({ id: null, name })),
     durationMs: track.durationMs,
-    album: track.albumName ? { 
-      name: track.albumName, 
-      image: track.albumImage ? { url: track.albumImage } : null 
-    } : null,
-  } : null;
+    album: track.albumName
+      ? {
+          name: track.albumName,
+          image: track.albumImage ? { url: track.albumImage } : null,
+        }
+      : null,
+  };
+}
+
+function TrackDragHandle({ visible }: { visible: boolean }) {
+  if (!visible) {
+    return null;
+  }
+
+  return (
+    <GripVertical className="h-5 w-5 text-muted-foreground/70 group-hover/track-info:text-muted-foreground transition-colors shrink-0" />
+  );
+}
+
+function TrackAlbumImage({
+  albumImage,
+  albumName,
+}: {
+  albumImage?: string | null | undefined;
+  albumName?: string | null | undefined;
+}) {
+  if (!albumImage) {
+    return null;
+  }
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={albumImage}
+      alt={albumName ?? 'Album art'}
+      className="h-14 w-14 rounded object-contain bg-black/10 shadow shrink-0 hover:opacity-80 transition-opacity"
+    />
+  );
+}
+
+function TrackMetadata({
+  track,
+  isAutoScrollEnabled,
+  isClickable,
+  onClick,
+}: {
+  track: TrackInfoProps['track'];
+  isAutoScrollEnabled: boolean;
+  isClickable: boolean;
+  onClick: () => void;
+}) {
+  const artistLabel = track.artists.join(', ');
+  const detailsLabel = track.albumName ? `${artistLabel} • ${track.albumName}` : artistLabel;
+
+  return (
+    <div
+      className={cn('flex items-center gap-3 min-w-0 flex-1', isClickable && 'cursor-pointer')}
+      onClick={onClick}
+      title={isClickable ? 'Click to scroll to this track in playlists' : undefined}
+    >
+      <TrackAlbumImage albumImage={track.albumImage} albumName={track.albumName} />
+      <div className="min-w-0 flex-1">
+        <MarqueeText
+          isAutoScrollEnabled={isAutoScrollEnabled}
+          className="text-sm font-medium hover:opacity-80 transition-opacity"
+          title={track.name}
+        >
+          {track.name}
+        </MarqueeText>
+        <MarqueeText
+          isAutoScrollEnabled={isAutoScrollEnabled}
+          className="text-xs text-muted-foreground hover:opacity-80 transition-opacity"
+          title={detailsLabel}
+        >
+          {artistLabel} {track.albumName && `• ${track.albumName}`}
+        </MarqueeText>
+      </div>
+    </div>
+  );
+}
+
+export function TrackInfo({ track, isMobileDevice, onTrackClick }: TrackInfoProps) {
+  const isAutoScrollEnabled = useHydratedAutoScrollText();
+
+  const hasTrackId = Boolean(track.id);
+  const isDraggable = hasTrackId && !isMobileDevice;
+  const isClickable = Boolean(track.id && onTrackClick);
+
+  const handleTrackClick = () => {
+    if (!track.id || !onTrackClick) {
+      return;
+    }
+
+      onTrackClick(track.id);
+  };
 
   const {
     attributes,
@@ -56,65 +154,33 @@ export function TrackInfo({ track, isMobileDevice, onTrackClick }: TrackInfoProp
     isDragging,
   } = useDraggable({
     id: `player-track-${track.id || track.uri}`,
-    disabled: !track.id || isMobileDevice,
+    disabled: !isDraggable,
     data: {
       type: 'track',
       trackId: track.id,
-      track: trackForDrag,
+      track: toTrackForDrag(track),
       panelId: 'player',
       playlistId: undefined,
       position: 0,
     },
   });
 
+  const dragBindings = isDraggable ? { ...attributes, ...listeners } : {};
+
   return (
     <div 
       ref={setNodeRef}
-      className={cn(
-        "flex items-center gap-3 min-w-0 group/track-info rounded-md p-1 -m-1 transition-colors",
-        track.id && !isMobileDevice && "cursor-grab hover:bg-accent/50 touch-action-none",
-        isDragging && "opacity-50 cursor-grabbing",
-        !track.id && "cursor-default"
-      )}
-      {...(track.id && !isMobileDevice ? { ...attributes, ...listeners } : {})}
-      title={track.id && !isMobileDevice ? "Drag to add to a playlist" : track.id ? "" : "Local files cannot be added to playlists"}
+      className={getTrackContainerClassName(isDraggable, isDragging, hasTrackId)}
+      {...dragBindings}
+      title={getDragTitle(track.id, isDraggable)}
     >
-      {track.id && !isMobileDevice && (
-        <GripVertical className="h-5 w-5 text-muted-foreground/70 group-hover/track-info:text-muted-foreground transition-colors shrink-0" />
-      )}
-      <div
-        className={cn(
-          "flex items-center gap-3 min-w-0 flex-1",
-          track.id && onTrackClick && "cursor-pointer"
-        )}
+      <TrackDragHandle visible={isDraggable} />
+      <TrackMetadata
+        track={track}
+        isAutoScrollEnabled={isAutoScrollEnabled}
+        isClickable={isClickable}
         onClick={handleTrackClick}
-        title={track.id && onTrackClick ? "Click to scroll to this track in playlists" : undefined}
-      >
-        {track.albumImage && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={track.albumImage}
-            alt={track.albumName ?? 'Album art'}
-            className="h-14 w-14 rounded object-contain bg-black/10 shadow shrink-0 hover:opacity-80 transition-opacity"
-          />
-        )}
-        <div className="min-w-0 flex-1">
-          <MarqueeText
-            isAutoScrollEnabled={isAutoScrollEnabled}
-            className="text-sm font-medium hover:opacity-80 transition-opacity"
-            title={track.name}
-          >
-            {track.name}
-          </MarqueeText>
-          <MarqueeText
-            isAutoScrollEnabled={isAutoScrollEnabled}
-            className="text-xs text-muted-foreground hover:opacity-80 transition-opacity"
-            title={`${track.artists.join(', ')}${track.albumName ? ` • ${track.albumName}` : ''}`}
-          >
-            {track.artists.join(', ')} {track.albumName && `• ${track.albumName}`}
-          </MarqueeText>
-        </div>
-      </div>
+      />
     </div>
   );
 }
