@@ -1,6 +1,6 @@
 'use client';
 
-import React, { memo, useMemo } from 'react';
+import React, { memo } from 'react';
 import type { DraggableAttributes } from '@dnd-kit/core';
 import type { SyntheticListenerMap } from '@dnd-kit/core/dist/hooks/utilities';
 import { useInsertionMarkerToggle } from '@/hooks/useInsertionMarkerToggle';
@@ -38,58 +38,98 @@ function SelectionIndicator({ isSelected }: { isSelected: boolean }) {
   );
 }
 
-function TrackRowInnerComponent({
+const TRACK_ROW_INNER_DEFAULTS = {
+  dndMode: 'copy' as const,
+  locked: false,
+  isDragSourceSelected: false,
+  showLikedColumn: true,
+  isLiked: false,
+  isPlaying: false,
+  isPlaybackLoading: false,
+  isPlayingFromThisPanel: true,
+  hasInsertionMarker: false,
+  hasInsertionMarkerAfter: false,
+  isCollaborative: false,
+  cumulativeDurationMs: 0,
+  crossesHourBoundary: false,
+  hourNumber: 0,
+  allowInsertionMarkerToggle: true,
+  showMatchStatusColumn: false,
+  showCustomAddColumn: false,
+  showScrobbleDateColumn: false,
+  showCumulativeTime: true,
+  dragType: 'track' as 'track' | 'lastfm-track',
+  isDuplicate: false,
+  isSoftDuplicate: false,
+  isOtherInstanceSelected: false,
+  isMultiSelect: false,
+  selectedCount: 1,
+};
+
+type TrackRowInnerResolvedProps = Omit<TrackRowInnerProps, keyof typeof TRACK_ROW_INNER_DEFAULTS>
+  & typeof TRACK_ROW_INNER_DEFAULTS;
+
+function resolveTrackRowInnerProps(props: TrackRowInnerProps): TrackRowInnerResolvedProps {
+  return {
+    ...TRACK_ROW_INNER_DEFAULTS,
+    ...props,
+  } as TrackRowInnerResolvedProps;
+}
+
+function TrackRowInnerComponent(props: TrackRowInnerProps) {
+  const {
   track,
   index,
   selectionKey,
   isSelected,
   isEditable,
-  locked = false,
+  locked,
   onSelect,
   onClick,
   panelId,
   playlistId,
-  dndMode = 'copy',
-  isDragSourceSelected = false,
-  showLikedColumn = true,
-  isLiked = false,
+  dndMode,
+  isDragSourceSelected,
+  showLikedColumn,
+  isLiked,
   onToggleLiked,
-  isPlaying = false,
-  isPlaybackLoading = false,
+  isPlaying,
+  isPlaybackLoading,
   onPlay,
   onPause,
-  isPlayingFromThisPanel = true,
-  hasInsertionMarker = false,
-  hasInsertionMarkerAfter = false,
-  isCollaborative = false,
+  isPlayingFromThisPanel,
+  hasInsertionMarker,
+  hasInsertionMarkerAfter,
+  isCollaborative,
   getProfile,
-  cumulativeDurationMs = 0,
-  crossesHourBoundary = false,
-  hourNumber = 0,
-  allowInsertionMarkerToggle = true,
+  cumulativeDurationMs,
+  crossesHourBoundary,
+  hourNumber,
+  allowInsertionMarkerToggle,
   renderPrefixColumns,
-  showMatchStatusColumn = false,
-  showCustomAddColumn = false,
+  showMatchStatusColumn,
+  showCustomAddColumn,
   scrobbleTimestamp,
-  showScrobbleDateColumn = false,
-  showCumulativeTime = true,
-  dragType = 'track',
+  showScrobbleDateColumn,
+  showCumulativeTime,
+  dragType,
   matchedTrack,
   lastfmDto,
   selectedMatchedUris,
   onDragStart,
-  isDuplicate = false,
-  isSoftDuplicate = false,
-  isOtherInstanceSelected = false,
+  isDuplicate,
+  isSoftDuplicate,
+  isOtherInstanceSelected,
   compareColor,
   reorderActions,
   markerActions,
   contextTrackActions,
-  isMultiSelect = false,
-  selectedCount = 1,
+  isMultiSelect,
+  selectedCount,
   selectedTracks,
   ctx,
-}: TrackRowInnerProps) {
+  } = resolveTrackRowInnerProps(props);
+
   const {
     isCompact,
     isAutoScrollEnabled,
@@ -217,33 +257,18 @@ function TrackRowInnerComponent({
     reorderActions,
   });
 
-  const className = useMemo(
-    () =>
-      buildRowClassNames({
-        compareColor,
-        isSelected,
-        isAnyDuplicate,
-        isDuplicate,
-        isSoftDuplicate,
-        isOtherInstanceSelected,
-        isCompact,
-        isDragging,
-        isDragSourceSelected,
-        dndMode,
-      }),
-    [
-      compareColor,
-      isSelected,
-      isAnyDuplicate,
-      isDuplicate,
-      isSoftDuplicate,
-      isOtherInstanceSelected,
-      isCompact,
-      isDragging,
-      isDragSourceSelected,
-      dndMode,
-    ],
-  );
+  const className = buildRowClassNames({
+    compareColor,
+    isSelected,
+    isAnyDuplicate,
+    isDuplicate,
+    isSoftDuplicate,
+    isOtherInstanceSelected,
+    isCompact,
+    isDragging,
+    isDragSourceSelected,
+    dndMode,
+  });
 
   const title = buildTitle(locked, dndMode);
 

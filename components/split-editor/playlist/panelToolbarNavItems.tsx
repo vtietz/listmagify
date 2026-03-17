@@ -98,175 +98,203 @@ function addPlaylistNavItems(items: NavItem[], params: PanelToolbarNavItemsParam
   }
 }
 
+function canEditTracks(params: PanelToolbarNavItemsParams): boolean {
+  return Boolean(params.playlistId && params.isEditable && !params.locked);
+}
+
+function addDragModeNavItems(items: NavItem[], params: PanelToolbarNavItemsParams): void {
+  if (!canEditTracks(params) || params.panelCount <= 1) {
+    return;
+  }
+
+  items.push({
+    id: 'move-mode',
+    icon: <Move className="h-4 w-4" />,
+    label: 'Move between panels',
+    onClick: () => {
+      if (params.dndMode !== 'move') {
+        params.onDndModeToggle();
+      }
+    },
+    title: 'When dragging tracks to another panel, move them (removes from source)',
+    group: 'drag-mode',
+    showCheckmark: true,
+    isActive: params.dndMode === 'move',
+  });
+
+  items.push({
+    id: 'copy-mode',
+    icon: <Copy className="h-4 w-4" />,
+    label: 'Copy between panels',
+    onClick: () => {
+      if (params.dndMode !== 'copy') {
+        params.onDndModeToggle();
+      }
+    },
+    title: 'When dragging tracks to another panel, duplicate them (keeps in source)',
+    group: 'drag-mode',
+    showCheckmark: true,
+    isActive: params.dndMode === 'copy',
+  });
+}
+
+function addDeleteDuplicatesNavItem(items: NavItem[], params: PanelToolbarNavItemsParams): void {
+  if (!canEditTracks(params) || !params.hasDuplicates || !params.onDeleteDuplicates) {
+    return;
+  }
+
+  items.push({
+    id: 'delete-duplicates',
+    icon: params.isDeletingDuplicates
+      ? <Loader2 className="h-4 w-4" />
+      : <Eraser className="h-4 w-4" />,
+    label: params.isDeletingDuplicates ? 'Removing duplicates...' : 'Delete duplicates',
+    onClick: params.onDeleteDuplicates,
+    disabled: params.isDeletingDuplicates,
+    loading: params.isDeletingDuplicates,
+    title: 'Delete duplicates',
+    group: 'tracks',
+  });
+}
+
+function addSaveOrderNavItem(items: NavItem[], params: PanelToolbarNavItemsParams): void {
+  if (!canEditTracks(params) || !params.isSorted || !params.onSaveCurrentOrder) {
+    return;
+  }
+
+  items.push({
+    id: 'save-order',
+    icon: params.isSavingOrder ? <Loader2 className="h-4 w-4" /> : <Save className="h-4 w-4" />,
+    label: 'Save current order',
+    onClick: params.onSaveCurrentOrder,
+    disabled: params.isSavingOrder,
+    loading: params.isSavingOrder,
+    title: 'Save current order',
+    group: 'tracks',
+  });
+}
+
+function addClearMarkersNavItem(items: NavItem[], params: PanelToolbarNavItemsParams): void {
+  if (!canEditTracks(params) || params.insertionMarkerCount <= 0 || !params.onClearInsertionMarkers) {
+    return;
+  }
+
+  const markerCount = params.insertionMarkerCount;
+  const markerLabel = `Clear ${markerCount} marker${markerCount > 1 ? 's' : ''}`;
+  const markerTitle = `Clear ${markerCount} insertion marker${markerCount > 1 ? 's' : ''}`;
+
+  items.push({
+    id: 'clear-markers',
+    icon: <MapPinOff className="h-4 w-4" />,
+    label: markerLabel,
+    onClick: params.onClearInsertionMarkers,
+    variant: 'warning',
+    badge: (
+      <span className="text-xs bg-orange-500 text-white px-1.5 py-0.5 rounded-full">
+        {markerCount}
+      </span>
+    ),
+    title: markerTitle,
+    group: 'tracks',
+  });
+}
+
 function addTrackNavItems(items: NavItem[], params: PanelToolbarNavItemsParams): void {
-  const {
-    playlistId,
-    isEditable,
-    locked,
-    panelCount,
-    dndMode,
-    onDndModeToggle,
-    hasDuplicates,
-    onDeleteDuplicates,
-    isDeletingDuplicates,
-    isSorted,
-    onSaveCurrentOrder,
-    isSavingOrder,
-    insertionMarkerCount,
-    onClearInsertionMarkers,
-  } = params;
+  addDragModeNavItems(items, params);
+  addDeleteDuplicatesNavItem(items, params);
+  addSaveOrderNavItem(items, params);
+  addClearMarkersNavItem(items, params);
+}
 
-  if (playlistId && isEditable && !locked && panelCount > 1) {
-    items.push({
-      id: 'move-mode',
-      icon: <Move className="h-4 w-4" />,
-      label: 'Move between panels',
-      onClick: () => {
-        if (dndMode !== 'move') {
-          onDndModeToggle();
-        }
-      },
-      title: 'When dragging tracks to another panel, move them (removes from source)',
-      group: 'drag-mode',
-      showCheckmark: true,
-      isActive: dndMode === 'move',
-    });
-
-    items.push({
-      id: 'copy-mode',
-      icon: <Copy className="h-4 w-4" />,
-      label: 'Copy between panels',
-      onClick: () => {
-        if (dndMode !== 'copy') {
-          onDndModeToggle();
-        }
-      },
-      title: 'When dragging tracks to another panel, duplicate them (keeps in source)',
-      group: 'drag-mode',
-      showCheckmark: true,
-      isActive: dndMode === 'copy',
-    });
+function buildClosePanelLabel(isPhone: boolean, isLastPanel: boolean): string {
+  if (isPhone) {
+    return 'Hide panel';
   }
 
-  if (playlistId && isEditable && !locked && hasDuplicates && onDeleteDuplicates) {
-    items.push({
-      id: 'delete-duplicates',
-      icon: isDeletingDuplicates
-        ? <Loader2 className="h-4 w-4" />
-        : <Eraser className="h-4 w-4" />,
-      label: isDeletingDuplicates ? 'Removing duplicates...' : 'Delete duplicates',
-      onClick: onDeleteDuplicates,
-      disabled: isDeletingDuplicates,
-      loading: isDeletingDuplicates,
-      title: 'Delete duplicates',
-      group: 'tracks',
-    });
+  if (isLastPanel) {
+    return 'Close panel (last)';
   }
 
-  if (playlistId && isEditable && !locked && isSorted && onSaveCurrentOrder) {
-    items.push({
-      id: 'save-order',
-      icon: isSavingOrder ? <Loader2 className="h-4 w-4" /> : <Save className="h-4 w-4" />,
-      label: 'Save current order',
-      onClick: onSaveCurrentOrder,
-      disabled: isSavingOrder,
-      loading: isSavingOrder,
-      title: 'Save current order',
-      group: 'tracks',
-    });
+  return 'Close panel';
+}
+
+function buildClosePanelTitle(isPhone: boolean, isLastPanel: boolean): string {
+  if (isPhone) {
+    return 'Hide panel';
   }
 
-  if (playlistId && isEditable && !locked && insertionMarkerCount > 0 && onClearInsertionMarkers) {
-    items.push({
-      id: 'clear-markers',
-      icon: <MapPinOff className="h-4 w-4" />,
-      label: `Clear ${insertionMarkerCount} marker${insertionMarkerCount > 1 ? 's' : ''}`,
-      onClick: onClearInsertionMarkers,
-      variant: 'warning',
-      badge: (
-        <span className="text-xs bg-orange-500 text-white px-1.5 py-0.5 rounded-full">
-          {insertionMarkerCount}
-        </span>
-      ),
-      title: `Clear ${insertionMarkerCount} insertion marker${insertionMarkerCount > 1 ? 's' : ''}`,
-      group: 'tracks',
-    });
+  if (isLastPanel) {
+    return 'Cannot close last panel';
   }
+
+  return 'Close panel';
+}
+
+function addSplitNavItems(items: NavItem[], params: PanelToolbarNavItemsParams): void {
+  if (!params.showSplitCommands) {
+    return;
+  }
+
+  items.push({
+    id: 'split-horizontal',
+    icon: <SplitSquareHorizontal className="h-4 w-4" />,
+    label: params.canSplitHorizontal ? 'Split horizontal' : 'Split horizontal (too narrow)',
+    onClick: params.onSplitHorizontal,
+    disabled: !params.canSplitHorizontal,
+    title: params.canSplitHorizontal ? 'Split horizontal' : 'Panel too narrow to split',
+    group: 'panel',
+  });
+
+  items.push({
+    id: 'split-vertical',
+    icon: <SplitSquareVertical className="h-4 w-4" />,
+    label: 'Split vertical',
+    onClick: params.onSplitVertical,
+    title: 'Split vertical',
+    group: 'panel',
+  });
+}
+
+function addClosePanelNavItem(items: NavItem[], params: PanelToolbarNavItemsParams): void {
+  items.push({
+    id: 'close',
+    icon: <X className="h-4 w-4" />,
+    label: buildClosePanelLabel(params.isPhone, params.isLastPanel),
+    onClick: params.onClose,
+    disabled: params.disableClose,
+    title: buildClosePanelTitle(params.isPhone, params.isLastPanel),
+    group: 'close',
+  });
 }
 
 function addPanelNavItems(items: NavItem[], params: PanelToolbarNavItemsParams): void {
-  const {
-    autoScrollEnabled,
-    toggleAutoScroll,
-    playlistId,
-    locked,
-    onLockToggle,
-    isEditable,
-    showSplitCommands,
-    canSplitHorizontal,
-    onSplitHorizontal,
-    onSplitVertical,
-    isPhone,
-    isLastPanel,
-    onClose,
-    disableClose,
-  } = params;
-
   items.push({
     id: 'auto-scroll',
     icon: <ArrowDownToLine className="h-4 w-4" />,
-    label: autoScrollEnabled ? 'Auto-scroll: On' : 'Auto-scroll: Off',
-    onClick: toggleAutoScroll,
+    label: params.autoScrollEnabled ? 'Auto-scroll: On' : 'Auto-scroll: Off',
+    onClick: params.toggleAutoScroll,
     showCheckmark: true,
-    isActive: autoScrollEnabled,
-    title: autoScrollEnabled
+    isActive: params.autoScrollEnabled,
+    title: params.autoScrollEnabled
       ? 'Auto-scroll during playback is enabled - click to disable'
       : 'Enable auto-scroll to follow playing track',
     group: 'panel',
   });
 
-  if (playlistId) {
+  if (params.playlistId) {
     items.push({
       id: 'lock',
-      icon: locked ? <Lock className="h-4 w-4" /> : <LockOpen className="h-4 w-4" />,
-      label: locked ? 'Unlock panel' : 'Lock panel',
-      onClick: onLockToggle,
-      disabled: !isEditable,
-      title: locked ? 'Unlock panel' : 'Lock panel',
+      icon: params.locked ? <Lock className="h-4 w-4" /> : <LockOpen className="h-4 w-4" />,
+      label: params.locked ? 'Unlock panel' : 'Lock panel',
+      onClick: params.onLockToggle,
+      disabled: !params.isEditable,
+      title: params.locked ? 'Unlock panel' : 'Lock panel',
       group: 'panel',
     });
   }
 
-  if (showSplitCommands) {
-    items.push({
-      id: 'split-horizontal',
-      icon: <SplitSquareHorizontal className="h-4 w-4" />,
-      label: canSplitHorizontal ? 'Split horizontal' : 'Split horizontal (too narrow)',
-      onClick: onSplitHorizontal,
-      disabled: !canSplitHorizontal,
-      title: canSplitHorizontal ? 'Split horizontal' : 'Panel too narrow to split',
-      group: 'panel',
-    });
-
-    items.push({
-      id: 'split-vertical',
-      icon: <SplitSquareVertical className="h-4 w-4" />,
-      label: 'Split vertical',
-      onClick: onSplitVertical,
-      title: 'Split vertical',
-      group: 'panel',
-    });
-  }
-
-  items.push({
-    id: 'close',
-    icon: <X className="h-4 w-4" />,
-    label: isPhone ? 'Hide panel' : (isLastPanel ? 'Close panel (last)' : 'Close panel'),
-    onClick: onClose,
-    disabled: disableClose,
-    title: isPhone ? 'Hide panel' : (isLastPanel ? 'Cannot close last panel' : 'Close panel'),
-    group: 'close',
-  });
+  addSplitNavItems(items, params);
+  addClosePanelNavItem(items, params);
 }
 
 export function buildPanelToolbarNavItems(params: PanelToolbarNavItemsParams): NavItem[] {
