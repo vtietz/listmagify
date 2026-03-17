@@ -9,7 +9,7 @@
 
 import { useMemo, useCallback, useState, useRef, useEffect } from 'react';
 import type React from 'react';
-import { Sparkles, X, Loader2, ChevronUp, ChevronDown, Search } from 'lucide-react';
+import { Sparkles, Loader2, ChevronUp, ChevronDown, Search } from 'lucide-react';
 import { useSeedRecommendations, useDismissRecommendation } from '@/hooks/useRecommendations';
 import { useSavedTracksIndex } from '@/hooks/useSavedTracksIndex';
 import { useTrackPlayback } from '@/hooks/useTrackPlayback';
@@ -17,14 +17,12 @@ import { useHydratedCompactMode } from '@/hooks/useCompactModeStore';
 import { useDeviceType } from '@/hooks/useDeviceType';
 import { useCompareModeStore, getTrackCompareColor } from '@/hooks/useCompareModeStore';
 import { useContextMenuStore } from '@/hooks/useContextMenuStore';
-import { TrackRow } from '../TrackRow';
 import { TrackContextMenu } from '../TrackContextMenu';
 import { TRACK_ROW_HEIGHT, TRACK_ROW_HEIGHT_COMPACT } from '../constants';
-import { makeCompositeId } from '@/lib/dnd/id';
-import { cn, matchesAllWords } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
+import { matchesAllWords } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import type { Track } from '@/lib/music-provider/types';
+import { RecommendationsList } from './RecommendationsList';
 
 /** Virtual panel ID for recommendations (used in DnD composite IDs) */
 export const RECS_PANEL_ID = 'recs-panel';
@@ -111,6 +109,7 @@ interface ContentStateProps {
   isLoading: boolean;
   isError: boolean;
   recommendations: Array<{ trackId: string; score: number; rank: number; track?: Track }>;
+  panelId: string;
   hasMore: boolean;
   searchQuery: string;
   loadMoreTriggerRef: React.RefObject<HTMLDivElement | null>;
@@ -135,6 +134,7 @@ function ContentState({
   isLoading,
   isError,
   recommendations,
+  panelId,
   hasMore,
   searchQuery,
   loadMoreTriggerRef,
@@ -184,6 +184,7 @@ function ContentState({
           <RecommendationsList
             recommendations={recommendations}
             rowHeight={rowHeight}
+            panelId={panelId}
             isLiked={isLiked}
             onToggleLiked={onToggleLiked}
             onDismiss={onDismiss}
@@ -451,6 +452,7 @@ export function RecommendationsPanel({
         isLoading={isLoading}
         isError={isError}
         recommendations={recommendations}
+        panelId={RECS_PANEL_ID}
         hasMore={hasMore}
         searchQuery={searchQuery}
         loadMoreTriggerRef={loadMoreTriggerRef}
@@ -484,122 +486,6 @@ export function RecommendationsPanel({
           isEditable={false}
         />
       )}
-    </div>
-  );
-}
-
-interface RecommendationsListProps {
-  recommendations: Array<{ trackId: string; score: number; rank: number; track?: Track }>;
-  rowHeight: number;
-  isLiked: (trackId: string) => boolean;
-  onToggleLiked: (trackId: string, currentlyLiked: boolean) => void;
-  onDismiss: (trackId: string) => void;
-  isTrackPlaying: (trackId: string) => boolean;
-  isTrackLoading: (uri: string) => boolean;
-  onPlay: (trackUri: string) => void;
-  onPause: () => void;
-  onSelect: (_selectionKey: string, index: number, event: React.MouseEvent) => void;
-  onClick: (_selectionKey: string, index: number) => void;
-  getCompareColorForTrack: (trackUri: string) => string;
-  recsSelection: number[];
-  getSelectedTracks: () => Track[];
-}
-
-function RecommendationsList({
-  recommendations,
-  rowHeight,
-  isLiked,
-  onToggleLiked,
-  onDismiss,
-  isTrackPlaying,
-  isTrackLoading,
-  onPlay,
-  onPause,
-  onSelect,
-  onClick,
-  getCompareColorForTrack,
-  recsSelection,
-  getSelectedTracks,
-}: RecommendationsListProps) {
-  // Convert to Track[] for the list
-  const tracks = useMemo(() => 
-    recommendations
-      .filter(r => r.track)
-      .map((r, idx) => ({
-        ...r.track!,
-        position: idx,
-        score: r.score,
-      })),
-    [recommendations]
-  );
-
-  return (
-    <div className="h-full overflow-auto">
-      <div className="relative w-full">
-        {tracks.map((track, index) => {
-          const trackId = track.id || track.uri;
-          const compositeId = makeCompositeId(RECS_PANEL_ID, trackId, index);
-          const liked = track.id ? isLiked(track.id) : false;
-          
-          // Get selected tracks if current track is in selection
-          const isCurrentSelected = recsSelection.includes(index);
-          const selectedTracksForDrag = isCurrentSelected && recsSelection.length > 0 
-            ? getSelectedTracks() 
-            : undefined;
-
-          return (
-            <div 
-              key={compositeId}
-              style={{ height: rowHeight }}
-              className="relative group"
-            >
-              <TrackRow
-                track={track}
-                index={index}
-                selectionKey={compositeId}
-                isSelected={isCurrentSelected}
-                isEditable={false}
-                locked={false}
-                onSelect={onSelect}
-                onClick={onClick}
-                panelId={RECS_PANEL_ID}
-                dndMode="copy"
-                isDragSourceSelected={false}
-                showLikedColumn={true}
-                isLiked={liked}
-                onToggleLiked={onToggleLiked}
-                isPlaying={track.id ? isTrackPlaying(track.id) : false}
-                isPlaybackLoading={isTrackLoading(track.uri)}
-                onPlay={onPlay}
-                onPause={onPause}
-                compareColor={getCompareColorForTrack(track.uri)}
-                isMultiSelect={recsSelection.length > 1}
-                selectedCount={recsSelection.length}
-                selectedTracks={selectedTracksForDrag}
-              />
-              {/* Dismiss button overlay */}
-              <Button
-                variant="ghost"
-                size="icon"
-                className={cn(
-                  "absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6",
-                  "opacity-0 group-hover:opacity-100 transition-opacity",
-                  "text-muted-foreground hover:text-destructive"
-                )}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (track.id) {
-                    onDismiss(track.id);
-                  }
-                }}
-                title="Dismiss recommendation"
-              >
-                <X className="h-3 w-3" />
-              </Button>
-            </div>
-          );
-        })}
-      </div>
     </div>
   );
 }
