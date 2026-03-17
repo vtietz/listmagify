@@ -1,6 +1,6 @@
 'use client';
 
-import { memo, useMemo } from 'react';
+import React, { memo, useMemo } from 'react';
 import type { DraggableAttributes } from '@dnd-kit/core';
 import type { SyntheticListenerMap } from '@dnd-kit/core/dist/hooks/utilities';
 import { useInsertionMarkerToggle } from '@/hooks/useInsertionMarkerToggle';
@@ -12,6 +12,31 @@ import { useTrackRowHandlers } from './hooks/useTrackRowHandlers';
 import type { TrackRowInnerProps } from './types';
 import { RowWrapper } from './view/RowWrapper';
 import { TrackRowView } from './view/TrackRowView';
+
+function buildTitle(locked: boolean, dndMode: 'move' | 'copy'): string {
+  if (locked) return 'Panel is locked - unlock to enable dragging';
+  if (dndMode === 'copy') return 'Click and drag to copy (Ctrl to move)';
+  return 'Click and drag to move (Ctrl to copy)';
+}
+
+function buildMouseHandlers(
+  isDndActive: boolean,
+  handleMouseMove: React.MouseEventHandler,
+  handleMouseLeave: React.MouseEventHandler,
+): Record<string, React.MouseEventHandler> {
+  if (isDndActive) return {};
+  return { onMouseMove: handleMouseMove, onMouseLeave: handleMouseLeave };
+}
+
+function SelectionIndicator({ isSelected }: { isSelected: boolean }) {
+  if (!isSelected) return null;
+  return (
+    <div
+      className="absolute left-0 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-orange-500 z-10"
+      aria-hidden="true"
+    />
+  );
+}
 
 function TrackRowInnerComponent({
   track,
@@ -220,11 +245,7 @@ function TrackRowInnerComponent({
     ],
   );
 
-  const title = locked
-    ? 'Panel is locked - unlock to enable dragging'
-    : dndMode === 'copy'
-      ? 'Click and drag to copy (Ctrl to move)'
-      : 'Click and drag to move (Ctrl to copy)';
+  const title = buildTitle(locked, dndMode);
 
   return (
     <RowWrapper
@@ -240,17 +261,12 @@ function TrackRowInnerComponent({
       dragListeners={listeners as SyntheticListenerMap | undefined}
       onClick={handleClick}
       onMouseDown={handleMouseDown}
-      {...(!isDndActive ? { onMouseMove: handleMouseMove, onMouseLeave: handleMouseLeave } : {})}
+      {...buildMouseHandlers(isDndActive, handleMouseMove, handleMouseLeave)}
       onContextMenu={handleContextMenu}
       longPressTouchHandlers={longPressTouchHandlers}
       showHandle={showHandle}
     >
-      {isSelected && (
-        <div
-          className="absolute left-0 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-orange-500 z-10"
-          aria-hidden="true"
-        />
-      )}
+      <SelectionIndicator isSelected={isSelected} />
 
       <TrackRowView
         track={track}

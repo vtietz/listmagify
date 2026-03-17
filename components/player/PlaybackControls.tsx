@@ -13,15 +13,15 @@ import { formatDuration } from '@/lib/utils/format';
 interface PlaybackControlsProps {
   isPlaying: boolean;
   isLoading: boolean;
-  shuffleState?: boolean;
-  repeatState?: 'off' | 'track' | 'context';
+  shuffleState?: boolean | undefined;
+  repeatState?: 'off' | 'track' | 'context' | undefined;
   restrictions?: {
     togglingShuffle?: boolean;
     skippingPrev?: boolean;
     skippingNext?: boolean;
     togglingRepeat?: boolean;
     seeking?: boolean;
-  };
+  } | undefined;
   progressMs: number;
   durationMs: number;
   onTogglePlayPause: () => void;
@@ -30,6 +30,168 @@ interface PlaybackControlsProps {
   onToggleShuffle: () => void;
   onCycleRepeat: () => void;
   onSeek: (positionMs: number) => void;
+}
+
+type Restrictions = PlaybackControlsProps['restrictions'];
+
+function ShuffleButton({ shuffleState, restrictions, onToggleShuffle }: {
+  shuffleState?: boolean | undefined;
+  restrictions?: Restrictions;
+  onToggleShuffle: () => void;
+}) {
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      className={cn(
+        'h-8 w-8 shrink-0',
+        shuffleState && 'text-green-500',
+        restrictions?.togglingShuffle && 'opacity-40 cursor-not-allowed'
+      )}
+      onClick={onToggleShuffle}
+      disabled={restrictions?.togglingShuffle}
+      title={restrictions?.togglingShuffle ? 'Shuffle requires Premium' : 'Toggle shuffle'}
+    >
+      <Shuffle className="h-4 w-4" />
+    </Button>
+  );
+}
+
+function PrevButton({ isLoading, restrictions, onPrevious }: {
+  isLoading: boolean;
+  restrictions?: Restrictions;
+  onPrevious: () => void;
+}) {
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      className={cn(
+        'h-8 w-8 shrink-0',
+        restrictions?.skippingPrev && 'opacity-40 cursor-not-allowed'
+      )}
+      onClick={onPrevious}
+      disabled={isLoading || restrictions?.skippingPrev}
+      title={restrictions?.skippingPrev ? 'Skip back requires Premium' : 'Previous track'}
+    >
+      <SkipBack className="h-4 w-4" />
+    </Button>
+  );
+}
+
+function PlayPauseButton({ isPlaying, isLoading, onTogglePlayPause }: {
+  isPlaying: boolean;
+  isLoading: boolean;
+  onTogglePlayPause: () => void;
+}) {
+  return (
+    <Button
+      variant="default"
+      size="icon"
+      className="h-9 w-9 rounded-full shrink-0"
+      onClick={onTogglePlayPause}
+      disabled={isLoading}
+      title={isPlaying ? 'Pause' : 'Play'}
+    >
+      {isLoading ? (
+        <Loader2 className="h-5 w-5 animate-spin" />
+      ) : isPlaying ? (
+        <Pause className="h-5 w-5" />
+      ) : (
+        <Play className="h-5 w-5 ml-0.5" />
+      )}
+    </Button>
+  );
+}
+
+function NextButton({ isLoading, restrictions, onNext }: {
+  isLoading: boolean;
+  restrictions?: Restrictions;
+  onNext: () => void;
+}) {
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      className={cn(
+        'h-8 w-8 shrink-0',
+        restrictions?.skippingNext && 'opacity-40 cursor-not-allowed'
+      )}
+      onClick={onNext}
+      disabled={isLoading || restrictions?.skippingNext}
+      title={restrictions?.skippingNext ? 'Skip forward requires Premium' : 'Next track'}
+    >
+      <SkipForward className="h-4 w-4" />
+    </Button>
+  );
+}
+
+function RepeatButton({ repeatState, restrictions, onCycleRepeat }: {
+  repeatState?: 'off' | 'track' | 'context' | undefined;
+  restrictions?: Restrictions;
+  onCycleRepeat: () => void;
+}) {
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      className={cn(
+        'h-8 w-8 shrink-0',
+        repeatState !== 'off' && 'text-green-500',
+        restrictions?.togglingRepeat && 'opacity-40 cursor-not-allowed'
+      )}
+      onClick={onCycleRepeat}
+      disabled={restrictions?.togglingRepeat}
+      title={restrictions?.togglingRepeat ? 'Repeat requires Premium' : `Repeat: ${repeatState ?? 'off'}`}
+    >
+      {repeatState === 'track' ? (
+        <Repeat1 className="h-4 w-4" />
+      ) : (
+        <Repeat className="h-4 w-4" />
+      )}
+    </Button>
+  );
+}
+
+function ProgressBar({ progressMs, durationMs, restrictions, progressRef, onSeek }: {
+  progressMs: number;
+  durationMs: number;
+  restrictions?: Restrictions;
+  progressRef: React.RefObject<HTMLDivElement | null>;
+  onSeek: (e: React.MouseEvent<HTMLDivElement>) => void;
+}) {
+  const progressPercent = durationMs > 0 ? (progressMs / durationMs) * 100 : 0;
+  return (
+    <div className="w-full flex items-center gap-2 px-2">
+      <span className="text-xs text-muted-foreground w-10 text-right tabular-nums shrink-0">
+        {formatDuration(progressMs)}
+      </span>
+      <div
+        ref={progressRef}
+        className={cn(
+          "flex-1 h-1 bg-muted rounded-full group min-w-0",
+          restrictions?.seeking ? "cursor-default" : "cursor-pointer"
+        )}
+        onClick={onSeek}
+        title={restrictions?.seeking ? 'Seeking requires Premium' : undefined}
+      >
+        <div
+          className={cn(
+            "h-full bg-foreground rounded-full relative transition-colors",
+            !restrictions?.seeking && "group-hover:bg-green-500"
+          )}
+          style={{ width: `${progressPercent}%` }}
+        >
+          {!restrictions?.seeking && (
+            <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-foreground rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
+          )}
+        </div>
+      </div>
+      <span className="text-xs text-muted-foreground w-10 tabular-nums shrink-0">
+        {formatDuration(durationMs)}
+      </span>
+    </div>
+  );
 }
 
 export function PlaybackControls({
@@ -60,126 +222,22 @@ export function PlaybackControls({
     onSeek(newPosition);
   }, [durationMs, onSeek, restrictions?.seeking]);
 
-  const progressPercent = durationMs > 0 ? (progressMs / durationMs) * 100 : 0;
-
   return (
     <div className="flex flex-col items-center gap-1 min-w-0">
       <div className="flex items-center gap-2 flex-wrap justify-center">
-        {/* Shuffle */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className={cn(
-            'h-8 w-8 shrink-0',
-            shuffleState && 'text-green-500',
-            restrictions?.togglingShuffle && 'opacity-40 cursor-not-allowed'
-          )}
-          onClick={onToggleShuffle}
-          disabled={restrictions?.togglingShuffle}
-          title={restrictions?.togglingShuffle ? 'Shuffle requires Premium' : 'Toggle shuffle'}
-        >
-          <Shuffle className="h-4 w-4" />
-        </Button>
-
-        {/* Previous */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className={cn(
-            'h-8 w-8 shrink-0',
-            restrictions?.skippingPrev && 'opacity-40 cursor-not-allowed'
-          )}
-          onClick={onPrevious}
-          disabled={isLoading || restrictions?.skippingPrev}
-          title={restrictions?.skippingPrev ? 'Skip back requires Premium' : 'Previous track'}
-        >
-          <SkipBack className="h-4 w-4" />
-        </Button>
-
-        {/* Play/Pause */}
-        <Button
-          variant="default"
-          size="icon"
-          className="h-9 w-9 rounded-full shrink-0"
-          onClick={onTogglePlayPause}
-          disabled={isLoading}
-          title={isPlaying ? 'Pause' : 'Play'}
-        >
-          {isLoading ? (
-            <Loader2 className="h-5 w-5 animate-spin" />
-          ) : isPlaying ? (
-            <Pause className="h-5 w-5" />
-          ) : (
-            <Play className="h-5 w-5 ml-0.5" />
-          )}
-        </Button>
-
-        {/* Next */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className={cn(
-            'h-8 w-8 shrink-0',
-            restrictions?.skippingNext && 'opacity-40 cursor-not-allowed'
-          )}
-          onClick={onNext}
-          disabled={isLoading || restrictions?.skippingNext}
-          title={restrictions?.skippingNext ? 'Skip forward requires Premium' : 'Next track'}
-        >
-          <SkipForward className="h-4 w-4" />
-        </Button>
-
-        {/* Repeat */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className={cn(
-            'h-8 w-8 shrink-0',
-            repeatState !== 'off' && 'text-green-500',
-            restrictions?.togglingRepeat && 'opacity-40 cursor-not-allowed'
-          )}
-          onClick={onCycleRepeat}
-          disabled={restrictions?.togglingRepeat}
-          title={restrictions?.togglingRepeat ? 'Repeat requires Premium' : `Repeat: ${repeatState ?? 'off'}`}
-        >
-          {repeatState === 'track' ? (
-            <Repeat1 className="h-4 w-4" />
-          ) : (
-            <Repeat className="h-4 w-4" />
-          )}
-        </Button>
+        <ShuffleButton shuffleState={shuffleState} restrictions={restrictions} onToggleShuffle={onToggleShuffle} />
+        <PrevButton isLoading={isLoading} restrictions={restrictions} onPrevious={onPrevious} />
+        <PlayPauseButton isPlaying={isPlaying} isLoading={isLoading} onTogglePlayPause={onTogglePlayPause} />
+        <NextButton isLoading={isLoading} restrictions={restrictions} onNext={onNext} />
+        <RepeatButton repeatState={repeatState} restrictions={restrictions} onCycleRepeat={onCycleRepeat} />
       </div>
-
-      {/* Progress bar */}
-      <div className="w-full flex items-center gap-2 px-2">
-        <span className="text-xs text-muted-foreground w-10 text-right tabular-nums shrink-0">
-          {formatDuration(progressMs)}
-        </span>
-        <div
-          ref={progressRef}
-          className={cn(
-            "flex-1 h-1 bg-muted rounded-full group min-w-0",
-            restrictions?.seeking ? "cursor-default" : "cursor-pointer"
-          )}
-          onClick={handleSeek}
-          title={restrictions?.seeking ? 'Seeking requires Premium' : undefined}
-        >
-          <div
-            className={cn(
-              "h-full bg-foreground rounded-full relative transition-colors",
-              !restrictions?.seeking && "group-hover:bg-green-500"
-            )}
-            style={{ width: `${progressPercent}%` }}
-          >
-            {!restrictions?.seeking && (
-              <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-foreground rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
-            )}
-          </div>
-        </div>
-        <span className="text-xs text-muted-foreground w-10 tabular-nums shrink-0">
-          {formatDuration(durationMs)}
-        </span>
-      </div>
+      <ProgressBar
+        progressMs={progressMs}
+        durationMs={durationMs}
+        restrictions={restrictions}
+        progressRef={progressRef}
+        onSeek={handleSeek}
+      />
     </div>
   );
 }
