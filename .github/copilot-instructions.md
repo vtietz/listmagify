@@ -1,266 +1,113 @@
 # AI Agent Development Guidelines
 
-This document provides instructions for AI coding agents working on **spotify-playlist-e## 🚫 What NOT to Do
+This document defines the working rules for AI coding agents in this repository.
 
-- **Do not** add files that weren't requested or required
-- **Do not** create documentation files without explicit request (summaries, guides, detailed docs)
-- **Do not** skip running tests after making changes
-- **Do not** leave commented-out code in commits
-- **Do not** commit debugging statements (`console.log`, debugger, etc.)
-- **Do not** use magic numbers or strings without explaining them
-- **Do not** ignore TypeScript errors or use `@ts-ignore` without justification
-- **Do not** overuse emojis in documentation or code commentsFollow these guidelines to maintain code quality, consistency, and reproducibility.
+## 🚫 What Not to Do
 
----
+- Do not add files that were not requested or required.
+- Do not create documentation files without explicit request.
+- Do not skip validation after making changes.
+- Do not leave commented-out code or debugging statements (`console.log`, `debugger`).
+- Do not use magic numbers/strings without context.
+- Do not ignore TypeScript errors or use `@ts-ignore` without clear justification.
+- Do not overuse emojis in docs/comments.
 
 ## 🔁 Docker-First Development
 
-**All commands must run inside Docker** using one of these methods:
+All commands must run inside Docker:
 
-1. **Windows**: `.\run.bat <command>` (from project root, use PowerShell syntax)
-2. **macOS/Linux**: `./run.sh <command>` (from project root)
-3. **Direct Docker Compose**: `docker compose -f docker/docker-compose.yml run --rm web <command>`
+1. Windows PowerShell: `\.\run.bat <command>`
+2. macOS/Linux: `./run.sh <command>`
+3. Direct compose: `docker compose -f docker/docker-compose.yml run --rm web <command>`
 
-**Never** execute `pnpm`, `node`, `npm`, or toolchain commands directly on the host. Always use the Docker wrappers to ensure environment consistency.
+Never run `pnpm`, `node`, or `npm` directly on the host.
 
-### 🪟 Windows Terminal Commands
+### Common Commands
 
-**Always use PowerShell syntax** when writing terminal commands for Windows:
+| Task | Windows (PowerShell) | macOS/Linux |
+|---|---|---|
+| Install dependencies | `\.\run.bat install` | `./run.sh install` |
+| Add package | `\.\run.bat dev pnpm add <package>` | `./run.sh exec pnpm add <package>` |
+| Remove package | `\.\run.bat dev pnpm remove <package>` | `./run.sh exec pnpm remove <package>` |
+| Start app | `\.\run.bat up` | `./run.sh up` |
+| Stop app | `\.\run.bat down` | `./run.sh down` |
+| Run tests | `\.\run.bat test` | `./run.sh test` |
+| Quality gate | `\.\run.bat quality` | `./run.sh quality` |
 
-- ✅ **Correct**: `.\run.bat test`, `Remove-Item -Recurse`, `Move-Item file.txt dest/`
-- ❌ **Incorrect**: `run.bat test` (works in cmd.exe but not PowerShell), `rm -rf folder` (Unix syntax), `mv file dest` (Unix command)
-
-**Important**: If the user is in `cmd.exe` (not PowerShell), they should run scripts without `.\` prefix:
-- In **cmd.exe**: `run.bat test`
-- In **PowerShell**: `.\run.bat test`
-
-PowerShell commands you'll use frequently:
-- `Remove-Item -Recurse -Force <path>` (delete folders/files)
-- `Move-Item <source> <destination>` (move/rename files)
-- `Copy-Item <source> <destination>` (copy files)
-- `Test-Path <path>` (check if file/folder exists)
-- `Get-ChildItem <path>` (list directory contents)
-
-### Common Docker Commands
-
-| Task                     | Windows (cmd.exe)                | Windows (PowerShell)             | macOS/Linux                      |
-|--------------------------|----------------------------------|----------------------------------|----------------------------------|
-| Install dependencies     | `run.bat install`                | `.\run.bat install`              | `./run.sh install`               |
-| Add new package          | `run.bat dev pnpm add <package>` | `.\run.bat dev pnpm add <package>`| `./run.sh exec pnpm add <package>`|
-| Remove package           | `run.bat dev pnpm remove <package>`| `.\run.bat dev pnpm remove <package>`| `./run.sh exec pnpm remove <package>`|
-| Start dev server         | `run.bat up`                     | `.\run.bat up`                   | `./run.sh up`                    |
-| Stop dev server          | `run.bat down`                   | `.\run.bat down`                 | `./run.sh down`                  |
-| Run tests                | `run.bat test`                   | `.\run.bat test`                 | `./run.sh test`                  |
-| Run tests (watch mode)   | `run.bat test --watch`           | `.\run.bat test --watch`         | `./run.sh test -- --watch`       |
-| Build (production-like)  | `run.bat prod-build`             | `.\run.bat prod-build`           | `./run.sh prod-build`            |
-| Execute arbitrary command| `run.bat dev <cmd>`              | `.\run.bat dev <cmd>`            | `./run.sh exec <cmd>`            |
-
-**Important**: Always use `run.bat dev pnpm add <package>` (Windows) or `./run.sh exec pnpm add <package>` (macOS/Linux) to install packages instead of manually editing `package.json`. This ensures you get the latest compatible versions and properly updates the lockfile.
-
-**Build Testing**: To test if the production build works correctly, use `./run.sh prod-build` instead of `./run.sh exec pnpm build`. The latter uses `NODE_ENV=development` which triggers Next.js 16.1.1 prerendering bugs, while `prod-build` uses `NODE_ENV=production` (matching the CI environment) and builds successfully.
-
----
+Use command wrappers to install packages so lockfiles are updated correctly.
 
 ## 📚 Library Documentation
 
-**When working with complex libraries (@dnd-kit, TanStack Query, etc.), use the context7 tool** to fetch up-to-date documentation:
+For complex libraries (e.g., `@dnd-kit`, TanStack Query), use context7:
 
-1. **Resolve library ID first**: Use `resolve-library-id` with the package name
-2. **Fetch docs**: Use `get-library-docs` with the resolved library ID and topic
-3. **Example**: For @dnd-kit collision detection, search for "dnd-kit/core" then fetch docs on "collision detection"
-
-This ensures you have accurate, current API documentation rather than relying on potentially outdated knowledge.
-
----
+1. Resolve library ID with `resolve-library-id`.
+2. Fetch docs with `get-library-docs` for the relevant topic.
 
 ## 🧪 Testing & Validation Workflow
 
-**After every code change:**
+After every code change, run:
 
-1. **Run TypeScript type check** via `.\run.bat dev pnpm typecheck` (Windows), or `./run.sh exec pnpm typecheck` (macOS/Linux) - this catches unused imports and type errors quickly
-2. **Run the test suite** via `.\run.bat test` (Windows PowerShell), `run.bat test` (Windows cmd.exe), or `./run.sh test` (macOS/Linux)
-3. **Run linting/formatting** checks if configured
-4. **Do not skip validation steps** — automated testing prevents regressions
-5. **Provide a one-line commit message** summarizing all changes made using Commit Message Guidelines (see below)
+1. Type check (`\.\run.bat dev pnpm typecheck` or `./run.sh exec pnpm typecheck`)
+2. Tests (`\.\run.bat test` or `./run.sh test`)
+3. Quality check (`\.\run.bat quality` or `./run.sh quality`)
 
-**Note**: Use `pnpm typecheck` instead of full production builds for faster feedback. Production builds are only needed for deployment verification.
+### Mandatory quality gate
 
-If tests fail after your changes:
-- Analyze the failure
-- Fix the code or update tests appropriately
-- Re-run tests to confirm resolution
+- The task is **not complete** until `./run.sh quality` (Linux/macOS) or `\.\run.bat quality` (Windows) passes.
+- If quality checks fail, fix the reported issues and re-run quality checks before finishing.
 
-**When adding new functionality:**
-- Write unit tests for new components, hooks, and utilities
-- Custom hooks should have comprehensive tests in `tests/unit/` directory
-- Use `@testing-library/react` for component and hook testing
-- Mock external dependencies (API calls, etc.) using Vitest's `vi.mock()`
-- Wrap state updates in React tests with `act()` to avoid warnings
+When adding functionality, also add or update tests where appropriate.
 
----
+## 🧼 Clean Code and Reduction Strategy
 
-## 📝 Documentation Requirements
+Use clean-code principles by default:
 
-**Always update documentation when making changes:**
+- DRY, single responsibility, meaningful names, small focused functions, early returns.
+- Strong TypeScript typing, immutability-first, explicit error handling.
+- Prefer composition and reusable hooks/components over duplicated logic.
 
-1. **README.md** must reflect:
-   - New features or commands
-   - Updated setup instructions
-   - Changed CLI arguments or environment variables
+### Reducing lines of code (LOC)
 
-2. **CONTRIBUTING.md** should be updated if:
-   - Development workflow changes
-   - New tooling is introduced
-   - Testing procedures are modified
+When asked to reduce code size/complexity, do **not** only split files mechanically.
 
-3. **Inline code comments** for complex logic:
-   - Explain *why*, not *what*
-   - Document non-obvious decisions
-   - Clarify business logic and edge cases
-
-**Do not create unrequested files** (e.g., new config files, docs, or modules) unless explicitly asked or required by the changes.
-
-**Do not create documentation files** (e.g., guides, summaries, detailed explanations) unless explicitly requested. Keep README.md concise and focused on setup/usage only.
-
----
-
-## � Clean Code Principles
-
-Follow these best practices when writing or modifying code:
-
-### Code Quality
-- **DRY (Don't Repeat Yourself)**: Extract repeated logic into reusable functions/components
-- **Single Responsibility**: Each function/component should do one thing well
-- **Meaningful Names**: Use descriptive variable/function names (avoid `data`, `temp`, `x`)
-- **Small Functions**: Keep functions focused and under ~20 lines when possible
-- **Early Returns**: Reduce nesting by returning early from guard clauses
-
-### TypeScript/JavaScript Specifics
-- **Type Safety**: Always use proper TypeScript types; avoid `any`
-- **Immutability**: Prefer `const` over `let`; avoid mutating objects/arrays
-- **Modern Syntax**: Use ES6+ features (destructuring, spread, arrow functions, optional chaining)
-- **Error Handling**: Handle errors explicitly; don't leave unhandled promises
-
-### React Best Practices
-- **Functional Components**: Use hooks; avoid class components
-- **Component Composition**: Break down large components into smaller, reusable pieces
-- **Props Validation**: Define clear prop types with TypeScript interfaces
-- **Avoid Prop Drilling**: Use context or state management when passing props deeply
-- **Custom Hooks**: Extract reusable logic into custom hooks when the same pattern appears in multiple components
-
-### File Organization
-- **Consistent Structure**: Follow existing project patterns
-- **Logical Grouping**: Co-locate related files (component + styles + tests)
-- **Clear Exports**: Use named exports for better refactoring and tree-shaking
-- **Custom Hooks Location**: Place custom hooks in the `hooks/` directory with descriptive names (e.g., `useAutoLoadPaginated.ts`)
-
----
+- Reduce complexity by extracting cohesive, self-contained modules.
+- Keep clear boundaries between domain logic, orchestration, and transport/UI layers.
+- Ensure each module has a single clear purpose and a stable interface.
+- Remove duplication and dead branches before introducing new abstractions.
 
 ## Architecture Boundaries
 
-When editing API and Spotify integration code, follow these boundaries strictly:
+1. `app/api/**/route.ts` handlers are orchestrators only (validate input, call services, map known errors).
+2. Auth/token lifecycle stays in `lib/auth/*`.
+3. Spotify transport logic stays in provider layer (`lib/music-provider/*`).
+4. Preserve existing API contracts unless explicitly asked to change.
+5. Keep API route complexity in check (cyclomatic complexity <= 12, max depth <= 3).
+6. Keep service layers provider-agnostic where possible.
+7. For auth/provider boundary changes, update tests for retry/refresh/error mapping behavior.
 
-1. Route handlers (`app/api/**/route.ts`) are orchestrators only.
-- Parse and validate input.
-- Call services/providers.
-- Map known errors to stable response shapes.
-- Do not implement OAuth refresh or low-level transport logic in routes.
+## 📝 Documentation Requirements
 
-2. Auth/token lifecycle belongs to `lib/auth/*`.
-- Keep refresh-window policy and session reacquire logic in `lib/auth/tokenManager.ts`.
-- Use `requireAuth`/shared guards for authentication checks.
-- Do not duplicate token-refresh behavior in route files.
-
-3. Spotify transport belongs to provider layer.
-- Prefer `getMusicProvider()` from `lib/music-provider/index.ts` in new code.
-- Keep Spotify-specific request/retry/header logic in `lib/music-provider/spotifyProvider.ts`.
-- Route files must call domain methods (e.g., `saveTracks`, `removeTracks`, `getUserPlaylists`, `getPlaylistTracks`, `addTracks`) instead of passing raw provider HTTP paths.
-- Do not call low-level provider transport (`fetch`, `fetchWithToken`, `getJSON`) from route handlers except for temporary migration code explicitly marked with a TODO.
-
-4. Error contract consistency.
-- Preserve existing API response contracts unless explicitly asked to change them.
-- Keep `token_expired` responses consistent across endpoints.
-- Use shared error helpers/types (`lib/errors.ts`, shared guards) where applicable.
-
-5. Complexity and extraction policy.
-- For `app/api/**/*.ts`, keep cyclomatic complexity <= 12 and max depth <= 3.
-- If a route grows, extract helpers/services instead of adding nested branches.
-
-6. Multi-provider readiness.
-- Prefer provider-agnostic naming in service/domain layers (`MusicProvider`, generic DTOs).
-- Keep Spotify-specific field mappings inside Spotify adapter or mapping helpers.
-- Do not hardcode `const providerId = 'spotify'` in route handlers. Resolve provider per request (query/header/route param) via shared helper.
-
-7. Testing requirements for boundary changes.
-- For auth/provider changes, add or update unit tests for retry behavior, refresh-window logic, and error mapping.
-- Validate with Docker commands: typecheck, lint, and tests.
-
----
-
-## � Documentation Style
-
-- **Minimize emoji usage**: Use emojis sparingly (max 2-3 per document section). Prefer clear headers and bullet points over emoji-heavy formatting
-- **Keep it professional**: Documentation should be scannable and accessible; excessive emojis reduce readability
-- **Use standard Markdown**: Prefer `##`, `-`, `*`, and code blocks over decorative symbols
-
----
-
-## �🚫 What NOT to Do
-
-- **Do not** add files that weren't requested or required
-- **Do not** skip running tests after making changes
-- **Do not** leave commented-out code in commits
-- **Do not** commit debugging statements (`console.log`, debugger, etc.)
-- **Do not** use magic numbers or strings without explaining them
-- **Do not** ignore TypeScript errors or use `@ts-ignore` without justification
-- **Do not** overuse emojis in documentation or code comments
-- **Do not** create unrequested files, especially documentation markdown files
-
----
+- Update `README.md` and/or `CONTRIBUTING.md` when workflow, setup, or commands change.
+- Keep docs concise and professional; explain non-obvious decisions.
+- Do not create unrequested standalone docs.
 
 ## 📝 Commit Message Guidelines
 
-**MANDATORY: Always generate a commit message after making ANY code changes.**
+Always provide a one-line commit message suggestion after any file edits.
 
-This is a required step - never skip it. After editing files, always:
-1. Use `get_changed_files` tool to examine all uncommitted changes
-2. Review the diffs to understand the scope of changes
-3. Generate a concise commit message (even if the user didn't explicitly ask for it)
-
-**Format requirements:**
-- **Style**: Single line, imperative mood (e.g., "Add feature" not "Added feature")
-- **Length**: 50-72 characters preferred
-- **Content**: Summarize what changed and why, not how
-- **Completeness**: Include ALL modified files in your analysis, not just the most recent changes
-
-**Good examples:**
-- ✅ `Add auto-load pagination hook with comprehensive tests`
-- ✅ `Refactor playlist components to use useAutoLoadPaginated`
-- ✅ `Fix OAuth redirect URI to use 127.0.0.1`
-- ✅ `Improve premium required error message clarity`
-
-**Bad examples:**
-- ❌ `Updated some files` (too vague)
-- ❌ `Changed PlaylistDetail.tsx and PlaylistsGrid.tsx to use the new hook and also added tests` (too long)
-- ❌ Not providing a commit message at all (NEVER skip this step)
-
-**When to generate (ALWAYS):**
-- After completing any task that modified files
-- After bug fixes, refactoring, or feature additions
-- Even for small changes like typo fixes or comment updates
-- Before ending your response if any files were modified
+- Style: imperative mood
+- Length: preferably 50-72 chars
+- Scope: summarize what changed and why
 
 ## ✅ Before Completing a Task
 
-Ensure you have:
+Confirm all of the following:
 
-1. ✅ Run all code changes through Docker helpers
-2. ✅ Executed the test suite successfully
-3. ✅ Updated relevant documentation (README, CONTRIBUTING, etc.)
-4. ✅ Followed clean code principles and project conventions
-5. ✅ Verified no unrequested files were created
-6. ✅ Removed any debug code or unnecessary comments
-7. ✅ **MANDATORY**: Generated a one-line commit message summarizing all changes (NEVER skip this!)
-
-**The commit message is not optional** - it must be provided for every code change, no exceptions.
+1. Changes were made through Docker-first workflow.
+2. Type checks and tests were run (where applicable).
+3. `./run.sh quality` / `\.\run.bat quality` passes.
+4. Any reported quality issues were fixed and re-validated.
+5. No unrequested files were added.
+6. No debug leftovers or commented-out code remain.
+7. A one-line commit message suggestion is included.
 
