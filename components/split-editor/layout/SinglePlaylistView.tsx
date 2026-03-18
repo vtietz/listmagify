@@ -20,6 +20,8 @@ interface SinglePlaylistViewProps {
 export function SinglePlaylistView({ playlistId }: SinglePlaylistViewProps) {
   const searchParams = useSearchParams();
   const initializeSinglePanel = useSplitGridStore((state) => state.initializeSinglePanel);
+  const providerParam = searchParams.get('provider');
+  const providerId = providerParam === 'tidal' ? 'tidal' : 'spotify';
   
   // Check if URL has a layout param - if so, let useSplitUrlSync handle it
   const hasLayoutParam = searchParams.has('layout');
@@ -28,9 +30,9 @@ export function SinglePlaylistView({ playlistId }: SinglePlaylistViewProps) {
     // Only initialize single panel if no layout param in URL
     // Otherwise useSplitUrlSync will hydrate from URL
     if (!hasLayoutParam) {
-      initializeSinglePanel(playlistId);
+      initializeSinglePanel(playlistId, providerId);
     }
-  }, [playlistId, initializeSinglePanel, hasLayoutParam]);
+  }, [playlistId, providerId, initializeSinglePanel, hasLayoutParam]);
 
   return <SplitGrid />;
 }

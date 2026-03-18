@@ -12,6 +12,7 @@ import { DevModeNotice } from '@/components/auth/DevModeNotice';
 import { UnapprovedUserDialog } from '@/components/auth/UnapprovedUserDialog';
 import { AppLogo } from '@/components/ui/app-logo';
 import { useByokCredentials } from '@/hooks/useByokCredentials';
+import type { MusicProviderId } from '@/lib/music-provider/types';
 import { 
   Columns, 
   GripVertical, 
@@ -50,12 +51,19 @@ export function LandingPageContent({
   const router = useRouter();
   const panels = useSplitGridStore((state) => state.panels);
   const [byokEnabled, setByokEnabled] = useState<boolean | null>(null);
+  const [availableProviders, setAvailableProviders] = useState<MusicProviderId[]>(['spotify']);
   const { hasCredentials } = useByokCredentials();
 
   useEffect(() => {
     fetch('/api/config')
       .then((res) => res.json())
-      .then((json) => setByokEnabled(json.byokEnabled ?? false))
+      .then((json: { byokEnabled?: boolean; availableProviders?: MusicProviderId[] }) => {
+        setByokEnabled(json.byokEnabled ?? false);
+        const providers = json.availableProviders;
+        if (Array.isArray(providers) && providers.length > 0) {
+          setAvailableProviders(providers);
+        }
+      })
       .catch(() => setByokEnabled(false));
   }, []);
 
@@ -116,8 +124,15 @@ export function LandingPageContent({
               </button>
             ) : (
               <>
-                <SignInButton callbackUrl={returnTo} label="Sign in with Spotify" />
-                {isAccessRequestEnabled && !hasCredentials && (
+                {availableProviders.map((provider) => (
+                  <SignInButton
+                    key={provider}
+                    callbackUrl={returnTo}
+                    providerId={provider}
+                    label={provider === 'spotify' ? 'Sign in with Spotify' : 'Sign in with TIDAL'}
+                  />
+                ))}
+                {isAccessRequestEnabled && !hasCredentials && availableProviders.includes('spotify') && (
                   <AccessRequestDialog
                     trigger={
                       <button className="inline-flex items-center justify-center gap-2 rounded-md border border-border bg-background px-6 py-3 text-sm font-medium hover:bg-accent transition-colors">
@@ -126,7 +141,7 @@ export function LandingPageContent({
                     }
                   />
                 )}
-                <ByokSignInButton />
+                {availableProviders.includes('spotify') && <ByokSignInButton />}
               </>
             )}
           </div>

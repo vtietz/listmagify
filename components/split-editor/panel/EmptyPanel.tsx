@@ -35,6 +35,7 @@ export function EmptyPanel({
     <div className="flex flex-col h-full border border-border rounded-lg overflow-hidden bg-card">
       <PanelToolbar
         panelId={panelId}
+        providerId="spotify"
         playlistId={null}
         isEditable={false}
         dndMode="copy"
@@ -49,6 +50,7 @@ export function EmptyPanel({
         onSplitVertical={onSplitVertical}
         onDndModeToggle={() => {}}
         onLockToggle={() => {}}
+        onProviderChange={() => {}}
         onLoadPlaylist={onLoadPlaylist}
       />
       <div className="flex-1 flex items-center justify-center text-muted-foreground">

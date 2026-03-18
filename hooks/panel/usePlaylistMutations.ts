@@ -14,10 +14,12 @@ import {
 } from '@/lib/spotify/playlistMutations';
 import { getSortedValidTrackUris } from './panelUtils';
 import type { Track } from '@/lib/music-provider/types';
+import type { MusicProviderId } from '@/lib/music-provider/types';
 import type { SortKey, SortDirection } from '@/hooks/usePlaylistSort';
 
 interface UsePlaylistMutationsOptions {
   playlistId: string | null | undefined;
+  providerId: MusicProviderId;
   panelId: string;
   isEditable: boolean;
   snapshotId: string | undefined;
@@ -96,6 +98,7 @@ function getMoveBelowTargetIndex(playPosition: number, fromIndex: number, rangeL
 
 export function usePlaylistMutations({
   playlistId,
+  providerId,
   panelId,
   isEditable,
   snapshotId,
@@ -133,14 +136,15 @@ export function usePlaylistMutations({
 
     if (tracksToRemove.length === 0) return;
     const mutationParams = snapshotId
-      ? { playlistId, tracks: tracksToRemove, snapshotId }
-      : { playlistId, tracks: tracksToRemove };
+      ? { playlistId, providerId, tracks: tracksToRemove, snapshotId }
+      : { playlistId, providerId, tracks: tracksToRemove };
 
     removeTracks.mutate(mutationParams, {
       onSuccess: () => setSelection(panelId, []),
     });
   }, [
     playlistId,
+    providerId,
     selection,
     filteredTracks,
     removeTracks,
@@ -171,8 +175,8 @@ export function usePlaylistMutations({
 
       if (tracksToRemove.length === 0) return;
       const mutationParams = snapshotId
-        ? { playlistId, tracks: tracksToRemove, snapshotId }
-        : { playlistId, tracks: tracksToRemove };
+        ? { playlistId, providerId, tracks: tracksToRemove, snapshotId }
+        : { playlistId, providerId, tracks: tracksToRemove };
 
       removeTracks.mutate(mutationParams, {
         onSuccess: () => {
@@ -180,7 +184,7 @@ export function usePlaylistMutations({
             setTimeout(() => {
               const newTracks = queryClient.getQueryData<{
                 pages: Array<{ items: Track[] }>;
-              }>(['playlist', playlistId, 'tracks']);
+              }>(['playlist', providerId, playlistId, 'tracks']);
               const allTracks = newTracks?.pages?.flatMap((p) => p.items) || [];
               if (allTracks.length > 0 && nextIndexToSelect < allTracks.length) {
                 const trackToSelect = allTracks[nextIndexToSelect];
@@ -210,6 +214,7 @@ export function usePlaylistMutations({
     },
     [
       playlistId,
+      providerId,
       selection,
       filteredTracks,
       removeTracks,
@@ -245,7 +250,7 @@ export function usePlaylistMutations({
     }
 
     try {
-      await reorderAllTracks.mutateAsync({ playlistId, trackUris });
+      await reorderAllTracks.mutateAsync({ playlistId, providerId, trackUris });
       setSort(panelId, 'position', 'asc');
     } catch (error) {
       console.error('[handleSaveCurrentOrder] Failed to save playlist order:', error);
@@ -254,6 +259,7 @@ export function usePlaylistMutations({
   }, [
     panelId,
     playlistId,
+    providerId,
     isEditable,
     getSortedTrackUris,
     sortedTracks,
@@ -279,6 +285,7 @@ export function usePlaylistMutations({
       const makeReorderAction = (toIndex: number) => () => {
         reorderTracks.mutate({
           playlistId,
+          providerId,
           fromIndex,
           toIndex,
           rangeLength,
@@ -326,6 +333,7 @@ export function usePlaylistMutations({
     },
     [
       playlistId,
+      providerId,
       isEditable,
       selection,
       getSelectionBounds,

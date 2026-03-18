@@ -1,5 +1,25 @@
 import { z } from "zod";
 
+type ConfiguredMusicProvider = 'spotify' | 'tidal';
+const DEFAULT_MUSIC_PROVIDERS: ConfiguredMusicProvider[] = ['spotify'];
+
+function parseMusicProviders(raw: string | undefined): ConfiguredMusicProvider[] {
+  if (!raw) {
+    return [...DEFAULT_MUSIC_PROVIDERS];
+  }
+
+  const parsed = raw
+    .split(',')
+    .map((value) => value.trim().toLowerCase())
+    .filter((value): value is ConfiguredMusicProvider => value === 'spotify' || value === 'tidal');
+
+  if (parsed.length === 0) {
+    return [...DEFAULT_MUSIC_PROVIDERS];
+  }
+
+  return Array.from(new Set(parsed));
+}
+
 /**
  * Server-side environment validation (do not expose secrets to the client).
  * Add any NEXT_PUBLIC_* keys to clientSchema if/when needed.
@@ -13,10 +33,20 @@ const serverSchema = z.object({
     .min(1, "NEXTAUTH_SECRET is required"),
   SPOTIFY_CLIENT_ID: z
     .string()
-    .min(1, "SPOTIFY_CLIENT_ID is required"),
+    .optional(),
   SPOTIFY_CLIENT_SECRET: z
     .string()
-    .min(1, "SPOTIFY_CLIENT_SECRET is required"),
+    .optional(),
+  TIDAL_CLIENT_ID: z
+    .string()
+    .optional(),
+  TIDAL_CLIENT_SECRET: z
+    .string()
+    .optional(),
+  MUSIC_PROVIDERS: z
+    .string()
+    .optional()
+    .transform((val) => parseMusicProviders(val)),
   // Optional: polling interval in seconds for auto-reloading playlists (0 or undefined = disabled)
   PLAYLIST_POLL_INTERVAL_SECONDS: z
     .string()
@@ -41,6 +71,24 @@ const serverSchema = z.object({
     .string()
     .optional()
     .transform((val) => val === 'true'),
+}).superRefine((env, ctx) => {
+  if (env.MUSIC_PROVIDERS.includes('spotify')) {
+    if (!env.SPOTIFY_CLIENT_ID || env.SPOTIFY_CLIENT_ID.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['SPOTIFY_CLIENT_ID'],
+        message: 'SPOTIFY_CLIENT_ID is required when spotify is enabled in MUSIC_PROVIDERS',
+      });
+    }
+
+    if (!env.SPOTIFY_CLIENT_SECRET || env.SPOTIFY_CLIENT_SECRET.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['SPOTIFY_CLIENT_SECRET'],
+        message: 'SPOTIFY_CLIENT_SECRET is required when spotify is enabled in MUSIC_PROVIDERS',
+      });
+    }
+  }
 });
 
 type ServerEnv = z.infer<typeof serverSchema>;
@@ -64,8 +112,11 @@ export const serverEnv: ServerEnv = (() => {
     return {
       NEXTAUTH_URL: 'http://localhost:3000',
       NEXTAUTH_SECRET: 'dev-placeholder-secret',
-      SPOTIFY_CLIENT_ID: 'missing-client-id',
-      SPOTIFY_CLIENT_SECRET: 'missing-client-secret',
+      SPOTIFY_CLIENT_ID: '',
+      SPOTIFY_CLIENT_SECRET: '',
+      TIDAL_CLIENT_ID: '',
+      TIDAL_CLIENT_SECRET: '',
+      MUSIC_PROVIDERS: [...DEFAULT_MUSIC_PROVIDERS],
       PLAYLIST_POLL_INTERVAL_SECONDS: undefined,
       BYOK_ENABLED: false,
       ACCESS_REQUEST_ENABLED: false,
@@ -77,6 +128,9 @@ export const serverEnv: ServerEnv = (() => {
     NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
     SPOTIFY_CLIENT_ID: process.env.SPOTIFY_CLIENT_ID,
     SPOTIFY_CLIENT_SECRET: process.env.SPOTIFY_CLIENT_SECRET,
+    TIDAL_CLIENT_ID: process.env.TIDAL_CLIENT_ID,
+    TIDAL_CLIENT_SECRET: process.env.TIDAL_CLIENT_SECRET,
+    MUSIC_PROVIDERS: process.env.MUSIC_PROVIDERS,
     PLAYLIST_POLL_INTERVAL_SECONDS: process.env.PLAYLIST_POLL_INTERVAL_SECONDS,
     BYOK_ENABLED: process.env.BYOK_ENABLED,
     ACCESS_REQUEST_ENABLED: process.env.ACCESS_REQUEST_ENABLED,
@@ -93,7 +147,10 @@ export function summarizeEnv(): string {
   return [
     `NEXTAUTH_URL=${serverEnv.NEXTAUTH_URL}`,
     `NEXTAUTH_SECRET=${serverEnv.NEXTAUTH_SECRET ? "[set]" : "[missing]"}`,
+    `MUSIC_PROVIDERS=${serverEnv.MUSIC_PROVIDERS.join(',')}`,
     `SPOTIFY_CLIENT_ID=${serverEnv.SPOTIFY_CLIENT_ID ? "[set]" : "[missing]"}`,
     `SPOTIFY_CLIENT_SECRET=${serverEnv.SPOTIFY_CLIENT_SECRET ? "[set]" : "[missing]"}`,
+    `TIDAL_CLIENT_ID=${serverEnv.TIDAL_CLIENT_ID ? "[set]" : "[missing]"}`,
+    `TIDAL_CLIENT_SECRET=${serverEnv.TIDAL_CLIENT_SECRET ? "[set]" : "[missing]"}`,
   ].join(" | ");
 }

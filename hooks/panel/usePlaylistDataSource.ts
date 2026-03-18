@@ -9,8 +9,12 @@ import { usePlaylistTracksInfinite } from '@/hooks/usePlaylistTracksInfinite';
 import { useLikedVirtualPlaylist, isLikedSongsPlaylist, LIKED_SONGS_METADATA } from '@/hooks/useLikedVirtualPlaylist';
 import { useSavedTracksIndex, usePrefetchSavedTracks } from '@/hooks/useSavedTracksIndex';
 import { useCapturePlaylist } from '@/hooks/useRecommendations';
+import type { MusicProviderId } from '@/lib/music-provider/types';
 
-export function usePlaylistDataSource(playlistId: string | null | undefined) {
+export function usePlaylistDataSource(
+  playlistId: string | null | undefined,
+  providerId: MusicProviderId
+) {
   const isLikedPlaylist = isLikedSongsPlaylist(playlistId);
   
   // Liked songs data source
@@ -19,6 +23,7 @@ export function usePlaylistDataSource(playlistId: string | null | undefined) {
   // Regular playlist data source
   const regularPlaylistData = usePlaylistTracksInfinite({
     playlistId: isLikedPlaylist ? null : playlistId,
+    providerId,
     enabled: !!playlistId && !isLikedPlaylist,
   });
 

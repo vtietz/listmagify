@@ -11,6 +11,7 @@ import { useDeviceType } from '@/hooks/useDeviceType';
 import { eventBus } from '@/lib/sync/eventBus';
 import type { SortKey, SortDirection } from '@/lib/utils/sort';
 import type { MobileOverlay } from '@/components/split-editor/mobile/MobileBottomNav';
+import type { MusicProviderId } from '@/lib/music-provider/types';
 
 function usePanelSortBindings({
   panelId,
@@ -58,6 +59,7 @@ function usePanelSortBindings({
 
 function usePanelActionBindings({
   panelId,
+  providerId,
   playlistId,
   dndMode,
   isPhone,
@@ -68,8 +70,10 @@ function usePanelActionBindings({
   setPanelDnDMode,
   togglePanelLock,
   selectPlaylist,
+  setPanelProvider,
 }: {
   panelId: string;
+  providerId: MusicProviderId;
   playlistId: string | null | undefined;
   dndMode: 'move' | 'copy';
   isPhone: boolean;
@@ -79,7 +83,8 @@ function usePanelActionBindings({
   splitPanel: (panelId: string, orientation: 'horizontal' | 'vertical') => void;
   setPanelDnDMode: (panelId: string, mode: 'move' | 'copy') => void;
   togglePanelLock: (panelId: string) => void;
-  selectPlaylist: (panelId: string, playlistId: string) => void;
+  selectPlaylist: (panelId: string, playlistId: string, providerId?: MusicProviderId) => void;
+  setPanelProvider: (panelId: string, providerId: MusicProviderId) => void;
 }) {
   const handleSearchChange = useCallback(
     (query: string, setSearch: (panelId: string, query: string) => void) => setSearch(panelId, query),
@@ -88,9 +93,9 @@ function usePanelActionBindings({
 
   const handleReload = useCallback(() => {
     if (playlistId) {
-      eventBus.emit('playlist:reload', { playlistId });
+      eventBus.emit('playlist:reload', { playlistId, providerId });
     }
-  }, [playlistId]);
+  }, [playlistId, providerId]);
 
   const handleClose = useCallback(() => {
     if (isPhone && activeOverlay === 'panel2') {
@@ -112,9 +117,16 @@ function usePanelActionBindings({
 
   const handleLoadPlaylist = useCallback(
     (newPlaylistId: string) => {
-      selectPlaylist(panelId, newPlaylistId);
+      selectPlaylist(panelId, newPlaylistId, providerId);
     },
-    [panelId, selectPlaylist]
+    [panelId, providerId, selectPlaylist]
+  );
+
+  const handleProviderChange = useCallback(
+    (nextProviderId: MusicProviderId) => {
+      setPanelProvider(panelId, nextProviderId);
+    },
+    [panelId, setPanelProvider]
   );
 
   return {
@@ -126,6 +138,7 @@ function usePanelActionBindings({
     handleDndModeToggle,
     handleLockToggle,
     handleLoadPlaylist,
+    handleProviderChange,
   };
 }
 
@@ -137,6 +150,7 @@ const toSortDirection = (value: SortDirection | undefined): SortDirection => val
 const toDndMode = (value: 'move' | 'copy' | undefined): 'move' | 'copy' => value ?? 'copy';
 
 function derivePanelState(panel: {
+  providerId?: MusicProviderId;
   playlistId?: string | null;
   searchQuery?: string;
   selection?: Set<string>;
@@ -147,6 +161,7 @@ function derivePanelState(panel: {
   scrollOffset?: number;
 } | undefined) {
   return {
+    providerId: panel?.providerId ?? 'spotify',
     playlistId: panel?.playlistId,
     searchQuery: toSearchQuery(panel?.searchQuery),
     selection: toSelection(panel?.selection),
@@ -171,6 +186,7 @@ export function usePanelStoreBindings(panelId: string, dndMode: 'move' | 'copy')
   const closePanel = useSplitGridStore((state) => state.closePanel);
   const splitPanel = useSplitGridStore((state) => state.splitPanel);
   const setPanelDnDMode = useSplitGridStore((state) => state.setPanelDnDMode);
+  const setPanelProvider = useSplitGridStore((state) => state.setPanelProvider);
   const togglePanelLock = useSplitGridStore((state) => state.togglePanelLock);
   const loadPlaylist = useSplitGridStore((state) => state.loadPlaylist);
   const selectPlaylist = useSplitGridStore((state) => state.selectPlaylist);
@@ -182,6 +198,7 @@ export function usePanelStoreBindings(panelId: string, dndMode: 'move' | 'copy')
   const setActiveOverlay = useMobileOverlayStore((s) => s.setActiveOverlay);
 
   const {
+    providerId,
     playlistId,
     searchQuery,
     selection,
@@ -208,8 +225,10 @@ export function usePanelStoreBindings(panelId: string, dndMode: 'move' | 'copy')
     handleDndModeToggle,
     handleLockToggle,
     handleLoadPlaylist,
+    handleProviderChange,
   } = usePanelActionBindings({
     panelId,
+    providerId,
     playlistId,
     dndMode,
     isPhone,
@@ -220,6 +239,7 @@ export function usePanelStoreBindings(panelId: string, dndMode: 'move' | 'copy')
     setPanelDnDMode,
     togglePanelLock,
     selectPlaylist,
+    setPanelProvider,
   });
 
   const handleSearchChange = useCallback(
@@ -231,6 +251,7 @@ export function usePanelStoreBindings(panelId: string, dndMode: 'move' | 'copy')
     // Panel state
     panel,
     panelCount,
+    providerId,
     playlistId,
     searchQuery,
     selection,
@@ -259,6 +280,7 @@ export function usePanelStoreBindings(panelId: string, dndMode: 'move' | 'copy')
     handleDndModeToggle,
     handleLockToggle,
     handleLoadPlaylist,
+    handleProviderChange,
     handleSort,
   };
 }

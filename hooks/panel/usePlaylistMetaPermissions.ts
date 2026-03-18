@@ -7,10 +7,17 @@
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api/client';
-import { playlistMeta, playlistPermissions } from '@/lib/api/queryKeys';
+import {
+  playlistMetaByProvider,
+  playlistPermissionsByProvider,
+} from '@/lib/api/queryKeys';
 import { isLikedSongsPlaylist, LIKED_SONGS_METADATA } from '@/hooks/useLikedVirtualPlaylist';
+import type { MusicProviderId } from '@/lib/music-provider/types';
 
-export function usePlaylistMetaPermissions(playlistId: string | null | undefined) {
+export function usePlaylistMetaPermissions(
+  playlistId: string | null | undefined,
+  providerId: MusicProviderId
+) {
   const isLikedPlaylist = isLikedSongsPlaylist(playlistId);
   
   const [playlistName, setPlaylistName] = useState<string>('');
@@ -19,7 +26,10 @@ export function usePlaylistMetaPermissions(playlistId: string | null | undefined
 
   // Playlist metadata query
   const { data: playlistMetaData } = useQuery({
-    queryKey: playlistId && !isLikedPlaylist ? playlistMeta(playlistId) : ['playlist', null],
+    queryKey:
+      playlistId && !isLikedPlaylist
+        ? playlistMetaByProvider(playlistId, providerId)
+        : ['playlist', null],
     queryFn: async () => {
       if (!playlistId || isLikedPlaylist) throw new Error('No playlist ID');
       return apiFetch<{
@@ -30,7 +40,7 @@ export function usePlaylistMetaPermissions(playlistId: string | null | undefined
         collaborative: boolean;
         tracksTotal: number;
         isPublic: boolean;
-      }>(`/api/playlists/${playlistId}`);
+      }>(`/api/playlists/${playlistId}?provider=${providerId}`);
     },
     enabled: !!playlistId && !isLikedPlaylist,
     staleTime: 60000,
@@ -51,10 +61,15 @@ export function usePlaylistMetaPermissions(playlistId: string | null | undefined
 
   // Permissions query
   const { data: permissionsData } = useQuery({
-    queryKey: playlistId && !isLikedPlaylist ? playlistPermissions(playlistId) : ['playlist-permissions', null],
+    queryKey:
+      playlistId && !isLikedPlaylist
+        ? playlistPermissionsByProvider(playlistId, providerId)
+        : ['playlist-permissions', null],
     queryFn: async () => {
       if (!playlistId || isLikedPlaylist) throw new Error('No playlist ID');
-      return apiFetch<{ isEditable: boolean }>(`/api/playlists/${playlistId}/permissions`);
+      return apiFetch<{ isEditable: boolean }>(
+        `/api/playlists/${playlistId}/permissions?provider=${providerId}`
+      );
     },
     enabled: !!playlistId && !isLikedPlaylist,
     staleTime: 60000,

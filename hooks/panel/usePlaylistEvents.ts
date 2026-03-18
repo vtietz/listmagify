@@ -8,15 +8,21 @@
 import { useEffect } from 'react';
 import type { QueryClient } from '@tanstack/react-query';
 import { eventBus } from '@/lib/sync/eventBus';
-import { playlistMeta } from '@/lib/api/queryKeys';
+import {
+  playlistMetaByProvider,
+  playlistTracksInfiniteByProvider,
+} from '@/lib/api/queryKeys';
+import type { MusicProviderId } from '@/lib/music-provider/types';
 
 interface UsePlaylistEventsOptions {
   playlistId: string | null | undefined;
+  providerId: MusicProviderId;
   queryClient: QueryClient;
 }
 
 export function usePlaylistEvents({
   playlistId,
+  providerId,
   queryClient,
 }: UsePlaylistEventsOptions) {
   useEffect(() => {
@@ -24,22 +30,24 @@ export function usePlaylistEvents({
       return;
     }
 
-    const unsubscribeUpdate = eventBus.on('playlist:update', ({ playlistId: id }) => {
-      if (id !== playlistId) {
+    const unsubscribeUpdate = eventBus.on('playlist:update', ({ playlistId: id, providerId: eventProviderId }) => {
+      if (id !== playlistId || eventProviderId !== providerId) {
         return;
       }
 
-      queryClient.invalidateQueries({ queryKey: playlistMeta(playlistId) });
-      queryClient.invalidateQueries({ queryKey: ['playlist-tracks-infinite', playlistId] });
+      queryClient.invalidateQueries({ queryKey: playlistMetaByProvider(playlistId, providerId) });
+      queryClient.invalidateQueries({
+        queryKey: playlistTracksInfiniteByProvider(playlistId, providerId),
+      });
     });
-    const unsubscribeReload = eventBus.on('playlist:reload', ({ playlistId: id }) => {
-      if (id === playlistId) {
+    const unsubscribeReload = eventBus.on('playlist:reload', ({ playlistId: id, providerId: eventProviderId }) => {
+      if (id === playlistId && eventProviderId === providerId) {
         // Invalidate queries - scroll restoration is handled by usePanelScrollSync
         // when dataUpdatedAt changes after the queries refetch
         queryClient.invalidateQueries({
-          queryKey: ['playlist-tracks-infinite', playlistId],
+          queryKey: playlistTracksInfiniteByProvider(playlistId, providerId),
         });
-        queryClient.invalidateQueries({ queryKey: playlistMeta(playlistId) });
+        queryClient.invalidateQueries({ queryKey: playlistMetaByProvider(playlistId, providerId) });
       }
     });
 
@@ -47,5 +55,5 @@ export function usePlaylistEvents({
       unsubscribeUpdate();
       unsubscribeReload();
     };
-  }, [playlistId, queryClient]);
+  }, [playlistId, providerId, queryClient]);
 }

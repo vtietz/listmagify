@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import type { Playlist } from '@/lib/music-provider/types';
+import type { MusicProviderId } from '@/lib/music-provider/types';
 import { PlaylistCard } from "@/components/playlist/PlaylistCard";
 import { PlaylistListItem } from "@/components/playlist/PlaylistListItem";
 import { apiFetch, ApiError } from "@/lib/api/client";
@@ -12,6 +13,7 @@ import { useCompactModeStore } from "@/hooks/useCompactModeStore";
 import { matchesAllWords } from "@/lib/utils";
 
 export interface PlaylistsGridProps {
+  providerId: MusicProviderId;
   initialItems: Playlist[];
   initialNextCursor: string | null;
   searchTerm: string;
@@ -31,6 +33,7 @@ export interface PlaylistsGridProps {
  * - Refresh support with parent callback
  */
 export function PlaylistsGrid({
+  providerId,
   initialItems,
   initialNextCursor,
   searchTerm,
@@ -47,12 +50,12 @@ export function PlaylistsGrid({
   const { items, isAutoLoading, setItems, setNextCursor } = useAutoLoadPaginated({
     initialItems,
     initialNextCursor,
-    endpoint: "/api/me/playlists",
+    endpoint: `/api/me/playlists?provider=${providerId}`,
     itemsKey: "items",
   });
 
   // Get cached liked songs total (fetches on mount if not cached)
-  const likedSongsTotal = useLikedSongsTotal();
+  const likedSongsTotal = useLikedSongsTotal(providerId === 'spotify');
 
   // Add newly created playlist to items immediately for instant feedback
   useEffect(() => {
@@ -85,7 +88,7 @@ export function PlaylistsGrid({
 
     const fetchInitial = async () => {
       try {
-        const data = await apiFetch<{ items: Playlist[]; nextCursor: string | null }>("/api/me/playlists");
+        const data = await apiFetch<{ items: Playlist[]; nextCursor: string | null }>(`/api/me/playlists?provider=${providerId}`);
         if (cancelled) return;
 
         setItems(data.items || []);
@@ -107,7 +110,7 @@ export function PlaylistsGrid({
     return () => {
       cancelled = true;
     };
-  }, [isRefreshing, items, setItems, setNextCursor, onRefreshComplete]);
+  }, [isRefreshing, items, setItems, setNextCursor, onRefreshComplete, providerId]);
 
   // Virtual playlist for Liked Songs (shown first)
   // Uses cached total from saved tracks index (populated when user visits split-editor)
@@ -137,6 +140,10 @@ export function PlaylistsGrid({
       });
     }
     
+    if (providerId !== 'spotify') {
+      return filtered;
+    }
+
     // Check if Liked Songs matches search (or show if no search)
     const likedMatches = !query || 
       matchesAllWords(likedSongsPlaylist.name, query) ||
@@ -144,7 +151,7 @@ export function PlaylistsGrid({
     
     // Prepend Liked Songs if it matches
     return likedMatches ? [likedSongsPlaylist, ...filtered] : filtered;
-  }, [items, searchTerm, likedSongsPlaylist]);
+  }, [items, searchTerm, likedSongsPlaylist, providerId]);
 
   if (filteredItems.length === 0) {
     return (
@@ -162,14 +169,14 @@ export function PlaylistsGrid({
         /* Compact mode: List view with 1-3 columns */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-1">
           {filteredItems.map((playlist) => (
-            <PlaylistListItem key={playlist.id} playlist={playlist} />
+            <PlaylistListItem key={playlist.id} playlist={playlist} providerId={providerId} />
           ))}
         </div>
       ) : (
         /* Normal mode: Card grid */
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
           {filteredItems.map((playlist) => (
-            <PlaylistCard key={playlist.id} playlist={playlist} />
+            <PlaylistCard key={playlist.id} playlist={playlist} providerId={providerId} />
           ))}
         </div>
       )}

@@ -4,6 +4,7 @@ import Link from "next/link";
 import React, { useState, useCallback } from "react";
 import { Heart, Pencil, Play } from "lucide-react";
 import type { Playlist  } from '@/lib/music-provider/types';
+import type { MusicProviderId } from '@/lib/music-provider/types';
 import { cn } from "@/lib/utils";
 import { isLikedSongsPlaylist } from "@/hooks/useLikedVirtualPlaylist";
 import { useCompactModeStore } from "@/hooks/useCompactModeStore";
@@ -16,6 +17,7 @@ import { useUpdatePlaylist } from "@/lib/spotify/playlistMutations";
 
 type PlaylistCardProps = {
   playlist: Playlist;
+  providerId: MusicProviderId;
   className?: string;
 };
 
@@ -141,7 +143,7 @@ function PlaylistCardActions({
   );
 }
 
-export function PlaylistCard({ playlist, className }: PlaylistCardProps) {
+export function PlaylistCard({ playlist, providerId, className }: PlaylistCardProps) {
   const { isCompact } = useCompactModeStore();
   const { user } = useSessionUser();
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -171,17 +173,20 @@ export function PlaylistCard({ playlist, className }: PlaylistCardProps) {
 
   const handleUpdatePlaylist = useCallback(async (values: { name: string; description: string; isPublic: boolean }) => {
     await updatePlaylist.mutateAsync({
+      providerId,
       playlistId: playlist.id,
       name: values.name,
       description: values.description,
       isPublic: values.isPublic,
     });
-  }, [updatePlaylist, playlist.id]);
+  }, [updatePlaylist, providerId, playlist.id]);
+
+  const canPlayFromCard = providerId === 'spotify';
   
   return (
     <>
       <Link
-        href={`/playlists/${encodeURIComponent(playlist.id)}`}
+        href={`/playlists/${encodeURIComponent(playlist.id)}?provider=${providerId}`}
         className={cn(
           "group relative rounded-lg bg-card text-card-foreground overflow-hidden",
           "transition hover:shadow-md focus:outline-none focus:ring-2 ring-emerald-500",
@@ -203,7 +208,7 @@ export function PlaylistCard({ playlist, className }: PlaylistCardProps) {
             <div className={cn("font-medium line-clamp-1 flex-1 min-w-0", isCompact && "text-xs")}>{playlist.name}</div>
             <PlaylistCardActions
               isEditable={Boolean(isEditable)}
-              isPlayerVisible={isPlayerVisible}
+              isPlayerVisible={isPlayerVisible && canPlayFromCard}
               isLiked={isLiked}
               isCompact={isCompact}
               playlistName={playlist.name}

@@ -1,10 +1,18 @@
 'use client';
 
 import { useState, useEffect, ChangeEvent, useCallback, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Search, ListChecks } from 'lucide-react';
 import { PlaylistSelector } from './PlaylistSelector';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { PlaylistDialog } from '@/components/playlist/PlaylistDialog';
 import { AdaptiveNav, type NavItem } from '@/components/ui/adaptive-nav';
 import { buildPanelToolbarNavItems } from './panelToolbarNavItems';
@@ -13,12 +21,70 @@ import { useUpdatePlaylist } from '@/lib/spotify/playlistMutations';
 import { isLikedSongsPlaylist } from '@/hooks/useLikedVirtualPlaylist';
 import { cn } from '@/lib/utils';
 import type { SortKey, SortDirection } from '@/hooks/usePlaylistSort';
+import type { MusicProviderId } from '@/lib/music-provider/types';
 
 const ULTRA_COMPACT_BREAKPOINT = 280;
 const MIN_SPLIT_WIDTH = ULTRA_COMPACT_BREAKPOINT;
 
+const PROVIDER_LABELS: Record<MusicProviderId, string> = {
+  spotify: 'Spotify',
+  tidal: 'TIDAL',
+};
+
+interface AppConfigResponse {
+  availableProviders?: MusicProviderId[];
+}
+
+function useAvailableProviders(): MusicProviderId[] {
+  const { data } = useQuery({
+    queryKey: ['app-config'],
+    queryFn: async () => {
+      const response = await fetch('/api/config');
+      if (!response.ok) {
+        return { availableProviders: ['spotify'] } satisfies AppConfigResponse;
+      }
+
+      return response.json() as Promise<AppConfigResponse>;
+    },
+    staleTime: Infinity,
+  });
+
+  const providers = data?.availableProviders;
+  if (!providers || providers.length === 0) {
+    return ['spotify'];
+  }
+
+  return providers;
+}
+
+function ProviderSelector({
+  providerId,
+  onProviderChange,
+}: {
+  providerId: MusicProviderId;
+  onProviderChange: (providerId: MusicProviderId) => void;
+}) {
+  const availableProviders = useAvailableProviders();
+
+  return (
+    <Select value={providerId} onValueChange={(value) => onProviderChange(value as MusicProviderId)}>
+      <SelectTrigger className="h-9 w-[118px]">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {availableProviders.map((provider) => (
+          <SelectItem key={provider} value={provider}>
+            {PROVIDER_LABELS[provider] ?? provider}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
 export interface PanelToolbarProps {
   panelId: string;
+  providerId: MusicProviderId;
   playlistId: string | null;
   playlistName?: string;
   playlistDescription?: string;
@@ -49,6 +115,7 @@ export interface PanelToolbarProps {
   onSplitVertical: () => void;
   onDndModeToggle: () => void;
   onLockToggle: () => void;
+  onProviderChange: (providerId: MusicProviderId) => void;
   onLoadPlaylist: (playlistId: string) => void;
   onClearInsertionMarkers?: () => void;
   onSaveCurrentOrder?: () => void;
@@ -143,12 +210,14 @@ export function useToolbarSearch(onSearchChange: PanelToolbarProps['onSearchChan
 }
 
 export function usePlaylistEditState({
+  providerId,
   playlistId,
   playlistName,
   playlistDescription,
   playlistIsPublic,
   isEditable,
 }: {
+  providerId: MusicProviderId;
   playlistId: string | null;
   playlistName: string | undefined;
   playlistDescription: string | undefined;
@@ -175,6 +244,7 @@ export function usePlaylistEditState({
 
     try {
       await updatePlaylist.mutateAsync({
+        providerId,
         playlistId,
         name: values.name,
         description: values.description,
@@ -184,7 +254,7 @@ export function usePlaylistEditState({
       setDisplayPlaylistName(previousName);
       throw error;
     }
-  }, [playlistId, updatePlaylist, displayPlaylistName]);
+  }, [providerId, playlistId, updatePlaylist, displayPlaylistName]);
 
   const editDialog = canEditPlaylistInfo ? (
     <PlaylistDialog
@@ -291,8 +361,10 @@ export function useToolbarNavItems({
 export function PanelToolbarContent({
   toolbarRef,
   isPlayingPanel,
+  providerId,
   playlistId,
   displayPlaylistName,
+  onProviderChange,
   onLoadPlaylist,
   showSearch,
   localSearch,
@@ -304,8 +376,10 @@ export function PanelToolbarContent({
 }: {
   toolbarRef: React.RefObject<HTMLDivElement | null>;
   isPlayingPanel: boolean;
+  providerId: MusicProviderId;
   playlistId: string | null;
   displayPlaylistName: string;
+  onProviderChange: (providerId: MusicProviderId) => void;
   onLoadPlaylist: (playlistId: string) => void;
   showSearch: boolean;
   localSearch: string;
@@ -320,8 +394,12 @@ export function PanelToolbarContent({
       <div className="flex flex-1 min-w-0 basis-0 items-center gap-1">
         <div className="flex-1 min-w-0 basis-0 flex items-center gap-2">
           {isPlayingPanel && <PlayingIndicator size="sm" className="ml-2 shrink-0" />}
+          <div className="shrink-0">
+            <ProviderSelector providerId={providerId} onProviderChange={onProviderChange} />
+          </div>
           <div className="flex-1 min-w-0">
             <PlaylistSelector
+              providerId={providerId}
               selectedPlaylistId={playlistId}
               selectedPlaylistName={displayPlaylistName}
               onSelectPlaylist={onLoadPlaylist}

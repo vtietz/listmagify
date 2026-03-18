@@ -3,22 +3,33 @@
 import { signIn } from "next-auth/react";
 import { useState } from "react";
 import { useByokCredentials } from "@/hooks/useByokCredentials";
+import type { MusicProviderId } from '@/lib/music-provider/types';
 
 type Props = {
   label?: string;
   className?: string;
   callbackUrl?: string;
+  providerId?: MusicProviderId;
 };
 
 export function SignInButton({ 
-  label = "Sign in with Spotify", 
+  label,
   className,
-  callbackUrl = "/split-editor"
+  callbackUrl = "/split-editor",
+  providerId = 'spotify',
 }: Props) {
   const { credentials, hasCredentials } = useByokCredentials();
   const [isLoading, setIsLoading] = useState(false);
 
+  const effectiveLabel = label
+    ?? (providerId === 'spotify' ? 'Sign in with Spotify' : 'Sign in with TIDAL');
+
   const handleSignIn = async () => {
+    if (providerId !== 'spotify') {
+      signIn(providerId, { callbackUrl });
+      return;
+    }
+
     // If BYOK credentials are available, use them
     if (hasCredentials && credentials) {
       setIsLoading(true);
@@ -46,7 +57,7 @@ export function SignInButton({
       }
     } else {
       // Use default provider from env
-      signIn("spotify", { callbackUrl });
+      signIn(providerId, { callbackUrl });
     }
   };
 
@@ -58,10 +69,10 @@ export function SignInButton({
         className ??
         "inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
       }
-      aria-label={label}
+      aria-label={effectiveLabel}
       type="button"
     >
-      {isLoading ? "Signing in..." : label}
+      {isLoading ? "Signing in..." : effectiveLabel}
     </button>
   );
 }

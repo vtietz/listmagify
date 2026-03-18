@@ -61,9 +61,15 @@ interface SplitGridState {
   closePanel: (panelId: string) => void;
   
   // Panel Actions (operate on panels within the tree)
-  loadPlaylist: (panelId: string, playlistId: string, isEditable: boolean) => void;
-  selectPlaylist: (panelId: string, playlistId: string) => void;
-  initializeSinglePanel: (playlistId: string) => void;
+  loadPlaylist: (
+    panelId: string,
+    playlistId: string,
+    isEditable: boolean,
+    providerId?: PanelConfig['providerId']
+  ) => void;
+  selectPlaylist: (panelId: string, playlistId: string, providerId?: PanelConfig['providerId']) => void;
+  setPanelProvider: (panelId: string, providerId: PanelConfig['providerId']) => void;
+  initializeSinglePanel: (playlistId: string, providerId?: PanelConfig['providerId']) => void;
   initializeFromRoot: (root: SplitNode) => void;
   setSearch: (panelId: string, query: string) => void;
   setSelection: (panelId: string, trackIds: string[]) => void;
@@ -112,10 +118,11 @@ export const useSplitGridStore = create<SplitGridState>()(
         });
       },
 
-      loadPlaylist: (panelId, playlistId, isEditable) => {
+      loadPlaylist: (panelId, playlistId, isEditable, providerId) => {
         const { root } = get();
         const newRoot = updatePanelInTree(root, panelId, (panel) => ({
           ...panel,
+          providerId: providerId ?? panel.providerId,
           playlistId,
           isEditable,
           searchQuery: '',
@@ -128,10 +135,11 @@ export const useSplitGridStore = create<SplitGridState>()(
         });
       },
 
-      selectPlaylist: (panelId, playlistId) => {
+      selectPlaylist: (panelId, playlistId, providerId) => {
         const { root } = get();
         const newRoot = updatePanelInTree(root, panelId, (panel) => ({
           ...panel,
+          providerId: providerId ?? panel.providerId,
           playlistId,
           isEditable: false, // Will be updated by PlaylistPanel after permissions check
           searchQuery: '',
@@ -144,8 +152,31 @@ export const useSplitGridStore = create<SplitGridState>()(
         });
       },
 
-      initializeSinglePanel: (playlistId) => {
-        const panel = createPanelConfig(playlistId);
+      setPanelProvider: (panelId, providerId) => {
+        const { root } = get();
+        const newRoot = updatePanelInTree(root, panelId, (panel) => {
+          if (panel.providerId === providerId) {
+            return panel;
+          }
+
+          return {
+            ...panel,
+            providerId,
+            playlistId: null,
+            isEditable: false,
+            searchQuery: '',
+            selection: new Set(),
+            scrollOffset: 0,
+          };
+        });
+        set({
+          root: newRoot,
+          panels: flattenPanels(newRoot),
+        });
+      },
+
+      initializeSinglePanel: (playlistId, providerId = 'spotify') => {
+        const panel = createPanelConfig(playlistId, providerId);
         const panelNode = createPanelNode(panel);
         set({ 
           root: panelNode,

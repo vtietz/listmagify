@@ -9,6 +9,7 @@
 
 import type { DragEndEvent } from '@dnd-kit/core';
 import type { Track } from '@/lib/music-provider/types';
+import type { MusicProviderId } from '@/lib/music-provider/types';
 import type { PanelConfig, PanelVirtualizerData } from '../types';
 import type { DropContext, MutationHandlers } from '../mutations';
 import {
@@ -26,6 +27,10 @@ import { useBrowsePanelStore } from '../../useBrowsePanelStore';
 import { apiFetch } from '@/lib/api/client';
 import { toast } from '@/lib/ui/toast';
 import { logDebug } from '@/lib/utils/debug';
+
+function resolvePanelProviderId(panel: PanelConfig): MusicProviderId {
+  return panel.providerId ?? 'spotify';
+}
 
 /**
  * Context required for drag end handling
@@ -99,6 +104,13 @@ function handleLastfmTrackDrop(
   }
 
   const targetIndex = finalDropPosition ?? (targetData.position ?? 0);
+  const targetPanel = ctx.panels.find((panel) => panel.id === targetPanelId);
+  if (!targetPanel) {
+    console.error('Missing target panel context');
+    return;
+  }
+
+  const targetProviderId = resolvePanelProviderId(targetPanel);
   const dropContext: DropContext = {
     panels: ctx.panels,
     mutations: ctx.mutations,
@@ -112,6 +124,7 @@ function handleLastfmTrackDrop(
     sourceData.selectedMatchedUris,
     targetPanelId,
     targetPlaylistId,
+    targetProviderId,
     targetIndex,
     dropContext
   );
@@ -212,12 +225,14 @@ function handlePlaylistTrackDrop(
     const targetPanelId = targetData.panelId!;
     const targetPlaylistId = targetData.playlistId!;
     const targetPanel = ctx.panels.find((panel) => panel.id === targetPanelId);
+    const targetProviderId = targetPanel ? resolvePanelProviderId(targetPanel) : 'spotify';
 
     handleBrowsePanelCopyDrop(
       sourceData,
       targetData,
       sourceData.track,
       targetPlaylistId,
+      targetProviderId,
       targetPanelId,
       targetPanel,
       finalDropPosition,
@@ -266,6 +281,14 @@ function handlePlaylistTrackDrop(
     return;
   }
 
+  const sourceProviderId = resolvePanelProviderId(panelPair.sourcePanel);
+  const targetProviderId = resolvePanelProviderId(panelPair.targetPanel);
+
+  if (sourceProviderId !== targetProviderId) {
+    toast.error('Drag and drop is only supported within the same provider');
+    return;
+  }
+
   const sourceDndMode = panelPair.sourcePanel.dndMode || 'copy';
   const { ctrlKey: isCtrlPressed } = ctx.pointerTracker.getModifiers();
   const canInvertMode = panelPair.sourcePanel.isEditable;
@@ -293,6 +316,7 @@ function handlePlaylistTrackDrop(
       effectiveTargetIndex,
       dragTracks,
       dragTrackUris,
+      sourceProviderId,
       sourcePlaylistId,
       targetPlaylistId,
       dropContext
@@ -307,6 +331,8 @@ function handlePlaylistTrackDrop(
     effectiveTargetIndex,
     dragTracks,
     dragTrackUris,
+    sourceProviderId,
+    targetProviderId,
     sourcePlaylistId,
     targetPlaylistId,
       panelPair.sourcePanel,
@@ -352,6 +378,7 @@ function handleBrowsePanelCopyDrop(
   targetData: Record<string, unknown>,
   sourceTrack: Track,
   targetPlaylistId: string,
+  targetProviderId: MusicProviderId,
   _targetPanelId: string, // Used for logging only
   targetPanel: PanelConfig | undefined,
   finalDropPosition: number | null,
@@ -378,6 +405,7 @@ function handleBrowsePanelCopyDrop(
   });
 
   addTracks.mutate({
+    providerId: targetProviderId,
     playlistId: targetPlaylistId,
     trackUris,
     position: targetIndex,

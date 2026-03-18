@@ -8,7 +8,10 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api/client';
-import { playlistTracks, playlistTracksInfinite } from '@/lib/api/queryKeys';
+import {
+  playlistTracksByProvider,
+  playlistTracksInfiniteByProvider,
+} from '@/lib/api/queryKeys';
 import { applyRemoveToInfinitePages } from '@/lib/dnd/sortUtils';
 import { eventBus } from '@/lib/sync/eventBus';
 import { toast } from '@/lib/ui/toast';
@@ -32,21 +35,24 @@ export function useRemoveTracks() {
 
   return useMutation({
     mutationFn: async (params: RemoveTracksParams): Promise<MutationResponse> => {
+      const providerId = params.providerId ?? 'spotify';
       // Send tracks with positions - server handles the rebuild if needed
-      return apiFetch(`/api/playlists/${params.playlistId}/tracks/remove`, {
+      return apiFetch(`/api/playlists/${params.playlistId}/tracks/remove?provider=${providerId}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tracks: params.tracks }),
       });
     },
     onMutate: async (params: RemoveTracksParams) => {
+      const providerId = params.providerId ?? 'spotify';
       // Cancel outgoing refetches for both query keys
-      await cancelPlaylistQueries(queryClient, params.playlistId);
+      await cancelPlaylistQueries(queryClient, params.playlistId, providerId);
 
       // Snapshot both caches for rollback
       const { previousInfiniteData, previousData } = snapshotPlaylistCaches(
         queryClient, 
-        params.playlistId
+        params.playlistId,
+        providerId
       );
 
       // Extract URIs for legacy compatibility
@@ -55,7 +61,10 @@ export function useRemoveTracks() {
       // Optimistically remove tracks from infinite query (primary)
       if (previousInfiniteData) {
         const newData = applyRemoveToInfinitePages(previousInfiniteData, trackUris, params.tracks);
-        queryClient.setQueryData(playlistTracksInfinite(params.playlistId), newData);
+        queryClient.setQueryData(
+          playlistTracksInfiniteByProvider(params.playlistId, providerId),
+          newData
+        );
       }
 
       // Also update legacy single-page query for backwards compatibility
@@ -75,7 +84,7 @@ export function useRemoveTracks() {
             })
           : previousData.tracks.filter((track) => !trackUris.includes(track.uri));
         
-        queryClient.setQueryData(playlistTracks(params.playlistId), {
+        queryClient.setQueryData(playlistTracksByProvider(params.playlistId, providerId), {
           ...previousData,
           tracks: filteredTracks,
           total: filteredTracks.length,
@@ -85,12 +94,13 @@ export function useRemoveTracks() {
       return { previousInfiniteData, previousData };
     },
     onSuccess: (data: MutationResponse, params: RemoveTracksParams) => {
+      const providerId = params.providerId ?? 'spotify';
       // Update snapshotId in both caches without refetching
-      updateBothSnapshotIds(queryClient, params.playlistId, data);
+      updateBothSnapshotIds(queryClient, params.playlistId, providerId, data);
 
       // Update total count in infinite query pages after removal
       const currentData = queryClient.getQueryData<InfinitePlaylistData>(
-        playlistTracksInfinite(params.playlistId)
+        playlistTracksInfiniteByProvider(params.playlistId, providerId)
       );
       if (currentData?.pages) {
         const newTotal = currentData.pages.reduce((sum, page) => sum + page.tracks.length, 0);
@@ -101,10 +111,17 @@ export function useRemoveTracks() {
             total: newTotal,
           })),
         };
-        queryClient.setQueryData(playlistTracksInfinite(params.playlistId), updatedData);
+        queryClient.setQueryData(
+          playlistTracksInfiniteByProvider(params.playlistId, providerId),
+          updatedData
+        );
       }
 
-      eventBus.emit('playlist:update', { playlistId: params.playlistId, cause: 'remove' });
+      eventBus.emit('playlist:update', {
+        playlistId: params.playlistId,
+        providerId,
+        cause: 'remove',
+      });
       // Success - no toast needed
     },
     onError: (
@@ -112,8 +129,9 @@ export function useRemoveTracks() {
       params: RemoveTracksParams, 
       context: { previousInfiniteData?: InfinitePlaylistData; previousData?: PlaylistTracksData } | undefined
     ) => {
+      const providerId = params.providerId ?? 'spotify';
       // Rollback both caches
-      rollbackPlaylistCaches(queryClient, params.playlistId, context);
+      rollbackPlaylistCaches(queryClient, params.playlistId, providerId, context);
       toast.error(error instanceof Error ? error.message : 'Failed to remove tracks');
     },
   });

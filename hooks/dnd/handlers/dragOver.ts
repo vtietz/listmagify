@@ -101,6 +101,24 @@ export function createDragOverHandler(ctx: DragOverContext) {
       return;
     }
 
+    const sourcePanel = sourcePanelId
+      ? ctx.panels.find((panel) => panel.id === sourcePanelId)
+      : null;
+    if (
+      sourcePanel
+      && sourcePanel.providerId
+      && targetPanel.providerId
+      && sourcePanel.providerId !== targetPanel.providerId
+    ) {
+      ctx.updateDropPosition({
+        activePanelId: null,
+        computedDropPosition: null,
+        dropIndicatorIndex: null,
+        ephemeralInsertion: null,
+      });
+      return;
+    }
+
     const { y: pointerY } = ctx.pointerTracker.getPosition();
     const panelData = ctx.panelVirtualizersRef.current?.get(targetPanelId);
 

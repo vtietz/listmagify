@@ -2,12 +2,14 @@
 
 import { useState, useCallback } from "react";
 import type { Playlist } from '@/lib/music-provider/types';
+import type { MusicProviderId } from '@/lib/music-provider/types';
 import { PlaylistsToolbar } from "@/components/playlist/PlaylistsToolbar";
 import { PlaylistsGrid } from "@/components/playlist/PlaylistsGrid";
 
 export interface PlaylistsContainerProps {
   initialItems: Playlist[];
   initialNextCursor: string | null;
+  providerId: MusicProviderId;
 }
 
 /**
@@ -17,6 +19,7 @@ export interface PlaylistsContainerProps {
 export function PlaylistsContainer({
   initialItems,
   initialNextCursor,
+  providerId,
 }: PlaylistsContainerProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -44,6 +47,7 @@ export function PlaylistsContainer({
     <div className="flex-1 min-h-0 flex flex-col gap-6 mt-6">
       <div className="flex-shrink-0">
         <PlaylistsToolbar
+          providerId={providerId}
           searchTerm={searchTerm}
           onSearchChange={setSearchTerm}
           isRefreshing={isRefreshing}
@@ -54,6 +58,7 @@ export function PlaylistsContainer({
 
       <div className="flex-1 min-h-0 overflow-auto">
         <PlaylistsGrid
+          providerId={providerId}
           initialItems={initialItems}
           initialNextCursor={initialNextCursor}
           searchTerm={searchTerm}

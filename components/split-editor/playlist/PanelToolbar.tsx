@@ -20,6 +20,7 @@ export type { PanelToolbarProps } from './panelToolbarHelpers';
 
 function PanelToolbarInner({
   panelId: _panelId,
+  providerId,
   playlistId,
   playlistName,
   playlistDescription,
@@ -50,6 +51,7 @@ function PanelToolbarInner({
   onSplitVertical,
   onDndModeToggle,
   onLockToggle,
+  onProviderChange,
   onLoadPlaylist,
   onClearInsertionMarkers,
   onSaveCurrentOrder,
@@ -66,6 +68,7 @@ function PanelToolbarInner({
     editDialog,
     canEditPlaylistInfo,
   } = usePlaylistEditState({
+    providerId,
     playlistId,
     playlistName,
     playlistDescription,
@@ -134,8 +137,10 @@ function PanelToolbarInner({
     <PanelToolbarContent
       toolbarRef={toolbarRef}
       isPlayingPanel={isPlayingPanel}
+      providerId={providerId}
       playlistId={playlistId}
       displayPlaylistName={displayPlaylistName}
+      onProviderChange={onProviderChange}
       onLoadPlaylist={onLoadPlaylist}
       showSearch={showSearch}
       localSearch={localSearch}

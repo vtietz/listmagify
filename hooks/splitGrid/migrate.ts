@@ -25,6 +25,7 @@ export function migrateLegacyPanels(panels: unknown[]): SplitNode | null {
     const pObj = p as Record<string, unknown>;
     const panel: PanelConfig = {
       id: (pObj.id as string) || generatePanelId(),
+      providerId: ((pObj.providerId as 'spotify' | 'tidal') || 'spotify'),
       playlistId: (pObj.playlistId as string | null) || null,
       isEditable: (pObj.isEditable as boolean) || false,
       locked: (pObj.locked as boolean) || false,

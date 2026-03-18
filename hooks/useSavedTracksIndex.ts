@@ -509,12 +509,16 @@ export function usePrefetchSavedTracks() {
  * Makes a single lightweight API call (limit=1) if total is not already cached.
  * Ideal for displaying track count on playlist cards without full prefetch.
  */
-export function useLikedSongsTotal() {
+export function useLikedSongsTotal(enabled = true) {
   const total = useSavedTracksStore((state) => state.total);
   const setTotal = useSavedTracksStore((state) => state.setTotal);
   const lastUpdatedAt = useSavedTracksStore((state) => state.lastUpdatedAt);
   
   useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+
     // Only fetch if we don't have a cached total yet
     if (total > 0) return;
     
@@ -538,7 +542,7 @@ export function useLikedSongsTotal() {
     };
     
     fetchTotal();
-  }, [total, lastUpdatedAt, setTotal]);
+  }, [enabled, total, lastUpdatedAt, setTotal]);
   
   return total;
 }

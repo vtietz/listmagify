@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { ChevronsUpDown, Heart } from 'lucide-react';
 import { isLikedSongsPlaylist } from '@/hooks/useLikedVirtualPlaylist';
 import type { Playlist } from '@/lib/music-provider/types';
+import type { MusicProviderId } from '@/lib/music-provider/types';
 
 import {
   usePlaylistPollIntervalMs,
@@ -20,12 +21,13 @@ import {
 } from './playlistSelectorHelpers';
 
 interface PlaylistSelectorProps {
+  providerId: MusicProviderId;
   selectedPlaylistId: string | null;
   selectedPlaylistName?: string;
   onSelectPlaylist: (playlistId: string) => void;
 }
 
-export function PlaylistSelector({ selectedPlaylistId, selectedPlaylistName, onSelectPlaylist }: PlaylistSelectorProps) {
+export function PlaylistSelector({ providerId, selectedPlaylistId, selectedPlaylistName, onSelectPlaylist }: PlaylistSelectorProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
@@ -33,10 +35,10 @@ export function PlaylistSelector({ selectedPlaylistId, selectedPlaylistName, onS
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const dropdownRef = useRef<HTMLDivElement | null>(null);
   const pollIntervalMs = usePlaylistPollIntervalMs();
-  const { allPlaylists, isLoading, isFetchingNextPage, refetch } = usePlaylistInfiniteData(pollIntervalMs);
+  const { allPlaylists, isLoading, isFetchingNextPage, refetch } = usePlaylistInfiniteData(pollIntervalMs, providerId);
   const dropdownPosition = useDropdownPositionOnOpen(open, buttonRef);
   const filtered = useFilteredPlaylists(allPlaylists, query);
-  const showLikedSongs = useShowLikedSongs(query);
+  const showLikedSongs = useShowLikedSongs(query, providerId);
 
   const selected = useMemo(
     () => allPlaylists.find((p: Playlist) => p.id === selectedPlaylistId) || null,

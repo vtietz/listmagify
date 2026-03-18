@@ -6,19 +6,24 @@
  */
 
 import type { QueryClient } from '@tanstack/react-query';
-import { playlistTracks, playlistTracksInfinite } from '@/lib/api/queryKeys';
+import {
+  playlistTracksByProvider,
+  playlistTracksInfiniteByProvider,
+} from '@/lib/api/queryKeys';
 import type { PlaylistTracksData, InfinitePlaylistData, MutationResponse } from './types';
+import type { MusicProviderId } from '@/lib/music-provider/types';
 
 /**
  * Cancel outgoing queries for a playlist (both infinite and legacy).
  */
 export async function cancelPlaylistQueries(
   queryClient: QueryClient,
-  playlistId: string
+  playlistId: string,
+  providerId: MusicProviderId = 'spotify'
 ): Promise<void> {
   await Promise.all([
-    queryClient.cancelQueries({ queryKey: playlistTracksInfinite(playlistId) }),
-    queryClient.cancelQueries({ queryKey: playlistTracks(playlistId) }),
+    queryClient.cancelQueries({ queryKey: playlistTracksInfiniteByProvider(playlistId, providerId) }),
+    queryClient.cancelQueries({ queryKey: playlistTracksByProvider(playlistId, providerId) }),
   ]);
 }
 
@@ -27,17 +32,18 @@ export async function cancelPlaylistQueries(
  */
 export function snapshotPlaylistCaches(
   queryClient: QueryClient,
-  playlistId: string
+  playlistId: string,
+  providerId: MusicProviderId = 'spotify'
 ): { 
   previousInfiniteData: InfinitePlaylistData | undefined;
   previousData: PlaylistTracksData | undefined;
 } {
   return {
     previousInfiniteData: queryClient.getQueryData<InfinitePlaylistData>(
-      playlistTracksInfinite(playlistId)
+      playlistTracksInfiniteByProvider(playlistId, providerId)
     ),
     previousData: queryClient.getQueryData<PlaylistTracksData>(
-      playlistTracks(playlistId)
+      playlistTracksByProvider(playlistId, providerId)
     ),
   };
 }
@@ -48,6 +54,7 @@ export function snapshotPlaylistCaches(
 export function rollbackPlaylistCaches(
   queryClient: QueryClient,
   playlistId: string,
+  providerId: MusicProviderId = 'spotify',
   context: { 
     previousInfiniteData?: InfinitePlaylistData; 
     previousData?: PlaylistTracksData;
@@ -55,13 +62,13 @@ export function rollbackPlaylistCaches(
 ): void {
   if (context?.previousInfiniteData) {
     queryClient.setQueryData(
-      playlistTracksInfinite(playlistId),
+      playlistTracksInfiniteByProvider(playlistId, providerId),
       context.previousInfiniteData
     );
   }
   if (context?.previousData) {
     queryClient.setQueryData(
-      playlistTracks(playlistId),
+      playlistTracksByProvider(playlistId, providerId),
       context.previousData
     );
   }
@@ -73,10 +80,11 @@ export function rollbackPlaylistCaches(
 export function updateInfiniteSnapshotId(
   queryClient: QueryClient,
   playlistId: string,
-  newSnapshotId: string
+  newSnapshotId: string,
+  providerId: MusicProviderId = 'spotify'
 ): void {
   const currentData = queryClient.getQueryData<InfinitePlaylistData>(
-    playlistTracksInfinite(playlistId)
+    playlistTracksInfiniteByProvider(playlistId, providerId)
   );
   
   if (currentData?.pages?.length) {
@@ -84,7 +92,7 @@ export function updateInfiniteSnapshotId(
       ...page,
       snapshotId: newSnapshotId,
     }));
-    queryClient.setQueryData(playlistTracksInfinite(playlistId), {
+    queryClient.setQueryData(playlistTracksInfiniteByProvider(playlistId, providerId), {
       ...currentData,
       pages: updatedPages,
     });
@@ -97,14 +105,15 @@ export function updateInfiniteSnapshotId(
 export function updateLegacySnapshotId(
   queryClient: QueryClient,
   playlistId: string,
-  newSnapshotId: string
+  newSnapshotId: string,
+  providerId: MusicProviderId = 'spotify'
 ): void {
   const currentData = queryClient.getQueryData<PlaylistTracksData>(
-    playlistTracks(playlistId)
+    playlistTracksByProvider(playlistId, providerId)
   );
   
   if (currentData) {
-    queryClient.setQueryData(playlistTracks(playlistId), {
+    queryClient.setQueryData(playlistTracksByProvider(playlistId, providerId), {
       ...currentData,
       snapshotId: newSnapshotId,
     });
@@ -117,8 +126,9 @@ export function updateLegacySnapshotId(
 export function updateBothSnapshotIds(
   queryClient: QueryClient,
   playlistId: string,
+  providerId: MusicProviderId = 'spotify',
   data: MutationResponse
 ): void {
-  updateInfiniteSnapshotId(queryClient, playlistId, data.snapshotId);
-  updateLegacySnapshotId(queryClient, playlistId, data.snapshotId);
+  updateInfiniteSnapshotId(queryClient, playlistId, data.snapshotId, providerId);
+  updateLegacySnapshotId(queryClient, playlistId, data.snapshotId, providerId);
 }

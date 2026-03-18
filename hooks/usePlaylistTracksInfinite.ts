@@ -15,7 +15,8 @@
 import { useEffect, useRef, useCallback, useMemo } from 'react';
 import { useInfiniteQuery, type InfiniteData } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api/client';
-import { playlistTracksInfinite } from '@/lib/api/queryKeys';
+import { playlistTracksInfiniteByProvider } from '@/lib/api/queryKeys';
+import type { MusicProviderId } from '@/lib/music-provider/types';
 import type { Track } from '@/lib/music-provider/types';
 
 interface PlaylistTracksPage {
@@ -33,6 +34,7 @@ export interface InfinitePlaylistData {
 
 interface UsePlaylistTracksInfiniteOptions {
   playlistId: string | null | undefined;
+  providerId?: MusicProviderId;
   enabled?: boolean;
 }
 
@@ -59,8 +61,13 @@ interface UsePlaylistTracksInfiniteResult {
   dataUpdatedAt: number;
 }
 
-function getPlaylistTracksQueryKey(playlistId: string | null | undefined) {
-  return playlistId ? playlistTracksInfinite(playlistId) : ['playlist-tracks-infinite', null] as const;
+function getPlaylistTracksQueryKey(
+  playlistId: string | null | undefined,
+  providerId: MusicProviderId
+) {
+  return playlistId
+    ? playlistTracksInfiniteByProvider(playlistId, providerId)
+    : (['playlist-tracks-infinite', null] as const);
 }
 
 function shouldPrefetchRemainingPages({
@@ -98,6 +105,7 @@ function shouldPrefetchRemainingPages({
  */
 export function usePlaylistTracksInfinite({
   playlistId,
+  providerId = 'spotify',
   enabled = true,
 }: UsePlaylistTracksInfiniteOptions): UsePlaylistTracksInfiniteResult {
   const prefetchedRef = useRef<string | null>(null);
@@ -106,16 +114,16 @@ export function usePlaylistTracksInfinite({
     PlaylistTracksPage,
     Error,
     InfiniteData<PlaylistTracksPage>,
-    readonly ['playlist-tracks-infinite', string | null],
+    readonly unknown[],
     string | null
   >({
-    queryKey: getPlaylistTracksQueryKey(playlistId),
+    queryKey: getPlaylistTracksQueryKey(playlistId, providerId),
     queryFn: async ({ pageParam = null }): Promise<PlaylistTracksPage> => {
       if (!playlistId) throw new Error('No playlist ID');
       
       const url = pageParam 
-        ? `/api/playlists/${playlistId}/tracks?nextCursor=${encodeURIComponent(pageParam as string)}`
-        : `/api/playlists/${playlistId}/tracks`;
+        ? `/api/playlists/${playlistId}/tracks?nextCursor=${encodeURIComponent(pageParam as string)}&provider=${providerId}`
+        : `/api/playlists/${playlistId}/tracks?provider=${providerId}`;
       
       return apiFetch<PlaylistTracksPage>(url);
     },
@@ -224,6 +232,9 @@ export function usePlaylistTracksInfinite({
  * Helper to get the query key for a playlist's infinite tracks query.
  * Useful for cache manipulation in mutations.
  */
-export function getPlaylistTracksInfiniteKey(playlistId: string) {
-  return playlistTracksInfinite(playlistId);
+export function getPlaylistTracksInfiniteKey(
+  playlistId: string,
+  providerId: MusicProviderId = 'spotify'
+) {
+  return playlistTracksInfiniteByProvider(playlistId, providerId);
 }

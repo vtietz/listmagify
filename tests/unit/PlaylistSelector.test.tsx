@@ -8,6 +8,7 @@ import userEvent from '@testing-library/user-event';
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
 import { PlaylistSelector } from '@/components/split-editor/playlist/PlaylistSelector';
 import type { ComponentProps } from 'react';
+import type { MusicProviderId } from '@/lib/music-provider/types';
 
 // Mock the API client
 vi.mock('@/lib/api/client', () => ({
@@ -46,7 +47,12 @@ describe('PlaylistSelector', () => {
   });
 
   const renderComponent = (props: Partial<ComponentProps<typeof PlaylistSelector>> = {}) => {
-    const defaultProps: { selectedPlaylistId: string | null; onSelectPlaylist: (playlistId: string) => void } = {
+    const defaultProps: {
+      providerId: MusicProviderId;
+      selectedPlaylistId: string | null;
+      onSelectPlaylist: (playlistId: string) => void;
+    } = {
+      providerId: 'spotify',
       selectedPlaylistId: null,
       onSelectPlaylist: mockOnSelectPlaylist as (playlistId: string) => void,
     };
@@ -113,7 +119,7 @@ describe('PlaylistSelector', () => {
       expect(screen.getByText('Another Playlist')).toBeInTheDocument();
     });
     
-    expect(apiFetch).toHaveBeenCalledWith('/api/me/playlists');
+    expect(apiFetch).toHaveBeenCalledWith('/api/me/playlists?provider=spotify');
   });
 
   it('should call onSelectPlaylist with correct ID when clicking a playlist', async () => {

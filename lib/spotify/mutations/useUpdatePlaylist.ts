@@ -4,7 +4,10 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api/client';
-import { playlistMeta, userPlaylists } from '@/lib/api/queryKeys';
+import {
+  playlistMetaByProvider,
+  userPlaylistsByProvider,
+} from '@/lib/api/queryKeys';
 import { eventBus } from '@/lib/sync/eventBus';
 import { toast } from '@/lib/ui/toast';
 import type { Playlist } from '@/lib/music-provider/types';
@@ -34,20 +37,25 @@ export function useUpdatePlaylist() {
 
   return useMutation({
     mutationFn: async (params: UpdatePlaylistParams): Promise<{ success: boolean }> => {
-      const { playlistId, ...updateData } = params;
-      return apiFetch(`/api/playlists/${playlistId}`, {
+      const { playlistId, providerId = 'spotify', ...updateData } = params;
+      return apiFetch(`/api/playlists/${playlistId}?provider=${providerId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updateData),
       });
     },
     onMutate: async (params: UpdatePlaylistParams): Promise<UpdatePlaylistMutationContext> => {
-      const previousMeta = queryClient.getQueryData<PlaylistMetaQuery>(playlistMeta(params.playlistId));
+      const providerId = params.providerId ?? 'spotify';
+      const previousMeta = queryClient.getQueryData<PlaylistMetaQuery>(
+        playlistMetaByProvider(params.playlistId, providerId)
+      );
 
-      const previousUserPlaylists = queryClient.getQueryData<UserPlaylistsQuery>(userPlaylists());
+      const previousUserPlaylists = queryClient.getQueryData<UserPlaylistsQuery>(
+        userPlaylistsByProvider(providerId)
+      );
 
       queryClient.setQueryData(
-        playlistMeta(params.playlistId),
+        playlistMetaByProvider(params.playlistId, providerId),
         (current: PlaylistMetaQuery | undefined) => {
           if (!current) return current;
 
@@ -61,7 +69,7 @@ export function useUpdatePlaylist() {
       );
 
       queryClient.setQueryData(
-        userPlaylists(),
+        userPlaylistsByProvider(providerId),
         (current: UserPlaylistsQuery | undefined) => {
           if (!current) return current;
 
@@ -89,23 +97,34 @@ export function useUpdatePlaylist() {
       return { previousMeta, previousUserPlaylists };
     },
     onSuccess: (_data: { success: boolean }, params: UpdatePlaylistParams) => {
+      const providerId = params.providerId ?? 'spotify';
       // Invalidate the specific playlist's metadata
-      queryClient.invalidateQueries({ queryKey: playlistMeta(params.playlistId) });
+      queryClient.invalidateQueries({
+        queryKey: playlistMetaByProvider(params.playlistId, providerId),
+      });
       // Also invalidate user playlists to update the grid
-      queryClient.invalidateQueries({ queryKey: userPlaylists() });
+      queryClient.invalidateQueries({ queryKey: userPlaylistsByProvider(providerId) });
       
       // Notify other panels
-      eventBus.emit('playlist:update', { playlistId: params.playlistId, cause: 'metadata' });
+      eventBus.emit('playlist:update', {
+        playlistId: params.playlistId,
+        providerId,
+        cause: 'metadata',
+      });
       
       // Success - no toast needed
     },
     onError: (error: Error, params: UpdatePlaylistParams, context: UpdatePlaylistMutationContext | undefined) => {
+      const providerId = params.providerId ?? 'spotify';
       if (context?.previousMeta !== undefined) {
-        queryClient.setQueryData(playlistMeta(params.playlistId), context.previousMeta);
+        queryClient.setQueryData(
+          playlistMetaByProvider(params.playlistId, providerId),
+          context.previousMeta
+        );
       }
 
       if (context?.previousUserPlaylists !== undefined) {
-        queryClient.setQueryData(userPlaylists(), context.previousUserPlaylists);
+        queryClient.setQueryData(userPlaylistsByProvider(providerId), context.previousUserPlaylists);
       }
 
       toast.error(error instanceof Error ? error.message : 'Failed to update playlist');

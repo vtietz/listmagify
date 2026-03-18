@@ -1,6 +1,7 @@
 import SpotifyProvider from "next-auth/providers/spotify";
 import type { AuthOptions } from "next-auth";
 import { serverEnv } from "@/lib/env";
+import { isMusicProviderEnabled } from '@/lib/music-provider/enabledProviders';
 import { logAuthEvent, startSession } from "@/lib/metrics";
 import { getDb } from "@/lib/metrics/db";
 
@@ -36,11 +37,41 @@ async function linkUserToAccessRequest(db: ReturnType<typeof getDb>, spotifyUser
 
 
 function resolveClientCredentials(token: Record<string, any>): { clientId: string; clientSecret: string } {
+  const clientId = token.byok?.clientId || serverEnv.SPOTIFY_CLIENT_ID;
+  const clientSecret = token.byok?.clientSecret || serverEnv.SPOTIFY_CLIENT_SECRET;
+
+  if (!clientId || !clientSecret) {
+    throw new Error('Spotify client credentials are not configured');
+  }
+
   return {
-    clientId: token.byok?.clientId || serverEnv.SPOTIFY_CLIENT_ID,
-    clientSecret: token.byok?.clientSecret || serverEnv.SPOTIFY_CLIENT_SECRET,
+    clientId,
+    clientSecret,
   };
 }
+
+function createSpotifyAuthProvider() {
+  if (!serverEnv.SPOTIFY_CLIENT_ID || !serverEnv.SPOTIFY_CLIENT_SECRET) {
+    throw new Error('Spotify provider enabled but SPOTIFY_CLIENT_ID/SPOTIFY_CLIENT_SECRET are missing');
+  }
+
+  return SpotifyProvider({
+    clientId: serverEnv.SPOTIFY_CLIENT_ID,
+    clientSecret: serverEnv.SPOTIFY_CLIENT_SECRET,
+    authorization: {
+      params: {
+        // Scopes for playlist viewing/editing, user library (liked songs), playback control, and web playback SDK
+        scope: "user-read-email user-read-private playlist-read-private playlist-modify-private playlist-modify-public user-library-read user-library-modify user-read-playback-state user-modify-playback-state streaming",
+      },
+    },
+    // Enable PKCE for Authorization Code flow
+    checks: ["pkce", "state"],
+  });
+}
+
+const authProviders = isMusicProviderEnabled('spotify')
+  ? [createSpotifyAuthProvider()]
+  : [];
 
 function formatDebugUser(user: any): string {
   return user?.email ?? user?.name ?? '[unknown]';
@@ -210,20 +241,7 @@ export const authOptions: AuthOptions = {
     signIn: "/",
     error: "/",  // Redirect OAuth errors to landing page with ?error= param
   },
-  providers: [
-    SpotifyProvider({
-      clientId: serverEnv.SPOTIFY_CLIENT_ID,
-      clientSecret: serverEnv.SPOTIFY_CLIENT_SECRET,
-      authorization: {
-        params: {
-          // Scopes for playlist viewing/editing, user library (liked songs), playback control, and web playback SDK
-          scope: "user-read-email user-read-private playlist-read-private playlist-modify-private playlist-modify-public user-library-read user-library-modify user-read-playback-state user-modify-playback-state streaming",
-        },
-      },
-      // Enable PKCE for Authorization Code flow
-      checks: ["pkce", "state"],
-    }),
-  ],
+  providers: authProviders,
   callbacks: {
     /**
      * Persist the OAuth access_token, refresh_token, and expiry in the JWT.

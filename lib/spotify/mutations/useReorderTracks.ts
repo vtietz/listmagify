@@ -4,7 +4,10 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api/client';
-import { playlistTracks, playlistTracksInfinite } from '@/lib/api/queryKeys';
+import {
+  playlistTracksByProvider,
+  playlistTracksInfiniteByProvider,
+} from '@/lib/api/queryKeys';
 import { applyReorderToInfinitePages } from '@/lib/dnd/sortUtils';
 import { eventBus } from '@/lib/sync/eventBus';
 import { toast } from '@/lib/ui/toast';
@@ -27,7 +30,8 @@ export function useReorderTracks() {
 
   return useMutation({
     mutationFn: async (params: ReorderTracksParams): Promise<MutationResponse> => {
-      return apiFetch(`/api/playlists/${params.playlistId}/reorder`, {
+      const providerId = params.providerId ?? 'spotify';
+      return apiFetch(`/api/playlists/${params.playlistId}/reorder?provider=${providerId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -39,13 +43,15 @@ export function useReorderTracks() {
       });
     },
     onMutate: async (params: ReorderTracksParams) => {
+      const providerId = params.providerId ?? 'spotify';
       // Cancel outgoing refetches for both query keys
-      await cancelPlaylistQueries(queryClient, params.playlistId);
+      await cancelPlaylistQueries(queryClient, params.playlistId, providerId);
 
       // Snapshot both caches for rollback
       const { previousInfiniteData, previousData } = snapshotPlaylistCaches(
         queryClient, 
-        params.playlistId
+        params.playlistId,
+        providerId
       );
 
       const rangeLength = params.rangeLength ?? 1;
@@ -58,7 +64,10 @@ export function useReorderTracks() {
           params.toIndex, 
           rangeLength
         );
-        queryClient.setQueryData(playlistTracksInfinite(params.playlistId), newData);
+        queryClient.setQueryData(
+          playlistTracksInfiniteByProvider(params.playlistId, providerId),
+          newData
+        );
       }
 
       // Also update legacy single-page query for backwards compatibility
@@ -70,7 +79,7 @@ export function useReorderTracks() {
           : params.toIndex;
         newTracks.splice(insertAt, 0, ...movedItems);
 
-        queryClient.setQueryData(playlistTracks(params.playlistId), {
+        queryClient.setQueryData(playlistTracksByProvider(params.playlistId, providerId), {
           ...previousData,
           tracks: newTracks,
         });
@@ -79,12 +88,13 @@ export function useReorderTracks() {
       return { previousInfiniteData, previousData };
     },
     onSuccess: (data: MutationResponse, params: ReorderTracksParams) => {
+      const providerId = params.providerId ?? 'spotify';
       // Update snapshotId to keep cache in sync with server
-      updateLegacySnapshotId(queryClient, params.playlistId, data.snapshotId);
+      updateLegacySnapshotId(queryClient, params.playlistId, data.snapshotId, providerId);
 
       // Update snapshotId in infinite query pages
       const currentData = queryClient.getQueryData<InfinitePlaylistData>(
-        playlistTracksInfinite(params.playlistId)
+        playlistTracksInfiniteByProvider(params.playlistId, providerId)
       );
       if (currentData?.pages) {
         const updatedData = {
@@ -94,10 +104,17 @@ export function useReorderTracks() {
             snapshotId: data.snapshotId,
           })),
         };
-        queryClient.setQueryData(playlistTracksInfinite(params.playlistId), updatedData);
+        queryClient.setQueryData(
+          playlistTracksInfiniteByProvider(params.playlistId, providerId),
+          updatedData
+        );
       }
 
-      eventBus.emit('playlist:update', { playlistId: params.playlistId, cause: 'reorder' });
+      eventBus.emit('playlist:update', {
+        playlistId: params.playlistId,
+        providerId,
+        cause: 'reorder',
+      });
       // Success - no toast needed
     },
     onError: (
@@ -105,8 +122,9 @@ export function useReorderTracks() {
       params: ReorderTracksParams, 
       context: { previousInfiniteData?: InfinitePlaylistData; previousData?: PlaylistTracksData } | undefined
     ) => {
+      const providerId = params.providerId ?? 'spotify';
       // Rollback both caches
-      rollbackPlaylistCaches(queryClient, params.playlistId, context);
+      rollbackPlaylistCaches(queryClient, params.playlistId, providerId, context);
       toast.error(error instanceof Error ? error.message : 'Failed to reorder tracks');
     },
   });

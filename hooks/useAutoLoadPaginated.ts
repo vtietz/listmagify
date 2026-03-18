@@ -64,6 +64,19 @@ function syncTracksCache<T>(
   });
 }
 
+function buildPaginatedUrl(endpoint: string, cursor: string): string {
+  const [pathPart, queryPart] = endpoint.split('?');
+  const path = pathPart ?? endpoint;
+  const params = new URLSearchParams(queryPart ?? '');
+  params.delete('nextCursor');
+  const serialized = params.toString();
+  const encodedCursor = encodeURIComponent(cursor);
+
+  return serialized
+    ? `${path}?${serialized}&nextCursor=${encodedCursor}`
+    : `${path}?nextCursor=${encodedCursor}`;
+}
+
 interface UseAutoLoadPaginatedOptions<T> {
   /** Initial items from server-side rendering */
   initialItems: T[];
@@ -173,7 +186,7 @@ export function useAutoLoadPaginated<T>({
 
         while (currentCursor) {
           const data: PaginatedResponse<T> = await apiFetch<PaginatedResponse<T>>(
-            `${endpoint}?nextCursor=${encodeURIComponent(currentCursor)}`
+            buildPaginatedUrl(endpoint, currentCursor)
           );
 
           const newItems = data[itemsKey] || [];

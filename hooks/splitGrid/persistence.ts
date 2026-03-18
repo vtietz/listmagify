@@ -52,6 +52,7 @@ export function deserializeTree(data: unknown): SplitNode | null {
       id: obj.id as string,
       panel: {
         id: panel.id as string,
+        providerId: ((panel.providerId as 'spotify' | 'tidal') || 'spotify'),
         playlistId: panel.playlistId as string | null,
         isEditable: panel.isEditable as boolean,
         locked: panel.locked as boolean,

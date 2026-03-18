@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { serverEnv } from '@/lib/env';
+import { getEnabledMusicProviders } from '@/lib/music-provider/enabledProviders';
 
 /**
  * GET /api/config
@@ -13,5 +14,7 @@ export async function GET() {
     playlistPollIntervalSeconds: serverEnv.PLAYLIST_POLL_INTERVAL_SECONDS ?? null,
     // Whether BYOK (Bring Your Own Key) is enabled
     byokEnabled: serverEnv.BYOK_ENABLED ?? false,
+    // Enabled music providers (controlled by MUSIC_PROVIDERS env var)
+    availableProviders: getEnabledMusicProviders(),
   });
 }

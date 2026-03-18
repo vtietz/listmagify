@@ -1,6 +1,7 @@
 import type { MusicProvider } from '@/lib/music-provider/types';
 import type { MusicProviderId } from '@/lib/music-provider/types';
 import { createSpotifyProvider } from '@/lib/music-provider/spotifyProvider';
+import { isMusicProviderEnabled } from '@/lib/music-provider/enabledProviders';
 
 const providers = new Map<MusicProviderId, MusicProvider>();
 
@@ -22,6 +23,10 @@ export function parseMusicProviderId(value: string | null | undefined): MusicPro
 }
 
 export function getMusicProvider(providerId: MusicProviderId): MusicProvider {
+  if (!isMusicProviderEnabled(providerId)) {
+    throw new Error(`Provider disabled: ${providerId}`);
+  }
+
   const existing = providers.get(providerId);
   if (existing) {
     return existing;

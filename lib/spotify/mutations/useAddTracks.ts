@@ -4,7 +4,10 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api/client';
-import { playlistTracks, playlistTracksInfinite } from '@/lib/api/queryKeys';
+import {
+  playlistTracksByProvider,
+  playlistTracksInfiniteByProvider,
+} from '@/lib/api/queryKeys';
 import { eventBus } from '@/lib/sync/eventBus';
 import { toast } from '@/lib/ui/toast';
 
@@ -19,9 +22,10 @@ export function useAddTracks() {
 
   return useMutation({
     mutationFn: async (params: AddTracksParams): Promise<MutationResponse> => {
+      const providerId = params.providerId ?? 'spotify';
       // Intentionally omit snapshotId to avoid stale snapshot errors
       // The Spotify API will operate on the current playlist state
-      return apiFetch(`/api/playlists/${params.playlistId}/tracks/add`, {
+      return apiFetch(`/api/playlists/${params.playlistId}/tracks/add?provider=${providerId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -31,12 +35,15 @@ export function useAddTracks() {
       });
     },
     onMutate: async (params: AddTracksParams) => {
+      const providerId = params.providerId ?? 'spotify';
       // Cancel outgoing refetches
-      await queryClient.cancelQueries({ queryKey: playlistTracks(params.playlistId) });
+      await queryClient.cancelQueries({
+        queryKey: playlistTracksByProvider(params.playlistId, providerId),
+      });
 
       // Snapshot current data
       const previousData = queryClient.getQueryData<PlaylistTracksData>(
-        playlistTracks(params.playlistId)
+        playlistTracksByProvider(params.playlistId, providerId)
       );
 
       // Optimistically update - we don't have full track data here, so we'll wait for refetch
@@ -45,24 +52,29 @@ export function useAddTracks() {
       return { previousData };
     },
     onSuccess: (_data: MutationResponse, params: AddTracksParams) => {
+      const providerId = params.providerId ?? 'spotify';
       // Invalidate the infinite query to refetch with the new tracks
       // We can't do optimistic updates for add because we only have URIs, not full Track objects
       queryClient.invalidateQueries({ 
-        queryKey: playlistTracksInfinite(params.playlistId),
+        queryKey: playlistTracksInfiniteByProvider(params.playlistId, providerId),
       });
 
       // Also invalidate legacy query if it exists
       const currentData = queryClient.getQueryData<PlaylistTracksData>(
-        playlistTracks(params.playlistId)
+        playlistTracksByProvider(params.playlistId, providerId)
       );
       if (currentData) {
         queryClient.invalidateQueries({ 
-          queryKey: playlistTracks(params.playlistId),
+          queryKey: playlistTracksByProvider(params.playlistId, providerId),
         });
       }
 
       // Notify other panels to refetch
-      eventBus.emit('playlist:update', { playlistId: params.playlistId, cause: 'add' });
+      eventBus.emit('playlist:update', {
+        playlistId: params.playlistId,
+        providerId,
+        cause: 'add',
+      });
 
       // Success - no toast needed
     },
@@ -71,10 +83,11 @@ export function useAddTracks() {
       params: AddTracksParams, 
       context: { previousData?: PlaylistTracksData } | undefined
     ) => {
+      const providerId = params.providerId ?? 'spotify';
       // Rollback on error
       if (context?.previousData) {
         queryClient.setQueryData(
-          playlistTracks(params.playlistId),
+          playlistTracksByProvider(params.playlistId, providerId),
           context.previousData
         );
       }

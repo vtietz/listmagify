@@ -7,8 +7,10 @@ import { useState, useEffect, useCallback } from "react";
 import { PlaylistDialog } from "@/components/playlist/PlaylistDialog";
 import { useCreatePlaylist } from "@/lib/spotify/playlistMutations";
 import type { Playlist } from '@/lib/music-provider/types';
+import type { MusicProviderId } from '@/lib/music-provider/types';
 
 export interface PlaylistsToolbarProps {
+  providerId: MusicProviderId;
   searchTerm: string;
   onSearchChange: (query: string) => void;
   isRefreshing: boolean;
@@ -26,6 +28,7 @@ export interface PlaylistsToolbarProps {
  * - Keyboard accessible controls
  */
 export function PlaylistsToolbar({
+  providerId,
   searchTerm,
   onSearchChange,
   isRefreshing,
@@ -59,6 +62,7 @@ export function PlaylistsToolbar({
 
   const handleCreatePlaylist = useCallback(async (values: { name: string; description: string; isPublic: boolean }) => {
     const result = await createPlaylist.mutateAsync({
+      providerId,
       name: values.name,
       description: values.description,
       isPublic: values.isPublic,
@@ -75,7 +79,7 @@ export function PlaylistsToolbar({
         tracksTotal: result.tracksTotal,
       });
     }
-  }, [createPlaylist, onPlaylistCreated]);
+  }, [createPlaylist, onPlaylistCreated, providerId]);
 
   return (
     <div className="flex items-center gap-3">
@@ -106,7 +110,7 @@ export function PlaylistsToolbar({
         size="icon"
         onClick={handleRefresh}
         disabled={isRefreshing}
-        title={isRefreshing ? "Refreshing..." : "Refresh playlists from Spotify"}
+        title={isRefreshing ? "Refreshing..." : `Refresh playlists from ${providerId === 'spotify' ? 'Spotify' : 'TIDAL'}`}
         aria-label={isRefreshing ? "Refreshing playlists" : "Refresh playlists"}
         className="shrink-0"
       >

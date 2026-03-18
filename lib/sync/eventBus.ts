@@ -3,9 +3,15 @@
  * Enables panels showing the same playlist to stay in sync across mutations and reloads.
  */
 
+import type { MusicProviderId } from '@/lib/music-provider/types';
+
 type EventMap = {
-  'playlist:update': { playlistId: string; cause: 'reorder' | 'add' | 'remove' | 'metadata' };
-  'playlist:reload': { playlistId: string };
+  'playlist:update': {
+    playlistId: string;
+    providerId: MusicProviderId;
+    cause: 'reorder' | 'add' | 'remove' | 'metadata';
+  };
+  'playlist:reload': { playlistId: string; providerId: MusicProviderId };
 };
 
 type EventCallback<T> = (data: T) => void;

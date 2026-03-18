@@ -149,6 +149,7 @@ describe('useUpdatePlaylist', () => {
     expect(mockEmit).toHaveBeenCalledWith('playlist:update', {
       playlistId,
       cause: 'metadata',
+      providerId: 'spotify',
     });
   });
 

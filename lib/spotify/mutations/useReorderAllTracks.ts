@@ -5,7 +5,10 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api/client';
-import { playlistTracks, playlistTracksInfinite } from '@/lib/api/queryKeys';
+import {
+  playlistTracksByProvider,
+  playlistTracksInfiniteByProvider,
+} from '@/lib/api/queryKeys';
 import { eventBus } from '@/lib/sync/eventBus';
 import { toast } from '@/lib/ui/toast';
 
@@ -16,7 +19,8 @@ export function useReorderAllTracks() {
 
   return useMutation({
     mutationFn: async (params: ReorderAllTracksParams): Promise<MutationResponse> => {
-      return apiFetch(`/api/playlists/${params.playlistId}/reorder-all`, {
+      const providerId = params.providerId ?? 'spotify';
+      return apiFetch(`/api/playlists/${params.playlistId}/reorder-all?provider=${providerId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -25,18 +29,23 @@ export function useReorderAllTracks() {
       });
     },
     onSuccess: (_data: MutationResponse, params: ReorderAllTracksParams) => {
+      const providerId = params.providerId ?? 'spotify';
       // Invalidate the playlist tracks to refetch with the new order
       queryClient.invalidateQueries({ 
-        queryKey: playlistTracksInfinite(params.playlistId),
+        queryKey: playlistTracksInfiniteByProvider(params.playlistId, providerId),
       });
       
       // Also invalidate legacy query if it exists
       queryClient.invalidateQueries({ 
-        queryKey: playlistTracks(params.playlistId),
+        queryKey: playlistTracksByProvider(params.playlistId, providerId),
       });
 
       // Notify other panels to refetch
-      eventBus.emit('playlist:update', { playlistId: params.playlistId, cause: 'reorder' });
+      eventBus.emit('playlist:update', {
+        playlistId: params.playlistId,
+        providerId,
+        cause: 'reorder',
+      });
       
       toast.success('Playlist order saved');
     },

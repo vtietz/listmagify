@@ -47,6 +47,7 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
   const {
     panel: _panel,
     panelCount,
+    providerId,
     playlistId,
     searchQuery,
     selection,
@@ -70,11 +71,12 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
     handleSplitVertical,
     handleLockToggle,
     handleLoadPlaylist,
+    handleProviderChange,
     handleSort,
   } = storeBindings;
 
   // --- Data source (tracks, loading, error) ---
-  const dataSource = usePlaylistDataSource(playlistId);
+  const dataSource = usePlaylistDataSource(playlistId, providerId);
   const {
     tracks,
     snapshotId,
@@ -90,7 +92,7 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
   } = dataSource;
 
   // --- Metadata and permissions ---
-  const metaPermissions = usePlaylistMetaPermissions(playlistId);
+  const metaPermissions = usePlaylistMetaPermissions(playlistId, providerId);
   const {
     playlistName,
     playlistDescription,
@@ -166,6 +168,7 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
   // --- Playlist mutations ---
   const mutations = usePlaylistMutations({
     playlistId,
+    providerId,
     panelId,
     isEditable,
     snapshotId,
@@ -203,6 +206,7 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
     isSavingOrder,
   } = usePlaylistMutations({
     playlistId,
+    providerId,
     panelId,
     isEditable,
     snapshotId,
@@ -250,11 +254,12 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
   // --- Event subscriptions ---
   usePlaylistEvents({
     playlistId,
+    providerId,
     queryClient,
   });
 
   // --- Auto reload ---
-  useAutoReload(playlistId, isLikedPlaylist);
+  useAutoReload(playlistId, providerId, isLikedPlaylist);
 
   // --- Unified scroll sync (save and restore) ---
   usePanelScrollSync({
@@ -302,6 +307,7 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
     virtualizerRef,
 
     // State
+    providerId,
     playlistId,
     playlistName,
     playlistDescription,
@@ -372,6 +378,7 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
     handleDndModeToggle,
     handleLockToggle,
     handleLoadPlaylist,
+    handleProviderChange,
     handleDeleteSelected,
     handleSort,
     handleTrackClick: selectionMgmt.handleTrackClick,

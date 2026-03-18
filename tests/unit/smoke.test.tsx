@@ -50,7 +50,7 @@ describe("PlaylistCard", () => {
   };
 
   it("renders playlist with cover, owner and track count", () => {
-    render(<PlaylistCard playlist={basePlaylist} />, { wrapper: TestWrapper });
+    render(<PlaylistCard playlist={basePlaylist} providerId="spotify" />, { wrapper: TestWrapper });
 
     // Title
     expect(screen.getByText("Road Trip Mix")).toBeInTheDocument();
@@ -62,12 +62,12 @@ describe("PlaylistCard", () => {
     expect(screen.getByAltText("Road Trip Mix")).toBeInTheDocument();
     // Link href
     const link = screen.getByRole("link");
-    expect(link).toHaveAttribute("href", "/playlists/abc123");
+    expect(link).toHaveAttribute("href", "/playlists/abc123?provider=spotify");
   });
 
   it("renders fallback when no cover image", () => {
     const withoutCover: Playlist = { ...basePlaylist, image: null };
-    render(<PlaylistCard playlist={withoutCover} />, { wrapper: TestWrapper });
+    render(<PlaylistCard playlist={withoutCover} providerId="spotify" />, { wrapper: TestWrapper });
 
     expect(screen.getByText(/No cover/i)).toBeInTheDocument();
   });

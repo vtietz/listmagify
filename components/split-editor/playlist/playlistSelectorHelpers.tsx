@@ -6,10 +6,11 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Input } from '@/components/ui/input';
 import { Check, Heart } from 'lucide-react';
 import { apiFetch } from '@/lib/api/client';
-import { userPlaylists } from '@/lib/api/queryKeys';
+import { userPlaylistsByProvider } from '@/lib/api/queryKeys';
 import { cn, matchesAllWords } from '@/lib/utils';
 import { LIKED_SONGS_PLAYLIST_ID, LIKED_SONGS_METADATA, isLikedSongsPlaylist } from '@/hooks/useLikedVirtualPlaylist';
 import type { Playlist } from '@/lib/music-provider/types';
+import type { MusicProviderId } from '@/lib/music-provider/types';
 
 interface PlaylistsResponse {
   items: Playlist[];
@@ -36,7 +37,7 @@ export function usePlaylistPollIntervalMs() {
     : undefined;
 }
 
-export function usePlaylistInfiniteData(pollIntervalMs: number | undefined) {
+export function usePlaylistInfiniteData(pollIntervalMs: number | undefined, providerId: MusicProviderId) {
   const {
     data,
     isLoading,
@@ -45,11 +46,11 @@ export function usePlaylistInfiniteData(pollIntervalMs: number | undefined) {
     isFetchingNextPage,
     refetch,
   } = useInfiniteQuery({
-    queryKey: userPlaylists(),
+    queryKey: userPlaylistsByProvider(providerId),
     queryFn: async ({ pageParam }: { pageParam: string | null }): Promise<PlaylistsResponse> => {
       const url = pageParam
-        ? `/api/me/playlists?nextCursor=${encodeURIComponent(pageParam)}`
-        : '/api/me/playlists';
+        ? `/api/me/playlists?nextCursor=${encodeURIComponent(pageParam)}&provider=${providerId}`
+        : `/api/me/playlists?provider=${providerId}`;
       return apiFetch<PlaylistsResponse>(url);
     },
     getNextPageParam: (lastPage: PlaylistsResponse) => lastPage.nextCursor,
@@ -106,15 +107,19 @@ export function useFilteredPlaylists(allPlaylists: Playlist[], query: string) {
   }, [allPlaylists, query]);
 }
 
-export function useShowLikedSongs(query: string) {
+export function useShowLikedSongs(query: string, providerId: MusicProviderId) {
   return useMemo(() => {
+    if (providerId !== 'spotify') {
+      return false;
+    }
+
     const normalizedQuery = query.trim();
 
     return !normalizedQuery
       || matchesAllWords(LIKED_SONGS_METADATA.name, normalizedQuery)
       || matchesAllWords('liked', normalizedQuery)
       || matchesAllWords('saved', normalizedQuery);
-  }, [query]);
+  }, [query, providerId]);
 }
 
 export function getSelectedPlaylistLabel({

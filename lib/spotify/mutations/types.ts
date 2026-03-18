@@ -3,11 +3,13 @@
  */
 
 import type { Track } from '@/lib/music-provider/types';
+import type { MusicProviderId } from '@/lib/music-provider/types';
 
 // Re-export InfiniteData from sortUtils for convenience
 export type { InfiniteData } from '@/lib/dnd/sortUtils';
 
 export interface AddTracksParams {
+  providerId?: MusicProviderId;
   playlistId: string;
   trackUris: string[];
   position?: number;
@@ -20,12 +22,14 @@ export interface TrackToRemove {
 }
 
 export interface RemoveTracksParams {
+  providerId?: MusicProviderId;
   playlistId: string;
   tracks: TrackToRemove[];
   snapshotId?: string;
 }
 
 export interface ReorderTracksParams {
+  providerId?: MusicProviderId;
   playlistId: string;
   fromIndex: number;
   toIndex: number;
@@ -34,6 +38,7 @@ export interface ReorderTracksParams {
 }
 
 export interface ReorderAllTracksParams {
+  providerId?: MusicProviderId;
   playlistId: string;
   trackUris: string[];
 }
@@ -50,6 +55,7 @@ export interface PlaylistTracksData {
 }
 
 export interface CreatePlaylistParams {
+  providerId?: MusicProviderId;
   name: string;
   description?: string;
   isPublic?: boolean;
@@ -66,6 +72,7 @@ export interface CreatePlaylistResponse {
 }
 
 export interface UpdatePlaylistParams {
+  providerId?: MusicProviderId;
   playlistId: string;
   name?: string;
   description?: string;

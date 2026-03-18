@@ -11,13 +11,15 @@
 import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { eventBus } from '@/lib/sync/eventBus';
+import type { MusicProviderId } from '@/lib/music-provider/types';
 
 // Track active timers per playlist to avoid duplicates
-// Key: playlistId, Value: { refCount: number, intervalId: NodeJS.Timeout | null }
+// Key: providerId:playlistId, Value: { refCount: number, intervalId: NodeJS.Timeout | null }
 const activeTimers = new Map<string, { refCount: number; intervalId: ReturnType<typeof setInterval> | null }>();
 
 export function useAutoReload(
   playlistId: string | null | undefined,
+  providerId: MusicProviderId,
   isLikedPlaylist: boolean
 ) {
   const { data: configData } = useQuery({
@@ -34,24 +36,26 @@ export function useAutoReload(
     const intervalSeconds = configData?.playlistPollIntervalSeconds;
     if (!intervalSeconds || !playlistId || isLikedPlaylist) return;
 
+    const timerKey = `${providerId}:${playlistId}`;
+
     // Get or create timer entry for this playlist
-    let timerEntry = activeTimers.get(playlistId);
+    let timerEntry = activeTimers.get(timerKey);
     
     if (!timerEntry) {
       // First panel with this playlist - create new timer
       const intervalId = setInterval(() => {
-        eventBus.emit('playlist:reload', { playlistId });
+        eventBus.emit('playlist:reload', { playlistId, providerId });
       }, intervalSeconds * 1000);
       
       timerEntry = { refCount: 1, intervalId };
-      activeTimers.set(playlistId, timerEntry);
+      activeTimers.set(timerKey, timerEntry);
     } else {
       // Another panel has this playlist - just increment ref count
       timerEntry.refCount++;
     }
 
     return () => {
-      const entry = activeTimers.get(playlistId);
+      const entry = activeTimers.get(timerKey);
       if (!entry) return;
       
       entry.refCount--;
@@ -61,8 +65,8 @@ export function useAutoReload(
         if (entry.intervalId) {
           clearInterval(entry.intervalId);
         }
-        activeTimers.delete(playlistId);
+        activeTimers.delete(timerKey);
       }
     };
-  }, [configData?.playlistPollIntervalSeconds, playlistId, isLikedPlaylist]);
+  }, [configData?.playlistPollIntervalSeconds, playlistId, providerId, isLikedPlaylist]);
 }

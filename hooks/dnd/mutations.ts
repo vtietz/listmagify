@@ -6,6 +6,7 @@
  */
 
 import type { Track } from '@/lib/music-provider/types';
+import type { MusicProviderId } from '@/lib/music-provider/types';
 import type { PanelConfig, TrackWithPositions } from './types';
 import { buildTracksWithPositions, getTrackPositions, isContiguousRange } from './helpers';
 import { logDebug } from '@/lib/utils/debug';
@@ -17,6 +18,7 @@ import { toast } from '@/lib/ui/toast';
 export interface MutationHandlers {
   addTracks: {
     mutate: (params: {
+      providerId?: MusicProviderId;
       playlistId: string;
       trackUris: string[];
       position: number;
@@ -24,12 +26,14 @@ export interface MutationHandlers {
   };
   removeTracks: {
     mutate: (params: {
+      providerId?: MusicProviderId;
       playlistId: string;
       tracks: TrackWithPositions[];
     }) => void;
   };
   reorderTracks: {
     mutate: (params: {
+      providerId?: MusicProviderId;
       playlistId: string;
       fromIndex: number;
       toIndex: number;
@@ -59,6 +63,7 @@ export function handleLastfmDrop(
   selectedMatchedUris: string[] | undefined,
   targetPanelId: string,
   targetPlaylistId: string,
+  targetProviderId: MusicProviderId,
   targetIndex: number,
   context: DropContext
 ): boolean {
@@ -92,6 +97,7 @@ export function handleLastfmDrop(
 
   // Add tracks to target playlist
   mutations.addTracks.mutate({
+    providerId: targetProviderId,
     playlistId: targetPlaylistId,
     trackUris,
     position: targetIndex,
@@ -111,6 +117,7 @@ export function handleSamePanelDrop(
   effectiveTargetIndex: number,
   dragTracks: Track[],
   dragTrackUris: string[],
+  providerId: MusicProviderId,
   sourcePlaylistId: string,
   targetPlaylistId: string,
   context: DropContext
@@ -121,6 +128,7 @@ export function handleSamePanelDrop(
   if (effectiveMode === 'copy') {
     logDebug('✅ COPY (add duplicate):', dragTrackUris.length, 'tracks →', targetIndex);
     mutations.addTracks.mutate({
+      providerId,
       playlistId: targetPlaylistId,
       trackUris: dragTrackUris,
       position: targetIndex, // Use raw targetIndex for copy
@@ -139,6 +147,7 @@ export function handleSamePanelDrop(
     // Use raw targetIndex - the optimistic update in applyReorderToInfinitePages
     // already handles the insert position adjustment when moving forward
     mutations.reorderTracks.mutate({
+      providerId,
       playlistId: targetPlaylistId,
       fromIndex: sourceIndex,
       toIndex: targetIndex,
@@ -173,6 +182,7 @@ export function handleSamePanelDrop(
     // Use raw targetIndex - the optimistic update in applyReorderToInfinitePages
     // already handles the insert position adjustment when moving forward
     mutations.reorderTracks.mutate({
+      providerId,
       playlistId: targetPlaylistId,
       fromIndex,
       toIndex: targetIndex,
@@ -205,6 +215,7 @@ export function handleSamePanelDrop(
 
   mutations.addTracks.mutate(
     {
+      providerId,
       playlistId: targetPlaylistId,
       trackUris: dragTrackUris,
       position: effectiveTargetIndex,
@@ -212,6 +223,7 @@ export function handleSamePanelDrop(
     {
       onSuccess: () => {
         mutations.removeTracks.mutate({
+          providerId,
           playlistId: sourcePlaylistId,
           tracks: adjustedTracksWithPositions,
         });
@@ -232,6 +244,8 @@ export function handleCrossPanelDrop(
   _effectiveTargetIndex: number, // Unused - kept for API compatibility with handleSamePanelDrop
   dragTracks: Track[],
   dragTrackUris: string[],
+  sourceProviderId: MusicProviderId,
+  targetProviderId: MusicProviderId,
   sourcePlaylistId: string,
   targetPlaylistId: string,
   sourcePanel: PanelConfig,
@@ -253,6 +267,7 @@ export function handleCrossPanelDrop(
     if (effectiveMode === 'copy') {
       logDebug('✅ COPY same playlist, cross-panel:', dragTrackUris.length, 'tracks →', targetIndex);
       mutations.addTracks.mutate({
+        providerId: targetProviderId,
         playlistId: targetPlaylistId,
         trackUris: dragTrackUris,
         position: targetIndex, // Use raw targetIndex for copy (no adjustment needed)
@@ -282,6 +297,7 @@ export function handleCrossPanelDrop(
       logDebug('✅ REORDER cross-panel (contiguous):', trackPositions, '→', targetIndex, `(${rangeLength} tracks)`);
       // Use raw targetIndex - the optimistic update already handles the adjustment
       mutations.reorderTracks.mutate({
+        providerId: targetProviderId,
         playlistId: targetPlaylistId,
         fromIndex,
         toIndex: targetIndex,
@@ -292,6 +308,7 @@ export function handleCrossPanelDrop(
       logDebug('✅ REORDER cross-panel (single/non-contiguous):', dragTracks.map((t) => t.position), '→', targetIndex);
       // Use raw targetIndex - the optimistic update already handles the adjustment
       mutations.reorderTracks.mutate({
+        providerId: targetProviderId,
         playlistId: targetPlaylistId,
         fromIndex: sourceIndex,
         toIndex: targetIndex,
@@ -305,6 +322,7 @@ export function handleCrossPanelDrop(
   if (effectiveMode === 'copy') {
     // Copy to target at mouse position
     mutations.addTracks.mutate({
+      providerId: targetProviderId,
       playlistId: targetPlaylistId,
       trackUris: dragTrackUris,
       position: targetIndex,
@@ -313,6 +331,7 @@ export function handleCrossPanelDrop(
     // Move to target at mouse position
     mutations.addTracks.mutate(
       {
+        providerId: targetProviderId,
         playlistId: targetPlaylistId,
         trackUris: dragTrackUris,
         position: targetIndex,
@@ -324,6 +343,7 @@ export function handleCrossPanelDrop(
             // Build tracks with positions for precise removal (handles duplicate tracks)
             const tracksWithPositions = buildTracksWithPositions(dragTracks, orderedTracks);
             mutations.removeTracks.mutate({
+              providerId: sourceProviderId,
               playlistId: sourcePlaylistId,
               tracks: tracksWithPositions,
             });

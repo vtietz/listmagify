@@ -4,6 +4,7 @@ import Link from "next/link";
 import React, { useState, useCallback } from "react";
 import { Heart, Pencil, Play } from "lucide-react";
 import type { Playlist  } from '@/lib/music-provider/types';
+import type { MusicProviderId } from '@/lib/music-provider/types';
 import { cn } from "@/lib/utils";
 import { isLikedSongsPlaylist } from "@/hooks/useLikedVirtualPlaylist";
 import { useSessionUser } from "@/hooks/useSessionUser";
@@ -15,6 +16,7 @@ import { useUpdatePlaylist } from "@/lib/spotify/playlistMutations";
 
 type PlaylistListItemProps = {
   playlist: Playlist;
+  providerId: MusicProviderId;
   className?: string;
 };
 
@@ -125,7 +127,7 @@ function PlaylistListActions({
  * Compact list item view for playlists.
  * Shows playlist cover, name, and track count in a horizontal row.
  */
-export function PlaylistListItem({ playlist, className }: PlaylistListItemProps) {
+export function PlaylistListItem({ playlist, providerId, className }: PlaylistListItemProps) {
   const { user } = useSessionUser();
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const updatePlaylist = useUpdatePlaylist();
@@ -154,17 +156,20 @@ export function PlaylistListItem({ playlist, className }: PlaylistListItemProps)
 
   const handleUpdatePlaylist = useCallback(async (values: { name: string; description: string; isPublic: boolean }) => {
     await updatePlaylist.mutateAsync({
+      providerId,
       playlistId: playlist.id,
       name: values.name,
       description: values.description,
       isPublic: values.isPublic,
     });
-  }, [updatePlaylist, playlist.id]);
+  }, [updatePlaylist, providerId, playlist.id]);
+
+  const canPlayFromListItem = providerId === 'spotify';
   
   return (
     <>
       <Link
-        href={`/playlists/${encodeURIComponent(playlist.id)}`}
+        href={`/playlists/${encodeURIComponent(playlist.id)}?provider=${providerId}`}
         className={cn(
           "group flex items-center gap-3 p-2 rounded-md",
           "hover:bg-muted/50 transition-colors",
@@ -188,7 +193,7 @@ export function PlaylistListItem({ playlist, className }: PlaylistListItemProps)
         {/* Action buttons */}
         <PlaylistListActions
           isEditable={Boolean(isEditable)}
-          isPlayerVisible={isPlayerVisible}
+          isPlayerVisible={isPlayerVisible && canPlayFromListItem}
           isLiked={isLiked}
           playlistName={playlist.name}
           onEdit={handleEditClick}

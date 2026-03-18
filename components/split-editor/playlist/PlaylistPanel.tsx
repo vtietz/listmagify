@@ -252,6 +252,7 @@ function PlaylistPanelBody({
     >
       <PanelToolbar
         panelId={panelId}
+        providerId={state.providerId}
         playlistId={state.playlistId ?? null}
         playlistName={state.playlistName}
         playlistDescription={state.playlistDescription}
@@ -285,6 +286,7 @@ function PlaylistPanelBody({
         onSplitVertical={state.handleSplitVertical}
         onDndModeToggle={state.handleDndModeToggle}
         onLockToggle={state.handleLockToggle}
+        onProviderChange={state.handleProviderChange}
         onLoadPlaylist={state.handleLoadPlaylist}
         onClearInsertionMarkers={() => state.playlistId && state.clearInsertionMarkers(state.playlistId)}
         onSaveCurrentOrder={state.handleSaveCurrentOrder}

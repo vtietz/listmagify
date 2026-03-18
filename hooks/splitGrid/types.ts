@@ -6,6 +6,7 @@
  */
 
 import type { SortKey, SortDirection } from '@/lib/utils/sort';
+import type { MusicProviderId } from '@/lib/music-provider/types';
 
 // Re-export for convenience
 export type { SortKey, SortDirection };
@@ -16,6 +17,7 @@ export type { SortKey, SortDirection };
 
 export interface PanelConfig {
   id: string;
+  providerId: MusicProviderId;
   playlistId: string | null;
   isEditable: boolean;
   locked: boolean; // User-controlled lock (prevents dragging tracks from this panel)
@@ -62,9 +64,13 @@ export function generateGroupId(): string {
 }
 
 /** Create a new empty panel config */
-export function createPanelConfig(playlistId: string | null = null): PanelConfig {
+export function createPanelConfig(
+  playlistId: string | null = null,
+  providerId: MusicProviderId = 'spotify'
+): PanelConfig {
   return {
     id: generatePanelId(),
+    providerId,
     playlistId,
     isEditable: false,
     locked: false,

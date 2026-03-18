@@ -5,6 +5,7 @@
  */
 
 import type { Track } from '@/lib/music-provider/types';
+import type { MusicProviderId } from '@/lib/music-provider/types';
 import type { Virtualizer } from '@tanstack/react-virtual';
 
 /**
@@ -13,6 +14,7 @@ import type { Virtualizer } from '@tanstack/react-virtual';
  */
 export interface PanelConfig {
   id: string;
+  providerId?: MusicProviderId;
   playlistId: string | null;
   isEditable: boolean;
   dndMode?: 'move' | 'copy';
