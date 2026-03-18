@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef } from 'react';
+import { usePathname } from 'next/navigation';
 import { useDeviceType } from '@/hooks/useDeviceType';
 import { useAutoScrollPlayStore, useHydratedAutoScrollPlay } from '@/hooks/useAutoScrollPlayStore';
 import {
@@ -72,12 +73,15 @@ function PanelToolbarInner({
     isEditable,
   });
   const { isPhone } = useDeviceType();
+  const pathname = usePathname();
   const autoScrollEnabled = useHydratedAutoScrollPlay();
   const toggleAutoScroll = useAutoScrollPlayStore((s) => s.toggle);
 
   const showSplitCommands = !isPhone;
   const isLastPanel = panelCount <= 1;
-  const disableClose = !isPhone && isLastPanel;
+  const isPlaylistDetailRoute = pathname.startsWith('/playlists/');
+  const canCloseLastPanel = isPlaylistDetailRoute;
+  const disableClose = !isPhone && isLastPanel && !canCloseLastPanel;
 
   const navItems = useToolbarNavItems({
     playlistId,
@@ -109,6 +113,7 @@ function PanelToolbarInner({
     onSplitVertical,
     isPhone,
     isLastPanel,
+    canCloseLastPanel,
     onClose,
     disableClose,
     onOpenSelectionMenu,

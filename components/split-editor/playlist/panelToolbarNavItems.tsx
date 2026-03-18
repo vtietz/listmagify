@@ -47,6 +47,7 @@ export interface PanelToolbarNavItemsParams {
   onSplitVertical: () => void;
   isPhone: boolean;
   isLastPanel: boolean;
+  canCloseLastPanel: boolean;
   onClose: () => void;
   disableClose: boolean;
 }
@@ -206,24 +207,28 @@ function addTrackNavItems(items: NavItem[], params: PanelToolbarNavItemsParams):
   addClearMarkersNavItem(items, params);
 }
 
-function buildClosePanelLabel(isPhone: boolean, isLastPanel: boolean): string {
+function buildClosePanelLabel(isPhone: boolean, isLastPanel: boolean, canCloseLastPanel: boolean): string {
   if (isPhone) {
     return 'Hide panel';
   }
 
-  if (isLastPanel) {
+  if (isLastPanel && !canCloseLastPanel) {
     return 'Close panel (last)';
   }
 
   return 'Close panel';
 }
 
-function buildClosePanelTitle(isPhone: boolean, isLastPanel: boolean): string {
+function buildClosePanelTitle(isPhone: boolean, isLastPanel: boolean, canCloseLastPanel: boolean): string {
   if (isPhone) {
     return 'Hide panel';
   }
 
-  if (isLastPanel) {
+  if (isLastPanel && canCloseLastPanel) {
+    return 'Close panel and return to playlists';
+  }
+
+  if (isLastPanel && !canCloseLastPanel) {
     return 'Cannot close last panel';
   }
 
@@ -259,10 +264,10 @@ function addClosePanelNavItem(items: NavItem[], params: PanelToolbarNavItemsPara
   items.push({
     id: 'close',
     icon: <X className="h-4 w-4" />,
-    label: buildClosePanelLabel(params.isPhone, params.isLastPanel),
+    label: buildClosePanelLabel(params.isPhone, params.isLastPanel, params.canCloseLastPanel),
     onClick: params.onClose,
     disabled: params.disableClose,
-    title: buildClosePanelTitle(params.isPhone, params.isLastPanel),
+    title: buildClosePanelTitle(params.isPhone, params.isLastPanel, params.canCloseLastPanel),
     group: 'close',
   });
 }
