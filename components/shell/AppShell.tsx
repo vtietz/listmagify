@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Suspense, useEffect } from "react";
+import React, { Suspense } from "react";
 import { usePathname } from "next/navigation";
 import { useBrowsePanelStore } from "@/hooks/useBrowsePanelStore";
 import { usePlayerStore } from "@/hooks/usePlayerStore";
@@ -16,6 +16,7 @@ import { BrowsePanel } from "@/components/split-editor/browse/BrowsePanel";
 import { AppLogo } from "@/components/ui/app-logo";
 import { AppFooter } from "@/components/ui/app-footer";
 import { cn } from "@/lib/utils";
+import { useAppShellLayout } from "@/hooks/shell/useAppShellLayout";
 import {
   AdaptiveNav,
   LoginButton,
@@ -48,52 +49,21 @@ function PlayerWithSuspense() {
 export function AppShell({ headerTitle = "Listmagify", children }: AppShellProps) {
   const pathname = usePathname();
   const isBrowsePanelOpen = useBrowsePanelStore((state) => state.isOpen);
-  const closeBrowsePanel = useBrowsePanelStore((state) => state.close);
   const { authenticated } = useSessionUser();
   const { isPhone } = useDeviceType();
+  const { mode, supportsBrowsePanel } = useAppShellLayout({
+    pathname,
+    authenticated,
+    isPhone,
+    isBrowsePanelOpen,
+  });
 
-  const isLandingPage = pathname === "/";
-  const isPlaylistsPage = pathname === '/playlists';
-  const isStatsPage = pathname === '/stats' || pathname.startsWith('/stats/');
-  const supportsBrowsePanel = !isPlaylistsPage && !isStatsPage && !isLandingPage;
-
-  // Auto-close browse panel on phone - it doesn't work well on small screens
-  useEffect(() => {
-    if (isPhone && isBrowsePanelOpen) {
-      closeBrowsePanel();
-    }
-  }, [isPhone, isBrowsePanelOpen, closeBrowsePanel]);
-
-  // Auto-close browse panel on pages that don't support it
-  useEffect(() => {
-    if (isBrowsePanelOpen && !supportsBrowsePanel) {
-      closeBrowsePanel();
-    }
-  }, [isBrowsePanelOpen, supportsBrowsePanel, closeBrowsePanel]);
-
-  // Pages that handle their own complete layout (bypass AppShell)
-  const isStandalonePage = pathname === '/login' || (isLandingPage && !authenticated);
-  
-  // Content pages that don't need player or browse panel (static/legal pages)
-  const isContentPage = pathname === '/privacy' || 
-                        pathname === '/imprint' ||
-                        pathname === '/logout';
-  
-  // Pages that need fixed viewport height (no global scrolling, internal scroll containers)
-  // - Split editor: multiple panels with their own scroll
-  // - Playlist detail: uses SplitGrid which needs internal scrolling
-  const isFixedHeightPage = pathname === '/split-editor' || 
-                            pathname.startsWith('/playlists/');
-  
-  // Standalone pages - render children directly (pages handle their own layout)
-  if (isStandalonePage) {
+  if (mode === 'standalone') {
     return <>{children}</>;
   }
 
-  // Landing page when authenticated: keep content as-is, but show the normal header/nav.
-  // Avoid player/browse panel here to match the public landing layout.
-  if (isLandingPage && authenticated) {
-    return (
+  const renderByMode: Record<'landing-auth' | 'content' | 'fixed' | 'default', () => React.ReactNode> = {
+    'landing-auth': () => (
       <div className="min-h-dvh flex flex-col bg-background text-foreground">
         <Header title={headerTitle} />
         <main className="flex-1 overflow-auto">{children}</main>
@@ -101,12 +71,8 @@ export function AppShell({ headerTitle = "Listmagify", children }: AppShellProps
           <AppFooter showSpotifyAttribution={false} />
         </div>
       </div>
-    );
-  }
-
-  // Content pages - simple scrollable layout without player or browse panel
-  if (isContentPage) {
-    return (
+    ),
+    content: () => (
       <div className="min-h-dvh flex flex-col bg-background text-foreground">
         <Header title={headerTitle} />
         <main className="flex-1 overflow-auto">{children}</main>
@@ -116,50 +82,85 @@ export function AppShell({ headerTitle = "Listmagify", children }: AppShellProps
           </div>
         )}
       </div>
-    );
-  }
+    ),
+    fixed: () => (
+      <FixedHeightLayout pathname={pathname} title={headerTitle} isPhone={isPhone}>
+        {children}
+      </FixedHeightLayout>
+    ),
+    default: () => (
+      <DefaultLayout
+        title={headerTitle}
+        isPhone={isPhone}
+        authenticated={authenticated}
+        isBrowsePanelOpen={isBrowsePanelOpen}
+        supportsBrowsePanel={supportsBrowsePanel}
+      >
+        {children}
+      </DefaultLayout>
+    ),
+  };
 
-  // Fixed height layout for split editor and playlist detail (internal scrolling)
-  if (isFixedHeightPage) {
-    // Split editor renders its own player inside DndContext for drag-and-drop support
-    const isSplitEditor = pathname === '/split-editor';
-    
-    return (
-      <div className="h-dvh flex flex-col bg-background text-foreground overflow-hidden">
-        <Header title={headerTitle} />
-        <main className="flex-1 min-h-0 overflow-hidden">{children}</main>
-        {/* On phone, SplitGrid handles player via bottom nav toggle */}
-        {/* Split editor renders player inside its DndContext for drag support */}
-        {!isPhone && !isSplitEditor && <PlayerWithSuspense />}
-        {!isPhone && (
-          <div className="flex-shrink-0 px-4 py-1 border-t border-border">
-            <AppFooter />
-          </div>
-        )}
-      </div>
-    );
-  }
+  return <>{renderByMode[mode]()}</>;
+}
 
-  // Standard scrollable layout (browser native scrolling with sticky header/footer)
-  // Used by playlists index page (/playlists) and other non-fixed pages
+function FixedHeightLayout({
+  pathname,
+  title,
+  isPhone,
+  children,
+}: {
+  pathname: string;
+  title: string;
+  isPhone: boolean;
+  children: React.ReactNode;
+}) {
+  const isSplitEditor = pathname === '/split-editor';
+
+  return (
+    <div className="h-dvh flex flex-col bg-background text-foreground overflow-hidden">
+      <Header title={title} />
+      <main className="flex-1 min-h-0 overflow-hidden">{children}</main>
+      {!isPhone && !isSplitEditor && <PlayerWithSuspense />}
+      {!isPhone && (
+        <div className="flex-shrink-0 px-4 py-1 border-t border-border">
+          <AppFooter />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DefaultLayout({
+  title,
+  isPhone,
+  authenticated,
+  isBrowsePanelOpen,
+  supportsBrowsePanel,
+  children,
+}: {
+  title: string;
+  isPhone: boolean;
+  authenticated: boolean;
+  isBrowsePanelOpen: boolean;
+  supportsBrowsePanel: boolean;
+  children: React.ReactNode;
+}) {
+  const showBrowsePanel = authenticated && isBrowsePanelOpen && supportsBrowsePanel;
+
   return (
     <div className="h-dvh flex flex-col bg-background text-foreground overflow-hidden">
       <div className="flex-shrink-0 bg-background">
-        <Header title={headerTitle} />
+        <Header title={title} />
       </div>
       <div className="flex-1 min-h-0 flex overflow-hidden relative">
         <main className="flex-1 min-w-0 overflow-auto">{children}</main>
-        {authenticated && isBrowsePanelOpen && supportsBrowsePanel && (
-          <div className={cn(
-            isPhone 
-              ? "absolute inset-0 z-50 bg-background" // Mobile: full-screen overlay
-              : "relative" // Desktop: side panel
-          )}>
+        {showBrowsePanel && (
+          <div className={cn(isPhone ? 'absolute inset-0 z-50 bg-background' : 'relative')}>
             <BrowsePanel isMobileOverlay={isPhone} />
           </div>
         )}
       </div>
-      {/* On phone, player is handled by split-editor's bottom nav */}
       {!isPhone && (
         <div className="flex-shrink-0 bg-background">
           <PlayerWithSuspense />

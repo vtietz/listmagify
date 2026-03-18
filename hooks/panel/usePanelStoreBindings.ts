@@ -10,6 +10,153 @@ import { useMobileOverlayStore } from '@/components/split-editor/mobile/MobileBo
 import { useDeviceType } from '@/hooks/useDeviceType';
 import { eventBus } from '@/lib/sync/eventBus';
 import type { SortKey, SortDirection } from '@/lib/utils/sort';
+import type { MobileOverlay } from '@/components/split-editor/mobile/MobileBottomNav';
+
+function usePanelSortBindings({
+  panelId,
+  sortKey,
+  sortDirection,
+  setSort,
+}: {
+  panelId: string;
+  sortKey: SortKey;
+  sortDirection: SortDirection;
+  setSort: (panelId: string, key: SortKey, direction: SortDirection) => void;
+}) {
+  const setSortKey = useCallback(
+    (key: SortKey) => {
+      setSort(panelId, key, sortDirection);
+    },
+    [panelId, setSort, sortDirection]
+  );
+
+  const setSortDirection = useCallback(
+    (dir: SortDirection) => {
+      setSort(panelId, sortKey, dir);
+    },
+    [panelId, setSort, sortKey]
+  );
+
+  const handleSort = useCallback(
+    (key: SortKey) => {
+      if (key === sortKey) {
+        setSort(panelId, key, sortDirection === 'asc' ? 'desc' : 'asc');
+        return;
+      }
+
+      setSort(panelId, key, 'asc');
+    },
+    [panelId, setSort, sortDirection, sortKey]
+  );
+
+  return {
+    setSortKey,
+    setSortDirection,
+    handleSort,
+  };
+}
+
+function usePanelActionBindings({
+  panelId,
+  playlistId,
+  dndMode,
+  isPhone,
+  activeOverlay,
+  setActiveOverlay,
+  closePanel,
+  splitPanel,
+  setPanelDnDMode,
+  togglePanelLock,
+  selectPlaylist,
+}: {
+  panelId: string;
+  playlistId: string | null | undefined;
+  dndMode: 'move' | 'copy';
+  isPhone: boolean;
+  activeOverlay: MobileOverlay;
+  setActiveOverlay: (overlay: MobileOverlay) => void;
+  closePanel: (panelId: string) => void;
+  splitPanel: (panelId: string, orientation: 'horizontal' | 'vertical') => void;
+  setPanelDnDMode: (panelId: string, mode: 'move' | 'copy') => void;
+  togglePanelLock: (panelId: string) => void;
+  selectPlaylist: (panelId: string, playlistId: string) => void;
+}) {
+  const handleSearchChange = useCallback(
+    (query: string, setSearch: (panelId: string, query: string) => void) => setSearch(panelId, query),
+    [panelId]
+  );
+
+  const handleReload = useCallback(() => {
+    if (playlistId) {
+      eventBus.emit('playlist:reload', { playlistId });
+    }
+  }, [playlistId]);
+
+  const handleClose = useCallback(() => {
+    if (isPhone && activeOverlay === 'panel2') {
+      setActiveOverlay('none');
+      return;
+    }
+
+    closePanel(panelId);
+  }, [activeOverlay, closePanel, isPhone, panelId, setActiveOverlay]);
+
+  const handleSplitHorizontal = useCallback(() => splitPanel(panelId, 'horizontal'), [panelId, splitPanel]);
+  const handleSplitVertical = useCallback(() => splitPanel(panelId, 'vertical'), [panelId, splitPanel]);
+
+  const handleDndModeToggle = useCallback(() => {
+    setPanelDnDMode(panelId, dndMode === 'move' ? 'copy' : 'move');
+  }, [dndMode, panelId, setPanelDnDMode]);
+
+  const handleLockToggle = useCallback(() => togglePanelLock(panelId), [panelId, togglePanelLock]);
+
+  const handleLoadPlaylist = useCallback(
+    (newPlaylistId: string) => {
+      selectPlaylist(panelId, newPlaylistId);
+    },
+    [panelId, selectPlaylist]
+  );
+
+  return {
+    handleSearchChange,
+    handleReload,
+    handleClose,
+    handleSplitHorizontal,
+    handleSplitVertical,
+    handleDndModeToggle,
+    handleLockToggle,
+    handleLoadPlaylist,
+  };
+}
+
+const toSearchQuery = (value: string | undefined): string => value ?? '';
+const toSelection = (value: Set<string> | undefined): Set<string> => value ?? new Set<string>();
+const toLocked = (value: boolean | undefined): boolean => value ?? false;
+const toSortKey = (value: SortKey | undefined): SortKey => value ?? 'position';
+const toSortDirection = (value: SortDirection | undefined): SortDirection => value ?? 'asc';
+const toDndMode = (value: 'move' | 'copy' | undefined): 'move' | 'copy' => value ?? 'copy';
+
+function derivePanelState(panel: {
+  playlistId?: string | null;
+  searchQuery?: string;
+  selection?: Set<string>;
+  locked?: boolean;
+  sortKey?: SortKey;
+  sortDirection?: SortDirection;
+  dndMode?: 'move' | 'copy';
+  scrollOffset?: number;
+} | undefined) {
+  return {
+    playlistId: panel?.playlistId,
+    searchQuery: toSearchQuery(panel?.searchQuery),
+    selection: toSelection(panel?.selection),
+    locked: toLocked(panel?.locked),
+    sortKey: toSortKey(panel?.sortKey),
+    sortDirection: toSortDirection(panel?.sortDirection),
+    storedDndMode: toDndMode(panel?.dndMode),
+    scrollOffset: panel?.scrollOffset,
+  };
+}
 
 export function usePanelStoreBindings(panelId: string, dndMode: 'move' | 'copy') {
   // Store selectors - using typed selectors for type safety
@@ -34,84 +181,50 @@ export function usePanelStoreBindings(panelId: string, dndMode: 'move' | 'copy')
   const activeOverlay = useMobileOverlayStore((s) => s.activeOverlay);
   const setActiveOverlay = useMobileOverlayStore((s) => s.setActiveOverlay);
 
-  // Panel state from store
-  const playlistId = panel?.playlistId;
-  const searchQuery = panel?.searchQuery || '';
-  const selection = panel?.selection || new Set<string>();
-  const locked = panel?.locked || false;
-  const sortKey: SortKey = panel?.sortKey || 'position';
-  const sortDirection: SortDirection = panel?.sortDirection || 'asc';
-  const storedDndMode = panel?.dndMode || 'copy';
-  const scrollOffset = panel?.scrollOffset;
+  const {
+    playlistId,
+    searchQuery,
+    selection,
+    locked,
+    sortKey,
+    sortDirection,
+    storedDndMode,
+    scrollOffset,
+  } = derivePanelState(panel);
 
-  // Sort setters
-  const setSortKey = useCallback(
-    (key: SortKey) => {
-      setSort(panelId, key, sortDirection);
-    },
-    [panelId, setSort, sortDirection]
-  );
+  const { setSortKey, setSortDirection, handleSort } = usePanelSortBindings({
+    panelId,
+    sortKey,
+    sortDirection,
+    setSort,
+  });
 
-  const setSortDirection = useCallback(
-    (dir: SortDirection) => {
-      setSort(panelId, sortKey, dir);
-    },
-    [panelId, setSort, sortKey]
-  );
+  const {
+    handleSearchChange: handleSearchChangeWithStore,
+    handleReload,
+    handleClose,
+    handleSplitHorizontal,
+    handleSplitVertical,
+    handleDndModeToggle,
+    handleLockToggle,
+    handleLoadPlaylist,
+  } = usePanelActionBindings({
+    panelId,
+    playlistId,
+    dndMode,
+    isPhone,
+    activeOverlay,
+    setActiveOverlay,
+    closePanel,
+    splitPanel,
+    setPanelDnDMode,
+    togglePanelLock,
+    selectPlaylist,
+  });
 
-  // Handlers
   const handleSearchChange = useCallback(
-    (query: string) => setSearch(panelId, query),
-    [panelId, setSearch]
-  );
-
-  const handleReload = useCallback(() => {
-    if (playlistId) eventBus.emit('playlist:reload', { playlistId });
-  }, [playlistId]);
-
-  const handleClose = useCallback(() => {
-    if (isPhone && activeOverlay === 'panel2') {
-      setActiveOverlay('none');
-    } else {
-      closePanel(panelId);
-    }
-  }, [isPhone, activeOverlay, setActiveOverlay, closePanel, panelId]);
-
-  const handleSplitHorizontal = useCallback(
-    () => splitPanel(panelId, 'horizontal'),
-    [panelId, splitPanel]
-  );
-
-  const handleSplitVertical = useCallback(
-    () => splitPanel(panelId, 'vertical'),
-    [panelId, splitPanel]
-  );
-
-  const handleDndModeToggle = useCallback(() => {
-    setPanelDnDMode(panelId, dndMode === 'move' ? 'copy' : 'move');
-  }, [panelId, dndMode, setPanelDnDMode]);
-
-  const handleLockToggle = useCallback(
-    () => togglePanelLock(panelId),
-    [panelId, togglePanelLock]
-  );
-
-  const handleLoadPlaylist = useCallback(
-    (newPlaylistId: string) => {
-      selectPlaylist(panelId, newPlaylistId);
-    },
-    [panelId, selectPlaylist]
-  );
-
-  const handleSort = useCallback(
-    (key: SortKey) => {
-      if (key === sortKey) {
-        setSort(panelId, key, sortDirection === 'asc' ? 'desc' : 'asc');
-      } else {
-        setSort(panelId, key, 'asc');
-      }
-    },
-    [panelId, sortKey, sortDirection, setSort]
+    (query: string) => handleSearchChangeWithStore(query, setSearch),
+    [handleSearchChangeWithStore, setSearch]
   );
 
   return {

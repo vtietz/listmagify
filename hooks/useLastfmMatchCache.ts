@@ -100,6 +100,17 @@ interface MatchResponse {
   total: number;
 }
 
+function toCachedMatch(result: MatchResult, resolveMatchedTrack: (result: MatchResult) => MatchedTrack | undefined): CachedMatch {
+  const resolvedTrack = resolveMatchedTrack(result);
+  return {
+    status: resolvedTrack ? 'matched' : 'failed',
+    matchedTrack: resolvedTrack,
+    spotifyTrack: resolvedTrack,
+    confidence: result.confidence,
+    score: result.score,
+  };
+}
+
 /**
  * Hook for matching Last.fm tracks to Spotify on-demand
  */
@@ -186,6 +197,26 @@ export function useLastfmMatch() {
     
     // Mark uncached as pending
     setPending(uncachedKeys);
+
+    const markBatchFailed = (batchKeys: string[]) => {
+      for (const key of batchKeys) {
+        const match: CachedMatch = { status: 'failed' };
+        setMatch(key, match);
+        results.set(key, match);
+      }
+    };
+
+    const processBatchResults = (response: MatchResponse, batchKeys: string[]) => {
+      for (let j = 0; j < response.results.length; j++) {
+        const result = response.results[j];
+        const key = batchKeys[j];
+        if (!result || !key) continue;
+
+        const match = toCachedMatch(result, resolveMatchedTrack);
+        setMatch(key, match);
+        results.set(key, match);
+      }
+    };
     
     try {
       // Batch in groups of 20 (API limit)
@@ -200,32 +231,11 @@ export function useLastfmMatch() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ tracks: batch, limit: 5 }),
           });
-          
-          // Process results
-          for (let j = 0; j < response.results.length; j++) {
-            const result = response.results[j];
-            const key = batchKeys[j];
-            if (!result || !key) continue;
-            
-            const match: CachedMatch = {
-              status: resolveMatchedTrack(result) ? 'matched' : 'failed',
-              matchedTrack: resolveMatchedTrack(result),
-              spotifyTrack: resolveMatchedTrack(result),
-              confidence: result.confidence,
-              score: result.score,
-            };
-            
-            setMatch(key, match);
-            results.set(key, match);
-          }
+
+          processBatchResults(response, batchKeys);
         } catch (error) {
           console.error('[useLastfmMatch] Batch match error:', error);
-          // Mark batch as failed
-          for (const key of batchKeys) {
-            const match: CachedMatch = { status: 'failed' };
-            setMatch(key, match);
-            results.set(key, match);
-          }
+          markBatchFailed(batchKeys);
         }
       }
     } finally {

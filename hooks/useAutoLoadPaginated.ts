@@ -16,6 +16,54 @@ function defaultKeyForItem(item: unknown): string | null {
   return null;
 }
 
+function mergeUniqueItems<T>(existingItems: T[], incomingItems: T[]): T[] {
+  const seen = new Set<string>();
+  for (const item of existingItems) {
+    const key = defaultKeyForItem(item);
+    if (key) {
+      seen.add(key);
+    }
+  }
+
+  const toAppend: T[] = [];
+  for (const item of incomingItems) {
+    const key = defaultKeyForItem(item);
+    if (!key) {
+      toAppend.push(item);
+      continue;
+    }
+
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    toAppend.push(item);
+  }
+
+  return [...existingItems, ...toAppend];
+}
+
+function syncTracksCache<T>(
+  queryClient: QueryClient | undefined,
+  cacheQueryKey: unknown[] | undefined,
+  allItems: T[]
+) {
+  if (!queryClient || !cacheQueryKey) {
+    return;
+  }
+
+  const currentCache = queryClient.getQueryData(cacheQueryKey) as any;
+  if (!currentCache) {
+    return;
+  }
+
+  queryClient.setQueryData(cacheQueryKey, {
+    ...currentCache,
+    tracks: allItems,
+  });
+}
+
 interface UseAutoLoadPaginatedOptions<T> {
   /** Initial items from server-side rendering */
   initialItems: T[];
@@ -129,42 +177,14 @@ export function useAutoLoadPaginated<T>({
           );
 
           const newItems = data[itemsKey] || [];
-          // Defensive de-dupe: some backends can return overlapping pages while
-          // data is mutating (e.g., reorders). Prefer keeping first occurrence.
-          const seen = new Set<string>();
-          for (const item of allItems) {
-            const key = defaultKeyForItem(item);
-            if (key) seen.add(key);
-          }
-          const toAppend: T[] = [];
-          for (const item of newItems) {
-            const key = defaultKeyForItem(item);
-            if (!key) {
-              toAppend.push(item);
-              continue;
-            }
-            if (seen.has(key)) continue;
-            seen.add(key);
-            toAppend.push(item);
-          }
-
-          allItems = [...allItems, ...toAppend];
+          allItems = mergeUniqueItems(allItems, newItems);
           setItems(allItems); // Progressive UI update
           currentCursor = data.nextCursor ?? null;
         }
 
         setNextCursor(null); // All data loaded
-        
-        // Sync final full track list back to TanStack Query cache
-        if (queryClient && cacheQueryKey) {
-          const currentCache = queryClient.getQueryData(cacheQueryKey) as any;
-          if (currentCache) {
-            queryClient.setQueryData(cacheQueryKey, {
-              ...currentCache,
-              tracks: allItems,
-            });
-          }
-        }
+
+        syncTracksCache(queryClient, cacheQueryKey, allItems);
       } catch (error) {
         // Silently fail - user still has initial items
         console.warn(`[useAutoLoadPaginated] Auto-load failed for ${endpoint}:`, error);

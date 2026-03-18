@@ -6,10 +6,10 @@
 'use client';
 
 import * as React from 'react';
-import { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useDeviceType } from '@/hooks/useDeviceType';
+import { useSlideOverController } from '@/hooks/ui/useSlideOverController';
 
 interface SlideOverPanelProps {
   /** Whether the panel is open */
@@ -46,41 +46,13 @@ export function SlideOverPanel({
   width = 'medium',
   showOverlay = true,
 }: SlideOverPanelProps) {
-  const panelRef = useRef<HTMLDivElement>(null);
   const { isTablet: _isTablet, isPhone } = useDeviceType();
-
-  // Close on escape key
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
-        onClose();
-      }
-    };
-
-    document.addEventListener('keydown', handleEscape);
-    return () => document.removeEventListener('keydown', handleEscape);
-  }, [isOpen, onClose]);
-
-  // Focus trap
-  useEffect(() => {
-    if (isOpen && panelRef.current) {
-      const focusable = panelRef.current.querySelectorAll<HTMLElement>(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-      );
-      if (focusable.length > 0) {
-        focusable[0]?.focus();
-      }
-    }
-  }, [isOpen]);
+  const { panelRef, positionStyles } = useSlideOverController({ isOpen, side, onClose });
 
   // On phones, don't render slide-over (use BottomSheet instead)
   if (isPhone) {
     return null;
   }
-
-  const positionStyles = side === 'left'
-    ? { left: isOpen ? '0' : '-100%', right: 'auto' }
-    : { right: isOpen ? '0' : '-100%', left: 'auto' };
 
   return (
     <>

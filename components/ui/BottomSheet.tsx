@@ -6,9 +6,9 @@
 'use client';
 
 import * as React from 'react';
-import { useCallback, useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useBottomSheetController } from '@/hooks/ui/useBottomSheetController';
 
 interface BottomSheetProps {
   /** Whether the bottom sheet is open */
@@ -45,89 +45,24 @@ export function BottomSheet({
   closeOnOverlayClick = true,
   height = 'auto',
 }: BottomSheetProps) {
-  const sheetRef = useRef<HTMLDivElement>(null);
-  const [touchStart, setTouchStart] = useState<number | null>(null);
-  const [touchDelta, setTouchDelta] = useState(0);
-  const [isClosing, setIsClosing] = useState(false);
-
-  // Handle swipe-to-close gesture
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    setTouchStart(e.touches[0]?.clientY ?? null);
-  }, []);
-
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (touchStart === null) return;
-    const currentY = e.touches[0]?.clientY ?? 0;
-    const delta = currentY - touchStart;
-    // Only allow downward swipe
-    if (delta > 0) {
-      setTouchDelta(delta);
-    }
-  }, [touchStart]);
-
-  const handleTouchEnd = useCallback(() => {
-    if (touchDelta > 100) {
-      // Threshold to close
-      setIsClosing(true);
-      setTimeout(() => {
-        onClose();
-        setIsClosing(false);
-        setTouchDelta(0);
-      }, 200);
-    } else {
-      setTouchDelta(0);
-    }
-    setTouchStart(null);
-  }, [touchDelta, onClose]);
-
-  // Close on escape key
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
-        onClose();
-      }
-    };
-
-    document.addEventListener('keydown', handleEscape);
-    return () => document.removeEventListener('keydown', handleEscape);
-  }, [isOpen, onClose]);
-
-  // Prevent body scroll when open
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
-    return () => {
-      document.body.style.overflow = '';
-    };
-  }, [isOpen]);
-
-  // Focus trap
-  useEffect(() => {
-    if (isOpen && sheetRef.current) {
-      const focusable = sheetRef.current.querySelectorAll<HTMLElement>(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-      );
-      if (focusable.length > 0) {
-        focusable[0]?.focus();
-      }
-    }
-  }, [isOpen]);
-
-  const translateY = isClosing ? '100%' : `${touchDelta}px`;
+  const {
+    sheetRef,
+    isVisible,
+    transform,
+    handleTouchStart,
+    handleTouchMove,
+    handleTouchEnd,
+  } = useBottomSheetController({ isOpen, onClose });
+  const showHeader = Boolean(title) || showCloseButton;
 
   return (
     <>
-      {/* Overlay */}
-      <div
-        className={cn('bottom-sheet-overlay', isOpen && !isClosing && 'open')}
-        onClick={closeOnOverlayClick ? onClose : undefined}
-        aria-hidden="true"
+      <BottomSheetOverlay
+        isVisible={isVisible}
+        closeOnOverlayClick={closeOnOverlayClick}
+        onClose={onClose}
       />
 
-      {/* Sheet */}
       <div
         ref={sheetRef}
         role="dialog"
@@ -136,42 +71,69 @@ export function BottomSheet({
         className={cn(
           'bottom-sheet',
           HEIGHT_STYLES[height],
-          isOpen && !isClosing && 'open'
+          isVisible && 'open'
         )}
-        style={{
-          transform: isOpen && touchDelta > 0 ? `translateY(${translateY})` : undefined,
-        }}
+        style={{ transform }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       >
-        {/* Handle */}
         <div className="bottom-sheet-handle" aria-hidden="true" />
-
-        {/* Header */}
-        {(title || showCloseButton) && (
-          <div className="flex items-center justify-between px-4 pb-2">
-            {title && (
-              <h2 className="text-lg font-semibold">{title}</h2>
-            )}
-            {showCloseButton && (
-              <button
-                onClick={onClose}
-                className="touch-target flex items-center justify-center rounded-full hover:bg-muted"
-                aria-label="Close"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* Content */}
+        {showHeader ? (
+          <BottomSheetHeader
+            title={title}
+            showCloseButton={showCloseButton}
+            onClose={onClose}
+          />
+        ) : null}
         <div className={cn('bottom-sheet-content', className)}>
           {children}
         </div>
       </div>
     </>
+  );
+}
+
+function BottomSheetOverlay({
+  isVisible,
+  closeOnOverlayClick,
+  onClose,
+}: {
+  isVisible: boolean;
+  closeOnOverlayClick: boolean;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      className={cn('bottom-sheet-overlay', isVisible && 'open')}
+      onClick={closeOnOverlayClick ? onClose : undefined}
+      aria-hidden="true"
+    />
+  );
+}
+
+function BottomSheetHeader({
+  title,
+  showCloseButton,
+  onClose,
+}: {
+  title: string | undefined;
+  showCloseButton: boolean;
+  onClose: () => void;
+}) {
+  return (
+    <div className="flex items-center justify-between px-4 pb-2">
+      {title ? <h2 className="text-lg font-semibold">{title}</h2> : <div />}
+      {showCloseButton ? (
+        <button
+          onClick={onClose}
+          className="touch-target flex items-center justify-center rounded-full hover:bg-muted"
+          aria-label="Close"
+        >
+          <X className="h-5 w-5" />
+        </button>
+      ) : null}
+    </div>
   );
 }
 

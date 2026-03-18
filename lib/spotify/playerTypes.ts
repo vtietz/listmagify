@@ -64,16 +64,22 @@ const DEFAULT_RESTRICTIONS: PlaybackRestrictions = {
 export function mapPlaybackState(raw: any): PlaybackState | null {
   if (!raw) return null;
 
+  const source = raw ?? {};
+  const device = source.device ? mapDevice(source.device) : null;
+  const context = mapPlaybackContext(source.context);
+  const track = mapPlaybackTrack(source.item);
+  const restrictions = mapPlaybackRestrictions(source.actions?.disallows);
+
   return {
-    device: raw?.device ? mapDevice(raw.device) : null,
-    isPlaying: coerceBoolean(raw?.is_playing),
-    shuffleState: coerceBoolean(raw?.shuffle_state),
-    repeatState: coerceRepeatState(raw?.repeat_state),
-    context: mapPlaybackContext(raw?.context),
-    track: mapPlaybackTrack(raw?.item),
-    progressMs: coerceNumber(raw?.progress_ms, 0),
-    timestamp: coerceNumber(raw?.timestamp, Date.now()),
-    restrictions: mapPlaybackRestrictions(raw?.actions?.disallows),
+    device,
+    isPlaying: coerceBoolean(source.is_playing),
+    shuffleState: coerceBoolean(source.shuffle_state),
+    repeatState: coerceRepeatState(source.repeat_state),
+    context,
+    track,
+    progressMs: coerceNumber(source.progress_ms, 0),
+    timestamp: coerceNumber(source.timestamp, Date.now()),
+    restrictions,
   };
 }
 
@@ -134,21 +140,40 @@ function mapPlaybackContext(raw: any): PlaybackContext | null {
   };
 }
 
+function mapArtistNames(rawArtists: unknown): string[] {
+  if (!Array.isArray(rawArtists)) {
+    return [];
+  }
+
+  return rawArtists
+    .map((artist: any) => coerceString(artist?.name, ''))
+    .filter(Boolean);
+}
+
+function getAlbumImageUrl(rawAlbum: any): string | null {
+  if (!rawAlbum?.images || !Array.isArray(rawAlbum.images)) {
+    return null;
+  }
+
+  const firstImage = rawAlbum.images[0];
+  return firstImage?.url ?? null;
+}
+
 function mapPlaybackTrack(raw: any): PlaybackTrack | null {
   if (!raw) return null;
 
-  const artists = Array.isArray(raw?.artists)
-    ? raw.artists.map((artist: any) => coerceString(artist?.name, '')).filter(Boolean)
-    : [];
+  const source = raw ?? {};
+  const artists = mapArtistNames(source.artists);
+  const album = source.album ?? null;
 
   return {
-    id: raw?.id ?? null,
-    uri: coerceString(raw?.uri, ''),
-    name: coerceString(raw?.name, ''),
+    id: source.id ?? null,
+    uri: coerceString(source.uri, ''),
+    name: coerceString(source.name, ''),
     artists,
-    albumName: raw?.album?.name ?? null,
-    albumImage: raw?.album?.images?.[0]?.url ?? null,
-    durationMs: coerceNumber(raw?.duration_ms, 0),
+    albumName: album?.name ?? null,
+    albumImage: getAlbumImageUrl(album),
+    durationMs: coerceNumber(source.duration_ms, 0),
   };
 }
 

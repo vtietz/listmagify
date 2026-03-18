@@ -20,7 +20,6 @@ import {
   Shield,
   Sparkles,
   Globe,
-  Database,
   Calendar,
   RefreshCw,
 } from 'lucide-react';
@@ -41,6 +40,7 @@ import { UserRegistrationChart } from '@/components/stats/cards/UserRegistration
 import { TrafficStatsCard } from '@/components/stats/cards/TrafficStatsCard';
 import { getDateRange } from '@/components/stats/utils';
 import type { OverviewKPIs, RecsStats, EventsData, TimeRange, RegisteredUsersPerDay } from '@/components/stats/types';
+import { buildOverviewCards } from './statsSelectors';
 
 type OverviewResponse = {
   data: OverviewKPIs;
@@ -250,6 +250,15 @@ function OverviewSection({
   recsData: RecsStats | undefined;
   dateRange: { from: string; to: string };
 }) {
+  const cards = buildOverviewCards({
+    overviewLoading,
+    recsLoading,
+    kpis,
+    overviewData,
+    recsData,
+    dateRange,
+  });
+
   return (
     <div>
       <h3 className="text-lg font-medium mb-4 flex items-center gap-2">
@@ -257,37 +266,16 @@ function OverviewSection({
         Overview
       </h3>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <KPICard
-          title="Active Users"
-          value={overviewLoading ? '...' : kpis?.activeUsers ?? 0}
-          subtitle={`${dateRange.from} to ${dateRange.to}`}
-          icon={Users}
-          description="Number of unique users who have interacted with the app during the selected time period"
-        />
-        <KPICard
-          title="Total Events"
-          value={overviewLoading ? '...' : kpis?.totalEvents ?? 0}
-          icon={Activity}
-          description="Sum of all tracked events including track additions, removals, reorders, and API calls"
-        />
-        <KPICard
-          title="Total Sessions"
-          value={overviewLoading ? '...' : kpis?.totalSessions ?? 0}
-          icon={Globe}
-          description="Number of unique user sessions started during the selected period"
-        />
-        <KPICard
-          title="Recommendations"
-          value={recsLoading ? '...' : recsData?.totalTracks ?? 0}
-          icon={Sparkles}
-          description="Total number of tracks in the recommendations database"
-        />
-        <KPICard
-          title="Database Size"
-          value={overviewLoading ? '...' : overviewData?.dbStats ? `${overviewData.dbStats.sizeMB} MB` : 'N/A'}
-          icon={Database}
-          description="Size of the metrics database file (metrics.db) on disk"
-        />
+        {cards.map((card) => (
+          <KPICard
+            key={card.title}
+            title={card.title}
+            value={card.value}
+            {...(card.subtitle ? { subtitle: card.subtitle } : {})}
+            icon={card.icon}
+            description={card.description}
+          />
+        ))}
       </div>
     </div>
   );

@@ -168,6 +168,53 @@ const MAX_CONTAINS_BATCH = 50;
  */
 const ENSURE_COVERAGE_DEBOUNCE = 300;
 
+interface LikedTracksResponse {
+  tracks: Array<{ id: string | null }>;
+  total: number;
+  nextCursor: string | null;
+}
+
+function shouldSkipPrefetchRun({
+  forceRefresh,
+  prefetchInitiated,
+  isPrefetching,
+  isPrefetchComplete,
+  cacheStale,
+  likedCount,
+}: {
+  forceRefresh: boolean;
+  prefetchInitiated: boolean;
+  isPrefetching: boolean;
+  isPrefetchComplete: boolean;
+  cacheStale: boolean;
+  likedCount: number;
+}): boolean {
+  if (!forceRefresh && (prefetchInitiated || isPrefetching)) {
+    return true;
+  }
+
+  if (!forceRefresh && isPrefetchComplete && !cacheStale) {
+    console.debug('📦 Using cached liked tracks:', likedCount, 'tracks');
+    return true;
+  }
+
+  return false;
+}
+
+function extractLikedTrackIds(response: LikedTracksResponse): string[] {
+  return response.tracks
+    .map((t: { id: string | null }) => t.id)
+    .filter((id: string | null): id is string => id !== null);
+}
+
+async function fetchLikedTracksPage(nextCursor: string | null): Promise<LikedTracksResponse> {
+  const url: string = nextCursor
+    ? `/api/liked/tracks?limit=50&nextCursor=${encodeURIComponent(nextCursor)}`
+    : '/api/liked/tracks?limit=50';
+
+  return apiFetch<LikedTracksResponse>(url);
+}
+
 /**
  * Hook providing access to the global saved tracks index with methods
  * for prefetching, coverage checking, and toggle operations.
@@ -223,14 +270,14 @@ export function useSavedTracksIndex() {
    * Should be called once per app session. Skips if valid cache exists.
    */
   const prefetchAllSavedTracks = useCallback(async (forceRefresh = false) => {
-    // Guard against duplicate runs (unless force refresh)
-    if (!forceRefresh && (prefetchInitiatedRef.current || isPrefetching)) {
-      return;
-    }
-    
-    // If we have valid cached data, skip prefetch
-    if (!forceRefresh && isPrefetchComplete && !isCacheStale()) {
-      console.debug('📦 Using cached liked tracks:', likedIds.length, 'tracks');
+    if (shouldSkipPrefetchRun({
+      forceRefresh,
+      prefetchInitiated: prefetchInitiatedRef.current,
+      isPrefetching,
+      isPrefetchComplete,
+      cacheStale: isCacheStale(),
+      likedCount: likedIds.length,
+    })) {
       return;
     }
     
@@ -251,22 +298,8 @@ export function useSavedTracksIndex() {
       console.debug('🔄 Fetching liked tracks from Spotify...');
       
       while (hasMore) {
-        const url: string = nextCursor 
-          ? `/api/liked/tracks?limit=50&nextCursor=${encodeURIComponent(nextCursor)}`
-          : '/api/liked/tracks?limit=50';
-        
-        interface LikedTracksResponse {
-          tracks: Array<{ id: string | null }>;
-          total: number;
-          nextCursor: string | null;
-        }
-        
-        const response: LikedTracksResponse = await apiFetch<LikedTracksResponse>(url);
-        
-        // Extract IDs (filter out local files with null ID)
-        const ids = response.tracks
-          .map((t: { id: string | null }) => t.id)
-          .filter((id: string | null): id is string => id !== null);
+        const response = await fetchLikedTracksPage(nextCursor);
+        const ids = extractLikedTrackIds(response);
         
         allIds.push(...ids);
         setTotal(response.total);

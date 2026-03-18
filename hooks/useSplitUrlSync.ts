@@ -152,66 +152,92 @@ function parseNode(str: string, start: number): ParseResult | null {
   return null;
 }
 
-function parsePanel(str: string, start: number): ParseResult | null {
-  // Skip "p."
-  let i = start + 2;
-  
-  // Parse playlist ID - continues until ~, ., or ! 
+function readPlaylistId(str: string, start: number): { playlistId: string; endIndex: number } {
+  let i = start;
   let playlistId = '';
+
   while (i < str.length) {
     const char = str[i];
-    // Stop at flag start, child separator, or group end
-    if (char === '~' || char === '.' || char === '!') break;
+    if (char === '~' || char === '.' || char === '!') {
+      break;
+    }
+
     playlistId += char;
     i++;
   }
-  
-  // Parse flags if present
-  const flags: string[] = [];
-  if (str[i] === '~') {
-    i++; // skip first ~
-    let currentFlag = '';
-    while (i < str.length) {
-      const char = str[i];
-      // Stop at child separator or group end
-      if (char === '.' || char === '!') break;
-      if (char === '~') {
-        // Check for escaped ~~ 
-        if (str[i + 1] === '~') {
-          currentFlag += '~';
-          i += 2;
-          continue;
-        }
-        // Flag separator
-        if (currentFlag) flags.push(currentFlag);
-        currentFlag = '';
-      } else {
-        currentFlag += char;
-      }
-      i++;
-    }
-    if (currentFlag) flags.push(currentFlag);
+
+  return { playlistId, endIndex: i };
+}
+
+function readFlags(str: string, start: number): { flags: string[]; endIndex: number } {
+  if (str[start] !== '~') {
+    return { flags: [], endIndex: start };
   }
-  
-  // Create panel
-  const panel = createPanelConfig(playlistId || null);
-  
-  // Apply flags
+
+  let i = start + 1;
+  let currentFlag = '';
+  const flags: string[] = [];
+
+  while (i < str.length) {
+    const char = str[i];
+    if (char === '.' || char === '!') {
+      break;
+    }
+
+    if (char !== '~') {
+      currentFlag += char;
+      i++;
+      continue;
+    }
+
+    if (str[i + 1] === '~') {
+      currentFlag += '~';
+      i += 2;
+      continue;
+    }
+
+    if (currentFlag) {
+      flags.push(currentFlag);
+      currentFlag = '';
+    }
+    i++;
+  }
+
+  if (currentFlag) {
+    flags.push(currentFlag);
+  }
+
+  return { flags, endIndex: i };
+}
+
+function applyPanelFlags(panel: ReturnType<typeof createPanelConfig>, flags: string[]): void {
   for (const flag of flags) {
     if (flag.startsWith('q-')) {
-      // Decode search query: + for spaces
       const encoded = flag.slice(2);
       panel.searchQuery = encoded.replace(/\+/g, ' ');
-    } else if (flag === 'l') {
+      continue;
+    }
+
+    if (flag === 'l') {
       panel.locked = true;
-    } else if (flag === 'm') {
+      continue;
+    }
+
+    if (flag === 'm') {
       panel.dndMode = 'move';
     }
   }
+}
+
+function parsePanel(str: string, start: number): ParseResult | null {
+  const playlistResult = readPlaylistId(str, start + 2);
+  const flagResult = readFlags(str, playlistResult.endIndex);
+  const panel = createPanelConfig(playlistResult.playlistId || null);
+  applyPanelFlags(panel, flagResult.flags);
   
   return {
     node: createPanelNode(panel),
-    endIndex: i,
+    endIndex: flagResult.endIndex,
   };
 }
 

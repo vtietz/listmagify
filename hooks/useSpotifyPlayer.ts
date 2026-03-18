@@ -6,29 +6,29 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api/client';
-import { usePlayerStore, type PlaybackContext } from './usePlayerStore';
+import { usePlayerStore } from './usePlayerStore';
 import { useSessionUser } from './useSessionUser';
 import { useDeviceType } from './useDeviceType';
 import { useMusicProviderId } from './useMusicProviderId';
 import type { PlaybackDevice, PlaybackState } from '@/lib/music-provider/types';
 import { toast } from '@/lib/ui/toast';
 import { useMobileOverlayStore } from '@/components/split-editor/mobile/MobileBottomNav';
-
-const POLL_INTERVAL = 5000; // Poll playback state every 5 seconds
-
-interface DevicesResponse {
-  devices: PlaybackDevice[];
-}
-
-interface PlaybackResponse {
-  playback: PlaybackState | null;
-}
-
-interface ControlResponse {
-  success?: boolean;
-  error?: string;
-  message?: string;
-}
+import {
+  POLL_INTERVAL,
+  type DevicesResponse,
+  type PlaybackResponse,
+  type ControlResponse,
+  type ControlParams,
+  type PlayOptions,
+  resolvePlaybackDeviceId,
+  buildPlayParams,
+  maybeBuildPlaybackContext,
+  getAutoAdvanceState,
+  logAutoAdvanceCheck,
+  maybeSyncContextIndex,
+  detectTrackEnded,
+  logTrackEnded,
+} from './player/useSpotifyPlayerHelpers';
 
 export function useSpotifyPlayer() {
   const queryClient = useQueryClient();
@@ -98,108 +98,71 @@ export function useSpotifyPlayer() {
   // 2. There's no Spotify context (so Spotify won't auto-advance)
   // 3. The track has ended (not playing, progress near end)
   useEffect(() => {
-    const state = playbackQuery.data;
-    if (!state || !playbackContext || autoPlayInProgressRef.current) return;
-    
-    // Only auto-advance if there's no Spotify context (playlists handle this themselves)
-    if (state.context?.uri) return;
-    
-    const track = state.track;
-    if (!track) return;
+    const autoAdvanceState = getAutoAdvanceState(
+      playbackQuery.data,
+      playbackContext,
+      autoPlayInProgressRef.current
+    );
+    if (!autoAdvanceState) {
+      return;
+    }
+
+    const { state, context } = autoAdvanceState;
     
     // Debug logging for auto-advance
-    if (process.env.NODE_ENV === 'development') {
-      console.debug('[auto-advance] Check:', {
-        trackUri: track.uri,
-        isPlaying: state.isPlaying,
-        progress: state.progressMs,
-        duration: track.durationMs,
-        currentIndex: playbackContext.currentIndex,
-        totalTracks: playbackContext.trackUris.length,
-        sourceId: playbackContext.sourceId,
-      });
+    logAutoAdvanceCheck(state, context);
+
+    maybeSyncContextIndex(state, context, setPlaybackContext, lastTrackUriRef);
+    const { hasEnded, currentUri, threshold } = detectTrackEnded(
+      state,
+      lastProgressRef,
+      lastTrackEndDetectedRef
+    );
+
+    logTrackEnded(hasEnded, threshold, currentUri, state, lastProgressRef);
+
+    if (!hasEnded || !currentUri || context.currentIndex >= context.trackUris.length - 1) {
+      return;
     }
-    
-    // Detect if track has changed (Spotify advanced or user clicked different track)
-    const currentUri = track.uri;
-    if (lastTrackUriRef.current && lastTrackUriRef.current !== currentUri) {
-      // Track changed - update our context index to match
-      const newIndex = playbackContext.trackUris.indexOf(currentUri);
-      if (newIndex >= 0 && newIndex !== playbackContext.currentIndex) {
-        setPlaybackContext({
-          ...playbackContext,
-          currentIndex: newIndex,
-        });
-      }
-    }
-    lastTrackUriRef.current = currentUri;
-    
-    // Detect track end using progress jump detection:
-    // If progress was high (>80% of duration) and now reset to near 0, track ended
-    const lastProgress = lastProgressRef.current;
-    const progressThreshold = track.durationMs * 0.8;
-    const hasProgressReset = lastProgress > progressThreshold && state.progressMs < 2000;
-    
-    // Also detect: not playing AND progress is 0 AND we haven't already handled this track
-    const isStoppedAtStart = !state.isPlaying && state.progressMs < 2000;
-    const alreadyHandled = lastTrackEndDetectedRef.current === currentUri;
-    
-    // Track ended if: progress jumped from high to low, OR stopped at start (but not already handled)
-    const hasEnded = hasProgressReset || (isStoppedAtStart && lastProgress > progressThreshold && !alreadyHandled);
-    
-    // Update last progress
-    lastProgressRef.current = state.progressMs;
-    
-    if (process.env.NODE_ENV === 'development' && hasEnded) {
-      console.debug('[auto-advance] Track ended detected:', {
-        lastProgress,
-        currentProgress: state.progressMs,
-        threshold: progressThreshold,
-        hasProgressReset,
-        isStoppedAtStart,
-        alreadyHandled,
-      });
-    }
-    
-    if (hasEnded && playbackContext.currentIndex < playbackContext.trackUris.length - 1) {
+
       // Play next track
-      const nextIndex = playbackContext.currentIndex + 1;
-      const nextTrackUri = playbackContext.trackUris[nextIndex];
-      
-      if (nextTrackUri) {
-        console.debug('[auto-advance] Triggering next track:', {
-          nextIndex,
-          nextTrackUri,
-          sourceId: playbackContext.sourceId,
-        });
-        
-        // Mark this track as handled to prevent re-triggering
-        lastTrackEndDetectedRef.current = currentUri;
-        autoPlayInProgressRef.current = true;
-        
-        // Use the control mutation directly to avoid circular dependencies
-        apiFetch<ControlResponse>(`/api/player/control?provider=${providerId}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'play',
-            deviceId: selectedDeviceId || undefined,
-            uris: [nextTrackUri],
-          }),
-        }).then(() => {
-          setPlaybackContext({
-            ...playbackContext,
-            currentIndex: nextIndex,
-          });
-          // Refetch playback state
-          queryClient.invalidateQueries({ queryKey: ['playback-state', providerId] });
-        }).catch((err) => {
-          console.error('[auto-play next] Failed:', err);
-        }).finally(() => {
-          autoPlayInProgressRef.current = false;
-        });
-      }
+    const nextIndex = context.currentIndex + 1;
+    const nextTrackUri = context.trackUris[nextIndex];
+    if (!nextTrackUri) {
+      return;
     }
+
+    console.debug('[auto-advance] Triggering next track:', {
+      nextIndex,
+      nextTrackUri,
+      sourceId: context.sourceId,
+    });
+
+    lastTrackEndDetectedRef.current = currentUri;
+    autoPlayInProgressRef.current = true;
+
+    apiFetch<ControlResponse>(`/api/player/control?provider=${providerId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'play',
+        deviceId: selectedDeviceId || undefined,
+        uris: [nextTrackUri],
+      }),
+    })
+      .then(() => {
+        setPlaybackContext({
+          ...context,
+          currentIndex: nextIndex,
+        });
+        queryClient.invalidateQueries({ queryKey: ['playback-state', providerId] });
+      })
+      .catch((err) => {
+        console.error('[auto-play next] Failed:', err);
+      })
+      .finally(() => {
+        autoPlayInProgressRef.current = false;
+      });
   }, [playbackQuery.data, playbackContext, selectedDeviceId, setPlaybackContext, queryClient, providerId]);
 
   // Fetch available devices - only when authenticated
@@ -228,20 +191,6 @@ export function useSpotifyPlayer() {
       }
     }
   }, [devicesQuery.data, selectedDeviceId, setDevices, setSelectedDevice]);
-
-  // Type for playback control params
-  type ControlParams = {
-    action: 'play' | 'pause' | 'next' | 'previous' | 'seek' | 'shuffle' | 'repeat' | 'volume' | 'transfer';
-    deviceId?: string | undefined;
-    contextUri?: string | undefined;
-    uris?: string[] | undefined;
-    offset?: { position: number } | { uri: string } | undefined;
-    positionMs?: number | undefined;
-    seekPositionMs?: number | undefined;
-    shuffleState?: boolean | undefined;
-    repeatState?: 'off' | 'track' | 'context' | undefined;
-    volumePercent?: number | undefined;
-  };
 
   // Playback control mutation
   const controlMutation = useMutation({
@@ -281,21 +230,7 @@ export function useSpotifyPlayer() {
   });
 
   // Play a specific track or resume playback
-  const play = useCallback(async (options?: {
-    trackUri?: string;
-    trackUris?: string[];
-    contextUri?: string;
-    offset?: { position: number } | { uri: string };
-    positionMs?: number;
-    /** Track URIs for auto-play next feature */
-    playlistTrackUris?: string[];
-    /** Current position in the playlist */
-    currentIndex?: number;
-    /** Playlist ID for context */
-    playlistId?: string;
-    /** Source identifier (e.g., 'search', 'lastfm', or panel ID) */
-    sourceId?: string;
-  }) => {
+  const play = useCallback(async (options?: PlayOptions) => {
     setLoading(true);
     setError(null);
     
@@ -303,47 +238,15 @@ export function useSpotifyPlayer() {
     setPlayerVisible(true);
 
     try {
-      // Get the device to use - prefer selected, fall back to web player
-      const { webPlayerDeviceId, isWebPlayerReady, selectedDeviceId: currentSelectedDeviceId } = usePlayerStore.getState();
-      let deviceId = currentSelectedDeviceId;
-      
-      // If no device selected but web player is ready, use it
-      if (!deviceId && isWebPlayerReady && webPlayerDeviceId) {
-        deviceId = webPlayerDeviceId;
-        setSelectedDevice(webPlayerDeviceId);
-      }
-      
-      // Build play request
-      const params: ControlParams = {
-        action: 'play',
-        deviceId: deviceId || undefined,
-      };
-
-      if (options?.contextUri) {
-        params.contextUri = options.contextUri;
-        if (options.offset) params.offset = options.offset;
-      } else if (options?.trackUri) {
-        params.uris = [options.trackUri];
-      } else if (options?.trackUris && options.trackUris.length > 0) {
-        params.uris = options.trackUris;
-        if (options.offset) params.offset = options.offset;
-      }
-
-      if (typeof options?.positionMs === 'number') {
-        params.positionMs = options.positionMs;
-      }
+      const deviceId = resolvePlaybackDeviceId(setSelectedDevice);
+      const params = buildPlayParams(options, deviceId);
 
       await controlMutation.mutateAsync(params);
 
       // Update playback context for auto-play next
-      if (options?.playlistTrackUris) {
-        setPlaybackContext({
-          ...(options.contextUri ? { contextUri: options.contextUri } : {}),
-          trackUris: options.playlistTrackUris,
-          currentIndex: options.currentIndex ?? 0,
-          ...(options.playlistId ? { playlistId: options.playlistId } : {}),
-          ...(options.sourceId ? { sourceId: options.sourceId } : {}),
-        } as PlaybackContext);
+      const nextContext = maybeBuildPlaybackContext(options);
+      if (nextContext) {
+        setPlaybackContext(nextContext);
       }
     } finally {
       setLoading(false);

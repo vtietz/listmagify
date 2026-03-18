@@ -35,6 +35,65 @@ interface UsePlaylistMutationsOptions {
   } | null;
 }
 
+type ReorderWindow = {
+  fromIndex: number;
+  rangeLength: number;
+  lastIndex: number;
+};
+
+function getReorderWindow(
+  trackPosition: number,
+  bounds: ReturnType<UsePlaylistMutationsOptions['getSelectionBounds']>,
+  selectionSize: number
+): ReorderWindow {
+  const hasMultiSelection = Boolean(bounds) && selectionSize > 1;
+  const fromIndex = hasMultiSelection && bounds ? bounds.firstPosition : trackPosition;
+  const rangeLength = hasMultiSelection && bounds ? bounds.lastPosition - bounds.firstPosition + 1 : 1;
+  const lastIndex = fromIndex + rangeLength - 1;
+
+  return { fromIndex, rangeLength, lastIndex };
+}
+
+function getTotalTracks(filteredTracks: Track[], tracksLength: number): number {
+  const hasStablePositions = filteredTracks.some((t) => typeof t?.position === 'number');
+  return hasStablePositions ? tracksLength : filteredTracks.length;
+}
+
+function canMoveBelowPlayPosition({
+  playPosition,
+  totalTracks,
+  fromIndex,
+  lastIndex,
+}: {
+  playPosition: number | undefined;
+  totalTracks: number;
+  fromIndex: number;
+  lastIndex: number;
+}) {
+  if (typeof playPosition !== 'number') {
+    return false;
+  }
+
+  if (playPosition < 0 || playPosition >= totalTracks) {
+    return false;
+  }
+
+  return !(playPosition >= fromIndex && playPosition <= lastIndex);
+}
+
+function getMoveBelowTargetIndex(playPosition: number, fromIndex: number, rangeLength: number): number {
+  const targetFirstIndex =
+    playPosition < fromIndex
+      ? playPosition + 1
+      : playPosition - rangeLength + 1;
+
+  if (targetFirstIndex > fromIndex) {
+    return targetFirstIndex + rangeLength;
+  }
+
+  return targetFirstIndex;
+}
+
 export function usePlaylistMutations({
   playlistId,
   panelId,
@@ -208,93 +267,62 @@ export function usePlaylistMutations({
       if (!playlistId || !isEditable) return {};
 
       const bounds = getSelectionBounds();
-      const isMulti = bounds && selection.size > 1;
+      const { fromIndex, rangeLength, lastIndex } = getReorderWindow(trackPosition, bounds, selection.size);
+      const totalTracks = getTotalTracks(filteredTracks, tracks.length);
+      const canMoveBelow = canMoveBelowPlayPosition({
+        playPosition,
+        totalTracks,
+        fromIndex,
+        lastIndex,
+      });
 
-      const fromIndex = isMulti ? bounds.firstPosition : trackPosition;
-      const rangeLength = isMulti ? bounds.lastPosition - bounds.firstPosition + 1 : 1;
-      const lastIndex = fromIndex + rangeLength - 1;
-
-      const hasStablePositions = filteredTracks.some(
-        (t) => typeof t?.position === 'number'
-      );
-      const totalTracks = hasStablePositions ? tracks.length : filteredTracks.length;
-
-      const canMoveBelowPlayPosition =
-        typeof playPosition === 'number' &&
-        playPosition >= 0 &&
-        playPosition < totalTracks &&
-        !(playPosition >= fromIndex && playPosition <= lastIndex);
-
-      const moveBelowPlayPosition = canMoveBelowPlayPosition
-        ? () => {
-            const targetFirstIndex =
-              playPosition < fromIndex
-                ? playPosition + 1
-                : playPosition - rangeLength + 1;
-
-            if (targetFirstIndex === fromIndex) return;
-
-            const toIndex =
-              targetFirstIndex > fromIndex
-                ? targetFirstIndex + rangeLength
-                : targetFirstIndex;
-
-            reorderTracks.mutate({
-              playlistId,
-              fromIndex,
-              toIndex,
-              rangeLength,
-            });
-          }
-        : undefined;
-
-      return {
-        onMoveUp:
-          fromIndex > 0
-            ? () => {
-                reorderTracks.mutate({
-                  playlistId,
-                  fromIndex,
-                  toIndex: fromIndex - 1,
-                  rangeLength,
-                });
-              }
-            : undefined,
-        onMoveDown:
-          lastIndex < totalTracks - 1
-            ? () => {
-                reorderTracks.mutate({
-                  playlistId,
-                  fromIndex,
-                  toIndex: fromIndex + rangeLength + 1,
-                  rangeLength,
-                });
-              }
-            : undefined,
-        onMoveToTop:
-          fromIndex > 0
-            ? () => {
-                reorderTracks.mutate({
-                  playlistId,
-                  fromIndex,
-                  toIndex: 0,
-                  rangeLength,
-                });
-              }
-            : undefined,
-        onMoveToBottom:
-          lastIndex < totalTracks - 1
-            ? () => {
-                reorderTracks.mutate({
-                  playlistId,
-                  fromIndex,
-                  toIndex: totalTracks,
-                  rangeLength,
-                });
-              }
-            : undefined,
-        onMoveBelowPlayPosition: moveBelowPlayPosition,
+      const makeReorderAction = (toIndex: number) => () => {
+        reorderTracks.mutate({
+          playlistId,
+          fromIndex,
+          toIndex,
+          rangeLength,
+        });
       };
+
+      const actions: {
+        onMoveUp?: () => void;
+        onMoveDown?: () => void;
+        onMoveToTop?: () => void;
+        onMoveToBottom?: () => void;
+        onMoveBelowPlayPosition?: () => void;
+      } = {};
+
+      if (fromIndex > 0) {
+        actions.onMoveUp = makeReorderAction(fromIndex - 1);
+        actions.onMoveToTop = makeReorderAction(0);
+      }
+
+      if (lastIndex < totalTracks - 1) {
+        actions.onMoveDown = makeReorderAction(fromIndex + rangeLength + 1);
+        actions.onMoveToBottom = makeReorderAction(totalTracks);
+      }
+
+      if (canMoveBelow && typeof playPosition === 'number') {
+        actions.onMoveBelowPlayPosition = () => {
+          const targetFirstIndex =
+            playPosition < fromIndex ? playPosition + 1 : playPosition - rangeLength + 1;
+          if (targetFirstIndex === fromIndex) {
+            return;
+          }
+
+          const toIndex = getMoveBelowTargetIndex(playPosition, fromIndex, rangeLength);
+
+          reorderTracks.mutate({
+            playlistId,
+            fromIndex,
+            toIndex,
+            rangeLength,
+          });
+        };
+      }
+
+      return actions;
     },
     [
       playlistId,

@@ -276,6 +276,39 @@ export function updateEdgesForReorder(
   let adjacencyCount = 0;
   const now = unixNow();
   const db = getRecsDb();
+
+  const upsertEdgeIfValid = (
+    upsertSeq: any,
+    fromTrack: string | undefined,
+    toTrack: string | undefined
+  ) => {
+    if (!fromTrack || !toTrack || fromTrack === toTrack) {
+      return 0;
+    }
+
+    upsertSeq.run(fromTrack, toTrack, 1.0, now);
+    return 1;
+  };
+
+  const upsertGapEdge = (
+    upsertSeq: any,
+    movedTrack: string,
+    minAffected: number
+  ) => {
+    if (minAffected <= 0 || minAffected >= playlistTrackIds.length - 1) {
+      return 0;
+    }
+
+    const prevTrack = playlistTrackIds[minAffected - 1];
+    const nextTrack = playlistTrackIds[minAffected];
+
+    if (!prevTrack || !nextTrack || prevTrack === nextTrack || prevTrack === movedTrack || nextTrack === movedTrack) {
+      return 0;
+    }
+
+    upsertSeq.run(prevTrack, nextTrack, 0.5, now);
+    return 1;
+  };
   
   withTransaction(() => {
     const upsertSeq = db.prepare(`
@@ -290,37 +323,13 @@ export function updateEdgesForReorder(
     const movedTrack = playlistTrackIds[toPosition];
     if (!movedTrack) return;
     
-    // Edge from previous to moved track
-    if (toPosition > 0) {
-      const prevTrack = playlistTrackIds[toPosition - 1];
-      if (prevTrack && prevTrack !== movedTrack) {
-        upsertSeq.run(prevTrack, movedTrack, 1.0, now);
-        adjacencyCount++;
-      }
-    }
-    
-    // Edge from moved track to next
-    if (toPosition < playlistTrackIds.length - 1) {
-      const nextTrack = playlistTrackIds[toPosition + 1];
-      if (nextTrack && nextTrack !== movedTrack) {
-        upsertSeq.run(movedTrack, nextTrack, 1.0, now);
-        adjacencyCount++;
-      }
-    }
-    
-    // Also update the gap left at the old position
-    // The tracks at fromPosition-1 and fromPosition are now adjacent (after shift)
+    const prevTrack = toPosition > 0 ? playlistTrackIds[toPosition - 1] : undefined;
+    const nextTrack = toPosition < playlistTrackIds.length - 1 ? playlistTrackIds[toPosition + 1] : undefined;
     const minAffected = Math.min(fromPosition, toPosition);
-    
-    if (minAffected > 0 && minAffected < playlistTrackIds.length - 1) {
-      const prevTrack = playlistTrackIds[minAffected - 1];
-      const nextTrack = playlistTrackIds[minAffected];
-      
-      if (prevTrack && nextTrack && prevTrack !== nextTrack && prevTrack !== movedTrack && nextTrack !== movedTrack) {
-        upsertSeq.run(prevTrack, nextTrack, 0.5, now);
-        adjacencyCount++;
-      }
-    }
+
+    adjacencyCount += upsertEdgeIfValid(upsertSeq, prevTrack, movedTrack);
+    adjacencyCount += upsertEdgeIfValid(upsertSeq, movedTrack, nextTrack);
+    adjacencyCount += upsertGapEdge(upsertSeq, movedTrack, minAffected);
   });
   
   return { adjacency: adjacencyCount };

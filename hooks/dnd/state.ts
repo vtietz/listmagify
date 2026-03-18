@@ -65,6 +65,35 @@ interface DndActions {
 
 type DndStore = DndState & DndActions;
 
+function isSameEphemeralInsertion(
+  prevEphemeral: EphemeralInsertion | null,
+  nextEphemeral: EphemeralInsertion | null
+): boolean {
+  return (
+    prevEphemeral?.activeId === nextEphemeral?.activeId &&
+    prevEphemeral?.sourcePanelId === nextEphemeral?.sourcePanelId &&
+    prevEphemeral?.targetPanelId === nextEphemeral?.targetPanelId &&
+    prevEphemeral?.insertionIndex === nextEphemeral?.insertionIndex
+  );
+}
+
+function isDropStateUnchanged(
+  state: DndStore,
+  params: {
+    activePanelId: string | null;
+    computedDropPosition: number | null;
+    dropIndicatorIndex: number | null;
+    ephemeralInsertion: EphemeralInsertion | null;
+  }
+): boolean {
+  return (
+    state.activePanelId === params.activePanelId &&
+    state.computedDropPosition === params.computedDropPosition &&
+    state.dropIndicatorIndex === params.dropIndicatorIndex &&
+    isSameEphemeralInsertion(state.ephemeralInsertion, params.ephemeralInsertion)
+  );
+}
+
 /**
  * Create the drag-and-drop state store
  */
@@ -102,20 +131,7 @@ export const useDndStateStore = create<DndStore>((set, get) => ({
 
   updateDropPosition: (params) => {
     const state = get();
-    const prevEphemeral = state.ephemeralInsertion;
-    const nextEphemeral = params.ephemeralInsertion;
-    const isEphemeralEqual =
-      prevEphemeral?.activeId === nextEphemeral?.activeId &&
-      prevEphemeral?.sourcePanelId === nextEphemeral?.sourcePanelId &&
-      prevEphemeral?.targetPanelId === nextEphemeral?.targetPanelId &&
-      prevEphemeral?.insertionIndex === nextEphemeral?.insertionIndex;
-
-    if (
-      state.activePanelId === params.activePanelId &&
-      state.computedDropPosition === params.computedDropPosition &&
-      state.dropIndicatorIndex === params.dropIndicatorIndex &&
-      isEphemeralEqual
-    ) {
+    if (isDropStateUnchanged(state, params)) {
       return;
     }
 

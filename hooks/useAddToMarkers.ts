@@ -9,6 +9,7 @@ import { useState, useCallback, useMemo } from 'react';
 import { useInsertionPointsStore, computeInsertionPositions } from '@/hooks/useInsertionPointsStore';
 import { useAddTracks } from '@/lib/spotify/playlistMutations';
 import { toast } from '@/lib/ui/toast';
+import type { InsertionPoint } from '@/hooks/useInsertionPointsStore';
 
 interface UseAddToMarkersOptions {
   /** Playlist ID to exclude from markers (e.g., the source playlist) */
@@ -24,6 +25,54 @@ interface UseAddToMarkersResult {
   totalMarkers: number;
   /** Add tracks to all markers */
   addToMarkers: (uris: string[]) => Promise<void>;
+}
+
+async function addTracksAtMarkers({
+  playlistId,
+  playlistData,
+  uris,
+  addTracksMutation,
+  shiftAfterMultiInsert,
+}: {
+  playlistId: string;
+  playlistData: { markers: InsertionPoint[] };
+  uris: string[];
+  addTracksMutation: ReturnType<typeof useAddTracks>;
+  shiftAfterMultiInsert: (playlistId: string) => void;
+}): Promise<number> {
+  if (playlistData.markers.length === 0) {
+    return 0;
+  }
+
+  const positions = computeInsertionPositions(playlistData.markers, uris.length);
+  for (const position of positions) {
+    await addTracksMutation.mutateAsync({
+      playlistId,
+      trackUris: uris,
+      position: position.effectiveIndex,
+    });
+  }
+
+  if (playlistData.markers.length > 1) {
+    shiftAfterMultiInsert(playlistId);
+  }
+
+  return playlistData.markers.length;
+}
+
+function showMarkerAddResultToast(successCount: number, errorCount: number) {
+  if (successCount > 0 && errorCount === 0) {
+    return;
+  }
+
+  if (successCount > 0 && errorCount > 0) {
+    toast.warning(
+      `Added to ${successCount} markers, failed for ${errorCount} playlist${errorCount > 1 ? 's' : ''}`
+    );
+    return;
+  }
+
+  toast.error('Failed to add tracks to markers');
 }
 
 export function useAddToMarkers(options: UseAddToMarkersOptions = {}): UseAddToMarkersResult {
@@ -56,46 +105,21 @@ export function useAddToMarkers(options: UseAddToMarkersOptions = {}): UseAddToM
       let errorCount = 0;
       
       for (const [playlistId, playlistData] of playlistsWithMarkers) {
-        if (playlistData.markers.length === 0) continue;
-        
         try {
-          // Compute insertion positions accounting for shifts
-          const positions = computeInsertionPositions(
-            playlistData.markers,
-            uris.length
-          );
-          
-          // Insert at each position
-          for (const position of positions) {
-            await addTracksMutation.mutateAsync({
-              playlistId,
-              trackUris: uris,
-              position: position.effectiveIndex,
-            });
-          }
-          
-          // Update markers to account for inserted tracks
-          if (playlistData.markers.length > 1) {
-            shiftAfterMultiInsert(playlistId);
-          }
-          
-          successCount += playlistData.markers.length;
+          successCount += await addTracksAtMarkers({
+            playlistId,
+            playlistData,
+            uris,
+            addTracksMutation,
+            shiftAfterMultiInsert,
+          });
         } catch (error) {
           console.error(`Failed to add tracks to playlist ${playlistId}:`, error);
           errorCount++;
         }
       }
-      
-      // Show result toast
-      if (successCount > 0 && errorCount === 0) {
-        // Success - no toast needed
-      } else if (successCount > 0 && errorCount > 0) {
-        toast.warning(
-          `Added to ${successCount} markers, failed for ${errorCount} playlist${errorCount > 1 ? 's' : ''}`
-        );
-      } else {
-        toast.error('Failed to add tracks to markers');
-      }
+
+      showMarkerAddResultToast(successCount, errorCount);
     } catch (error) {
       console.error('Failed to add tracks to markers:', error);
       toast.error('Failed to add tracks');

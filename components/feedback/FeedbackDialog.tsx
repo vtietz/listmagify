@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { MessageSquarePlus, Send, Loader2 } from 'lucide-react';
 import {
   Dialog,
@@ -18,11 +18,35 @@ import { cn } from '@/lib/utils';
 
 interface FeedbackDialogProps {
   /** Custom trigger element (optional - default floating button) */
-  trigger?: React.ReactNode | null;
+  trigger?: ReactNode | null;
   /** Controlled open state (optional) */
   open?: boolean;
   /** Callback when dialog open state changes */
   onOpenChange?: (open: boolean) => void;
+}
+
+function isValidEmail(value: string) {
+  if (value.length === 0) {
+    return true;
+  }
+
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function getNpsLabel(score: number | null) {
+  if (score === null) {
+    return null;
+  }
+
+  if (score <= 6) {
+    return { text: 'We\'ll work to improve!', color: 'text-red-500' };
+  }
+
+  if (score <= 8) {
+    return { text: 'Thanks for the feedback!', color: 'text-yellow-500' };
+  }
+
+  return { text: 'Awesome! 🎉', color: 'text-green-500' };
 }
 
 /**
@@ -110,12 +134,6 @@ export function FeedbackDialog({ trigger, open: controlledOpen, onOpenChange }: 
     normalizedName.length > 0 ||
     normalizedEmail.length > 0;
 
-  const isValidEmail = (value: string) => {
-    if (value.length === 0) return true;
-    // Simple validation: enough to prevent obvious typos without being overly strict.
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-  };
-
   const handleSubmit = async () => {
     if (!hasAnyInput) return;
     if (!isValidEmail(normalizedEmail)) {
@@ -156,154 +174,231 @@ export function FeedbackDialog({ trigger, open: controlledOpen, onOpenChange }: 
     }
   };
 
-  const getNpsLabel = () => {
-    if (npsScore === null) return null;
-    if (npsScore <= 6) return { text: 'We\'ll work to improve!', color: 'text-red-500' };
-    if (npsScore <= 8) return { text: 'Thanks for the feedback!', color: 'text-yellow-500' };
-    return { text: 'Awesome! 🎉', color: 'text-green-500' };
-  };
-
-  const label = getNpsLabel();
+  const label = getNpsLabel(npsScore);
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      {trigger !== null && (
-        <DialogTrigger asChild>
-          {trigger || (
-            <Button variant="secondary" size="sm" className="gap-1.5">
-              <MessageSquarePlus className="h-4 w-4" />
-              Feedback
-            </Button>
-          )}
-        </DialogTrigger>
-      )}
-      <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto overflow-x-hidden">
-        {submitted ? (
-          <div className="py-6 text-center">
-            <div className="text-4xl mb-4">🙏</div>
-            <DialogTitle className="mb-2">Thank you!</DialogTitle>
-            <DialogDescription>
-              Your feedback helps us improve Listmagify.
-            </DialogDescription>
-          </div>
-        ) : (
-          <>
-            <DialogHeader>
-              <DialogTitle>Share Your Feedback</DialogTitle>
-              <DialogDescription>
-                How likely are you to recommend Listmagify to a friend?
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="space-y-3 sm:space-y-4 py-2 sm:py-4">
-              {/* NPS Scale */}
-              <div className="space-y-2 sm:space-y-3">
-                <div className="flex justify-between gap-0.5">
-                  {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((score) => (
-                    <NpsButton
-                      key={score}
-                      score={score}
-                      selected={npsScore === score}
-                      onClick={() => setNpsScore((prev) => (prev === score ? null : score))}
-                    />
-                  ))}
-                </div>
-                <div className="flex justify-between text-xs text-muted-foreground px-1">
-                  <span>Not likely</span>
-                  <span>Very likely</span>
-                </div>
-                {label && (
-                  <p className={cn('text-sm text-center font-medium', label.color)}>
-                    {label.text}
-                  </p>
-                )}
-              </div>
-
-              {/* Contact fields */}
-              <div className="space-y-2">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <div className="space-y-1">
-                    <label htmlFor="feedback-name" className="text-sm font-medium">
-                      Name (optional)
-                    </label>
-                    <Input
-                      id="feedback-name"
-                      placeholder="Your name"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      maxLength={200}
-                      className="text-sm"
-                      autoComplete="name"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label htmlFor="feedback-email" className="text-sm font-medium">
-                      Email (optional)
-                    </label>
-                    <Input
-                      id="feedback-email"
-                      placeholder="you@example.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      maxLength={320}
-                      className="text-sm"
-                      autoComplete="email"
-                      inputMode="email"
-                    />
-                  </div>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Leave your email if you want a reply.
-                </p>
-              </div>
-
-              {/* Comment field */}
-              <div className="space-y-2">
-                <label htmlFor="feedback-comment" className="text-sm font-medium">
-                  Any additional comments? (optional)
-                </label>
-                <Textarea
-                  id="feedback-comment"
-                  placeholder="Tell us what you think..."
-                  value={comment}
-                  onChange={(e) => setComment(e.target.value)}
-                  rows={2}
-                  className="text-sm"
-                  maxLength={1000}
-                />
-                <p className="text-xs text-muted-foreground text-right">
-                  {comment.length}/1000
-                </p>
-              </div>
-
-              {error && (
-                <p className="text-sm text-red-500 text-center">{error}</p>
-              )}
-            </div>
-
-            <DialogFooter>
-              <Button
-                onClick={handleSubmit}
-                disabled={!hasAnyInput || isSubmitting || !isValidEmail(normalizedEmail)}
-                className="w-full sm:w-auto"
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Sending...
-                  </>
-                ) : (
-                  <>
-                    <Send className="h-4 w-4 mr-2" />
-                    Send Feedback
-                  </>
-                )}
-              </Button>
-            </DialogFooter>
-          </>
-        )}
-      </DialogContent>
+      <FeedbackTrigger trigger={trigger} />
+      <FeedbackDialogBody
+        submitted={submitted}
+        npsScore={npsScore}
+        setNpsScore={setNpsScore}
+        label={label}
+        name={name}
+        setName={setName}
+        email={email}
+        setEmail={setEmail}
+        comment={comment}
+        setComment={setComment}
+        error={error}
+        isSubmitting={isSubmitting}
+        hasAnyInput={hasAnyInput}
+        normalizedEmail={normalizedEmail}
+        onSubmit={handleSubmit}
+      />
     </Dialog>
+  );
+}
+
+function FeedbackTrigger({ trigger }: { trigger?: ReactNode | null }) {
+  if (trigger === null) {
+    return null;
+  }
+
+  return (
+    <DialogTrigger asChild>
+      {trigger || (
+        <Button variant="secondary" size="sm" className="gap-1.5">
+          <MessageSquarePlus className="h-4 w-4" />
+          Feedback
+        </Button>
+      )}
+    </DialogTrigger>
+  );
+}
+
+function FeedbackDialogBody({
+  submitted,
+  npsScore,
+  setNpsScore,
+  label,
+  name,
+  setName,
+  email,
+  setEmail,
+  comment,
+  setComment,
+  error,
+  isSubmitting,
+  hasAnyInput,
+  normalizedEmail,
+  onSubmit,
+}: {
+  submitted: boolean;
+  npsScore: number | null;
+  setNpsScore: (value: number | null | ((prev: number | null) => number | null)) => void;
+  label: { text: string; color: string } | null;
+  name: string;
+  setName: (value: string) => void;
+  email: string;
+  setEmail: (value: string) => void;
+  comment: string;
+  setComment: (value: string) => void;
+  error: string | null;
+  isSubmitting: boolean;
+  hasAnyInput: boolean;
+  normalizedEmail: string;
+  onSubmit: () => Promise<void>;
+}) {
+  return (
+    <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto overflow-x-hidden">
+      {submitted ? (
+        <div className="py-6 text-center">
+          <div className="text-4xl mb-4">🙏</div>
+          <DialogTitle className="mb-2">Thank you!</DialogTitle>
+          <DialogDescription>Your feedback helps us improve Listmagify.</DialogDescription>
+        </div>
+      ) : (
+        <>
+          <DialogHeader>
+            <DialogTitle>Share Your Feedback</DialogTitle>
+            <DialogDescription>How likely are you to recommend Listmagify to a friend?</DialogDescription>
+          </DialogHeader>
+
+          <FeedbackForm
+            npsScore={npsScore}
+            setNpsScore={setNpsScore}
+            label={label}
+            name={name}
+            setName={setName}
+            email={email}
+            setEmail={setEmail}
+            comment={comment}
+            setComment={setComment}
+            error={error}
+          />
+
+          <DialogFooter>
+            <Button
+              onClick={onSubmit}
+              disabled={!hasAnyInput || isSubmitting || !isValidEmail(normalizedEmail)}
+              className="w-full sm:w-auto"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <Send className="h-4 w-4 mr-2" />
+                  Send Feedback
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </>
+      )}
+    </DialogContent>
+  );
+}
+
+function FeedbackForm({
+  npsScore,
+  setNpsScore,
+  label,
+  name,
+  setName,
+  email,
+  setEmail,
+  comment,
+  setComment,
+  error,
+}: {
+  npsScore: number | null;
+  setNpsScore: (value: number | null | ((prev: number | null) => number | null)) => void;
+  label: { text: string; color: string } | null;
+  name: string;
+  setName: (value: string) => void;
+  email: string;
+  setEmail: (value: string) => void;
+  comment: string;
+  setComment: (value: string) => void;
+  error: string | null;
+}) {
+  return (
+    <div className="space-y-3 sm:space-y-4 py-2 sm:py-4">
+      <div className="space-y-2 sm:space-y-3">
+        <div className="flex justify-between gap-0.5">
+          {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((score) => (
+            <NpsButton
+              key={score}
+              score={score}
+              selected={npsScore === score}
+              onClick={() => setNpsScore((prev) => (prev === score ? null : score))}
+            />
+          ))}
+        </div>
+        <div className="flex justify-between text-xs text-muted-foreground px-1">
+          <span>Not likely</span>
+          <span>Very likely</span>
+        </div>
+        {label ? <p className={cn('text-sm text-center font-medium', label.color)}>{label.text}</p> : null}
+      </div>
+
+      <div className="space-y-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <label htmlFor="feedback-name" className="text-sm font-medium">
+              Name (optional)
+            </label>
+            <Input
+              id="feedback-name"
+              placeholder="Your name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              maxLength={200}
+              className="text-sm"
+              autoComplete="name"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label htmlFor="feedback-email" className="text-sm font-medium">
+              Email (optional)
+            </label>
+            <Input
+              id="feedback-email"
+              placeholder="you@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              maxLength={320}
+              className="text-sm"
+              autoComplete="email"
+              inputMode="email"
+            />
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground">Leave your email if you want a reply.</p>
+      </div>
+
+      <div className="space-y-2">
+        <label htmlFor="feedback-comment" className="text-sm font-medium">
+          Any additional comments? (optional)
+        </label>
+        <Textarea
+          id="feedback-comment"
+          placeholder="Tell us what you think..."
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+          rows={2}
+          className="text-sm"
+          maxLength={1000}
+        />
+        <p className="text-xs text-muted-foreground text-right">{comment.length}/1000</p>
+      </div>
+
+      {error ? <p className="text-sm text-red-500 text-center">{error}</p> : null}
+    </div>
   );
 }

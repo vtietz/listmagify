@@ -77,46 +77,51 @@ export type PageResult<T> = {
  * Accept unknown to keep call sites tolerant to SDK/raw fetch responses.
  */
 export function mapPlaylist(raw: any): Playlist {
-  const images = mapImageArray(raw?.images);
+  const source = raw ?? {};
+  const images = mapImageArray(source.images);
+  const owner = mapOwner(source.owner);
+  const tracks = source.tracks ?? {};
 
   return {
-    id: toStringValue(raw?.id, ''),
-    name: toStringValue(raw?.name, ''),
-    description: raw?.description ?? null,
-    ownerName: raw?.owner?.display_name ?? null,
-    owner: mapOwner(raw?.owner),
+    id: toStringValue(source.id, ''),
+    name: toStringValue(source.name, ''),
+    description: source.description ?? null,
+    ownerName: source.owner?.display_name ?? null,
+    owner,
     image: images?.[0] ?? null,
-    tracksTotal: toNumber(raw?.tracks?.total, 0),
-    isPublic: toBooleanOrNull(raw?.public),
-    collaborative: toBooleanOrNull(raw?.collaborative),
+    tracksTotal: toNumber(tracks.total, 0),
+    isPublic: toBooleanOrNull(source.public),
+    collaborative: toBooleanOrNull(source.collaborative),
   };
 }
 
 export function mapPlaylistItemToTrack(raw: any): Track {
-  const t = raw?.track ?? raw;
+  const source = raw ?? {};
+  const hasTrackField = Object.prototype.hasOwnProperty.call(source, 'track');
+  const trackSource = hasTrackField ? source.track : source;
 
   // Handle unavailable tracks (Spotify returns null for removed/unavailable tracks)
-  if (t === null || t === undefined) {
+  if (trackSource === null || trackSource === undefined) {
     console.warn('[mapPlaylistItemToTrack] Encountered null/undefined track - track may be unavailable');
     return mapUnavailableTrack(raw);
   }
 
-  const artists = mapArtistNames(t?.artists);
-  const artistObjects = mapArtistObjects(t?.artists);
-  const album = mapTrackAlbum(t?.album);
-  const addedBy = mapAddedBy(raw?.added_by);
+  const artists = mapArtistNames(trackSource.artists);
+  const artistObjects = mapArtistObjects(trackSource.artists);
+  const album = mapTrackAlbum(trackSource.album);
+  const addedBy = mapAddedBy(source.added_by);
 
   return {
-    id: t?.id ?? null,
-    uri: toStringValue(t?.uri, ''),
-    name: toStringValue(t?.name, ''),
+    id: trackSource.id ?? null,
+    uri: toStringValue(trackSource.uri, ''),
+    name: toStringValue(trackSource.name, ''),
     artists,
     artistObjects,
-    durationMs: toNumber(t?.duration_ms, 0),
-    addedAt: raw?.added_at ?? undefined,
+    durationMs: toNumber(trackSource.duration_ms, 0),
+    addedAt: source.added_at ?? undefined,
     album,
-    popularity: typeof t?.popularity === 'number' ? t.popularity : null,
-    explicit: t?.explicit === true,
+    popularity: typeof trackSource.popularity === 'number' ? trackSource.popularity : null,
+    explicit: trackSource.explicit === true,
     addedBy,
   };
 }

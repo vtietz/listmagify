@@ -52,6 +52,84 @@ export interface DragStartResult {
   cleanup?: () => void;
 }
 
+function resolveLastfmDragTracks(
+  selectedTracksFromData: Track[] | undefined,
+  selectedMatchedUris: string[] | undefined,
+  overlayTrack: Track
+): { dragTracks: Track[]; selectionCount: number } {
+  if (selectedTracksFromData && selectedTracksFromData.length > 0) {
+    return {
+      dragTracks: selectedTracksFromData,
+      selectionCount: selectedTracksFromData.length,
+    };
+  }
+
+  if (selectedMatchedUris && selectedMatchedUris.length > 0) {
+    return {
+      dragTracks: [overlayTrack],
+      selectionCount: selectedMatchedUris.length,
+    };
+  }
+
+  return {
+    dragTracks: [overlayTrack],
+    selectionCount: 1,
+  };
+}
+
+function buildLastfmOverlayTrack(
+  track: { trackName: string; artistName: string },
+  matchedTrack: {
+    id: string;
+    uri: string;
+    name: string;
+    artists?: string[];
+    artist?: string;
+    durationMs?: number;
+  } | undefined
+): Track {
+  if (matchedTrack) {
+    return {
+      id: matchedTrack.id,
+      uri: matchedTrack.uri,
+      name: matchedTrack.name,
+      artists: matchedTrack.artists && matchedTrack.artists.length > 0
+        ? matchedTrack.artists
+        : matchedTrack.artist
+          ? [matchedTrack.artist]
+          : [],
+      artistObjects: matchedTrack.artists && matchedTrack.artists.length > 0
+        ? matchedTrack.artists.map((name) => ({ id: null, name }))
+        : matchedTrack.artist
+          ? [{ id: null, name: matchedTrack.artist }]
+          : [],
+      durationMs: matchedTrack.durationMs ?? 0,
+    };
+  }
+
+  return {
+    id: `lastfm-${track.trackName}`,
+    uri: '',
+    name: track.trackName,
+    artists: [track.artistName],
+    artistObjects: [{ id: null, name: track.artistName }],
+    durationMs: 0,
+  };
+}
+
+function startPointerTracking(ctx: DragStartContext): () => void {
+  ctx.pointerTracker.startTracking();
+  ctx.autoScroller.start(
+    () => ctx.pointerTracker.getPosition(),
+    () => ctx.panelVirtualizersRef.current ?? new Map()
+  );
+
+  return () => {
+    ctx.pointerTracker.stopTracking();
+    ctx.autoScroller.stop();
+  };
+}
+
 /**
  * Handle Last.fm track drag start
  */
@@ -60,51 +138,36 @@ function handleLastfmDragStart(
   ctx: DragStartContext
 ): DragStartResult {
   const { active } = event;
-  const track = active.data.current?.track;
+  const track = active.data.current?.track as { trackName: string; artistName: string } | undefined;
+  if (!track) {
+    return { handled: false };
+  }
   const compositeId = active.id as string;
-  const matchedTrack = active.data.current?.matchedTrack;
+  const matchedTrack = active.data.current?.matchedTrack as {
+    id: string;
+    uri: string;
+    name: string;
+    artists?: string[];
+    artist?: string;
+    durationMs?: number;
+  } | undefined;
   const selectedTracksFromData = active.data.current?.selectedTracks as Track[] | undefined;
   const selectedMatchedUris = active.data.current?.selectedMatchedUris as string[] | undefined;
-
-  // Use selectedTracks if provided, otherwise fall back to selectedMatchedUris count
-  const dragTracks = selectedTracksFromData && selectedTracksFromData.length > 0
-    ? selectedTracksFromData
-    : undefined;
-
-  // Selection count is based on matched URIs or selectedTracks
-  const selectionCount = dragTracks
-    ? dragTracks.length
-    : (selectedMatchedUris && selectedMatchedUris.length > 0
-      ? selectedMatchedUris.length
-      : 1);
-
-  // Create a minimal Track object for the overlay
-  const overlayTrack: Track = matchedTrack
-    ? {
-        id: matchedTrack.id,
-        uri: matchedTrack.uri,
-        name: matchedTrack.name,
-        artists: matchedTrack.artist ? [matchedTrack.artist] : [],
-        artistObjects: matchedTrack.artist ? [{ id: null, name: matchedTrack.artist }] : [],
-        durationMs: matchedTrack.durationMs ?? 0,
-      }
-    : {
-        id: `lastfm-${track.trackName}`,
-        uri: '',
-        name: track.trackName,
-        artists: [track.artistName],
-        artistObjects: [{ id: null, name: track.artistName }],
-        durationMs: 0,
-      };
+  const overlayTrack = buildLastfmOverlayTrack(track, matchedTrack);
+  const { dragTracks, selectionCount } = resolveLastfmDragTracks(
+    selectedTracksFromData,
+    selectedMatchedUris,
+    overlayTrack
+  );
 
   ctx.startDrag({
     track: overlayTrack,
     id: compositeId,
     sourcePanelId: null, // No source panel for Last.fm tracks
     selectionCount,
-    dragTracks: dragTracks ?? [overlayTrack],
+    dragTracks,
     selectedIndices: [],
-    orderedTracks: dragTracks ?? [overlayTrack],
+    orderedTracks: dragTracks,
   });
 
   logDebug('🎵 DRAG START (Last.fm):', {
@@ -114,17 +177,7 @@ function handleLastfmDragStart(
     selectionCount,
   });
 
-  // Start tracking pointer
-  ctx.pointerTracker.startTracking();
-  ctx.autoScroller.start(
-    () => ctx.pointerTracker.getPosition(),
-    () => ctx.panelVirtualizersRef.current ?? new Map()
-  );
-
-  const cleanup = () => {
-    ctx.pointerTracker.stopTracking();
-    ctx.autoScroller.stop();
-  };
+  const cleanup = startPointerTracking(ctx);
 
   return { handled: true, cleanup };
 }

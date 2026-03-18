@@ -59,6 +59,30 @@ interface UsePlaylistTracksInfiniteResult {
   dataUpdatedAt: number;
 }
 
+function getPlaylistTracksQueryKey(playlistId: string | null | undefined) {
+  return playlistId ? playlistTracksInfinite(playlistId) : ['playlist-tracks-infinite', null] as const;
+}
+
+function shouldPrefetchRemainingPages({
+  playlistId,
+  data,
+  hasNextPage,
+  isFetchingNextPage,
+  prefetchedPlaylistId,
+}: {
+  playlistId: string | null | undefined;
+  data: InfiniteData<PlaylistTracksPage> | undefined;
+  hasNextPage: boolean;
+  isFetchingNextPage: boolean;
+  prefetchedPlaylistId: string | null;
+}) {
+  if (!playlistId || !data || !hasNextPage || isFetchingNextPage) {
+    return false;
+  }
+
+  return prefetchedPlaylistId !== playlistId;
+}
+
 /**
  * Hook for loading all playlist tracks using infinite query.
  * 
@@ -85,7 +109,7 @@ export function usePlaylistTracksInfinite({
     readonly ['playlist-tracks-infinite', string | null],
     string | null
   >({
-    queryKey: playlistId ? playlistTracksInfinite(playlistId) : ['playlist-tracks-infinite', null] as const,
+    queryKey: getPlaylistTracksQueryKey(playlistId),
     queryFn: async ({ pageParam = null }): Promise<PlaylistTracksPage> => {
       if (!playlistId) throw new Error('No playlist ID');
       
@@ -112,10 +136,17 @@ export function usePlaylistTracksInfinite({
 
   // Prefetch all remaining pages once the first page loads
   const prefetchAllPages = useCallback(async () => {
-    if (!playlistId || !data || !hasNextPage || isFetchingNextPage) return;
-    if (prefetchedRef.current === playlistId) return; // Already prefetched this playlist
+    if (!shouldPrefetchRemainingPages({
+      playlistId,
+      data,
+      hasNextPage: !!hasNextPage,
+      isFetchingNextPage,
+      prefetchedPlaylistId: prefetchedRef.current,
+    })) {
+      return;
+    }
     
-    prefetchedRef.current = playlistId;
+    prefetchedRef.current = playlistId ?? null;
     
     // Fetch all remaining pages sequentially
     let hasMore: boolean = !!hasNextPage;

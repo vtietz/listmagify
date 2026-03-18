@@ -17,6 +17,29 @@ type PlaylistMetadataInput = Playlist & {
   public?: boolean | null;
 };
 
+function mapOwnerMetadata(owner: PlaylistMetadataInput['owner']) {
+  return {
+    id: owner?.id,
+    displayName: owner?.displayName ?? owner?.display_name,
+  };
+}
+
+function resolveTracksTotal(playlist: PlaylistMetadataInput): number {
+  if (typeof playlist.tracksTotal === 'number') {
+    return playlist.tracksTotal;
+  }
+
+  return playlist.tracks?.total ?? 0;
+}
+
+function resolvePublicState(playlist: PlaylistMetadataInput): boolean {
+  if (typeof playlist.isPublic === 'boolean') {
+    return playlist.isPublic;
+  }
+
+  return typeof playlist.public === 'boolean' ? playlist.public : false;
+}
+
 export function mapPlaylistMetadata(playlist: PlaylistMetadataInput) {
   if (!playlist?.id) {
     throw routeErrors.upstreamFailure('Invalid playlist payload from upstream provider');
@@ -26,16 +49,9 @@ export function mapPlaylistMetadata(playlist: PlaylistMetadataInput) {
     id: playlist.id,
     name: playlist.name,
     description: playlist.description ?? '',
-    owner: {
-      id: playlist.owner?.id,
-      displayName: playlist.owner?.displayName ?? playlist.owner?.display_name,
-    },
+    owner: mapOwnerMetadata(playlist.owner),
     collaborative: playlist.collaborative ?? false,
-    tracksTotal: playlist.tracksTotal ?? playlist.tracks?.total ?? 0,
-    isPublic: typeof playlist.isPublic === 'boolean'
-      ? playlist.isPublic
-      : typeof playlist.public === 'boolean'
-        ? playlist.public
-        : false,
+    tracksTotal: resolveTracksTotal(playlist),
+    isPublic: resolvePublicState(playlist),
   };
 }
