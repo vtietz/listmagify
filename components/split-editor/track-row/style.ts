@@ -29,7 +29,7 @@ function getSoftDuplicateClasses(isSelected: boolean, isSoftDuplicate: boolean, 
 
 function getSelectionBgClass(isSelected: boolean, isAnyDuplicate: boolean, compareColor: string | undefined): string {
   if (isAnyDuplicate) return '';
-  if (isSelected) return 'bg-accent/70 text-foreground hover:bg-accent/80';
+  if (isSelected) return 'bg-accent/55 text-foreground hover:bg-accent/65 ring-1 ring-inset ring-orange-700/30';
   if (!compareColor || compareColor === 'transparent') return 'hover:bg-accent/40 hover:text-foreground';
   return '';
 }
