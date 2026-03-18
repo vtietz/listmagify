@@ -5,7 +5,7 @@
 
 'use client';
 
-import { useMemo, type MouseEvent, type ReactElement } from 'react';
+import { useCallback, useMemo, type MouseEvent, type ReactElement } from 'react';
 import type { VirtualItem } from '@tanstack/react-virtual';
 import { DropIndicator } from './DropIndicator';
 import { InsertionMarkersOverlay } from './InsertionMarker';
@@ -407,6 +407,7 @@ export function VirtualizedTrackListContainer({
   const isCompact = useCompactModeStore((s) => s.isCompact);
   const isAutoScrollEnabled = useAutoScrollTextStore((s) => s.isEnabled);
   const openBrowsePanel = useBrowsePanelStore((s) => s.open);
+  const setBrowseActiveTab = useBrowsePanelStore((s) => s.setActiveTab);
   const setSearchQuery = useBrowsePanelStore((s) => s.setSearchQuery);
   const togglePoint = useInsertionPointsStore((s) => s.togglePoint);
   const hasActiveMarkersSelector = useInsertionPointsStore((s) => s.hasActiveMarkers);
@@ -417,6 +418,11 @@ export function VirtualizedTrackListContainer({
   const openContextMenu = useContextMenuStore((s) => s.openMenu);
   const showHandle = hasTouch || !isDesktop;
   const handleOnlyDrag = hasTouch;
+
+  const openSpotifyBrowsePanel = useCallback(() => {
+    setBrowseActiveTab('spotify');
+    openBrowsePanel();
+  }, [setBrowseActiveTab, openBrowsePanel]);
 
   // Stable values computed once, not per row
   const allowMarkerToggle = !searchQuery && !isSorted;
@@ -429,11 +435,11 @@ export function VirtualizedTrackListContainer({
   );
 
   const sharedCtx = useMemo(() => ({
-    isCompact, isAutoScrollEnabled, openBrowsePanel, setSearchQuery,
+    isCompact, isAutoScrollEnabled, openBrowsePanel: openSpotifyBrowsePanel, setSearchQuery,
     togglePoint, hasAnyMarkersGlobal: hasAnyMarkersGlobal, isPhone,
     setMobileOverlay, isDndActive, openContextMenu, showHandle, handleOnlyDrag,
   }), [
-    isCompact, isAutoScrollEnabled, openBrowsePanel, setSearchQuery,
+    isCompact, isAutoScrollEnabled, openSpotifyBrowsePanel, setSearchQuery,
     togglePoint, hasAnyMarkersGlobal, isPhone, setMobileOverlay,
     isDndActive, openContextMenu, showHandle, handleOnlyDrag,
   ]);

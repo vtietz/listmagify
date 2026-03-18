@@ -1,5 +1,7 @@
 'use client';
 
+import { useCallback } from 'react';
+
 import { useCompactModeStore } from '@/hooks/useCompactModeStore';
 import { useAutoScrollTextStore } from '@/hooks/useAutoScrollTextStore';
 import { useBrowsePanelStore } from '@/hooks/useBrowsePanelStore';
@@ -15,7 +17,7 @@ import type { TrackRowProps, TrackRowSharedContext } from './types';
 export function TrackRowWithHooks(props: TrackRowProps) {
   const { isCompact } = useCompactModeStore();
   const { isEnabled: isAutoScrollEnabled } = useAutoScrollTextStore();
-  const { open: openBrowsePanel, setSearchQuery } = useBrowsePanelStore();
+  const { open: openBrowsePanel, setActiveTab, setSearchQuery } = useBrowsePanelStore();
   const togglePoint = useInsertionPointsStore((s) => s.togglePoint);
   const hasActiveMarkers = useInsertionPointsStore((s) => s.hasActiveMarkers);
   const { isPhone } = useDeviceType();
@@ -24,10 +26,15 @@ export function TrackRowWithHooks(props: TrackRowProps) {
   const openContextMenu = useContextMenuStore((s) => s.openMenu);
   const { showHandle, handleOnlyDrag } = useDragHandle();
 
+  const openSpotifyBrowsePanel = useCallback(() => {
+    setActiveTab('spotify');
+    openBrowsePanel();
+  }, [setActiveTab, openBrowsePanel]);
+
   const ctx: TrackRowSharedContext = {
     isCompact,
     isAutoScrollEnabled,
-    openBrowsePanel,
+    openBrowsePanel: openSpotifyBrowsePanel,
     setSearchQuery,
     togglePoint,
     hasAnyMarkersGlobal: hasActiveMarkers(),
