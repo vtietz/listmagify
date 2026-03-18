@@ -36,6 +36,7 @@ export default async function Home({ searchParams }: Props) {
   const sessionError = (session as { error?: string } | null)?.error;
   const hasAccessToken = session && (session as any).accessToken;
   const hasValidSession = session && !sessionError && hasAccessToken;
+  const isAuthenticated = Boolean(hasValidSession);
   const returnTo = resolveReturnTo(next);
   const forceLanding = landing === "1";
 
@@ -68,7 +69,7 @@ export default async function Home({ searchParams }: Props) {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
       <LandingPageContent
-        isAuthenticated={false}
+        isAuthenticated={isAuthenticated}
         showMessage={showMessage}
         message={message}
         returnTo={returnTo}
@@ -77,6 +78,10 @@ export default async function Home({ searchParams }: Props) {
       />
     </>
   );
+
+  if (isAuthenticated) {
+    return content;
+  }
 
   return <AuthPageLayout showLogoutLink={false}>{content}</AuthPageLayout>;
 }
