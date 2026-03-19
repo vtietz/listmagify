@@ -92,6 +92,88 @@ function getAnyProviderTokenFromSession(session: any): {
   return null;
 }
 
+function buildAuthenticatedSession(params: {
+  user?: AuthenticatedSession['user'];
+  accessToken: string;
+  accessTokenExpires?: number | undefined;
+  providerId?: MusicProviderId | undefined;
+}): AuthenticatedSession {
+  return {
+    accessToken: params.accessToken,
+    ...(params.user ? { user: params.user } : {}),
+    ...(typeof params.accessTokenExpires === 'number' ? { accessTokenExpires: params.accessTokenExpires } : {}),
+    ...(params.providerId ? { providerId: params.providerId } : {}),
+  };
+}
+
+function throwIfRefreshFailed(error: unknown): void {
+  if (error === TOKEN_REFRESH_ERROR) {
+    throw new ServerAuthError('Token refresh failed', 'refresh_failed');
+  }
+}
+
+function resolveLegacySpotifySession(session: any, typedSession: any): AuthenticatedSession | null {
+  if (typeof typedSession.accessToken !== 'string') {
+    return null;
+  }
+
+  throwIfRefreshFailed(typedSession.error);
+  return buildAuthenticatedSession({
+    user: session.user,
+    accessToken: typedSession.accessToken,
+    accessTokenExpires: typedSession.accessTokenExpires,
+    providerId: 'spotify',
+  });
+}
+
+function requireSessionForProvider(session: any, typedSession: any, providerId: MusicProviderId): AuthenticatedSession {
+  const selectedProviderToken = getProviderTokenFromSession(typedSession, providerId);
+  const providerError = typedSession?.providerErrors?.[providerId] ?? selectedProviderToken?.error;
+  throwIfRefreshFailed(providerError);
+
+  if (selectedProviderToken?.accessToken) {
+    return buildAuthenticatedSession({
+      user: session.user,
+      accessToken: selectedProviderToken.accessToken,
+      accessTokenExpires: selectedProviderToken.accessTokenExpires,
+      providerId,
+    });
+  }
+
+  if (providerId === 'spotify') {
+    const legacySession = resolveLegacySpotifySession(session, typedSession);
+    if (legacySession) {
+      return legacySession;
+    }
+  }
+
+  throw new ServerAuthError(`No access token in session for provider '${providerId}'`, 'token_expired');
+}
+
+function requireDefaultSession(session: any, typedSession: any): AuthenticatedSession {
+  const defaultProviderToken = getAnyProviderTokenFromSession(typedSession);
+  if (defaultProviderToken) {
+    return buildAuthenticatedSession({
+      user: session.user,
+      accessToken: defaultProviderToken.token.accessToken!,
+      accessTokenExpires: defaultProviderToken.token.accessTokenExpires,
+      providerId: defaultProviderToken.providerId,
+    });
+  }
+
+  throwIfRefreshFailed(typedSession.error);
+
+  if (typeof typedSession.accessToken !== 'string') {
+    throw new ServerAuthError('No access token in session', 'token_expired');
+  }
+
+  return buildAuthenticatedSession({
+    user: session.user,
+    accessToken: typedSession.accessToken,
+    accessTokenExpires: typedSession.accessTokenExpires,
+  });
+}
+
 /**
  * Require an authenticated session with a valid access token.
  * Throws ServerAuthError if not authenticated or token is invalid.
@@ -131,73 +213,10 @@ export async function requireAuth(providerId?: MusicProviderId): Promise<Authent
   const typedSession = session as any;
 
   if (providerId) {
-    const selectedProviderToken = getProviderTokenFromSession(typedSession, providerId);
-    const providerError = typedSession?.providerErrors?.[providerId] ?? selectedProviderToken?.error;
-
-    if (providerError === TOKEN_REFRESH_ERROR) {
-      throw new ServerAuthError('Token refresh failed', 'refresh_failed');
-    }
-
-    if (!selectedProviderToken?.accessToken) {
-      if (
-        providerId === 'spotify' &&
-        typeof typedSession.accessToken === 'string'
-      ) {
-        if (typedSession.error === TOKEN_REFRESH_ERROR) {
-          throw new ServerAuthError('Token refresh failed', 'refresh_failed');
-        }
-
-        return {
-          user: session.user,
-          accessToken: typedSession.accessToken,
-          ...(typeof typedSession.accessTokenExpires === 'number'
-            ? { accessTokenExpires: typedSession.accessTokenExpires }
-            : {}),
-          providerId,
-        };
-      }
-
-      throw new ServerAuthError(`No access token in session for provider '${providerId}'`, 'token_expired');
-    }
-
-    return {
-      user: session.user,
-      accessToken: selectedProviderToken.accessToken,
-      ...(typeof selectedProviderToken.accessTokenExpires === 'number'
-        ? { accessTokenExpires: selectedProviderToken.accessTokenExpires }
-        : {}),
-      providerId,
-    };
+    return requireSessionForProvider(session, typedSession, providerId);
   }
 
-  const defaultProviderToken = getAnyProviderTokenFromSession(typedSession);
-  if (defaultProviderToken) {
-    return {
-      user: session.user,
-      accessToken: defaultProviderToken.token.accessToken!,
-      ...(typeof defaultProviderToken.token.accessTokenExpires === 'number'
-        ? { accessTokenExpires: defaultProviderToken.token.accessTokenExpires }
-        : {}),
-      providerId: defaultProviderToken.providerId,
-    };
-  }
-
-  if (typedSession.error === TOKEN_REFRESH_ERROR) {
-    throw new ServerAuthError('Token refresh failed', 'refresh_failed');
-  }
-
-  const accessToken = typedSession.accessToken;
-  if (!accessToken) {
-    throw new ServerAuthError('No access token in session', 'token_expired');
-  }
-
-  return {
-    user: session.user,
-    accessToken,
-    ...(typeof typedSession.accessTokenExpires === 'number'
-      ? { accessTokenExpires: typedSession.accessTokenExpires }
-      : {}),
-  };
+  return requireDefaultSession(session, typedSession);
 }
 
 /**

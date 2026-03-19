@@ -90,6 +90,154 @@ function shouldPrefetchRemainingPages({
   return prefetchedPlaylistId !== playlistId;
 }
 
+function buildPlaylistTracksUrl(
+  playlistId: string,
+  providerId: MusicProviderId,
+  pageParam: string | null
+): string {
+  if (pageParam) {
+    return `/api/playlists/${playlistId}/tracks?nextCursor=${encodeURIComponent(pageParam)}&provider=${providerId}`;
+  }
+
+  return `/api/playlists/${playlistId}/tracks?provider=${providerId}`;
+}
+
+function createPlaylistTracksQueryFn(
+  playlistId: string | null | undefined,
+  providerId: MusicProviderId
+): ({ pageParam }: { pageParam: string | null }) => Promise<PlaylistTracksPage> {
+  return async ({ pageParam = null }) => {
+    if (!playlistId) {
+      throw new Error('No playlist ID');
+    }
+
+    return apiFetch<PlaylistTracksPage>(buildPlaylistTracksUrl(playlistId, providerId, pageParam));
+  };
+}
+
+async function prefetchRemainingPages(
+  fetchNextPage: () => Promise<{
+    hasNextPage: boolean;
+    data?: InfiniteData<PlaylistTracksPage>;
+    error?: Error | null;
+  }>
+): Promise<void> {
+  let hasMore = true;
+
+  while (hasMore) {
+    const result = await fetchNextPage();
+    hasMore = !!result.hasNextPage;
+
+    if (!result.data || result.error) {
+      break;
+    }
+  }
+}
+
+function shouldAutoPrefetch(
+  pageCount: number | undefined,
+  hasNextPage: boolean,
+  isFetchingNextPage: boolean
+): boolean {
+  return pageCount === 1 && hasNextPage && !isFetchingNextPage;
+}
+
+function flattenUniqueTracks(pages: PlaylistTracksPage[] | undefined): Track[] {
+  if (!pages) {
+    return [];
+  }
+
+  const tracks: Track[] = [];
+  const seenKeys = new Set<string>();
+
+  for (const page of pages) {
+    for (const track of page.tracks) {
+      const key = `${track.uri}::${track.position}`;
+      if (seenKeys.has(key)) {
+        continue;
+      }
+
+      seenKeys.add(key);
+      tracks.push(track);
+    }
+  }
+
+  return tracks;
+}
+
+function shouldEnablePlaylistTracksQuery(enabled: boolean, playlistId: string | null | undefined): boolean {
+  return enabled && !!playlistId;
+}
+
+async function maybePrefetchAllPages(params: {
+  playlistId: string | null | undefined;
+  data: InfiniteData<PlaylistTracksPage> | undefined;
+  hasNextPage: boolean;
+  isFetchingNextPage: boolean;
+  prefetchedRef: React.MutableRefObject<string | null>;
+  fetchNextPage: () => Promise<{
+    hasNextPage: boolean;
+    data?: InfiniteData<PlaylistTracksPage>;
+    error?: Error | null;
+  }>;
+}): Promise<void> {
+  if (!shouldPrefetchRemainingPages({
+    playlistId: params.playlistId,
+    data: params.data,
+    hasNextPage: params.hasNextPage,
+    isFetchingNextPage: params.isFetchingNextPage,
+    prefetchedPlaylistId: params.prefetchedRef.current,
+  })) {
+    return;
+  }
+
+  params.prefetchedRef.current = params.playlistId ?? null;
+  await prefetchRemainingPages(params.fetchNextPage);
+}
+
+function triggerPrefetchOnFirstPage(params: {
+  pageCount: number | undefined;
+  hasNextPage: boolean;
+  isFetchingNextPage: boolean;
+  prefetchAllPages: () => Promise<void>;
+}): void {
+  if (!shouldAutoPrefetch(params.pageCount, params.hasNextPage, params.isFetchingNextPage)) {
+    return;
+  }
+
+  void params.prefetchAllPages();
+}
+
+function resetPrefetchTracking(
+  prefetchedRef: React.MutableRefObject<string | null>,
+  playlistId: string | null | undefined
+): void {
+  if (playlistId !== prefetchedRef.current) {
+    prefetchedRef.current = null;
+  }
+}
+
+function getSnapshotId(data: InfiniteData<PlaylistTracksPage> | undefined): string | undefined {
+  const pages = data?.pages;
+  if (!pages || pages.length === 0) {
+    return undefined;
+  }
+
+  return pages[pages.length - 1]?.snapshotId;
+}
+
+function getTotalTracks(data: InfiniteData<PlaylistTracksPage> | undefined): number {
+  return data?.pages[0]?.total ?? 0;
+}
+
+function getHasLoadedAll(
+  data: InfiniteData<PlaylistTracksPage> | undefined,
+  hasNextPage: boolean | undefined,
+  isFetchingNextPage: boolean
+): boolean {
+  return !!data && !hasNextPage && !isFetchingNextPage;
+}
+
 /**
  * Hook for loading all playlist tracks using infinite query.
  * 
@@ -118,18 +266,10 @@ export function usePlaylistTracksInfinite({
     string | null
   >({
     queryKey: getPlaylistTracksQueryKey(playlistId, providerId),
-    queryFn: async ({ pageParam = null }): Promise<PlaylistTracksPage> => {
-      if (!playlistId) throw new Error('No playlist ID');
-      
-      const url = pageParam 
-        ? `/api/playlists/${playlistId}/tracks?nextCursor=${encodeURIComponent(pageParam as string)}&provider=${providerId}`
-        : `/api/playlists/${playlistId}/tracks?provider=${providerId}`;
-      
-      return apiFetch<PlaylistTracksPage>(url);
-    },
+    queryFn: createPlaylistTracksQueryFn(playlistId, providerId),
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage: PlaylistTracksPage) => lastPage.nextCursor,
-    enabled: enabled && !!playlistId,
+    enabled: shouldEnablePlaylistTracksQuery(enabled, playlistId),
     staleTime: 30000, // 30 seconds
     // CRITICAL: Keep previous data during refetch to prevent undefined flashes
     placeholderData: (prev: InfiniteData<PlaylistTracksPage> | undefined) => prev,
@@ -144,41 +284,29 @@ export function usePlaylistTracksInfinite({
 
   // Prefetch all remaining pages once the first page loads
   const prefetchAllPages = useCallback(async () => {
-    if (!shouldPrefetchRemainingPages({
+    await maybePrefetchAllPages({
       playlistId,
       data,
-      hasNextPage: !!hasNextPage,
+      hasNextPage: Boolean(hasNextPage),
       isFetchingNextPage,
-      prefetchedPlaylistId: prefetchedRef.current,
-    })) {
-      return;
-    }
-    
-    prefetchedRef.current = playlistId ?? null;
-    
-    // Fetch all remaining pages sequentially
-    let hasMore: boolean = !!hasNextPage;
-    while (hasMore) {
-      const result = await fetchNextPage();
-      hasMore = !!result.hasNextPage;
-      
-      // Safety check: break if no more pages or fetch failed
-      if (!result.data || result.error) break;
-    }
+      prefetchedRef,
+      fetchNextPage,
+    });
   }, [playlistId, data, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   // Auto-fetch all pages when first page loads
   useEffect(() => {
-    if (data?.pages.length === 1 && hasNextPage && !isFetchingNextPage) {
-      prefetchAllPages();
-    }
+    triggerPrefetchOnFirstPage({
+      pageCount: data?.pages.length,
+      hasNextPage: Boolean(hasNextPage),
+      isFetchingNextPage,
+      prefetchAllPages,
+    });
   }, [data?.pages.length, hasNextPage, isFetchingNextPage, prefetchAllPages]);
 
   // Reset prefetch tracking when playlist changes
   useEffect(() => {
-    if (playlistId !== prefetchedRef.current) {
-      prefetchedRef.current = null;
-    }
+    resetPrefetchTracking(prefetchedRef, playlistId);
   }, [playlistId]);
 
   // Flatten all pages into a single tracks array with stable reference
@@ -186,33 +314,17 @@ export function usePlaylistTracksInfinite({
   const pages = data?.pages;
   const allTracks = useMemo(() => {
     void dataUpdatedAt;
-    if (!pages) return [];
-    
-    const tracks: Track[] = [];
-    const seenKeys = new Set<string>();
-    
-    for (const page of pages) {
-      for (const track of page.tracks) {
-        // De-duplicate based on URI + position (same track at same position = page boundary duplicate)
-        // But same track at different positions = intentional playlist duplicates (keep them!)
-        const key = `${track.uri}::${track.position}`;
-        if (seenKeys.has(key)) continue;
-        seenKeys.add(key);
-        tracks.push(track);
-      }
-    }
-    
-    return tracks;
+    return flattenUniqueTracks(pages);
   }, [pages, dataUpdatedAt]);
 
   // Get latest snapshot ID from most recent page
-  const snapshotId = data?.pages[data.pages.length - 1]?.snapshotId;
+  const snapshotId = getSnapshotId(data);
   
   // Get total from first page (Spotify returns total in all pages)
-  const total = data?.pages[0]?.total ?? 0;
+  const total = getTotalTracks(data);
   
   // Check if all pages have been loaded
-  const hasLoadedAll = !hasNextPage && !isFetchingNextPage && !!data;
+  const hasLoadedAll = getHasLoadedAll(data, hasNextPage, isFetchingNextPage);
 
   return {
     allTracks,

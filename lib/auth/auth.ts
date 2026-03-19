@@ -2,9 +2,8 @@ import SpotifyProvider from "next-auth/providers/spotify";
 import type { AuthOptions } from "next-auth";
 import { serverEnv } from "@/lib/env";
 import { getFallbackMusicProviderId, isMusicProviderEnabled } from '@/lib/music-provider/enabledProviders';
-import { logAuthEvent, startSession } from "@/lib/metrics";
-import { getDb } from "@/lib/metrics/db";
 import type { MusicProviderId } from '@/lib/music-provider/types';
+import { authLogger, createAuthEvents } from '@/lib/auth/authLogging';
 
 const TOKEN_REFRESH_ERROR = 'RefreshAccessTokenError';
 const REFRESH_BUFFER_MS = 5 * 60 * 1000;
@@ -110,37 +109,6 @@ function extractExpiresAt(accountData: Record<string, any>): number {
   return Date.now() + 3600 * 1000;
 }
 
-async function fetchSpotifyUserId(accessToken: string, fallback: string): Promise<string> {
-  try {
-    const meRes = await fetch('https://api.spotify.com/v1/me', {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-    if (meRes.ok) {
-      const meData = await meRes.json();
-      return meData.id;
-    }
-  } catch {
-    // Fall back to providerAccountId
-  }
-  return fallback;
-}
-
-async function linkUserToAccessRequest(db: ReturnType<typeof getDb>, spotifyUserId: string, email: string | undefined): Promise<void> {
-  if (!db || !email) return;
-  try {
-    db.prepare(`
-      UPDATE access_requests 
-      SET user_id = ? 
-      WHERE email = ? 
-        AND status = 'approved' 
-        AND user_id IS NULL
-    `).run(spotifyUserId, email);
-  } catch (err) {
-    console.error('[auth] Failed to link user_id to access request:', err);
-  }
-}
-
-
 function resolveSpotifyClientCredentials(token: ProviderJwtToken): { clientId: string; clientSecret: string } {
   const clientId = token.byok?.clientId || serverEnv.SPOTIFY_CLIENT_ID;
   const clientSecret = token.byok?.clientSecret || serverEnv.SPOTIFY_CLIENT_SECRET;
@@ -165,11 +133,9 @@ function createSpotifyAuthProvider() {
     clientSecret: serverEnv.SPOTIFY_CLIENT_SECRET,
     authorization: {
       params: {
-        // Scopes for playlist viewing/editing, user library (liked songs), playback control, and web playback SDK
         scope: "user-read-email user-read-private playlist-read-private playlist-modify-private playlist-modify-public user-library-read user-library-modify user-read-playback-state user-modify-playback-state streaming",
       },
     },
-    // Enable PKCE for Authorization Code flow
     checks: ["pkce", "state"],
   });
 }
@@ -199,52 +165,54 @@ function createTidalAuthProvider() {
     },
     checks: ['pkce', 'state'],
     profile(profile: any) {
-      const rawData = profile?.data ?? profile;
-      const attributes = rawData?.attributes ?? {};
-      const id = String(rawData?.id ?? '');
-      const email = typeof attributes?.email === 'string' ? attributes.email : null;
-      const username = typeof attributes?.username === 'string' ? attributes.username : null;
-
-      return {
-        id,
-        name: username ?? email ?? 'TIDAL User',
-        email,
-        image: null,
-      };
+      return mapTidalProfile(profile);
     },
   } as any;
+}
+
+function toTidalProfileData(profile: any): Record<string, any> {
+  if (profile && typeof profile === 'object' && profile.data) {
+    return profile.data as Record<string, any>;
+  }
+
+  return (profile ?? {}) as Record<string, any>;
+}
+
+function toOptionalString(value: unknown): string | null {
+  return typeof value === 'string' ? value : null;
+}
+
+function getTidalDisplayName(username: string | null, email: string | null): string {
+  if (username) {
+    return username;
+  }
+
+  if (email) {
+    return email;
+  }
+
+  return 'TIDAL User';
+}
+
+function mapTidalProfile(profile: any): { id: string; name: string; email: string | null; image: null } {
+  const rawData = toTidalProfileData(profile);
+  const attributes = (rawData.attributes ?? {}) as Record<string, unknown>;
+  const id = String(rawData.id ?? '');
+  const email = toOptionalString(attributes.email);
+  const username = toOptionalString(attributes.username);
+
+  return {
+    id,
+    name: getTidalDisplayName(username, email),
+    email,
+    image: null,
+  };
 }
 
 const authProviders = [
   ...(isMusicProviderEnabled('spotify') ? [createSpotifyAuthProvider()] : []),
   ...(isMusicProviderEnabled('tidal') ? [createTidalAuthProvider()] : []),
 ];
-
-function formatDebugUser(user: any): string {
-  return user?.email ?? user?.name ?? '[unknown]';
-}
-
-function extractSignInData(message: any): {
-  providerAccountId: string | undefined;
-  accessToken: string | undefined;
-  email: string | undefined;
-  userAgent: string | undefined;
-  provider: string | undefined;
-  debugUser: string;
-} {
-  const account = message?.account;
-  const user = message?.user;
-  return {
-    providerAccountId: account?.providerAccountId,
-    accessToken: account?.access_token,
-    email: user?.email,
-    userAgent: user?.userAgent,
-    provider: account?.provider,
-    debugUser: formatDebugUser(user),
-  };
-}
-
-
 function buildRefreshedSpotifyToken(token: ProviderJwtToken, data: any): ProviderJwtToken {
   const expiresInMs = (data.expires_in ?? 3600) * 1000;
   const refreshToken = data.refresh_token ?? token.refreshToken;
@@ -257,12 +225,6 @@ function buildRefreshedSpotifyToken(token: ProviderJwtToken, data: any): Provide
     ...(token.byok ? { byok: token.byok } : {}),
   };
 }
-
-/**
- * Refresh Spotify access token using the stored refresh token.
- * Supports both default credentials and BYOK (Bring Your Own Key) credentials.
- * Spotify docs: https://developer.spotify.com/documentation/web-api/tutorials/refreshing-tokens
- */
 async function refreshSpotifyAccessToken(token: ProviderJwtToken): Promise<ProviderJwtToken> {
   try {
     if (!token.refreshToken) {
@@ -373,168 +335,155 @@ function shouldRefreshProviderToken(token: ProviderJwtToken): boolean {
   return Date.now() >= token.accessTokenExpires - REFRESH_BUFFER_MS;
 }
 
-/**
- * NextAuth configuration (PKCE + JWT strategy).
- * - Persistent sessions: 30 days with 12-hour refresh cycle
- * - Access token stored in JWT and auto-refreshed on expiry
- * - httpOnly, secure cookies prevent XSS token exposure
- */
+function getInitialProviderErrors(nextToken: AuthJwtToken): Partial<Record<MusicProviderId, string | undefined>> {
+  return {
+    ...(nextToken.providerErrors ?? {}),
+  };
+}
+
+function buildProviderTokenFromAccount(
+  nextToken: AuthJwtToken,
+  previousToken: ProviderJwtToken,
+  accountData: Record<string, any>,
+  providerId: MusicProviderId,
+): ProviderJwtToken {
+  const expiresAt = extractExpiresAt(accountData);
+
+  if (providerId !== 'spotify') {
+    return {
+      ...previousToken,
+      accessToken: accountData.access_token,
+      refreshToken: accountData.refresh_token ?? previousToken.refreshToken,
+      accessTokenExpires: expiresAt,
+    };
+  }
+
+  const byok = nextToken.byok ?? previousToken.byok;
+
+  return {
+    ...previousToken,
+    accessToken: accountData.access_token,
+    refreshToken: accountData.refresh_token ?? previousToken.refreshToken,
+    accessTokenExpires: expiresAt,
+    isByok: Boolean(nextToken.isByok ?? previousToken.isByok),
+    ...(byok ? { byok } : {}),
+  };
+}
+
+function applyAccountToken(
+  nextToken: AuthJwtToken,
+  account: unknown,
+  providerTokens: ProviderTokenStore,
+  providerErrors: Partial<Record<MusicProviderId, string | undefined>>,
+): void {
+  if (!account) {
+    return;
+  }
+
+  const accountData = account as Record<string, any>;
+  const providerId = toMusicProviderId(accountData.provider);
+  if (!providerId) {
+    return;
+  }
+
+  const previousToken = providerTokens[providerId] ?? {};
+  providerTokens[providerId] = buildProviderTokenFromAccount(nextToken, previousToken, accountData, providerId);
+  providerErrors[providerId] = undefined;
+}
+
+function markProviderTokenHealthy(
+  providerErrors: Partial<Record<MusicProviderId, string | undefined>>,
+  providerId: MusicProviderId,
+): void {
+  providerErrors[providerId] = providerErrors[providerId] ?? undefined;
+}
+
+async function refreshProviderTokenIfNeeded(
+  providerId: MusicProviderId,
+  providerTokens: ProviderTokenStore,
+  providerErrors: Partial<Record<MusicProviderId, string | undefined>>,
+): Promise<void> {
+  const providerToken = providerTokens[providerId];
+  if (!providerToken?.accessToken) {
+    return;
+  }
+
+  if (!shouldRefreshProviderToken(providerToken)) {
+    markProviderTokenHealthy(providerErrors, providerId);
+    return;
+  }
+
+  try {
+    console.debug(`[auth] ${providerId} token expiring soon or expired, refreshing...`);
+    const refreshedToken = await refreshProviderAccessToken(providerId, providerToken);
+    providerTokens[providerId] = refreshedToken;
+    providerErrors[providerId] = undefined;
+  } catch (error) {
+    console.warn(`[auth] Failed to refresh ${providerId} token`, error);
+    providerTokens[providerId] = {
+      ...providerToken,
+      error: TOKEN_REFRESH_ERROR,
+    };
+    providerErrors[providerId] = TOKEN_REFRESH_ERROR;
+  }
+}
+
+async function refreshProviderTokens(
+  providerTokens: ProviderTokenStore,
+  providerErrors: Partial<Record<MusicProviderId, string | undefined>>,
+): Promise<void> {
+  for (const providerId of Object.keys(providerTokens) as MusicProviderId[]) {
+    await refreshProviderTokenIfNeeded(providerId, providerTokens, providerErrors);
+  }
+}
+
+function buildJwtCallbackResult(
+  nextToken: AuthJwtToken,
+  providerTokens: ProviderTokenStore,
+  providerErrors: Partial<Record<MusicProviderId, string | undefined>>,
+): AuthJwtToken {
+  const sessionProviderId = resolveSessionProviderId(providerTokens);
+  const sessionProviderToken = sessionProviderId ? providerTokens[sessionProviderId] : undefined;
+  const sessionError = sessionProviderId ? providerErrors[sessionProviderId] : undefined;
+
+  return {
+    ...nextToken,
+    musicProviderTokens: providerTokens,
+    providerErrors,
+    accessToken: sessionProviderToken?.accessToken,
+    refreshToken: sessionProviderToken?.refreshToken,
+    accessTokenExpires: sessionProviderToken?.accessTokenExpires,
+    error: sessionError,
+    isByok: sessionProviderToken?.isByok || false,
+    ...(sessionProviderToken?.byok ? { byok: sessionProviderToken.byok } : {}),
+  };
+}
 export const authOptions: AuthOptions = {
   secret: serverEnv.NEXTAUTH_SECRET,
   session: {
     strategy: "jwt",
-    maxAge: 30 * 24 * 60 * 60, // 30 days - session persists across browser restarts
-    updateAge: 12 * 60 * 60, // 12 hours - reissue cookie to keep session fresh
+    maxAge: 30 * 24 * 60 * 60,
+    updateAge: 12 * 60 * 60,
   },
   jwt: {
-    maxAge: 30 * 24 * 60 * 60, // 30 days - align JWT expiry with session
+    maxAge: 30 * 24 * 60 * 60,
   },
-  // cookies: {
-  //   // Fix for Docker/127.0.0.1 environments - ensure cookies work properly
-  //   sessionToken: {
-  //     name: `next-auth.session-token`,
-  //     options: {
-  //       httpOnly: true,
-  //       sameSite: 'lax',
-  //       path: '/',
-  //       secure: false, // Allow cookies on http://127.0.0.1 during development
-  //     },
-  //   },
-  //   callbackUrl: {
-  //     name: `next-auth.callback-url`,
-  //     options: {
-  //       httpOnly: true,
-  //       sameSite: 'lax',
-  //       path: '/',
-  //       secure: false,
-  //     },
-  //   },
-  //   csrfToken: {
-  //     name: `next-auth.csrf-token`,
-  //     options: {
-  //       httpOnly: true,
-  //       sameSite: 'lax',
-  //       path: '/',
-  //       secure: false,
-  //     },
-  //   },
-  //   pkceCodeVerifier: {
-  //     name: `next-auth.pkce.code_verifier`,
-  //     options: {
-  //       httpOnly: true,
-  //       sameSite: 'lax',
-  //       path: '/',
-  //       secure: false,
-  //       maxAge: 900, // 15 minutes
-  //     },
-  //   },
-  //   state: {
-  //     name: `next-auth.state`,
-  //     options: {
-  //       httpOnly: true,
-  //       sameSite: 'lax',
-  //       path: '/',
-  //       secure: false,
-  //       maxAge: 900, // 15 minutes
-  //     },
-  //   },
-  //   nonce: {
-  //     name: `next-auth.nonce`,
-  //     options: {
-  //       httpOnly: true,
-  //       sameSite: 'lax',
-  //       path: '/',
-  //       secure: false,
-  //     },
-  //   },
-  // },
   pages: {
     signIn: "/",
-    error: "/",  // Redirect OAuth errors to landing page with ?error= param
+    error: "/",
   },
   providers: authProviders,
   callbacks: {
-    /**
-     * Persist the OAuth access_token, refresh_token, and expiry in the JWT.
-     * Refresh automatically when expired or within 5 minutes of expiry.
-     */
     async jwt({ token, account }: any) {
       const nextToken = token as AuthJwtToken;
       const providerTokens = getProviderTokens(nextToken);
-      const providerErrors = {
-        ...(nextToken.providerErrors ?? {}),
-      } as Partial<Record<MusicProviderId, string | undefined>>;
+      const providerErrors = getInitialProviderErrors(nextToken);
 
-      if (account) {
-        const accountData = account as Record<string, any>;
-        const providerId = toMusicProviderId(accountData.provider);
-        if (providerId) {
-          const previousToken = providerTokens[providerId] ?? {};
-          const expiresAt = extractExpiresAt(accountData);
-          providerTokens[providerId] = {
-            ...previousToken,
-            accessToken: accountData.access_token,
-            refreshToken: accountData.refresh_token ?? previousToken.refreshToken,
-            accessTokenExpires: expiresAt,
-            ...(providerId === 'spotify'
-              ? {
-                  isByok: Boolean(nextToken.isByok ?? previousToken.isByok),
-                  ...((nextToken.byok ?? previousToken.byok)
-                    ? { byok: nextToken.byok ?? previousToken.byok }
-                    : {}),
-                }
-              : {}),
-          };
-          providerErrors[providerId] = undefined;
-        }
-      }
+      applyAccountToken(nextToken, account, providerTokens, providerErrors);
+      await refreshProviderTokens(providerTokens, providerErrors);
 
-      for (const providerId of Object.keys(providerTokens) as MusicProviderId[]) {
-        const providerToken = providerTokens[providerId];
-        if (!providerToken || !providerToken.accessToken) {
-          continue;
-        }
-
-        if (!shouldRefreshProviderToken(providerToken)) {
-          providerErrors[providerId] = providerErrors[providerId] ?? undefined;
-          continue;
-        }
-
-        try {
-          console.debug(`[auth] ${providerId} token expiring soon or expired, refreshing...`);
-          const refreshedToken = await refreshProviderAccessToken(providerId, providerToken);
-          providerTokens[providerId] = refreshedToken;
-          providerErrors[providerId] = undefined;
-        } catch (error) {
-          console.warn(`[auth] Failed to refresh ${providerId} token`, error);
-          providerTokens[providerId] = {
-            ...providerToken,
-            error: TOKEN_REFRESH_ERROR,
-          };
-          providerErrors[providerId] = TOKEN_REFRESH_ERROR;
-        }
-      }
-
-      const sessionProviderId = resolveSessionProviderId(providerTokens);
-      const sessionProviderToken = sessionProviderId ? providerTokens[sessionProviderId] : undefined;
-      const sessionError = sessionProviderId ? providerErrors[sessionProviderId] : undefined;
-
-      return {
-        ...nextToken,
-        musicProviderTokens: providerTokens,
-        providerErrors,
-        accessToken: sessionProviderToken?.accessToken,
-        refreshToken: sessionProviderToken?.refreshToken,
-        accessTokenExpires: sessionProviderToken?.accessTokenExpires,
-        error: sessionError,
-        isByok: sessionProviderToken?.isByok || false,
-        ...(sessionProviderToken?.byok ? { byok: sessionProviderToken.byok } : {}),
-      };
+      return buildJwtCallbackResult(nextToken, providerTokens, providerErrors);
     },
-
-    /**
-     * Expose accessToken and error state on the session for server-side fetchers.
-     */
     async session({ session, token }: any) {
       const typedToken = token as AuthJwtToken;
       const providerTokens = getProviderTokens(typedToken);
@@ -568,91 +517,22 @@ export const authOptions: AuthOptions = {
       (session as any).accessTokenExpires = sessionProviderToken?.accessTokenExpires;
       (session as any).error = sessionProviderId ? providerErrors[sessionProviderId] : undefined;
       (session as any).isByok = sessionProviderToken?.isByok || false;
-      
-      // Add user info if available
+
       if (session.user) {
         if (typedToken.email) {
           session.user.email = typedToken.email;
         }
-        // Add Spotify user ID from JWT sub (subject) claim
         if (typedToken.sub) {
           session.user.id = typedToken.sub;
         }
       }
-      
+
       return session;
     },
-
-    /**
-     * Control whether sign-in is allowed.
-     * Use this to track failed login attempts.
-     */
     async signIn() {
-      // Always allow sign-in to proceed - NextAuth will handle OAuth errors
-      // We just use this callback to track the attempt
       return true;
     },
   },
-  events: {
-    async signIn(message: any) {
-      try {
-        const { providerAccountId, accessToken, email, userAgent, provider, debugUser } = extractSignInData(message);
-        const trackedUserId = provider === 'spotify' && accessToken
-          ? await fetchSpotifyUserId(accessToken, providerAccountId ?? '')
-          : providerAccountId;
-
-        console.debug("[auth] NextAuth signIn", {
-          provider,
-          providerAccountId,
-          trackedUserId,
-          user: debugUser,
-        });
-
-        if (trackedUserId) {
-          logAuthEvent('login_success', trackedUserId);
-          startSession(trackedUserId, userAgent);
-
-          if (provider === 'spotify') {
-            await linkUserToAccessRequest(getDb(), trackedUserId, email);
-          }
-        }
-      } catch {
-        // noop
-      }
-    },
-    signOut(_message: any) {
-      console.debug("[auth] NextAuth signOut");
-      // Note: We don't have easy access to user ID on signOut
-      // Session tracking is handled by session duration calculation
-    },
-  },
-  logger: {
-    error(code: any, ...args: any[]) {
-      console.error("[auth] NextAuth logger error", code, ...args);
-      
-      // Track failed login attempts (OAuth errors, access denied, etc.)
-      // Only track certain error codes that indicate failed user login attempts
-      if (code && typeof code === 'object') {
-        const errorCode = code.message || code.code || code.name || String(code);
-        const errorStr = String(errorCode).toLowerCase();
-        
-        // Track access denied (user not approved) and OAuth callback failures
-        if (
-          errorStr.includes('access') ||
-          errorStr.includes('denied') ||
-          errorStr.includes('oauth') ||
-          errorStr.includes('unauthorized')
-        ) {
-          // Log as failed login attempt without user ID (since they didn't successfully authenticate)
-          logAuthEvent('login_failure', undefined, errorStr.substring(0, 100));
-        }
-      }
-    },
-    warn(...args: any[]) {
-      console.warn("[auth] NextAuth logger warn", ...args);
-    },
-    debug(...args: any[]) {
-      console.debug("[auth] NextAuth logger debug", ...args);
-    },
-  },
+  events: createAuthEvents(),
+  logger: authLogger,
 };

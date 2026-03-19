@@ -213,6 +213,62 @@ function canDropToTarget(targetPanel: PanelConfig): boolean {
   return false;
 }
 
+type PlaylistDropExecutionContext = {
+  sourceProviderId: MusicProviderId;
+  targetProviderId: MusicProviderId;
+  effectiveMode: ReturnType<typeof determineEffectiveMode>;
+  isSamePanelSamePlaylist: boolean;
+  sourcePanel: PanelConfig;
+  selectedIndices: number[];
+  orderedTracks: Track[];
+};
+
+function preparePlaylistDropExecutionContext(
+  ctx: DragEndContext,
+  sourcePanelId: string,
+  targetPanelId: string,
+  sourcePlaylistId: string,
+  targetPlaylistId: string,
+  selectedIndices: number[],
+  orderedTracks: Track[]
+): PlaylistDropExecutionContext | null {
+  const panelPair = resolveSourceAndTargetPanels(ctx.panels, sourcePanelId, targetPanelId);
+  if (!panelPair) {
+    return null;
+  }
+
+  if (!canDropToTarget(panelPair.targetPanel)) {
+    return null;
+  }
+
+  const sourceProviderId = resolvePanelProviderId(panelPair.sourcePanel);
+  const targetProviderId = resolvePanelProviderId(panelPair.targetPanel);
+  if (sourceProviderId !== targetProviderId) {
+    toast.error('Drag and drop is only supported within the same provider');
+    return null;
+  }
+
+  const sourceDndMode = panelPair.sourcePanel.dndMode || 'copy';
+  const { ctrlKey: isCtrlPressed } = ctx.pointerTracker.getModifiers();
+  const isSamePanelSamePlaylist = sourcePanelId === targetPanelId && sourcePlaylistId === targetPlaylistId;
+  const effectiveMode = determineEffectiveMode(
+    isSamePanelSamePlaylist,
+    sourceDndMode,
+    isCtrlPressed,
+    panelPair.sourcePanel.isEditable
+  );
+
+  return {
+    sourceProviderId,
+    targetProviderId,
+    effectiveMode,
+    isSamePanelSamePlaylist,
+    sourcePanel: panelPair.sourcePanel,
+    selectedIndices,
+    orderedTracks,
+  };
+}
+
 function handlePlaylistTrackDrop(
   sourceData: TrackSourceData,
   targetData: DragTargetData,
@@ -272,51 +328,35 @@ function handlePlaylistTrackDrop(
     () => computeAdjustedTargetIndex(targetIndex, dragTracks, orderedTracks, sourcePlaylistId, targetPlaylistId)
   );
 
-  const panelPair = resolveSourceAndTargetPanels(ctx.panels, sourcePanelId, targetPanelId);
-  if (!panelPair) {
-    return;
-  }
-
-  if (!canDropToTarget(panelPair.targetPanel)) {
-    return;
-  }
-
-  const sourceProviderId = resolvePanelProviderId(panelPair.sourcePanel);
-  const targetProviderId = resolvePanelProviderId(panelPair.targetPanel);
-
-  if (sourceProviderId !== targetProviderId) {
-    toast.error('Drag and drop is only supported within the same provider');
-    return;
-  }
-
-  const sourceDndMode = panelPair.sourcePanel.dndMode || 'copy';
-  const { ctrlKey: isCtrlPressed } = ctx.pointerTracker.getModifiers();
-  const canInvertMode = panelPair.sourcePanel.isEditable;
-  const isSamePanelSamePlaylist = sourcePanelId === targetPanelId && sourcePlaylistId === targetPlaylistId;
-
-  const effectiveMode = determineEffectiveMode(
-    isSamePanelSamePlaylist,
-    sourceDndMode,
-    isCtrlPressed,
-    canInvertMode
+  const executionContext = preparePlaylistDropExecutionContext(
+    ctx,
+    sourcePanelId,
+    targetPanelId,
+    sourcePlaylistId,
+    targetPlaylistId,
+    selectedIndices,
+    orderedTracks
   );
+  if (!executionContext) {
+    return;
+  }
 
   const dropContext: DropContext = {
     panels: ctx.panels,
     mutations: ctx.mutations,
-    selectedIndices,
-    orderedTracks,
+    selectedIndices: executionContext.selectedIndices,
+    orderedTracks: executionContext.orderedTracks,
   };
 
-  if (isSamePanelSamePlaylist) {
+  if (executionContext.isSamePanelSamePlaylist) {
     handleSamePanelDrop(
-      effectiveMode,
+      executionContext.effectiveMode,
       sourceIndex,
       targetIndex,
       effectiveTargetIndex,
       dragTracks,
       dragTrackUris,
-      sourceProviderId,
+      executionContext.sourceProviderId,
       sourcePlaylistId,
       targetPlaylistId,
       dropContext
@@ -325,17 +365,17 @@ function handlePlaylistTrackDrop(
   }
 
   handleCrossPanelDrop(
-    effectiveMode,
+    executionContext.effectiveMode,
     sourceIndex,
     targetIndex,
     effectiveTargetIndex,
     dragTracks,
     dragTrackUris,
-    sourceProviderId,
-    targetProviderId,
+    executionContext.sourceProviderId,
+    executionContext.targetProviderId,
     sourcePlaylistId,
     targetPlaylistId,
-      panelPair.sourcePanel,
+    executionContext.sourcePanel,
     dropContext
   );
 }

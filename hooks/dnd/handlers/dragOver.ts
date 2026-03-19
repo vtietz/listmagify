@@ -60,6 +60,82 @@ function getTargetPanelId(
   return panelUnderPointer?.panelId ?? null;
 }
 
+function resetDropPosition(ctx: DragOverContext, activePanelId: string | null = null): void {
+  ctx.updateDropPosition({
+    activePanelId,
+    computedDropPosition: null,
+    dropIndicatorIndex: null,
+    ephemeralInsertion: null,
+  });
+}
+
+function canDropOnPanel(ctx: DragOverContext, targetPanelId: string, sourcePanelId: string | null): boolean {
+  const targetPanel = ctx.panels.find((panel) => panel.id === targetPanelId);
+  if (!targetPanel || !targetPanel.isEditable) {
+    return false;
+  }
+
+  const sourcePanel = sourcePanelId
+    ? ctx.panels.find((panel) => panel.id === sourcePanelId)
+    : null;
+
+  if (!sourcePanel?.providerId || !targetPanel.providerId) {
+    return true;
+  }
+
+  return sourcePanel.providerId === targetPanel.providerId;
+}
+
+function resolveDropData(
+  ctx: DragOverContext,
+  targetPanelId: string,
+  activeDragTracks: Track[]
+) {
+  const { y: pointerY } = ctx.pointerTracker.getPosition();
+  const panelData = ctx.panelVirtualizersRef.current?.get(targetPanelId);
+  if (!panelData) {
+    return null;
+  }
+
+  const { virtualizer, scrollRef, filteredTracks } = panelData;
+  const scrollContainer = scrollRef.current;
+  if (!scrollContainer) {
+    return null;
+  }
+
+  const draggedTrackPositions = activeDragTracks
+    .map((track) => track.position)
+    .filter((position): position is number => position != null);
+
+  return calculateDropPosition(
+    scrollContainer,
+    virtualizer,
+    filteredTracks,
+    pointerY,
+    ctx.headerOffset,
+    draggedTrackPositions,
+    activeDragTracks.length || 1
+  );
+}
+
+function buildEphemeralInsertion(
+  activeId: string,
+  sourcePanelId: string | null,
+  targetPanelId: string,
+  insertionIndex: number
+): EphemeralInsertion | null {
+  if (!sourcePanelId) {
+    return null;
+  }
+
+  return {
+    activeId,
+    sourcePanelId,
+    targetPanelId,
+    insertionIndex,
+  };
+}
+
 /**
  * Create drag over handler
  */
@@ -68,112 +144,33 @@ export function createDragOverHandler(ctx: DragOverContext) {
     const { activeId, sourcePanelId, activeDragTracks } = ctx.getActiveDragState();
 
     if (!activeId) {
-      ctx.updateDropPosition({
-        activePanelId: null,
-        computedDropPosition: null,
-        dropIndicatorIndex: null,
-        ephemeralInsertion: null,
-      });
+      resetDropPosition(ctx);
       return;
     }
 
     const targetPanelId = getTargetPanelId(event, ctx.findPanelUnderPointer);
 
     if (!targetPanelId) {
-      ctx.updateDropPosition({
-        activePanelId: null,
-        computedDropPosition: null,
-        dropIndicatorIndex: null,
-        ephemeralInsertion: null,
-      });
+      resetDropPosition(ctx);
       return;
     }
 
-    // Check if target panel is editable
-    const targetPanel = ctx.panels.find(p => p.id === targetPanelId);
-    if (!targetPanel || !targetPanel.isEditable) {
-      ctx.updateDropPosition({
-        activePanelId: null,
-        computedDropPosition: null,
-        dropIndicatorIndex: null,
-        ephemeralInsertion: null,
-      });
+    if (!canDropOnPanel(ctx, targetPanelId, sourcePanelId)) {
+      resetDropPosition(ctx);
       return;
     }
 
-    const sourcePanel = sourcePanelId
-      ? ctx.panels.find((panel) => panel.id === sourcePanelId)
-      : null;
-    if (
-      sourcePanel
-      && sourcePanel.providerId
-      && targetPanel.providerId
-      && sourcePanel.providerId !== targetPanel.providerId
-    ) {
-      ctx.updateDropPosition({
-        activePanelId: null,
-        computedDropPosition: null,
-        dropIndicatorIndex: null,
-        ephemeralInsertion: null,
-      });
+    const dropData = resolveDropData(ctx, targetPanelId, activeDragTracks);
+    if (!dropData) {
+      resetDropPosition(ctx, targetPanelId);
       return;
     }
 
-    const { y: pointerY } = ctx.pointerTracker.getPosition();
-    const panelData = ctx.panelVirtualizersRef.current?.get(targetPanelId);
-
-    if (!panelData) {
-      ctx.updateDropPosition({
-        activePanelId: targetPanelId,
-        computedDropPosition: null,
-        dropIndicatorIndex: null,
-        ephemeralInsertion: null,
-      });
-      return;
-    }
-
-    const { virtualizer, scrollRef, filteredTracks } = panelData;
-    const scrollContainer = scrollRef.current;
-
-    // Get dragged track positions for exclusion from targeting
-    const draggedTrackPositions = activeDragTracks
-      .map(t => t.position)
-      .filter((p): p is number => p != null);
-    const dragCount = activeDragTracks.length || 1;
-
-    // Compute the global playlist position and filtered index
-    // This now accounts for multi-select overlay height and excludes dragged tracks
-    const dropData = scrollContainer
-      ? calculateDropPosition(
-          scrollContainer,
-          virtualizer,
-          filteredTracks,
-          pointerY,
-          ctx.headerOffset,
-          draggedTrackPositions,
-          dragCount
-        )
-      : null;
-
-    if (dropData) {
-      ctx.updateDropPosition({
-        activePanelId: targetPanelId,
-        computedDropPosition: dropData.globalPosition,
-        dropIndicatorIndex: dropData.filteredIndex,
-        ephemeralInsertion: sourcePanelId ? {
-          activeId,
-          sourcePanelId,
-          targetPanelId,
-          insertionIndex: dropData.filteredIndex, // Use same index as drop indicator
-        } : null,
-      });
-    } else {
-      ctx.updateDropPosition({
-        activePanelId: targetPanelId,
-        computedDropPosition: null,
-        dropIndicatorIndex: null,
-        ephemeralInsertion: null,
-      });
-    }
+    ctx.updateDropPosition({
+      activePanelId: targetPanelId,
+      computedDropPosition: dropData.globalPosition,
+      dropIndicatorIndex: dropData.filteredIndex,
+      ephemeralInsertion: buildEphemeralInsertion(activeId, sourcePanelId, targetPanelId, dropData.filteredIndex),
+    });
   };
 }
