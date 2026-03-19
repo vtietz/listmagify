@@ -33,6 +33,7 @@ import {
 export function useSpotifyPlayer() {
   const queryClient = useQueryClient();
   const providerId = useMusicProviderId();
+  const isPlaybackSupported = providerId === 'spotify';
   const { authenticated } = useSessionUser();
   const { isPhone } = useDeviceType();
   const setMobileOverlay = useMobileOverlayStore((s) => s.setActiveOverlay);
@@ -73,8 +74,8 @@ export function useSpotifyPlayer() {
       const data = await apiFetch<PlaybackResponse>(`/api/player/state?provider=${providerId}`);
       return data.playback;
     },
-    enabled: authenticated,
-    refetchInterval: authenticated ? POLL_INTERVAL : false,
+    enabled: authenticated && isPlaybackSupported,
+    refetchInterval: authenticated && isPlaybackSupported ? POLL_INTERVAL : false,
     staleTime: 2000,
     retry: false, // Don't retry on auth errors
   });
@@ -98,6 +99,10 @@ export function useSpotifyPlayer() {
   // 2. There's no Spotify context (so Spotify won't auto-advance)
   // 3. The track has ended (not playing, progress near end)
   useEffect(() => {
+    if (!isPlaybackSupported) {
+      return;
+    }
+
     const autoAdvanceState = getAutoAdvanceState(
       playbackQuery.data,
       playbackContext,
@@ -163,7 +168,7 @@ export function useSpotifyPlayer() {
       .finally(() => {
         autoPlayInProgressRef.current = false;
       });
-  }, [playbackQuery.data, playbackContext, selectedDeviceId, setPlaybackContext, queryClient, providerId]);
+  }, [isPlaybackSupported, playbackQuery.data, playbackContext, selectedDeviceId, setPlaybackContext, queryClient, providerId]);
 
   // Fetch available devices - only when authenticated
   const devicesQuery = useQuery({
@@ -172,7 +177,7 @@ export function useSpotifyPlayer() {
       const data = await apiFetch<DevicesResponse>(`/api/player/devices?provider=${providerId}`);
       return data.devices ?? [];
     },
-    enabled: authenticated,
+    enabled: authenticated && isPlaybackSupported,
     staleTime: 10000,
     retry: false,
   });
@@ -192,9 +197,23 @@ export function useSpotifyPlayer() {
     }
   }, [devicesQuery.data, selectedDeviceId, setDevices, setSelectedDevice]);
 
+  useEffect(() => {
+    if (isPlaybackSupported) {
+      return;
+    }
+
+    setPlaybackState(null);
+    setDevices([]);
+    setDeviceSelectorOpen(false);
+  }, [isPlaybackSupported, setPlaybackState, setDevices, setDeviceSelectorOpen]);
+
   // Playback control mutation
   const controlMutation = useMutation({
     mutationFn: async (params: ControlParams) => {
+      if (!isPlaybackSupported) {
+        throw new Error('playback_unsupported_provider');
+      }
+
       return apiFetch<ControlResponse>(`/api/player/control?provider=${providerId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -209,7 +228,9 @@ export function useSpotifyPlayer() {
     },
     onError: (error: Error & { message?: string }) => {
       const message = error.message || 'Playback control failed';
-      if (message.includes('no_active_device')) {
+      if (message.includes('playback_unsupported_provider')) {
+        toast.error('Playback controls are currently only supported for Spotify.');
+      } else if (message.includes('no_active_device')) {
         toast.error('No active Spotify device. Open Spotify on a device or select one.');
         setDeviceSelectorOpen(true);
         // In mobile mode, also activate the player tab to show device selector
@@ -437,8 +458,12 @@ export function useSpotifyPlayer() {
 
   // Refresh devices list
   const refreshDevices = useCallback(() => {
+    if (!isPlaybackSupported) {
+      return;
+    }
+
     queryClient.invalidateQueries({ queryKey: ['playback-devices', providerId] });
-  }, [queryClient, providerId]);
+  }, [isPlaybackSupported, queryClient, providerId]);
 
   return {
     // State

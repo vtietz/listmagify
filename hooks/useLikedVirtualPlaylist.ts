@@ -11,7 +11,7 @@ import { useInfiniteQuery } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
 import { apiFetch } from '@/lib/api/client';
 import { useSavedTracksStore } from './useSavedTracksIndex';
-import type { Track } from '@/lib/music-provider/types';
+import type { MusicProviderId, Track } from '@/lib/music-provider/types';
 
 /**
  * Virtual playlist ID constant
@@ -60,7 +60,7 @@ interface UseLikedVirtualPlaylistResult {
 /**
  * Query key for liked virtual playlist
  */
-export const likedPlaylistKey = () => ['liked-virtual-playlist'] as const;
+export const likedPlaylistKey = (providerId: MusicProviderId) => ['liked-virtual-playlist', providerId] as const;
 
 /**
  * Hook for loading the virtual "Liked Songs" playlist with infinite pagination.
@@ -73,9 +73,10 @@ export const likedPlaylistKey = () => ['liked-virtual-playlist'] as const;
  * const { allTracks, isLoading, hasLoadedAll } = useLikedVirtualPlaylist();
  * ```
  */
-export function useLikedVirtualPlaylist(): UseLikedVirtualPlaylistResult {
+export function useLikedVirtualPlaylist(providerId: MusicProviderId = 'spotify'): UseLikedVirtualPlaylistResult {
   const addToLikedSet = useSavedTracksStore((state) => state.addToLikedSet);
   const setTotal = useSavedTracksStore((state) => state.setTotal);
+  const isSpotifyProvider = providerId === 'spotify';
 
   const {
     data,
@@ -86,7 +87,7 @@ export function useLikedVirtualPlaylist(): UseLikedVirtualPlaylistResult {
     error,
     dataUpdatedAt,
   } = useInfiniteQuery({
-    queryKey: likedPlaylistKey(),
+    queryKey: likedPlaylistKey(providerId),
     queryFn: async ({ pageParam }: { pageParam: string | null }): Promise<LikedTracksPage> => {
       const url = pageParam
         ? `/api/liked/tracks?limit=50&nextCursor=${encodeURIComponent(pageParam)}`
@@ -108,6 +109,7 @@ export function useLikedVirtualPlaylist(): UseLikedVirtualPlaylistResult {
     },
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage: LikedTracksPage) => lastPage.nextCursor,
+    enabled: isSpotifyProvider,
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 10 * 60 * 1000, // 10 minutes
   });
@@ -130,7 +132,7 @@ export function useLikedVirtualPlaylist(): UseLikedVirtualPlaylistResult {
   const total = data?.pages?.[data.pages.length - 1]?.total ?? 0;
 
   // Determine if all pages are loaded
-  const hasLoadedAll = !hasNextPage && !isLoading;
+  const hasLoadedAll = isSpotifyProvider ? (!hasNextPage && !isLoading) : true;
 
   // Auto-fetch remaining pages after initial load
   const autoFetchNextPage = useCallback(() => {

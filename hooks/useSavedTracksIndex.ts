@@ -493,15 +493,19 @@ export function useSavedTracksIndex() {
  * Hook to auto-start prefetch on mount (use in app root or first panel)
  * Respects cache TTL - only refetches if cache is stale or missing
  */
-export function usePrefetchSavedTracks() {
+export function usePrefetchSavedTracks(enabled = true) {
   const { prefetchAllSavedTracks, isPrefetching, isPrefetchComplete, isCacheStale } = useSavedTracksIndex();
   
   useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+
     // Start prefetch if not already running and (cache is stale or not complete)
     if (!isPrefetching && (!isPrefetchComplete || isCacheStale)) {
       prefetchAllSavedTracks();
     }
-  }, [prefetchAllSavedTracks, isPrefetching, isPrefetchComplete, isCacheStale]);
+  }, [enabled, prefetchAllSavedTracks, isPrefetching, isPrefetchComplete, isCacheStale]);
 }
 
 /**

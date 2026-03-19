@@ -480,6 +480,24 @@ async function refreshProviderTokens(
   }
 }
 
+function stripJwtPayloadBloat(nextToken: AuthJwtToken): AuthJwtToken {
+  const normalized = { ...nextToken };
+
+  delete normalized.accessToken;
+  delete normalized.refreshToken;
+  delete normalized.accessTokenExpires;
+  delete normalized.error;
+
+  delete normalized.access_token;
+  delete normalized.refresh_token;
+  delete normalized.expires_at;
+  delete normalized.token_type;
+  delete normalized.scope;
+  delete normalized.id_token;
+
+  return normalized;
+}
+
 function buildJwtCallbackResult(
   nextToken: AuthJwtToken,
   providerTokens: ProviderTokenStore,
@@ -488,13 +506,13 @@ function buildJwtCallbackResult(
   const sessionProviderId = resolveSessionProviderId(providerTokens);
   const sessionProviderToken = sessionProviderId ? providerTokens[sessionProviderId] : undefined;
   const sessionError = sessionProviderId ? providerErrors[sessionProviderId] : undefined;
+  const baseToken = stripJwtPayloadBloat(nextToken);
 
   return {
-    ...nextToken,
+    ...baseToken,
     musicProviderTokens: providerTokens,
     providerErrors,
     accessToken: sessionProviderToken?.accessToken,
-    refreshToken: sessionProviderToken?.refreshToken,
     accessTokenExpires: sessionProviderToken?.accessTokenExpires,
     error: sessionError,
     isByok: sessionProviderToken?.isByok || false,
