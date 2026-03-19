@@ -67,6 +67,68 @@ function toRelationArray(data: unknown): JsonApiIdentifier[] {
   return Array.isArray(data) ? data : [data as JsonApiIdentifier];
 }
 
+const USER_COLLECTION_TRACKS_PATH = '/userCollectionTracks/me/relationships/items?include=items';
+const MAX_USER_COLLECTION_PAGES = 500;
+
+type SessionTransport = Pick<ReturnType<typeof createTidalTransport>, 'executeWithSession'>;
+
+async function fetchUserCollectionTrackPage(
+  transport: SessionTransport,
+  path: string,
+): Promise<JsonApiDocument<JsonApiIdentifier[]>> {
+  const response = await transport.executeWithSession(path, { method: 'GET' }, undefined);
+  if (!response.ok) {
+    throwProviderError(response, await readErrorText(response), 'containsTracks');
+  }
+
+  return response.json() as Promise<JsonApiDocument<JsonApiIdentifier[]>>;
+}
+
+function collectMatchingTrackIds(
+  identifiers: JsonApiIdentifier[],
+  targetIds: ReadonlySet<string>,
+  foundIds: Set<string>,
+): void {
+  for (const identifier of identifiers) {
+    if (identifier.type !== 'tracks') {
+      continue;
+    }
+
+    if (targetIds.has(identifier.id)) {
+      foundIds.add(identifier.id);
+    }
+  }
+}
+
+async function findTracksInUserCollection(
+  transport: SessionTransport,
+  targetTrackIds: string[],
+): Promise<Set<string>> {
+  const targetIdSet = new Set(targetTrackIds);
+  const foundIds = new Set<string>();
+  let nextCursor: string | null = null;
+
+  for (let page = 0; page < MAX_USER_COLLECTION_PAGES; page += 1) {
+    const path = nextCursor ?? USER_COLLECTION_TRACKS_PATH;
+    const raw = await fetchUserCollectionTrackPage(transport, path);
+    const identifiers = Array.isArray(raw.data) ? raw.data : [];
+    collectMatchingTrackIds(identifiers, targetIdSet, foundIds);
+
+    const nextLink = raw.links?.next ?? null;
+    if (foundIds.size === targetTrackIds.length || !nextLink) {
+      break;
+    }
+
+    nextCursor = nextLink;
+  }
+
+  return foundIds;
+}
+
+function mapContainsTracksResult(inputIds: string[], foundIds: ReadonlySet<string>): boolean[] {
+  return inputIds.map((id) => foundIds.has(fromTrackUri(id)));
+}
+
 export function createTidalProvider(dependencies: TidalProviderDependencies = {}): MusicProvider {
   const transport = createTidalTransport(dependencies);
 
@@ -131,35 +193,8 @@ export function createTidalProvider(dependencies: TidalProviderDependencies = {}
         return [];
       }
 
-      const targetSet = new Set(targetIds);
-      const foundIds = new Set<string>();
-      let nextCursor: string | null = null;
-      let guard = 0;
-
-      do {
-        const path = nextCursor ?? '/userCollectionTracks/me/relationships/items?include=items';
-        const response = await transport.executeWithSession(path, { method: 'GET' }, undefined);
-        if (!response.ok) {
-          throwProviderError(response, await readErrorText(response), 'containsTracks');
-        }
-
-        const raw = (await response.json()) as JsonApiDocument<JsonApiIdentifier[]>;
-        const identifiers = Array.isArray(raw.data) ? raw.data : [];
-        for (const identifier of identifiers) {
-          if (identifier.type === 'tracks' && targetSet.has(identifier.id)) {
-            foundIds.add(identifier.id);
-          }
-        }
-
-        if (foundIds.size === targetIds.length) {
-          break;
-        }
-
-        nextCursor = raw.links?.next ?? null;
-        guard += 1;
-      } while (nextCursor && guard < 500);
-
-      return payload.ids.map((id) => foundIds.has(fromTrackUri(id)));
+      const foundIds = await findTracksInUserCollection(transport, targetIds);
+      return mapContainsTracksResult(payload.ids, foundIds);
     },
 
     async getLikedTracks(limit = 50, nextCursor?: string | null): Promise<LikedTracksPageResult<Track>> {

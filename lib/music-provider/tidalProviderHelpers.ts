@@ -1,4 +1,4 @@
-import type { CurrentUserResult, Playlist, PlaylistTracksPageResult, Track } from '@/lib/music-provider/types';
+import type { CurrentUserResult, Image, Playlist, PlaylistTracksPageResult, Track } from '@/lib/music-provider/types';
 
 export type JsonApiIdentifier = {
   id: string;
@@ -153,41 +153,119 @@ export function mapUserResource(raw: JsonApiResource): CurrentUserResult {
   };
 }
 
+type JsonApiFile = {
+  href?: unknown;
+  meta?: {
+    width?: unknown;
+    height?: unknown;
+  } | null;
+};
+
+function asOptionalString(value: unknown): string | null {
+  return typeof value === 'string' ? value : null;
+}
+
+function asOptionalNumber(value: unknown): number | null {
+  return typeof value === 'number' ? value : null;
+}
+
+function getPrimaryFile(resource: JsonApiResource | null): JsonApiFile | null {
+  const files = resource?.attributes?.files;
+  if (!Array.isArray(files) || files.length === 0) {
+    return null;
+  }
+
+  return files[0] as JsonApiFile;
+}
+
+function mapImageFromFile(file: JsonApiFile | null): Image | null {
+  const url = asOptionalString(file?.href);
+  if (!url) {
+    return null;
+  }
+
+  const meta = file?.meta;
+  return {
+    url,
+    width: asOptionalNumber(meta?.width),
+    height: asOptionalNumber(meta?.height),
+  };
+}
+
+function getPlaylistOwner(
+  raw: JsonApiResource,
+  includedIndex: Map<string, JsonApiResource>,
+): { ownerId: string | null; ownerDisplayName: string | null } {
+  const ownerIdentifier = toIdentifierArray(raw.relationships?.owners)[0];
+  const ownerResource = getIncludedResource(includedIndex, ownerIdentifier);
+  const ownerDisplayName = asOptionalString(ownerResource?.attributes?.username);
+
+  return {
+    ownerId: ownerIdentifier?.id ?? null,
+    ownerDisplayName,
+  };
+}
+
+function getPlaylistCoverImage(raw: JsonApiResource, includedIndex: Map<string, JsonApiResource>): Image | null {
+  const coverResource = getFirstRelationshipResource(raw, 'coverArt', includedIndex);
+  return mapImageFromFile(getPrimaryFile(coverResource));
+}
+
+function getPlaylistTracksTotal(attributes: Record<string, unknown>): number {
+  return typeof attributes.numberOfItems === 'number' ? attributes.numberOfItems : 0;
+}
+
 export function mapPlaylistResource(raw: JsonApiResource, includedIndex: Map<string, JsonApiResource>): Playlist {
   const attributes = raw.attributes ?? {};
-  const ownerIdentifiers = toIdentifierArray(raw.relationships?.owners);
-  const ownerIdentifier = ownerIdentifiers[0];
-  const ownerResource = getIncludedResource(includedIndex, ownerIdentifier);
-  const ownerAttributes = ownerResource?.attributes ?? {};
-
-  const coverResource = getFirstRelationshipResource(raw, 'coverArt', includedIndex);
-  const coverFile = Array.isArray(coverResource?.attributes?.files)
-    ? coverResource?.attributes?.files[0]
-    : null;
-
-  const coverMeta = coverFile?.meta ?? null;
+  const { ownerId, ownerDisplayName } = getPlaylistOwner(raw, includedIndex);
   const collaborators = toIdentifierArray(raw.relationships?.collaborators);
 
   return {
     id: String(raw.id ?? ''),
     name: String(attributes.name ?? ''),
-    description: typeof attributes.description === 'string' ? attributes.description : null,
-    ownerName: typeof ownerAttributes.username === 'string' ? ownerAttributes.username : null,
+    description: asOptionalString(attributes.description),
+    ownerName: ownerDisplayName,
     owner: {
-      id: ownerIdentifier?.id ?? null,
-      displayName: typeof ownerAttributes.username === 'string' ? ownerAttributes.username : null,
+      id: ownerId,
+      displayName: ownerDisplayName,
     },
-    image: typeof coverFile?.href === 'string'
-      ? {
-          url: coverFile.href,
-          width: typeof coverMeta?.width === 'number' ? coverMeta.width : null,
-          height: typeof coverMeta?.height === 'number' ? coverMeta.height : null,
-        }
-      : null,
-    tracksTotal: typeof attributes.numberOfItems === 'number' ? attributes.numberOfItems : 0,
+    image: getPlaylistCoverImage(raw, includedIndex),
+    tracksTotal: getPlaylistTracksTotal(attributes),
     isPublic: attributes.accessType === 'PUBLIC',
     collaborative: collaborators.length > 0,
   };
+}
+
+function getTrackArtists(trackResource: JsonApiResource, includedIndex: Map<string, JsonApiResource>): string[] {
+  const artistIdentifiers = toIdentifierArray(trackResource.relationships?.artists);
+  return artistIdentifiers
+    .map((artistIdentifier) => getIncludedResource(includedIndex, artistIdentifier))
+    .filter((artist): artist is JsonApiResource => artist !== null)
+    .map((artist) => artist.attributes?.name)
+    .filter((name): name is string => typeof name === 'string' && name.length > 0);
+}
+
+function mapAlbumResource(
+  albumResource: JsonApiResource | null,
+  includedIndex: Map<string, JsonApiResource>,
+): NonNullable<Track['album']> | null {
+  if (!albumResource) {
+    return null;
+  }
+
+  const albumCoverResource = getFirstRelationshipResource(albumResource, 'coverArt', includedIndex);
+  return {
+    id: String(albumResource.id ?? ''),
+    name: asOptionalString(albumResource.attributes?.title),
+    image: mapImageFromFile(getPrimaryFile(albumCoverResource)),
+    releaseDate: asOptionalString(albumResource.attributes?.releaseDate),
+    releaseDatePrecision: null,
+  };
+}
+
+function withAddedAt(track: Track, identifier: JsonApiIdentifier): Track {
+  const addedAt = asOptionalString(identifier.meta?.addedAt);
+  return addedAt ? { ...track, addedAt } : track;
 }
 
 function mapTrackResource(
@@ -197,56 +275,22 @@ function mapTrackResource(
   position: number,
 ): Track {
   const attributes = trackResource.attributes ?? {};
-  const artistIdentifiers = toIdentifierArray(trackResource.relationships?.artists);
-  const artists = artistIdentifiers
-    .map((artistIdentifier) => getIncludedResource(includedIndex, artistIdentifier))
-    .filter((artist): artist is JsonApiResource => artist !== null)
-    .map((artist) => artist.attributes?.name)
-    .filter((name): name is string => typeof name === 'string' && name.length > 0);
-
-  const albumResource = getFirstRelationshipResource(trackResource, 'albums', includedIndex);
-  const albumCoverResource = albumResource
-    ? getFirstRelationshipResource(albumResource, 'coverArt', includedIndex)
-    : null;
-  const albumCoverFile = Array.isArray(albumCoverResource?.attributes?.files)
-    ? albumCoverResource?.attributes?.files[0]
-    : null;
-
   const id = String(trackResource.id ?? identifier.id ?? '');
+  const albumResource = getFirstRelationshipResource(trackResource, 'albums', includedIndex);
 
   const mapped: Track = {
     id,
     uri: toTrackUri(id),
-    name: typeof attributes.title === 'string' ? attributes.title : id,
-    artists,
+    name: asOptionalString(attributes.title) ?? id,
+    artists: getTrackArtists(trackResource, includedIndex),
     durationMs: parseDurationToMs(attributes.duration),
     position,
-    album: albumResource
-      ? {
-          id: String(albumResource.id ?? ''),
-          name: typeof albumResource.attributes?.title === 'string' ? albumResource.attributes.title : null,
-          image: typeof albumCoverFile?.href === 'string'
-            ? {
-                url: albumCoverFile.href,
-                width: typeof albumCoverFile?.meta?.width === 'number' ? albumCoverFile.meta.width : null,
-                height: typeof albumCoverFile?.meta?.height === 'number' ? albumCoverFile.meta.height : null,
-              }
-            : null,
-          releaseDate: typeof albumResource.attributes?.releaseDate === 'string'
-            ? albumResource.attributes.releaseDate
-            : null,
-          releaseDatePrecision: null,
-        }
-      : null,
-    popularity: typeof attributes.popularity === 'number' ? attributes.popularity : null,
+    album: mapAlbumResource(albumResource, includedIndex),
+    popularity: asOptionalNumber(attributes.popularity),
     explicit: attributes.explicit === true,
   };
 
-  if (typeof identifier.meta?.addedAt === 'string') {
-    mapped.addedAt = identifier.meta.addedAt;
-  }
-
-  return mapped;
+  return withAddedAt(mapped, identifier);
 }
 
 export function mapTrackListDocument(
