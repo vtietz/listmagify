@@ -37,6 +37,7 @@ interface LandingPageContentProps {
   message: string | null;
   returnTo: string;
   oauthError?: string | undefined;
+  oauthProvider?: MusicProviderId | undefined;
   isAccessRequestEnabled: boolean;
 }
 
@@ -46,6 +47,7 @@ export function LandingPageContent({
   message,
   returnTo,
   oauthError,
+  oauthProvider,
   isAccessRequestEnabled,
 }: LandingPageContentProps) {
   const router = useRouter();
@@ -159,7 +161,11 @@ export function LandingPageContent({
       </div>
 
       {/* Unapproved User Dialog - shows when OAuth returns access_denied error */}
-      <UnapprovedUserDialog error={oauthError} showRequestAccess={isAccessRequestEnabled} />
+      <UnapprovedUserDialog
+        error={oauthError}
+        providerId={oauthProvider}
+        showRequestAccess={isAccessRequestEnabled}
+      />
 
       {/* Main Screenshot */}
       <div className="container mx-auto px-4 py-12">

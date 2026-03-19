@@ -12,6 +12,25 @@ type Props = {
   providerId?: MusicProviderId;
 };
 
+function withProviderInCallbackUrl(callbackUrl: string, providerId: MusicProviderId): string {
+  try {
+    if (callbackUrl.startsWith('/')) {
+      const [rawPath, rawQuery] = callbackUrl.split('?');
+      const path = rawPath ?? callbackUrl;
+      const params = new URLSearchParams(rawQuery ?? '');
+      params.set('provider', providerId);
+      const serialized = params.toString();
+      return serialized.length > 0 ? `${path}?${serialized}` : path;
+    }
+
+    const url = new URL(callbackUrl);
+    url.searchParams.set('provider', providerId);
+    return url.toString();
+  } catch {
+    return callbackUrl;
+  }
+}
+
 export function SignInButton({ 
   label,
   className,
@@ -25,8 +44,10 @@ export function SignInButton({
     ?? (providerId === 'spotify' ? 'Sign in with Spotify' : 'Sign in with TIDAL');
 
   const handleSignIn = async () => {
+    const callbackUrlWithProvider = withProviderInCallbackUrl(callbackUrl, providerId);
+
     if (providerId !== 'spotify') {
-      signIn(providerId, { callbackUrl });
+      signIn(providerId, { callbackUrl: callbackUrlWithProvider });
       return;
     }
 
@@ -40,7 +61,7 @@ export function SignInButton({
           body: JSON.stringify({
             clientId: credentials.clientId,
             clientSecret: credentials.clientSecret,
-            callbackUrl,
+            callbackUrl: callbackUrlWithProvider,
           }),
         });
 
@@ -57,7 +78,7 @@ export function SignInButton({
       }
     } else {
       // Use default provider from env
-      signIn(providerId, { callbackUrl });
+      signIn(providerId, { callbackUrl: callbackUrlWithProvider });
     }
   };
 

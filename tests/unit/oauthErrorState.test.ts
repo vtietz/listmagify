@@ -19,6 +19,15 @@ describe('getOAuthErrorState', () => {
     expect(result.showDevModeHint).toBe(false);
   });
 
+  it('maps OAuth callback errors with provider-specific messaging for TIDAL', () => {
+    const result = getOAuthErrorState('OAuthCallback', 'tidal');
+
+    expect(result.shouldOpen).toBe(true);
+    expect(result.title).toBe('Sign-In Failed');
+    expect(result.description).toBe('TIDAL sign-in could not be completed. Please try again.');
+    expect(result.showDevModeHint).toBe(false);
+  });
+
   it('maps configuration errors to configuration guidance', () => {
     const result = getOAuthErrorState('Configuration');
 

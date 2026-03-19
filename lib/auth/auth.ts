@@ -11,7 +11,8 @@ const FALLBACK_PROVIDER_ID = getFallbackMusicProviderId();
 const TIDAL_AUTHORIZATION_URL = 'https://login.tidal.com/authorize';
 const TIDAL_TOKEN_URL = 'https://auth.tidal.com/v1/oauth2/token';
 const TIDAL_USERINFO_URL = 'https://openapi.tidal.com/v2/users/me';
-const TIDAL_SCOPES = 'r_usr w_usr user.read playlists.read playlists.write collection.read collection.write search.read';
+const TIDAL_JSON_API_CONTENT_TYPE = 'application/vnd.api+json';
+const TIDAL_SCOPES = 'user.read playlists.read playlists.write collection.read collection.write search.read';
 
 type ProviderJwtToken = {
   accessToken?: string;
@@ -145,6 +146,30 @@ function createTidalAuthProvider() {
     throw new Error('TIDAL provider enabled but TIDAL_CLIENT_ID/TIDAL_CLIENT_SECRET are missing');
   }
 
+  const requestUserinfo = async ({ tokens }: { tokens?: { access_token?: string } }): Promise<any> => {
+    const accessToken = tokens?.access_token;
+    if (!accessToken) {
+      throw new Error('[auth] Missing TIDAL access token in userinfo request');
+    }
+
+    const response = await fetch(TIDAL_USERINFO_URL, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: TIDAL_JSON_API_CONTENT_TYPE,
+      },
+    });
+
+    if (!response.ok) {
+      const details = await response.text().catch(() => '');
+      throw new Error(
+        `[auth] TIDAL userinfo failed: ${response.status} ${response.statusText}${details ? ` ${details}` : ''}`
+      );
+    }
+
+    return response.json();
+  };
+
   return {
     id: 'tidal',
     name: 'TIDAL',
@@ -162,6 +187,7 @@ function createTidalAuthProvider() {
     },
     userinfo: {
       url: TIDAL_USERINFO_URL,
+      request: requestUserinfo,
     },
     checks: ['pkce', 'state'],
     profile(profile: any) {
