@@ -216,7 +216,7 @@ const authProviders = [
 function buildRefreshedSpotifyToken(token: ProviderJwtToken, data: any): ProviderJwtToken {
   const expiresInMs = (data.expires_in ?? 3600) * 1000;
   const refreshToken = data.refresh_token ?? token.refreshToken;
-  return {
+  const refreshedToken: ProviderJwtToken = {
     ...token,
     accessToken: data.access_token,
     accessTokenExpires: Date.now() + expiresInMs,
@@ -224,6 +224,9 @@ function buildRefreshedSpotifyToken(token: ProviderJwtToken, data: any): Provide
     ...(token.isByok ? { isByok: true } : {}),
     ...(token.byok ? { byok: token.byok } : {}),
   };
+
+  delete refreshedToken.error;
+  return refreshedToken;
 }
 async function refreshSpotifyAccessToken(token: ProviderJwtToken): Promise<ProviderJwtToken> {
   try {
@@ -275,12 +278,15 @@ async function refreshSpotifyAccessToken(token: ProviderJwtToken): Promise<Provi
 function buildRefreshedTidalToken(token: ProviderJwtToken, data: any): ProviderJwtToken {
   const expiresInMs = (data.expires_in ?? 3600) * 1000;
   const refreshToken = data.refresh_token ?? token.refreshToken;
-  return {
+  const refreshedToken: ProviderJwtToken = {
     ...token,
     accessToken: data.access_token,
     accessTokenExpires: Date.now() + expiresInMs,
     ...(typeof refreshToken === 'string' ? { refreshToken } : {}),
   };
+
+  delete refreshedToken.error;
+  return refreshedToken;
 }
 
 async function refreshTidalAccessToken(token: ProviderJwtToken): Promise<ProviderJwtToken> {
@@ -350,17 +356,20 @@ function buildProviderTokenFromAccount(
   const expiresAt = extractExpiresAt(accountData);
 
   if (providerId !== 'spotify') {
-    return {
+    const nextProviderToken: ProviderJwtToken = {
       ...previousToken,
       accessToken: accountData.access_token,
       refreshToken: accountData.refresh_token ?? previousToken.refreshToken,
       accessTokenExpires: expiresAt,
     };
+
+    delete nextProviderToken.error;
+    return nextProviderToken;
   }
 
   const byok = nextToken.byok ?? previousToken.byok;
 
-  return {
+  const nextProviderToken: ProviderJwtToken = {
     ...previousToken,
     accessToken: accountData.access_token,
     refreshToken: accountData.refresh_token ?? previousToken.refreshToken,
@@ -368,6 +377,9 @@ function buildProviderTokenFromAccount(
     isByok: Boolean(nextToken.isByok ?? previousToken.isByok),
     ...(byok ? { byok } : {}),
   };
+
+  delete nextProviderToken.error;
+  return nextProviderToken;
 }
 
 function applyAccountToken(
@@ -405,6 +417,11 @@ async function refreshProviderTokenIfNeeded(
 ): Promise<void> {
   const providerToken = providerTokens[providerId];
   if (!providerToken?.accessToken) {
+    return;
+  }
+
+  if (providerToken.error === TOKEN_REFRESH_ERROR) {
+    providerErrors[providerId] = TOKEN_REFRESH_ERROR;
     return;
   }
 

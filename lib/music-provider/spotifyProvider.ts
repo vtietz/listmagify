@@ -1,4 +1,5 @@
 import { getManagedSession } from '@/lib/auth/tokenManager';
+import { ServerAuthError } from '@/lib/auth/requireAuth';
 import { withRateLimitRetry } from '@/lib/spotify/rateLimit';
 import type { AuthenticatedSession } from '@/lib/auth/requireAuth';
 import {
@@ -95,7 +96,17 @@ async function executeWithSession(
   const safePath = getSafeRequestPath(path);
 
   const runAttempt = async (): Promise<Response> => {
-    const session = await deps.getSession();
+    let session: AuthenticatedSession;
+    try {
+      session = await deps.getSession();
+    } catch (error) {
+      if (error instanceof ServerAuthError) {
+        throw new ProviderApiError('Authentication required', 401, DEFAULT_PROVIDER_ID, error.reason);
+      }
+
+      throw error;
+    }
+
     const headers = buildHeaders(session.accessToken, init?.headers);
 
     return withRateLimitRetry(

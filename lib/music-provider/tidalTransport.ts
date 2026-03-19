@@ -1,7 +1,8 @@
 import { getManagedSession } from '@/lib/auth/tokenManager';
+import { ServerAuthError } from '@/lib/auth/requireAuth';
 import { withRateLimitRetry } from '@/lib/spotify/rateLimit';
 import type { AuthenticatedSession } from '@/lib/auth/requireAuth';
-import type { ProviderClientOptions } from '@/lib/music-provider/types';
+import { ProviderApiError, type ProviderClientOptions } from '@/lib/music-provider/types';
 import { createAPIClient } from '@tidal-music/api';
 import {
   extractPlaylistItemReferences,
@@ -120,6 +121,8 @@ async function executeWithSdk(
   return result.response as Response;
 }
 
+const TIDAL_PROVIDER_ID = 'tidal';
+
 export function createTidalTransport(dependencies: TidalProviderDependencies = {}) {
   const deps: InternalDependencies = {
     fetchImpl: dependencies.fetchImpl ?? fetch,
@@ -135,7 +138,17 @@ export function createTidalTransport(dependencies: TidalProviderDependencies = {
     const safePath = getSafeRequestPath(path);
 
     const runAttempt = async (): Promise<Response> => {
-      const session = await deps.getSession();
+      let session: AuthenticatedSession;
+      try {
+        session = await deps.getSession();
+      } catch (error) {
+        if (error instanceof ServerAuthError) {
+          throw new ProviderApiError('Authentication required', 401, TIDAL_PROVIDER_ID, error.reason);
+        }
+
+        throw error;
+      }
+
       const hasBody = init?.body !== undefined;
       const headers = buildHeaders(session.accessToken, init?.headers, hasBody);
       const requestInit: RequestInit = {
