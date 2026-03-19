@@ -15,6 +15,7 @@ import { SpotifyPlayer } from "@/components/player";
 import { BrowsePanel } from "@/components/split-editor/browse/BrowsePanel";
 import { AppLogo } from "@/components/ui/app-logo";
 import { AppFooter } from "@/components/ui/app-footer";
+import { AnyAuthGuard } from "@/components/auth/AnyAuthGuard";
 import { cn } from "@/lib/utils";
 import { useAppShellLayout } from "@/hooks/shell/useAppShellLayout";
 import {
@@ -120,7 +121,9 @@ function FixedHeightLayout({
   return (
     <div className="h-dvh flex flex-col bg-background text-foreground overflow-hidden">
       <Header title={title} />
-      <main className="flex-1 min-h-0 overflow-hidden">{children}</main>
+      <main className="flex-1 min-h-0 overflow-hidden">
+        <AnyAuthGuard>{children}</AnyAuthGuard>
+      </main>
       {!isPhone && !isSplitEditor && <PlayerWithSuspense />}
       {!isPhone && (
         <div className="flex-shrink-0 px-4 py-1 border-t border-border">
@@ -153,14 +156,16 @@ function DefaultLayout({
       <div className="flex-shrink-0 bg-background">
         <Header title={title} />
       </div>
-      <div className="flex-1 min-h-0 flex overflow-hidden relative">
-        <main className="flex-1 min-w-0 overflow-auto">{children}</main>
-        {showBrowsePanel && (
-          <div className={cn(isPhone ? 'absolute inset-0 z-50 bg-background' : 'relative')}>
-            <BrowsePanel isMobileOverlay={isPhone} />
-          </div>
-        )}
-      </div>
+      <AnyAuthGuard>
+        <div className="flex-1 min-h-0 flex overflow-hidden relative">
+          <main className="flex-1 min-w-0 overflow-auto">{children}</main>
+          {showBrowsePanel && (
+            <div className={cn(isPhone ? 'absolute inset-0 z-50 bg-background' : 'relative')}>
+              <BrowsePanel isMobileOverlay={isPhone} />
+            </div>
+          )}
+        </div>
+      </AnyAuthGuard>
       {!isPhone && (
         <div className="flex-shrink-0 bg-background">
           <PlayerWithSuspense />

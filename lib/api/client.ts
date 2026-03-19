@@ -7,6 +7,14 @@ import { toast } from "@/lib/ui/toast";
 import { reportError, useErrorStore } from "@/lib/errors/store";
 import { createRateLimitError, createAppError } from "@/lib/errors/types";
 import type { AppError } from "@/lib/errors/types";
+import { isPerPanelInlineLoginEnabled } from '@/lib/utils';
+import { providerAuthRegistry } from '@/lib/providers/authRegistry';
+import {
+  ProviderAuthError,
+  isAuthError,
+  isProviderAuthErrorPayload,
+} from '@/lib/providers/errors';
+import type { ProviderAuthCode } from '@/lib/providers/types';
 
 interface FetchOptions extends RequestInit {}
 
@@ -62,6 +70,90 @@ export class AccessTokenExpiredError extends Error {
     super(message);
     this.name = "AccessTokenExpiredError";
   }
+}
+
+function getProviderAuthCodeFromStatus(status: number, errorValue: string | undefined): ProviderAuthCode | null {
+  const normalizedError = (errorValue ?? '').toLowerCase();
+
+  if (status === 401) {
+    if (normalizedError.includes('token_expired') || normalizedError.includes('refresh')) {
+      return 'expired';
+    }
+
+    return 'unauthenticated';
+  }
+
+  if (status === 403) {
+    return 'insufficient_scope';
+  }
+
+  if (status === 429) {
+    return 'rate_limited';
+  }
+
+  if (status >= 500 && status <= 599) {
+    return 'provider_unavailable';
+  }
+
+  return null;
+}
+
+function parseRetryAfterMs(response: Response, data: any): number | undefined {
+  if (typeof data?.retryAfterMs === 'number') {
+    return data.retryAfterMs;
+  }
+
+  if (typeof data?.retryAfter === 'number') {
+    return data.retryAfter * 1000;
+  }
+
+  const retryAfterHeader = response.headers.get('Retry-After');
+  if (!retryAfterHeader) {
+    return undefined;
+  }
+
+  const parsedSeconds = Number.parseInt(retryAfterHeader, 10);
+  return Number.isNaN(parsedSeconds) ? undefined : parsedSeconds * 1000;
+}
+
+function mapResponseToProviderAuthError(
+  response: Response,
+  data: any,
+  providerId: 'spotify' | 'tidal',
+): ProviderAuthError | null {
+  if (isProviderAuthErrorPayload(data)) {
+    return new ProviderAuthError(
+      data.provider,
+      data.code,
+      data.message,
+      data.retryAfterMs,
+    );
+  }
+
+  const errorValue = typeof data?.error === 'string' ? data.error : undefined;
+  if (response.status === 403 && errorValue === 'premium_required') {
+    return null;
+  }
+
+  const code = getProviderAuthCodeFromStatus(response.status, errorValue);
+  if (!code) {
+    return null;
+  }
+
+  const message = typeof data?.message === 'string'
+    ? data.message
+    : (errorValue ?? `Request failed: ${response.status} ${response.statusText}`);
+
+  return new ProviderAuthError(
+    providerId,
+    code,
+    message,
+    parseRetryAfterMs(response, data),
+  );
+}
+
+function publishProviderAuthError(error: ProviderAuthError): void {
+  providerAuthRegistry.setFromAuthError(error);
 }
 
 // Deduplication state for session expiry handling
@@ -141,11 +233,12 @@ export function resetSessionExpiredState() {
  * }
  * ```
  */
-function isKnownApiError(error: unknown): error is AccessTokenExpiredError | ApiError | RateLimitApiError {
+function isKnownApiError(error: unknown): error is AccessTokenExpiredError | ApiError | RateLimitApiError | ProviderAuthError {
   return (
     error instanceof AccessTokenExpiredError ||
     error instanceof ApiError ||
-    error instanceof RateLimitApiError
+    error instanceof RateLimitApiError ||
+    isAuthError(error)
   );
 }
 
@@ -249,6 +342,8 @@ export async function apiFetch<T = any>(
   url: string,
   options: FetchOptions = {}
 ): Promise<T> {
+  const perPanelInlineLoginEnabled = isPerPanelInlineLoginEnabled();
+
   try {
     const providerId = getCurrentProviderId();
     const resolvedUrl = withProviderOnApiUrl(url, providerId);
@@ -260,7 +355,15 @@ export async function apiFetch<T = any>(
     const response = await fetch(resolvedUrl, { ...options, headers });
     const data = await parseJsonSafely(response);
 
-    if (response.status === 401 || data.error === "token_expired") {
+    if (perPanelInlineLoginEnabled && resolvedUrl.startsWith('/api/')) {
+      const providerAuthError = mapResponseToProviderAuthError(response, data, providerId);
+      if (providerAuthError) {
+        publishProviderAuthError(providerAuthError);
+        throw providerAuthError;
+      }
+    }
+
+    if (!perPanelInlineLoginEnabled && (response.status === 401 || data.error === "token_expired")) {
       handleUnauthorizedResponse(data);
     }
 
@@ -279,6 +382,18 @@ export async function apiFetch<T = any>(
     return data as T;
   } catch (error) {
     if (isKnownApiError(error)) throw error;
+
+    if (perPanelInlineLoginEnabled && url.startsWith('/api/')) {
+      const providerId = getCurrentProviderId();
+      const networkAuthError = new ProviderAuthError(
+        providerId,
+        'network',
+        error instanceof Error ? error.message : 'Network request failed',
+      );
+      publishProviderAuthError(networkAuthError);
+      throw networkAuthError;
+    }
+
     throw toNetworkApiError(error);
   }
 }

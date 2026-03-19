@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/auth';
 import { isLastfmAvailable } from '@/lib/importers/lastfm';
+import { ProviderAuthError } from '@/lib/providers/errors';
+import { toProviderAuthErrorResponse } from '@/lib/api/errorHandler';
 
 /**
  * GET /api/lastfm/status
@@ -13,11 +15,15 @@ export async function GET() {
     // Require authentication
     const session = await getServerSession(authOptions);
     if (!session) {
-      return NextResponse.json({ error: 'token_expired' }, { status: 401 });
+      return toProviderAuthErrorResponse(
+        new ProviderAuthError('spotify', 'unauthenticated', 'Authentication required'),
+      );
     }
 
     if ((session as any).error === 'RefreshAccessTokenError') {
-      return NextResponse.json({ error: 'token_expired' }, { status: 401 });
+      return toProviderAuthErrorResponse(
+        new ProviderAuthError('spotify', 'expired', 'token_expired'),
+      );
     }
 
     return NextResponse.json({

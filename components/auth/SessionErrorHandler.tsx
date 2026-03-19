@@ -13,6 +13,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { LogIn, AlertCircle } from "lucide-react";
+import { isPerPanelInlineLoginEnabled } from "@/lib/utils";
 
 /** Public routes where session errors should be silently ignored */
 const PUBLIC_ROUTES = ["/", "/login", "/logout", "/privacy", "/imprint"];
@@ -31,10 +32,15 @@ const PUBLIC_ROUTES = ["/", "/login", "/logout", "/privacy", "/imprint"];
 export function SessionErrorHandler() {
   const { data: session, status } = useSession();
   const pathname = usePathname();
+  const perPanelInlineLoginEnabled = isPerPanelInlineLoginEnabled();
   const [showDialog, setShowDialog] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(false);
 
   useEffect(() => {
+    if (perPanelInlineLoginEnabled) {
+      return;
+    }
+
     // On public routes, silently clear the bad session instead of showing dialog
     const isPublic = PUBLIC_ROUTES.includes(pathname);
 
@@ -47,7 +53,7 @@ export function SessionErrorHandler() {
         setShowDialog(true);
       }
     }
-  }, [session, status, pathname]);
+  }, [session, status, pathname, perPanelInlineLoginEnabled]);
 
   const handleLogin = useCallback(async () => {
     setIsRedirecting(true);
@@ -64,6 +70,10 @@ export function SessionErrorHandler() {
       : `/login?reason=expired&next=${encodeURIComponent(nextPath)}`;
     window.location.href = loginUrl;
   }, []);
+
+  if (perPanelInlineLoginEnabled) {
+    return null;
+  }
 
   return (
     <AlertDialog open={showDialog} onOpenChange={setShowDialog}>

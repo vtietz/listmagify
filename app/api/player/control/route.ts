@@ -7,20 +7,13 @@ import { assertAuthenticated } from '@/app/api/_shared/guard';
 import { resolveMusicProviderFromRequest } from '@/app/api/_shared/provider';
 import { isAppRouteError } from '@/lib/errors';
 import { parseControlPayload, runPlaybackAction } from '@/lib/services/playerControlService';
+import { mapApiErrorToProviderAuthError, toProviderAuthErrorResponse } from '@/lib/api/errorHandler';
+import type { ProviderId } from '@/lib/providers/types';
 
 function mapAuthError(error: any): NextResponse | null {
-  if (isAppRouteError(error) && error.status === 401) {
-    return NextResponse.json(
-      { error: 'token_expired', message: 'Authentication required' },
-      { status: 401 }
-    );
-  }
-
-  if (error.message?.includes('Missing access token')) {
-    return NextResponse.json(
-      { error: 'token_expired', message: 'Authentication required' },
-      { status: 401 }
-    );
+  const mapped = mapApiErrorToProviderAuthError(error);
+  if (mapped) {
+    return toProviderAuthErrorResponse(mapped);
   }
 
   return null;
@@ -79,7 +72,17 @@ function mapControlError(error: any): NextResponse {
   );
 }
 
+function getProviderHint(request: NextRequest): ProviderId {
+  const providerValue = request.nextUrl.searchParams.get('provider')
+    ?? request.headers.get('x-music-provider')
+    ?? request.headers.get('x-provider');
+
+  return providerValue === 'tidal' ? 'tidal' : 'spotify';
+}
+
 export async function POST(request: NextRequest) {
+  const providerHint = getProviderHint(request);
+
   try {
     await assertAuthenticated();
     const { providerId } = resolveMusicProviderFromRequest(request);
@@ -89,6 +92,11 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
+    const authError = mapApiErrorToProviderAuthError(error, providerHint);
+    if (authError) {
+      return toProviderAuthErrorResponse(authError);
+    }
+
     return mapControlError(error);
   }
 }

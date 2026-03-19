@@ -34,7 +34,7 @@ import { useMobileOverlayStore, MobileBottomNav } from '../mobile/MobileBottomNa
 import type { MobileOverlay } from '../mobile/MobileBottomNav';
 import { DndDragOverlay } from '../DndDragOverlay';
 import { SpotifyPlayer, MiniPlayer } from '@/components/player';
-import { cn } from '@/lib/utils';
+import { cn, isPerPanelInlineLoginEnabled } from '@/lib/utils';
 import {
   LoadingState,
   AuthPrompt,
@@ -393,6 +393,8 @@ function MobileOverlayContent({
 }
 
 export function SplitGrid() {
+  const perPanelInlineLoginEnabled = isPerPanelInlineLoginEnabled();
+
   // Sync split grid state with URL for sharing/bookmarking
   useSplitUrlSync();
 
@@ -485,7 +487,7 @@ export function SplitGrid() {
   }
 
   // Show auth prompt if not authenticated
-  if (!authenticated) {
+  if (!authenticated && !perPanelInlineLoginEnabled) {
     return <AuthPrompt />;
   }
 

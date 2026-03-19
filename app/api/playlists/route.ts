@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth, ServerAuthError } from '@/lib/auth/requireAuth';
+import { requireAuth } from '@/lib/auth/requireAuth';
 import { resolveMusicProviderFromRequest } from '@/app/api/_shared/provider';
-import { handleApiError } from '@/lib/api/errorHandler';
+import { handleApiError, mapApiErrorToProviderAuthError, toProviderAuthErrorResponse } from '@/lib/api/errorHandler';
 import { ProviderApiError, type Playlist } from '@/lib/music-provider/types';
 
 interface CreatePlaylistInput {
@@ -35,15 +35,12 @@ function toPlaylistResponse(playlist: Playlist, meData: { displayName: string | 
 }
 
 function mapPlaylistsPostError(error: unknown): NextResponse {
-  if (error instanceof ServerAuthError) {
-    return NextResponse.json({ error: 'token_expired' }, { status: 401 });
+  const authError = mapApiErrorToProviderAuthError(error);
+  if (authError) {
+    return toProviderAuthErrorResponse(authError);
   }
 
   if (error instanceof ProviderApiError) {
-    if (error.status === 401) {
-      return NextResponse.json({ error: 'token_expired' }, { status: 401 });
-    }
-
     return NextResponse.json({ error: error.message, details: error.details }, { status: error.status });
   }
 

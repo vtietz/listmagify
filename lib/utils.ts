@@ -21,3 +21,26 @@ export function matchesAllWords(text: string, query: string): boolean {
   
   return queryWords.every(word => textLower.includes(word));
 }
+
+/**
+ * Feature flag for the per-provider auth UX rollout.
+ *
+ * Order of precedence:
+ * 1) NEXT_PUBLIC_ALLOW_PER_PANEL_INLINE_LOGIN
+ * 2) ALLOW_PER_PANEL_INLINE_LOGIN (server/runtime fallback)
+ * 3) defaults: true in development, false otherwise
+ */
+export function isPerPanelInlineLoginEnabled(): boolean {
+  const raw = process.env.NEXT_PUBLIC_ALLOW_PER_PANEL_INLINE_LOGIN
+    ?? process.env.ALLOW_PER_PANEL_INLINE_LOGIN;
+
+  if (raw === 'true') {
+    return true;
+  }
+
+  if (raw === 'false') {
+    return false;
+  }
+
+  return process.env.NODE_ENV === 'development';
+}

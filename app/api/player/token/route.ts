@@ -6,6 +6,8 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/auth';
+import { ProviderAuthError } from '@/lib/providers/errors';
+import { toProviderAuthErrorResponse } from '@/lib/api/errorHandler';
 
 type PlayerTokenSession = {
   musicProviderTokens?: {
@@ -32,7 +34,9 @@ function resolveSpotifySessionState(session: PlayerTokenSession) {
 }
 
 function unauthorized(error: string) {
-  return NextResponse.json({ error }, { status: 401 });
+  return toProviderAuthErrorResponse(
+    new ProviderAuthError('spotify', 'unauthenticated', error),
+  );
 }
 
 export async function GET() {
@@ -46,7 +50,9 @@ export async function GET() {
     const sessionState = resolveSpotifySessionState(session as PlayerTokenSession);
 
     if (sessionState.isRefreshError) {
-      return unauthorized('token_expired');
+      return toProviderAuthErrorResponse(
+        new ProviderAuthError('spotify', 'expired', 'token_expired'),
+      );
     }
 
     const accessToken = sessionState.accessToken;

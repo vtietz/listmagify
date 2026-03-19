@@ -11,6 +11,7 @@
 
 import { AlertCircle } from 'lucide-react';
 import { ApiError, AccessTokenExpiredError } from '@/lib/api/client';
+import { ProviderAuthError } from '@/lib/providers/errors';
 import { SignInButton } from '@/components/auth/SignInButton';
 import type { PlaylistPanelError } from './types';
 
@@ -27,6 +28,7 @@ export function ErrorPanel({
 }: ErrorPanelProps) {
   const isSessionExpired =
     error instanceof AccessTokenExpiredError ||
+    error instanceof ProviderAuthError ||
     (error instanceof ApiError && (error.isUnauthorized || error.isForbidden));
 
   const isNotFound = error instanceof ApiError && error.isNotFound;

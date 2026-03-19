@@ -1,6 +1,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import { isPerPanelInlineLoginEnabled } from "@/lib/utils";
 
 /**
  * Typed helper hook to access the current session user from NextAuth.
@@ -16,6 +17,7 @@ export type SessionUser = {
 export function useSessionUser() {
   const { data, status } = useSession();
   const isE2EMode = process.env.NEXT_PUBLIC_E2E_MODE === '1';
+  const perPanelInlineLoginEnabled = isPerPanelInlineLoginEnabled();
   const user = data?.user as SessionUser | undefined;
 
   // Check for session error (e.g., RefreshAccessTokenError)
@@ -27,7 +29,9 @@ export function useSessionUser() {
     session: data,
     status, // "authenticated" | "unauthenticated" | "loading"
     // User is only authenticated if status says so AND there's no session error
-    authenticated: isE2EMode || (status === "authenticated" && !hasSessionError),
+    authenticated:
+      isE2EMode
+      || (status === "authenticated" && (perPanelInlineLoginEnabled || !hasSessionError)),
     loading: isE2EMode ? false : status === "loading",
     error,
     hasSessionError,

@@ -3,7 +3,8 @@ import {
   isRecsAvailable,
 } from '@/lib/recs';
 import { assertAuthenticated } from '@/app/api/_shared/guard';
-import { resolveMusicProviderFromRequest } from '@/app/api/_shared/provider';
+import { getMusicProviderHintFromRequest, resolveMusicProviderFromRequest } from '@/app/api/_shared/provider';
+import { mapApiErrorToProviderAuthError, toProviderAuthErrorResponse } from '@/lib/api/errorHandler';
 import { isAppRouteError } from '@/lib/errors';
 import { getAppendixRecs } from '@/lib/services/recommendationService';
 
@@ -62,8 +63,9 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    if (isAppRouteError(error) && error.status === 401) {
-      return NextResponse.json({ error: 'token_expired' }, { status: 401 });
+    const authError = mapApiErrorToProviderAuthError(error, getMusicProviderHintFromRequest(request));
+    if (authError) {
+      return toProviderAuthErrorResponse(authError);
     }
 
     if (isAppRouteError(error) && error.status === 400) {

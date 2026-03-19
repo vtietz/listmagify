@@ -38,6 +38,15 @@ export function resolveMusicProviderIdFromRequest(request: NextRequest) {
   }
 }
 
+export function getMusicProviderHintFromRequest(request: NextRequest) {
+  const providerValue =
+    request.nextUrl.searchParams.get('provider')
+    ?? request.headers.get('x-music-provider')
+    ?? request.headers.get('x-provider');
+
+  return providerValue === 'tidal' ? 'tidal' : 'spotify';
+}
+
 export function resolveMusicProviderFromRequest(request: NextRequest) {
   const providerId = resolveMusicProviderIdFromRequest(request);
 

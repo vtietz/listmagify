@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/auth';
-import { resolveMusicProviderFromRequest } from '@/app/api/_shared/provider';
+import { getMusicProviderHintFromRequest, resolveMusicProviderFromRequest } from '@/app/api/_shared/provider';
 import { logTrackRemove } from '@/lib/metrics/api-helpers';
 import { ProviderApiError, type MusicProvider } from '@/lib/music-provider/types';
+import { ProviderAuthError } from '@/lib/providers/errors';
+import { mapApiErrorToProviderAuthError, toProviderAuthErrorResponse } from '@/lib/api/errorHandler';
 
 type RemovableTrack = { uri: string; positions?: number[] };
 
@@ -16,11 +18,12 @@ function isTokenExpiredSession(session: unknown): boolean {
 }
 
 function mapTrackRemoveThrownError(error: unknown): NextResponse {
-  if (error instanceof ProviderApiError) {
-    if (error.status === 401) {
-      return NextResponse.json({ error: 'token_expired' }, { status: 401 });
-    }
+  const authError = mapApiErrorToProviderAuthError(error);
+  if (authError) {
+    return toProviderAuthErrorResponse(authError);
+  }
 
+  if (error instanceof ProviderApiError) {
     let errorMessage = error.message;
     if (error.status === 403) {
       errorMessage = "You don't have permission to modify this playlist.";
@@ -32,15 +35,6 @@ function mapTrackRemoveThrownError(error: unknown): NextResponse {
   }
 
   console.error('[api/playlists/tracks/remove] Error:', error);
-
-  const errorMessage = error instanceof Error ? error.message : String(error);
-  if (
-    errorMessage.includes('401') ||
-    errorMessage.includes('Unauthorized') ||
-    errorMessage.includes('access token expired')
-  ) {
-    return NextResponse.json({ error: 'token_expired' }, { status: 401 });
-  }
 
   return NextResponse.json(
     { error: error instanceof Error ? error.message : 'Internal server error' },
@@ -97,7 +91,9 @@ export async function DELETE(
   try {
     const session = await getServerSession(authOptions);
     if (isTokenExpiredSession(session)) {
-      return NextResponse.json({ error: 'token_expired' }, { status: 401 });
+      return toProviderAuthErrorResponse(
+        new ProviderAuthError(getMusicProviderHintFromRequest(request), 'unauthenticated', 'Authentication required'),
+      );
     }
 
     const { id: playlistId } = await params;
@@ -125,6 +121,11 @@ export async function DELETE(
       return handleSimpleRemoval(provider, playlistId, tracksToRemove);
     }
   } catch (error) {
+    const authError = mapApiErrorToProviderAuthError(error, getMusicProviderHintFromRequest(request));
+    if (authError) {
+      return toProviderAuthErrorResponse(authError);
+    }
+
     return mapTrackRemoveThrownError(error);
   }
 }

@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth, ServerAuthError } from '@/lib/auth/requireAuth';
-import { resolveMusicProviderFromRequest } from '@/app/api/_shared/provider';
+import { requireAuth } from '@/lib/auth/requireAuth';
+import { getMusicProviderHintFromRequest, resolveMusicProviderFromRequest } from '@/app/api/_shared/provider';
 import { ProviderApiError } from '@/lib/music-provider/types';
 import { logTrackAdd } from '@/lib/metrics/api-helpers';
 import type { MusicProvider } from '@/lib/music-provider/types';
+import { mapApiErrorToProviderAuthError, toProviderAuthErrorResponse } from '@/lib/api/errorHandler';
 
 const TRACK_ADD_BATCH_SIZE = 100;
 
@@ -53,10 +54,6 @@ function mapTrackAddResponseError(
   batchIndex: number,
   totalTrackUris: number
 ): NextResponse {
-  if (res.status === 401) {
-    return NextResponse.json({ error: 'token_expired' }, { status: 401 });
-  }
-
   let errorMessage = `Failed to add tracks: ${res.status} ${res.statusText}`;
   if (res.status === 400) {
     errorMessage = 'Invalid request. Check that all track URIs are valid.';
@@ -101,20 +98,12 @@ async function addTrackBatches(
 }
 
 function mapTrackAddThrownError(error: unknown): NextResponse {
-  if (error instanceof ServerAuthError) {
-    return NextResponse.json({ error: 'token_expired' }, { status: 401 });
+  const authError = mapApiErrorToProviderAuthError(error);
+  if (authError) {
+    return toProviderAuthErrorResponse(authError);
   }
 
   console.error('[api/playlists/tracks/add] Error:', error);
-
-  const errorMessage = error instanceof Error ? error.message : String(error);
-  if (
-    errorMessage.includes('401') ||
-    errorMessage.includes('Unauthorized') ||
-    errorMessage.includes('access token expired')
-  ) {
-    return NextResponse.json({ error: 'token_expired' }, { status: 401 });
-  }
 
   return NextResponse.json(
     { error: error instanceof Error ? error.message : 'Internal server error' },
@@ -162,6 +151,11 @@ export async function POST(
 
     return NextResponse.json({ snapshotId });
   } catch (error) {
+    const authError = mapApiErrorToProviderAuthError(error, getMusicProviderHintFromRequest(request));
+    if (authError) {
+      return toProviderAuthErrorResponse(authError);
+    }
+
     return mapTrackAddThrownError(error);
   }
 }

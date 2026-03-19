@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/auth";
-import { resolveMusicProviderFromRequest } from '@/app/api/_shared/provider';
+import { getMusicProviderHintFromRequest, resolveMusicProviderFromRequest } from '@/app/api/_shared/provider';
 import { logTrackReorder } from '@/lib/metrics/api-helpers';
 import { ProviderApiError } from '@/lib/music-provider/types';
+import { ProviderAuthError } from '@/lib/providers/errors';
+import { mapApiErrorToProviderAuthError, toProviderAuthErrorResponse } from '@/lib/api/errorHandler';
 
 type ReorderRequestData = {
   playlistId: string;
@@ -13,10 +15,12 @@ type ReorderRequestData = {
   snapshotId?: string;
 };
 
-async function ensureReorderSession(): Promise<true | NextResponse> {
+async function ensureReorderSession(providerHint: 'spotify' | 'tidal'): Promise<true | NextResponse> {
   const session = await getServerSession(authOptions);
   if (!session) {
-    return NextResponse.json({ error: "token_expired" }, { status: 401 });
+    return toProviderAuthErrorResponse(
+      new ProviderAuthError(providerHint, 'unauthenticated', 'Authentication required'),
+    );
   }
 
   return true;
@@ -63,11 +67,12 @@ async function parseReorderRequest(
 }
 
 function mapReorderThrownError(error: unknown): NextResponse {
-  if (error instanceof ProviderApiError) {
-    if (error.status === 401) {
-      return NextResponse.json({ error: 'token_expired' }, { status: 401 });
-    }
+  const authError = mapApiErrorToProviderAuthError(error);
+  if (authError) {
+    return toProviderAuthErrorResponse(authError);
+  }
 
+  if (error instanceof ProviderApiError) {
     let errorMessage = error.message;
     if (error.status === 400) {
       errorMessage = 'Invalid reorder request. The playlist may have been modified by another client.';
@@ -84,11 +89,6 @@ function mapReorderThrownError(error: unknown): NextResponse {
   }
 
   console.error("[api/playlists/reorder] Error:", error);
-
-  const errorMessage = error instanceof Error ? error.message : String(error);
-  if (errorMessage.includes("401") || errorMessage.includes("Unauthorized") || errorMessage.includes("access token expired")) {
-    return NextResponse.json({ error: "token_expired" }, { status: 401 });
-  }
 
   return NextResponse.json(
     { error: error instanceof Error ? error.message : "Internal server error" },
@@ -110,7 +110,8 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const authResult = await ensureReorderSession();
+    const providerHint = getMusicProviderHintFromRequest(request);
+    const authResult = await ensureReorderSession(providerHint);
     if (authResult instanceof NextResponse) {
       return authResult;
     }

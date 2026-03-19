@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth, ServerAuthError } from "@/lib/auth/requireAuth";
-import { resolveMusicProviderFromRequest } from '@/app/api/_shared/provider';
+import { requireAuth } from "@/lib/auth/requireAuth";
+import { getMusicProviderHintFromRequest, resolveMusicProviderFromRequest } from '@/app/api/_shared/provider';
 import { ProviderApiError } from '@/lib/music-provider/types';
+import { mapApiErrorToProviderAuthError, toProviderAuthErrorResponse } from '@/lib/api/errorHandler';
 
 type ReorderAllInput = {
   playlistId: string;
@@ -53,15 +54,12 @@ async function parseReorderAllInput(
 }
 
 function mapReorderAllThrownError(error: unknown): NextResponse {
-  if (error instanceof ServerAuthError) {
-    return NextResponse.json({ error: "token_expired" }, { status: 401 });
+  const authError = mapApiErrorToProviderAuthError(error);
+  if (authError) {
+    return toProviderAuthErrorResponse(authError);
   }
 
   if (error instanceof ProviderApiError) {
-    if (error.status === 401) {
-      return NextResponse.json({ error: 'token_expired' }, { status: 401 });
-    }
-
     let errorMessage = error.message;
     if (error.status === 400) {
       errorMessage = 'Invalid request. Some tracks may not be available in this provider catalog.';
@@ -75,11 +73,6 @@ function mapReorderAllThrownError(error: unknown): NextResponse {
   }
 
   console.error("[api/playlists/reorder-all] Error:", error);
-
-  const errorMessage = error instanceof Error ? error.message : String(error);
-  if (errorMessage.includes("401") || errorMessage.includes("Unauthorized")) {
-    return NextResponse.json({ error: "token_expired" }, { status: 401 });
-  }
 
   return NextResponse.json(
     { error: "Internal server error" },
@@ -117,6 +110,11 @@ export async function PUT(
     const reordered = await provider.replacePlaylistTracks(playlistId, trackUris);
     return NextResponse.json({ snapshotId: reordered.snapshotId });
   } catch (error) {
+    const authError = mapApiErrorToProviderAuthError(error, getMusicProviderHintFromRequest(request));
+    if (authError) {
+      return toProviderAuthErrorResponse(authError);
+    }
+
     return mapReorderAllThrownError(error);
   }
 }

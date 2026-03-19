@@ -1,11 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { assertAuthenticated } from '@/app/api/_shared/guard';
+import { getMusicProviderHintFromRequest } from '@/app/api/_shared/provider';
+import { mapApiErrorToProviderAuthError, toProviderAuthErrorResponse } from '@/lib/api/errorHandler';
 import { isAppRouteError } from '@/lib/errors';
 import { isRecsAvailable, dismissRecommendation, clearDismissals } from '@/lib/recs';
 
-function mapDismissRouteError(error: unknown): NextResponse | null {
+function mapDismissRouteError(error: unknown, request: NextRequest): NextResponse | null {
+  const authError = mapApiErrorToProviderAuthError(error, getMusicProviderHintFromRequest(request));
+  if (authError) {
+    return toProviderAuthErrorResponse(authError);
+  }
+
   if (isAppRouteError(error) && error.status === 401) {
-    return NextResponse.json({ error: 'token_expired' }, { status: 401 });
+    const mapped = mapApiErrorToProviderAuthError(error, getMusicProviderHintFromRequest(request));
+    if (mapped) {
+      return toProviderAuthErrorResponse(mapped);
+    }
   }
 
   return null;
@@ -51,7 +61,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    const mapped = mapDismissRouteError(error);
+    const mapped = mapDismissRouteError(error, request);
     if (mapped) {
       return mapped;
     }
@@ -91,7 +101,7 @@ export async function DELETE(request: NextRequest) {
     });
 
   } catch (error) {
-    const mapped = mapDismissRouteError(error);
+    const mapped = mapDismissRouteError(error, request);
     if (mapped) {
       return mapped;
     }

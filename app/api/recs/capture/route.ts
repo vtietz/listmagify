@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { assertAuthenticated } from '@/app/api/_shared/guard';
-import { isAppRouteError } from '@/lib/errors';
+import { getMusicProviderHintFromRequest } from '@/app/api/_shared/provider';
+import { mapApiErrorToProviderAuthError, toProviderAuthErrorResponse } from '@/lib/api/errorHandler';
 import { 
   isRecsAvailable, 
   captureAndUpdateEdges,
@@ -72,8 +73,9 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    if (isAppRouteError(error) && error.status === 401) {
-      return NextResponse.json({ error: 'token_expired' }, { status: 401 });
+    const authError = mapApiErrorToProviderAuthError(error, getMusicProviderHintFromRequest(request));
+    if (authError) {
+      return toProviderAuthErrorResponse(authError);
     }
 
     console.error('[api/recs/capture] Error:', error);

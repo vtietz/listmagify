@@ -20,6 +20,7 @@ import { TrackInfo } from './TrackInfo';
 import { PlaybackControls } from './PlaybackControls';
 import { PlayerActions } from './PlayerActions';
 import { EmptyPlayerState } from './EmptyPlayerState';
+import { ProviderPanelGuard } from '@/components/auth/ProviderPanelGuard';
 import { toast } from '@/lib/ui/toast';
 import { cn } from '@/lib/utils';
 import { useDeviceType } from '@/hooks/useDeviceType';
@@ -508,18 +509,14 @@ export function SpotifyPlayer({ forceShow = false, onTrackClick }: SpotifyPlayer
     onRefresh: model.player.refreshDevices,
   };
 
-  if (!model.track) {
-    return (
-      <SpotifyPlayerEmptyView
-        isWebPlayerReady={model.isWebPlayerReady}
-        isWebPlayerInitializing={model.isWebPlayerInitializing}
-        onDeviceClick={model.handleDeviceClick}
-        deviceSelectorProps={deviceSelectorProps}
-      />
-    );
-  }
-
-  return (
+  const content = !model.track ? (
+    <SpotifyPlayerEmptyView
+      isWebPlayerReady={model.isWebPlayerReady}
+      isWebPlayerInitializing={model.isWebPlayerInitializing}
+      onDeviceClick={model.handleDeviceClick}
+      deviceSelectorProps={deviceSelectorProps}
+    />
+  ) : (
     <SpotifyPlayerTrackView
       setDropNodeRef={model.setDropNodeRef}
       isOver={model.isOver}
@@ -552,5 +549,11 @@ export function SpotifyPlayer({ forceShow = false, onTrackClick }: SpotifyPlayer
       onDeviceClick={model.handleDeviceClick}
       deviceSelectorProps={deviceSelectorProps}
     />
+  );
+
+  return (
+    <ProviderPanelGuard provider="spotify">
+      {content}
+    </ProviderPanelGuard>
   );
 }

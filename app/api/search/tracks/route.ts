@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { assertAuthenticated } from '@/app/api/_shared/guard';
-import { resolveMusicProviderFromRequest } from '@/app/api/_shared/provider';
+import { getMusicProviderHintFromRequest, resolveMusicProviderFromRequest } from '@/app/api/_shared/provider';
+import { mapApiErrorToProviderAuthError, toProviderAuthErrorResponse } from '@/lib/api/errorHandler';
 import { isAppRouteError } from '@/lib/errors';
 import { ProviderApiError } from '@/lib/music-provider/types';
 
@@ -19,10 +20,6 @@ function parseSearchQuery(searchParams: URLSearchParams) {
   });
 }
 
-function tokenExpiredResponse() {
-  return NextResponse.json({ error: 'token_expired' }, { status: 401 });
-}
-
 function emptyTracksResponse() {
   return NextResponse.json({
     tracks: [],
@@ -36,20 +33,24 @@ async function executeTrackSearch(request: NextRequest, query: string, limit: nu
   return provider.searchTracks(query, limit, offset);
 }
 
-async function mapSearchError(error: any) {
+async function mapSearchError(error: any, request: NextRequest) {
+  const authError = mapApiErrorToProviderAuthError(error, getMusicProviderHintFromRequest(request));
+  if (authError) {
+    return toProviderAuthErrorResponse(authError);
+  }
+
   if (error instanceof z.ZodError) {
     return NextResponse.json({ error: error.issues[0]?.message ?? 'Invalid query params' }, { status: 400 });
   }
 
   if (isAppRouteError(error) && error.status === 401) {
-    return tokenExpiredResponse();
+    const mapped = mapApiErrorToProviderAuthError(error, getMusicProviderHintFromRequest(request));
+    if (mapped) {
+      return toProviderAuthErrorResponse(mapped);
+    }
   }
 
   if (error instanceof ProviderApiError) {
-    if (error.status === 401) {
-      return tokenExpiredResponse();
-    }
-
     return NextResponse.json({ error: error.message, details: error.details }, { status: error.status });
   }
 
@@ -76,6 +77,6 @@ export async function GET(request: NextRequest) {
     const result = await executeTrackSearch(request, query, limit, offset);
     return NextResponse.json(result);
   } catch (error: any) {
-    return mapSearchError(error);
+    return mapSearchError(error, request);
   }
 }

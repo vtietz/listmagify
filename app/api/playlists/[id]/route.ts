@@ -1,15 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth, ServerAuthError } from '@/lib/auth/requireAuth';
-import { resolveMusicProviderFromRequest } from '@/app/api/_shared/provider';
+import { requireAuth } from '@/lib/auth/requireAuth';
+import { getMusicProviderHintFromRequest, resolveMusicProviderFromRequest } from '@/app/api/_shared/provider';
+import { mapApiErrorToProviderAuthError, toProviderAuthErrorResponse } from '@/lib/api/errorHandler';
 import { parsePlaylistId, parsePlaylistUpdatePayload } from '@/lib/services/playlistService';
 import { getPlaylistFieldsQuery, mapPlaylistMetadata } from '@/lib/repositories/playlistRepository';
 import { ProviderApiError } from '@/lib/music-provider/types';
 
 function mapPlaylistPutResponseError(status: number, statusText: string): NextResponse {
-  if (status === 401) {
-    return NextResponse.json({ error: 'token_expired' }, { status: 401 });
-  }
-
   if (status === 403) {
     return NextResponse.json({ error: 'You do not have permission to edit this playlist' }, { status: 403 });
   }
@@ -21,14 +18,6 @@ function mapPlaylistPutResponseError(status: number, statusText: string): NextRe
   return NextResponse.json(
     { error: `Failed to update playlist: ${status} ${statusText}` },
     { status }
-  );
-}
-
-function hasTokenExpiredMessage(message: string): boolean {
-  return (
-    message.includes('401') ||
-    message.includes('Unauthorized') ||
-    message.includes('access token expired')
   );
 }
 
@@ -44,9 +33,10 @@ function mapKnownPlaylistValidationError(error: Error): NextResponse | null {
   return null;
 }
 
-function mapPlaylistPutThrownError(error: unknown): NextResponse {
-  if (error instanceof ServerAuthError) {
-    return NextResponse.json({ error: 'token_expired' }, { status: 401 });
+function mapPlaylistPutThrownError(error: unknown, request: NextRequest): NextResponse {
+  const authError = mapApiErrorToProviderAuthError(error, getMusicProviderHintFromRequest(request));
+  if (authError) {
+    return toProviderAuthErrorResponse(authError);
   }
 
   if (error instanceof Error) {
@@ -61,11 +51,6 @@ function mapPlaylistPutThrownError(error: unknown): NextResponse {
   }
 
   console.error('[api/playlists] PUT Error:', error);
-
-  const errorMessage = error instanceof Error ? error.message : String(error);
-  if (hasTokenExpiredMessage(errorMessage)) {
-    return NextResponse.json({ error: 'token_expired' }, { status: 401 });
-  }
 
   return NextResponse.json(
     { error: error instanceof Error ? error.message : 'Internal server error' },
@@ -96,11 +81,12 @@ export async function GET(
     const playlist = await provider.getPlaylistDetails(playlistId, fields);
     return NextResponse.json(mapPlaylistMetadata(playlist));
   } catch (error) {
-    if (error instanceof ProviderApiError) {
-      if (error.status === 401) {
-        return NextResponse.json({ error: 'token_expired' }, { status: 401 });
-      }
+    const authError = mapApiErrorToProviderAuthError(error, getMusicProviderHintFromRequest(request));
+    if (authError) {
+      return toProviderAuthErrorResponse(authError);
+    }
 
+    if (error instanceof ProviderApiError) {
       if (error.status === 404) {
         return NextResponse.json({ error: 'Playlist not found' }, { status: 404 });
       }
@@ -108,21 +94,7 @@ export async function GET(
       return NextResponse.json({ error: error.message, details: error.details }, { status: error.status });
     }
 
-    // Handle auth errors consistently
-    if (error instanceof ServerAuthError) {
-      return NextResponse.json({ error: 'token_expired' }, { status: 401 });
-    }
-
     console.error('[api/playlists] Error:', error);
-
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    if (
-      errorMessage.includes('401') ||
-      errorMessage.includes('Unauthorized') ||
-      errorMessage.includes('access token expired')
-    ) {
-      return NextResponse.json({ error: 'token_expired' }, { status: 401 });
-    }
 
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Internal server error' },
@@ -161,6 +133,6 @@ export async function PUT(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    return mapPlaylistPutThrownError(error);
+    return mapPlaylistPutThrownError(error, request);
   }
 }

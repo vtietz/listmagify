@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { assertAuthenticated } from '@/app/api/_shared/guard';
-import { resolveMusicProviderFromRequest } from '@/app/api/_shared/provider';
+import { getMusicProviderHintFromRequest, resolveMusicProviderFromRequest } from '@/app/api/_shared/provider';
 import { isAppRouteError } from '@/lib/errors';
 import { ProviderApiError } from '@/lib/music-provider/types';
 import { parsePlaylistId } from '@/lib/services/playlistService';
+import { mapApiErrorToProviderAuthError, toProviderAuthErrorResponse } from '@/lib/api/errorHandler';
 
 /**
  * GET /api/playlists/[id]/tracks
@@ -27,15 +28,20 @@ export async function GET(
     const result = await provider.getPlaylistTracks(playlistId, 100, nextCursorParam);
     return NextResponse.json(result);
   } catch (error) {
+    const authError = mapApiErrorToProviderAuthError(error, getMusicProviderHintFromRequest(request));
+    if (authError) {
+      return toProviderAuthErrorResponse(authError);
+    }
+
     if (error instanceof ProviderApiError) {
-      if (error.status === 401) {
-        return NextResponse.json({ error: 'token_expired' }, { status: 401 });
-      }
       return NextResponse.json({ error: error.message }, { status: error.status });
     }
 
     if (isAppRouteError(error) && error.status === 401) {
-      return NextResponse.json({ error: "token_expired" }, { status: 401 });
+      const mapped = mapApiErrorToProviderAuthError(error, getMusicProviderHintFromRequest(request));
+      if (mapped) {
+        return toProviderAuthErrorResponse(mapped);
+      }
     }
 
     if (isAppRouteError(error) && error.status === 400) {

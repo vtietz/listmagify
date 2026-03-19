@@ -2,6 +2,16 @@ import { logAuthEvent, startSession } from '@/lib/metrics';
 import { getDb } from '@/lib/metrics/db';
 
 type SignInMessage = any;
+type ProviderId = 'spotify' | 'tidal';
+type ProviderAuthCode =
+  | 'ok'
+  | 'unauthenticated'
+  | 'expired'
+  | 'invalid'
+  | 'insufficient_scope'
+  | 'network'
+  | 'rate_limited'
+  | 'provider_unavailable';
 
 function formatDebugUser(user: any): string {
   return user?.email ?? user?.name ?? '[unknown]';
@@ -131,3 +141,44 @@ export const authLogger = {
     console.debug('[auth] NextAuth logger debug', ...args);
   },
 };
+
+type ProviderAuthEventName =
+  | 'inline_login_shown'
+  | 'inline_login_clicked'
+  | 'token_refresh_attempted'
+  | 'token_refresh_succeeded'
+  | 'token_refresh_failed';
+
+type ProviderAuthLogPayload = {
+  provider: ProviderId;
+  reason?: ProviderAuthCode;
+  message?: string;
+};
+
+function logProviderAuthEvent(event: ProviderAuthEventName, payload: ProviderAuthLogPayload): void {
+  console.debug('[auth] provider-event', {
+    event,
+    ...payload,
+    timestamp: new Date().toISOString(),
+  });
+}
+
+export function logInlineLoginShown(provider: ProviderId, reason: ProviderAuthCode): void {
+  logProviderAuthEvent('inline_login_shown', { provider, reason });
+}
+
+export function logInlineLoginClicked(provider: ProviderId): void {
+  logProviderAuthEvent('inline_login_clicked', { provider });
+}
+
+export function logTokenRefreshAttempted(provider: ProviderId): void {
+  logProviderAuthEvent('token_refresh_attempted', { provider });
+}
+
+export function logTokenRefreshSucceeded(provider: ProviderId): void {
+  logProviderAuthEvent('token_refresh_succeeded', { provider });
+}
+
+export function logTokenRefreshFailed(provider: ProviderId, message?: string): void {
+  logProviderAuthEvent('token_refresh_failed', { provider, ...(message ? { message } : {}) });
+}

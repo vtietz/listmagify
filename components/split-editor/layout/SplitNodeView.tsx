@@ -2,6 +2,7 @@
 
 import type { SplitNode } from '@/hooks/useSplitGridStore';
 import { PlaylistPanel } from '../playlist/PlaylistPanel';
+import { ProviderPanelGuard } from '@/components/auth/ProviderPanelGuard';
 import type { Track } from '@/lib/music-provider/types';
 import type { Virtualizer } from '@tanstack/react-virtual';
 import type { Layout } from 'react-resizable-panels';
@@ -211,11 +212,13 @@ function PanelNodeView({
       style={phoneFlexStyle}
       onClick={onClick}
     >
-      <PlaylistPanel
-        panelId={node.panel.id}
-        onRegisterVirtualizer={onRegisterVirtualizer}
-        onUnregisterVirtualizer={onUnregisterVirtualizer}
-      />
+      <ProviderPanelGuard provider={node.panel.providerId}>
+        <PlaylistPanel
+          panelId={node.panel.id}
+          onRegisterVirtualizer={onRegisterVirtualizer}
+          onUnregisterVirtualizer={onUnregisterVirtualizer}
+        />
+      </ProviderPanelGuard>
     </div>
   );
 }

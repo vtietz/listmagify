@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { resolveMusicProviderFromRequest } from '@/app/api/_shared/provider';
+import { getMusicProviderHintFromRequest, resolveMusicProviderFromRequest } from '@/app/api/_shared/provider';
+import { mapApiErrorToProviderAuthError, toProviderAuthErrorResponse } from '@/lib/api/errorHandler';
 import { ProviderApiError } from '@/lib/music-provider/types';
 
 function getProviderErrorMessage(errorData: any, status: number): string {
@@ -71,6 +72,11 @@ export async function DELETE(request: NextRequest) {
   try {
     await provider.removeTracks({ ids });
   } catch (error) {
+    const authError = mapApiErrorToProviderAuthError(error, getMusicProviderHintFromRequest(request));
+    if (authError) {
+      return toProviderAuthErrorResponse(authError);
+    }
+
     if (error instanceof ProviderApiError) {
       const errorData = parseProviderErrorDetails(error.details);
 

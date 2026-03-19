@@ -10,6 +10,7 @@ type Props = {
   className?: string;
   callbackUrl?: string;
   providerId?: MusicProviderId;
+  onClick?: () => void;
 };
 
 function withProviderInCallbackUrl(callbackUrl: string, providerId: MusicProviderId): string {
@@ -36,6 +37,7 @@ export function SignInButton({
   className,
   callbackUrl = "/split-editor",
   providerId = 'spotify',
+  onClick,
 }: Props) {
   const { credentials, hasCredentials } = useByokCredentials();
   const [isLoading, setIsLoading] = useState(false);
@@ -44,6 +46,7 @@ export function SignInButton({
     ?? (providerId === 'spotify' ? 'Sign in with Spotify' : 'Sign in with TIDAL');
 
   const handleSignIn = async () => {
+    onClick?.();
     const callbackUrlWithProvider = withProviderInCallbackUrl(callbackUrl, providerId);
 
     if (providerId !== 'spotify') {
