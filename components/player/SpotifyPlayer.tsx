@@ -10,6 +10,7 @@
 import { useCallback, useState, useEffect, useRef } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import { useSpotifyPlayer } from '@/hooks/useSpotifyPlayer';
+import { useMusicProviderId } from '@/hooks/useMusicProviderId';
 import { useWebPlaybackSDK } from '@/hooks/useWebPlaybackSDK';
 import { useSavedTracksIndex } from '@/hooks/useSavedTracksIndex';
 import { useInsertionPointsStore, computeInsertionPositions } from '@/hooks/useInsertionPointsStore';
@@ -487,7 +488,12 @@ interface SpotifyPlayerProps {
 }
 
 export function SpotifyPlayer({ forceShow = false, onTrackClick }: SpotifyPlayerProps) {
+  const providerId = useMusicProviderId();
   const model = useSpotifyPlayerViewModel();
+
+  if (providerId !== 'spotify') {
+    return null;
+  }
 
   if (shouldHidePlayer(forceShow, model.player.isPlayerVisible)) {
     return null;

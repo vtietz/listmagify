@@ -27,6 +27,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { useSpotifyPlayer } from '@/hooks/useSpotifyPlayer';
+import { useMusicProviderId } from '@/hooks/useMusicProviderId';
 import { useSavedTracksIndex } from '@/hooks/useSavedTracksIndex';
 import { useInsertionPointsStore, computeInsertionPositions } from '@/hooks/useInsertionPointsStore';
 import { useAddTracks } from '@/lib/spotify/playlistMutations';
@@ -431,6 +432,7 @@ interface MiniPlayerProps {
 }
 
 export function MiniPlayer({ isVisible, onHide, onTrackClick }: MiniPlayerProps) {
+  const providerId = useMusicProviderId();
   const {
     playbackState,
     isPlaying,
@@ -473,7 +475,7 @@ export function MiniPlayer({ isVisible, onHide, onTrackClick }: MiniPlayerProps)
   const trackClickHandler = getTrackClickHandler(track, onTrackClick);
 
   // Don't render if not visible or no track
-  if (!isVisible || !track) {
+  if (!isVisible || !track || providerId !== 'spotify') {
     return null;
   }
 

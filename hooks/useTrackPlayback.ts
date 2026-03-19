@@ -5,6 +5,7 @@
 
 import { useCallback, useState, useRef } from 'react';
 import { useProviderPlayer } from './useSpotifyPlayer';
+import { useMusicProviderId } from './useMusicProviderId';
 
 interface UseTrackPlaybackOptions {
   /** All track URIs in the current playlist (for auto-play next) */
@@ -20,6 +21,8 @@ interface UseTrackPlaybackOptions {
 export function useTrackPlayback(options: UseTrackPlaybackOptions) {
   const { trackUris, playlistId, playlistUri, sourceId } = options;
   const { play, pause, isPlaying, currentTrackId, isLoading } = useProviderPlayer();
+  const providerId = useMusicProviderId();
+  const isPlaybackSupported = providerId === 'spotify';
   
   // Track which track we're loading (for showing spinner)
   const [loadingTrackUri, setLoadingTrackUri] = useState<string | null>(null);
@@ -27,17 +30,23 @@ export function useTrackPlayback(options: UseTrackPlaybackOptions) {
 
   // Check if a specific track is currently playing
   const isTrackPlaying = useCallback((trackId: string | null) => {
+    if (!isPlaybackSupported) return false;
     if (!trackId || !currentTrackId) return false;
     return trackId === currentTrackId && isPlaying;
-  }, [currentTrackId, isPlaying]);
+  }, [isPlaybackSupported, currentTrackId, isPlaying]);
 
   // Check if we're loading playback for a specific track
   const isTrackLoading = useCallback((trackUri: string) => {
+    if (!isPlaybackSupported) return false;
     return loadingTrackUri === trackUri && loadingRef.current;
-  }, [loadingTrackUri]);
+  }, [isPlaybackSupported, loadingTrackUri]);
 
   // Play a specific track
   const playTrack = useCallback(async (trackUri: string) => {
+    if (!isPlaybackSupported) {
+      return;
+    }
+
     if (loadingRef.current) return;
     
     setLoadingTrackUri(trackUri);
@@ -75,12 +84,16 @@ export function useTrackPlayback(options: UseTrackPlaybackOptions) {
       loadingRef.current = false;
       setLoadingTrackUri(null);
     }
-  }, [trackUris, playlistUri, playlistId, sourceId, play]);
+  }, [isPlaybackSupported, trackUris, playlistUri, playlistId, sourceId, play]);
 
   // Pause playback
   const pausePlayback = useCallback(async () => {
+    if (!isPlaybackSupported) {
+      return;
+    }
+
     await pause();
-  }, [pause]);
+  }, [isPlaybackSupported, pause]);
 
   return {
     /** Check if a specific track is currently playing */
