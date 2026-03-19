@@ -310,7 +310,7 @@ BYOK allows users to use their own Spotify API credentials for full control over
 
 ```env
 # .env
-BYOK_ENABLED=true
+SPOTIFY_BYOK_ENABLED=true
 ```
 
 ### How It Works
@@ -333,7 +333,7 @@ Users need to:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `BYOK_ENABLED` | Enable/disable BYOK feature | `false` |
+| `SPOTIFY_BYOK_ENABLED` | Enable/disable Spotify BYOK feature | `false` |
 
 **Privacy Note:** User credentials are stored only in their browser's localStorage. They are never transmitted to or stored on the server.
 

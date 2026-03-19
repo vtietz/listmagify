@@ -28,7 +28,7 @@ describe('BYOK callback session cookie naming', () => {
   it('sets __Secure-next-auth.session-token on HTTPS', async () => {
     vi.doMock('@/lib/env', () => ({
       serverEnv: {
-        BYOK_ENABLED: true,
+        SPOTIFY_BYOK_ENABLED: true,
         NEXTAUTH_URL: 'https://listmagify.com',
         NEXTAUTH_SECRET: 'test-secret',
       },
@@ -83,7 +83,7 @@ describe('BYOK callback session cookie naming', () => {
     vi.resetModules();
     vi.doMock('@/lib/env', () => ({
       serverEnv: {
-        BYOK_ENABLED: true,
+        SPOTIFY_BYOK_ENABLED: true,
         NEXTAUTH_URL: 'http://127.0.0.1:3000',
         NEXTAUTH_SECRET: 'test-secret',
       },

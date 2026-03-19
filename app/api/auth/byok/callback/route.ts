@@ -131,7 +131,7 @@ function buildRedirectResponse(callbackUrl: string, token: string): NextResponse
  */
 export async function GET(request: NextRequest) {
   // Check if BYOK is enabled
-  if (!serverEnv.BYOK_ENABLED) {
+  if (!serverEnv.SPOTIFY_BYOK_ENABLED) {
     return NextResponse.redirect(new URL('/?error=byok_disabled', serverEnv.NEXTAUTH_URL));
   }
 

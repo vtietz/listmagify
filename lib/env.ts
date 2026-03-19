@@ -57,7 +57,7 @@ const serverSchema = z.object({
       return isNaN(num) || num <= 0 ? undefined : num;
     }),
   // Optional: allow users to bring their own Spotify API keys
-  BYOK_ENABLED: z
+  SPOTIFY_BYOK_ENABLED: z
     .string()
     .optional()
     .transform((val) => val === 'true'),
@@ -136,7 +136,7 @@ export const serverEnv: ServerEnv = (() => {
       TIDAL_CLIENT_SECRET: '',
       MUSIC_PROVIDERS: [...DEFAULT_MUSIC_PROVIDERS],
       PLAYLIST_POLL_INTERVAL_SECONDS: undefined,
-      BYOK_ENABLED: false,
+      SPOTIFY_BYOK_ENABLED: false,
       ACCESS_REQUEST_ENABLED: false,
       ACCESS_REQUEST_EMAIL_VERIFICATION_ENABLED: false,
     };
@@ -150,7 +150,7 @@ export const serverEnv: ServerEnv = (() => {
     TIDAL_CLIENT_SECRET: process.env.TIDAL_CLIENT_SECRET,
     MUSIC_PROVIDERS: process.env.MUSIC_PROVIDERS,
     PLAYLIST_POLL_INTERVAL_SECONDS: process.env.PLAYLIST_POLL_INTERVAL_SECONDS,
-    BYOK_ENABLED: process.env.BYOK_ENABLED,
+    SPOTIFY_BYOK_ENABLED: process.env.SPOTIFY_BYOK_ENABLED ?? process.env.BYOK_ENABLED,
     ACCESS_REQUEST_ENABLED: process.env.ACCESS_REQUEST_ENABLED,
     ACCESS_REQUEST_EMAIL_VERIFICATION_ENABLED: process.env.ACCESS_REQUEST_EMAIL_VERIFICATION_ENABLED,
   });

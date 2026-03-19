@@ -10,7 +10,7 @@ import { serverEnv } from '@/lib/env';
  */
 export async function POST(request: NextRequest) {
   // Check if BYOK is enabled
-  if (!serverEnv.BYOK_ENABLED) {
+  if (!serverEnv.SPOTIFY_BYOK_ENABLED) {
     return NextResponse.json(
       { error: 'BYOK authentication is not enabled' },
       { status: 403 }
