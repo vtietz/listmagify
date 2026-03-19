@@ -90,8 +90,8 @@ export function useLikedVirtualPlaylist(providerId: MusicProviderId = 'spotify')
     queryKey: likedPlaylistKey(providerId),
     queryFn: async ({ pageParam }: { pageParam: string | null }): Promise<LikedTracksPage> => {
       const url = pageParam
-        ? `/api/liked/tracks?limit=50&nextCursor=${encodeURIComponent(pageParam)}`
-        : '/api/liked/tracks?limit=50';
+        ? `/api/liked/tracks?provider=spotify&limit=50&nextCursor=${encodeURIComponent(pageParam)}`
+        : '/api/liked/tracks?provider=spotify&limit=50';
 
       const response = await apiFetch<LikedTracksPage>(url);
 

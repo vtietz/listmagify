@@ -209,8 +209,8 @@ function extractLikedTrackIds(response: LikedTracksResponse): string[] {
 
 async function fetchLikedTracksPage(nextCursor: string | null): Promise<LikedTracksResponse> {
   const url: string = nextCursor
-    ? `/api/liked/tracks?limit=50&nextCursor=${encodeURIComponent(nextCursor)}`
-    : '/api/liked/tracks?limit=50';
+    ? `/api/liked/tracks?provider=spotify&limit=50&nextCursor=${encodeURIComponent(nextCursor)}`
+    : '/api/liked/tracks?provider=spotify&limit=50';
 
   return apiFetch<LikedTracksResponse>(url);
 }
@@ -536,7 +536,7 @@ export function useLikedSongsTotal(enabled = true) {
     const fetchTotal = async () => {
       try {
         // Use limit=1 to minimize data transfer - we only need the total
-        const response = await apiFetch<{ total: number }>('/api/liked/tracks?limit=1');
+        const response = await apiFetch<{ total: number }>('/api/liked/tracks?provider=spotify&limit=1');
         if (response.total !== undefined) {
           setTotal(response.total);
         }

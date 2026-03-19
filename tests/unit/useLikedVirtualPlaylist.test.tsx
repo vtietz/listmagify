@@ -110,7 +110,7 @@ describe('useLikedVirtualPlaylist', () => {
       expect(result.current.isLoading).toBe(false);
     });
 
-    expect(mockApiFetch).toHaveBeenCalledWith('/api/liked/tracks?limit=50');
+    expect(mockApiFetch).toHaveBeenCalledWith('/api/liked/tracks?provider=spotify&limit=50');
     expect(result.current.allTracks).toHaveLength(2);
     expect(result.current.allTracks[0]!.name).toBe('Track 1');
   });
