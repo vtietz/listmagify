@@ -503,20 +503,12 @@ function buildJwtCallbackResult(
   providerTokens: ProviderTokenStore,
   providerErrors: Partial<Record<MusicProviderId, string | undefined>>,
 ): AuthJwtToken {
-  const sessionProviderId = resolveSessionProviderId(providerTokens);
-  const sessionProviderToken = sessionProviderId ? providerTokens[sessionProviderId] : undefined;
-  const sessionError = sessionProviderId ? providerErrors[sessionProviderId] : undefined;
   const baseToken = stripJwtPayloadBloat(nextToken);
 
   return {
     ...baseToken,
     musicProviderTokens: providerTokens,
     providerErrors,
-    accessToken: sessionProviderToken?.accessToken,
-    accessTokenExpires: sessionProviderToken?.accessTokenExpires,
-    error: sessionError,
-    isByok: sessionProviderToken?.isByok || false,
-    ...(sessionProviderToken?.byok ? { byok: sessionProviderToken.byok } : {}),
   };
 }
 export const authOptions: AuthOptions = {

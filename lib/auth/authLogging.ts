@@ -124,6 +124,10 @@ export const authLogger = {
     console.warn('[auth] NextAuth logger warn', ...args);
   },
   debug(...args: any[]) {
+    if (args[0] === 'CHUNKING_SESSION_COOKIE') {
+      return;
+    }
+
     console.debug('[auth] NextAuth logger debug', ...args);
   },
 };
