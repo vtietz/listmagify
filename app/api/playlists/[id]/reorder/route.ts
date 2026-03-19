@@ -15,7 +15,7 @@ type ReorderRequestData = {
 
 async function ensureReorderSession(): Promise<true | NextResponse> {
   const session = await getServerSession(authOptions);
-  if (!session || (session as any).error === "RefreshAccessTokenError") {
+  if (!session) {
     return NextResponse.json({ error: "token_expired" }, { status: 401 });
   }
 

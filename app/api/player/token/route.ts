@@ -7,38 +7,58 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/auth';
 
+type PlayerTokenSession = {
+  musicProviderTokens?: {
+    spotify?: {
+      accessToken?: string;
+      error?: string;
+    };
+  };
+  providerErrors?: {
+    spotify?: string;
+  };
+  accessToken?: string;
+  error?: string;
+};
+
+function resolveSpotifySessionState(session: PlayerTokenSession) {
+  const spotifyProviderToken = session.musicProviderTokens?.spotify;
+  const providerError = session.providerErrors?.spotify ?? spotifyProviderToken?.error;
+
+  return {
+    isRefreshError: providerError === 'RefreshAccessTokenError',
+    accessToken: spotifyProviderToken?.accessToken ?? session.accessToken,
+  };
+}
+
+function unauthorized(error: string) {
+  return NextResponse.json({ error }, { status: 401 });
+}
+
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
-    
+
     if (!session) {
-      return NextResponse.json(
-        { error: 'Not authenticated - no session' },
-        { status: 401 }
-      );
+      return unauthorized('Not authenticated - no session');
     }
-    
-    // Check for token refresh errors
-    if ((session as any).error === 'RefreshAccessTokenError') {
-      return NextResponse.json(
-        { error: 'token_expired' },
-        { status: 401 }
-      );
+
+    const sessionState = resolveSpotifySessionState(session as PlayerTokenSession);
+
+    if (sessionState.isRefreshError) {
+      return unauthorized('token_expired');
     }
-    
-    const accessToken = (session as any).accessToken;
+
+    const accessToken = sessionState.accessToken;
     if (!accessToken) {
       console.error('[api/player/token] Session exists but no accessToken:', {
         hasSession: !!session,
         sessionKeys: Object.keys(session),
-        error: (session as any).error,
+        error: (session as PlayerTokenSession).error,
       });
-      return NextResponse.json(
-        { error: 'Not authenticated - no access token' },
-        { status: 401 }
-      );
+      return unauthorized('Not authenticated - no access token');
     }
-    
+
     return NextResponse.json({ accessToken });
   } catch (error: any) {
     console.error('[api/player/token] Error:', error);

@@ -12,7 +12,7 @@ function isTokenExpiredSession(session: unknown): boolean {
     return true;
   }
 
-  return (session as any).error === 'RefreshAccessTokenError';
+  return false;
 }
 
 function mapTrackRemoveThrownError(error: unknown): NextResponse {

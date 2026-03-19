@@ -89,6 +89,24 @@ const serverSchema = z.object({
       });
     }
   }
+
+  if (env.MUSIC_PROVIDERS.includes('tidal')) {
+    if (!env.TIDAL_CLIENT_ID || env.TIDAL_CLIENT_ID.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['TIDAL_CLIENT_ID'],
+        message: 'TIDAL_CLIENT_ID is required when tidal is enabled in MUSIC_PROVIDERS',
+      });
+    }
+
+    if (!env.TIDAL_CLIENT_SECRET || env.TIDAL_CLIENT_SECRET.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['TIDAL_CLIENT_SECRET'],
+        message: 'TIDAL_CLIENT_SECRET is required when tidal is enabled in MUSIC_PROVIDERS',
+      });
+    }
+  }
 });
 
 type ServerEnv = z.infer<typeof serverSchema>;

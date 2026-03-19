@@ -59,12 +59,17 @@ Images are automatically built and pushed to GitHub Container Registry on every 
    ```env
    NEXTAUTH_URL=https://listmagify.com
    NEXTAUTH_SECRET=your_generated_secret_here
+   MUSIC_PROVIDERS=spotify
    SPOTIFY_CLIENT_ID=your_client_id
    SPOTIFY_CLIENT_SECRET=your_client_secret
+   # Optional when enabling TIDAL: MUSIC_PROVIDERS=spotify,tidal
+   TIDAL_CLIENT_ID=your_tidal_client_id
+   TIDAL_CLIENT_SECRET=your_tidal_client_secret
    ```
 
 2. **Update Spotify Dashboard**:
    - Add Redirect URI: `https://listmagify.com/api/auth/callback/spotify`
+   - If TIDAL is enabled, add Redirect URI: `https://listmagify.com/api/auth/callback/tidal`
 
 3. **Pull and Run**:
    ```bash
@@ -128,15 +133,22 @@ Images will be available at: `ghcr.io/vtietz/listmagify:latest`
    ./run.sh init-env
    ```
 
-2. **Add Spotify credentials** to `.env`:
+2. **Add provider credentials** to `.env`:
    ```
+   MUSIC_PROVIDERS=spotify
    SPOTIFY_CLIENT_ID=your_client_id
    SPOTIFY_CLIENT_SECRET=your_client_secret
    NEXTAUTH_SECRET=your_random_secret
+   # Optional when enabling TIDAL:
+   # MUSIC_PROVIDERS=spotify,tidal
+   # TIDAL_CLIENT_ID=your_tidal_client_id
+   # TIDAL_CLIENT_SECRET=your_tidal_client_secret
    ```
 
 3. **Configure OAuth** in [Spotify Developer Dashboard](https://developer.spotify.com/dashboard):
    - Redirect URI: `http://127.0.0.1:3000/api/auth/callback/spotify`
+   - If TIDAL is enabled, configure callback URI in TIDAL developer settings:
+     `http://127.0.0.1:3000/api/auth/callback/tidal`
 
 4. **Run**:
    ```bash

@@ -1,10 +1,13 @@
 import { requireAuth, type AuthenticatedSession } from '@/lib/auth/requireAuth';
+import type { MusicProviderId } from '@/lib/music-provider/types';
 
 const DEFAULT_REFRESH_BUFFER_MS = 5 * 60 * 1000;
 const refreshInFlight = new Map<string, Promise<AuthenticatedSession>>();
 
-function getSessionKey(session: AuthenticatedSession): string {
-  return session.user?.email ?? session.user?.name ?? 'default-session';
+function getSessionKey(session: AuthenticatedSession, providerId?: MusicProviderId): string {
+  const identity = session.user?.email ?? session.user?.name ?? 'default-session';
+  const effectiveProvider = providerId ?? session.providerId ?? 'spotify';
+  return `${effectiveProvider}:${identity}`;
 }
 
 export function tokenNeedsRefresh(
@@ -19,13 +22,13 @@ export function tokenNeedsRefresh(
   return nowMs >= accessTokenExpires - refreshBufferMs;
 }
 
-async function refreshSessionSingleFlight(key: string): Promise<AuthenticatedSession> {
+async function refreshSessionSingleFlight(key: string, providerId?: MusicProviderId): Promise<AuthenticatedSession> {
   const inFlight = refreshInFlight.get(key);
   if (inFlight) {
     return inFlight;
   }
 
-  const refreshPromise = requireAuth().finally(() => {
+  const refreshPromise = requireAuth(providerId).finally(() => {
     refreshInFlight.delete(key);
   });
 
@@ -33,12 +36,12 @@ async function refreshSessionSingleFlight(key: string): Promise<AuthenticatedSes
   return refreshPromise;
 }
 
-export async function getManagedSession(): Promise<AuthenticatedSession> {
-  const session = await requireAuth();
+export async function getManagedSession(providerId?: MusicProviderId): Promise<AuthenticatedSession> {
+  const session = await requireAuth(providerId);
 
   if (!tokenNeedsRefresh(session.accessTokenExpires)) {
     return session;
   }
 
-  return refreshSessionSingleFlight(getSessionKey(session));
+  return refreshSessionSingleFlight(getSessionKey(session, providerId), providerId);
 }

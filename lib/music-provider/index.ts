@@ -1,6 +1,7 @@
 import type { MusicProvider } from '@/lib/music-provider/types';
 import type { MusicProviderId } from '@/lib/music-provider/types';
 import { createSpotifyProvider } from '@/lib/music-provider/spotifyProvider';
+import { createTidalProvider } from '@/lib/music-provider/tidalProvider';
 import { isMusicProviderEnabled } from '@/lib/music-provider/enabledProviders';
 
 const providers = new Map<MusicProviderId, MusicProvider>();
@@ -32,11 +33,9 @@ export function getMusicProvider(providerId: MusicProviderId): MusicProvider {
     return existing;
   }
 
-  if (providerId !== 'spotify') {
-    throw new Error(`Provider not implemented: ${providerId}`);
-  }
-
-  const created = createSpotifyProvider();
+  const created = providerId === 'spotify'
+    ? createSpotifyProvider()
+    : createTidalProvider();
   providers.set(providerId, created);
   return created;
 }

@@ -228,7 +228,7 @@ export function createSpotifyProvider(
 ): MusicProvider {
   const deps: Required<SpotifyProviderDependencies> = {
     fetchImpl: dependencies.fetchImpl ?? fetch,
-    getSession: dependencies.getSession ?? getManagedSession,
+    getSession: dependencies.getSession ?? (() => getManagedSession('spotify')),
   };
 
   return {

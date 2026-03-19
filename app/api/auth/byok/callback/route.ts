@@ -83,6 +83,21 @@ async function encodeSessionToken(params: {
         clientId: params.clientId,
         clientSecret: params.clientSecret,
       },
+      musicProviderTokens: {
+        spotify: {
+          accessToken: params.tokens.access_token,
+          refreshToken: params.tokens.refresh_token,
+          accessTokenExpires: expiresAt,
+          isByok: true,
+          byok: {
+            clientId: params.clientId,
+            clientSecret: params.clientSecret,
+          },
+        },
+      },
+      providerErrors: {
+        spotify: undefined,
+      },
     },
     secret: serverEnv.NEXTAUTH_SECRET,
     maxAge: 30 * 24 * 60 * 60,
