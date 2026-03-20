@@ -92,7 +92,7 @@ function toRelationArray(data: unknown): JsonApiIdentifier[] {
   return Array.isArray(data) ? data : [data as JsonApiIdentifier];
 }
 
-const USER_COLLECTION_TRACKS_PATH = '/userCollectionTracks/me/relationships/items?include=items';
+const USER_COLLECTION_TRACKS_PATH = '/userCollectionTracks/me/relationships/items?include=items,items.artists,items.albums';
 const MAX_USER_COLLECTION_PAGES = 500;
 
 type SessionTransport = Pick<ReturnType<typeof createTidalTransport>, 'executeWithSession'>;
@@ -248,7 +248,7 @@ export function createTidalProvider(dependencies: TidalProviderDependencies = {}
 
     async getLikedTracks(limit = 50, nextCursor?: string | null): Promise<LikedTracksPageResult<Track>> {
       const boundedLimit = Math.min(Math.max(limit, 1), 100);
-      const basePath = `/userCollectionTracks/me/relationships/items?include=items&page[size]=${boundedLimit}`;
+      const basePath = `/userCollectionTracks/me/relationships/items?include=items,items.artists,items.albums&page[size]=${boundedLimit}`;
       const path = nextCursor ?? basePath;
       const response = await transport.executeWithSession(path, { method: 'GET' }, undefined);
       if (!response.ok) {
@@ -265,7 +265,7 @@ export function createTidalProvider(dependencies: TidalProviderDependencies = {}
         return { tracks: [], total: 0, nextOffset: null };
       }
 
-      const path = `/searchResults/${encodeURIComponent(query)}/relationships/tracks?include=tracks`;
+      const path = `/searchResults/${encodeURIComponent(query)}/relationships/tracks?include=tracks,tracks.artists,tracks.albums`;
       const response = await transport.executeWithSession(path, { method: 'GET' }, undefined);
       if (!response.ok) {
         throwProviderError(response, await readJsonApiErrorDetails(response), 'searchTracks');

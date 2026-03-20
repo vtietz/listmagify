@@ -273,7 +273,7 @@ export function createTidalTransport(dependencies: TidalProviderDependencies = {
     nextCursor?: string | null,
   ): Promise<JsonApiDocument<JsonApiIdentifier[]>> {
     const encodedPlaylistId = encodeURIComponent(playlistId);
-    const basePath = `/playlists/${encodedPlaylistId}/relationships/items?include=items`;
+    const basePath = `/playlists/${encodedPlaylistId}/relationships/items?include=items,items.artists,items.albums`;
     const path = buildPathWithCursor(basePath, nextCursor);
     const response = await executeWithSession(path, { method: 'GET' }, undefined);
 
