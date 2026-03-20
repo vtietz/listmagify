@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { Check, ChevronDown, Disc3, Music2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -90,11 +91,12 @@ export function ProviderStatusDropdown({
   onProviderChange,
   'data-testid': dataTestId,
 }: ProviderStatusDropdownProps) {
+  const [open, setOpen] = useState(false);
   const currentStatus = statusMap[currentProviderId] ?? 'disconnected';
   const currentIsPlaying = isPlayingProviderInPanel(context, currentProviderId, playingProviderInPanel, currentStatus);
 
   return (
-    <DropdownMenu>
+    <DropdownMenu open={open} onOpenChange={setOpen} modal={false}>
       <DropdownMenuTrigger asChild>
         <Button
           variant="outline"
@@ -137,6 +139,7 @@ export function ProviderStatusDropdown({
                 if (context === 'panel') {
                   onProviderChange(providerId);
                 }
+                setOpen(false);
               }}
               className={cn('gap-2', isSelected && 'bg-accent/60')}
             >

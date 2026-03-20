@@ -10,6 +10,14 @@ import { InlineSignInCard } from '@/components/auth/InlineSignInCard';
 import { useProviderAuth } from '@/hooks/auth/useAuth';
 import { useEnsureValidToken } from '@/hooks/auth/useEnsureValidToken';
 
+function parseProviderFromQuery(value: string | null | undefined): MusicProviderId {
+  if (value === 'spotify' || value === 'tidal') {
+    return value;
+  }
+
+  throw new Error(`Unsupported provider: ${value}`);
+}
+
 export interface PlaylistsContainerProps {
   initialItems: Playlist[];
   initialNextCursor: string | null;
@@ -30,9 +38,19 @@ export function PlaylistsContainer({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const providerAuth = useProviderAuth(providerId);
 
-  useEnsureValidToken(providerId, {
+  const providerFromQuery = searchParams?.get('provider') ?? null;
+  let activeProviderId: MusicProviderId = providerId;
+  try {
+    const parsed = parseProviderFromQuery(providerFromQuery);
+    activeProviderId = availableProviders.includes(parsed) ? parsed : providerId;
+  } catch {
+    activeProviderId = providerId;
+  }
+
+  const providerAuth = useProviderAuth(activeProviderId);
+
+  useEnsureValidToken(activeProviderId, {
     enabled: providerAuth.code === 'expired' || providerAuth.code === 'invalid',
   });
 
@@ -48,7 +66,7 @@ export function PlaylistsContainer({
   }, []);
 
   const handleProviderChange = useCallback((nextProviderId: MusicProviderId) => {
-    if (nextProviderId === providerId) {
+    if (nextProviderId === activeProviderId) {
       return;
     }
 
@@ -56,7 +74,7 @@ export function PlaylistsContainer({
     params.set('provider', nextProviderId);
     const query = params.toString();
     router.push(query.length > 0 ? `${pathname}?${query}` : pathname);
-  }, [pathname, providerId, router, searchParams]);
+  }, [activeProviderId, pathname, router, searchParams]);
 
   const handleRefreshComplete = useCallback(() => {
     setIsRefreshing(false);
@@ -76,7 +94,7 @@ export function PlaylistsContainer({
     <div className="flex-1 min-h-0 flex flex-col gap-6 mt-6">
       <div className="flex-shrink-0">
         <PlaylistsToolbar
-          providerId={providerId}
+          providerId={activeProviderId}
           availableProviders={availableProviders}
           onProviderChange={handleProviderChange}
           searchTerm={searchTerm}
@@ -90,10 +108,10 @@ export function PlaylistsContainer({
 
       <div className="flex-1 min-h-0 overflow-auto">
         {shouldShowProviderCta ? (
-          <InlineSignInCard provider={providerId} reason={providerAuth.code} />
+          <InlineSignInCard provider={activeProviderId} reason={providerAuth.code} />
         ) : (
           <PlaylistsGrid
-            providerId={providerId}
+            providerId={activeProviderId}
             initialItems={initialItems}
             initialNextCursor={initialNextCursor}
             searchTerm={searchTerm}
