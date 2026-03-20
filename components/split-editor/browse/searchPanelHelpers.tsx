@@ -14,7 +14,8 @@ import { TableHeader } from '../TableHeader';
 import { AddSelectedToMarkersButton } from '../playlist/AddSelectedToMarkersButton';
 import { makeCompositeId } from '@/lib/dnd/id';
 import type { SortKey, SortDirection } from '@/hooks/usePlaylistSort';
-import type { Track } from '@/lib/music-provider/types';
+import type { Track, MusicProviderId } from '@/lib/music-provider/types';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export function useSearchQueryState(
   searchQuery: string,
@@ -103,6 +104,8 @@ export function SearchInputBar({
   hasAnyMarkers,
   selectedCount,
   getTrackUris,
+  providerId,
+  onProviderChange,
 }: {
   inputRef: React.RefObject<HTMLInputElement | null>;
   localQuery: string;
@@ -111,10 +114,21 @@ export function SearchInputBar({
   hasAnyMarkers: boolean;
   selectedCount: number;
   getTrackUris: () => string[];
+  providerId: MusicProviderId;
+  onProviderChange: (id: MusicProviderId) => void;
 }) {
   return (
     <div className="px-3 py-2 border-b border-border">
       <div className="relative flex items-center gap-1.5">
+        <Select value={providerId} onValueChange={(v) => onProviderChange(v as MusicProviderId)}>
+          <SelectTrigger className="w-[100px] h-9 text-sm shrink-0">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="spotify">Spotify</SelectItem>
+            <SelectItem value="tidal">TIDAL</SelectItem>
+          </SelectContent>
+        </Select>
         <div className="relative flex-1">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input

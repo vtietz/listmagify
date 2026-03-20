@@ -142,16 +142,16 @@ function TabSwitcher({ activeTab, setActiveTab }: {
       <Button
         variant="ghost"
         size="sm"
-        onClick={() => setActiveTab('spotify')}
+        onClick={() => setActiveTab('browse')}
         className={cn(
           'flex-1 rounded-none h-9 gap-1.5',
-          activeTab === 'spotify' 
-            ? 'bg-accent text-accent-foreground' 
+          activeTab === 'browse'
+            ? 'bg-accent text-accent-foreground'
             : 'text-muted-foreground hover:text-foreground'
         )}
       >
         <Search className="h-3.5 w-3.5" />
-        Spotify
+        Browse
       </Button>
       <Button
         variant="ghost"
@@ -180,7 +180,7 @@ function shouldShowRecommendations(
   activeTab: BrowseTab,
   isMobileOverlay: boolean
 ): boolean {
-  return selectedTrackIds.length > 0 && activeTab === 'spotify' && !isMobileOverlay;
+  return selectedTrackIds.length > 0 && activeTab === 'browse' && !isMobileOverlay;
 }
 
 function BrowseRecommendationsOnly({
@@ -226,7 +226,7 @@ function BrowsePanelTabContent({
 }) {
   const isActive = isMobileOverlay || isOpen;
 
-  if (activeTab === 'spotify') {
+  if (activeTab === 'browse') {
     return <SearchPanel isActive={isActive} inputRef={inputRef} />;
   }
 

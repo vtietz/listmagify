@@ -6,14 +6,17 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { ImportSource, LastfmPeriod } from '@/lib/importers/types';
+import type { MusicProviderId } from '@/lib/music-provider/types';
 
-export type BrowseTab = 'spotify' | 'lastfm';
+export type BrowseTab = 'browse' | 'lastfm';
 
 interface BrowsePanelState {
   /** Whether the browse panel is open */
   isOpen: boolean;
-  /** Active tab (Spotify search or Last.fm import) */
+  /** Active tab (Browse search or Last.fm import) */
   activeTab: BrowseTab;
+  /** Which music provider to search in the browse tab */
+  providerId: MusicProviderId;
   /** Current search query */
   searchQuery: string;
   /** Panel width in pixels */
@@ -42,6 +45,7 @@ interface BrowsePanelState {
   open: () => void;
   close: () => void;
   setActiveTab: (tab: BrowseTab) => void;
+  setProviderId: (providerId: MusicProviderId) => void;
   setSearchQuery: (query: string) => void;
   setWidth: (width: number) => void;
   setRecsExpanded: (expanded: boolean) => void;
@@ -67,7 +71,8 @@ export const useBrowsePanelStore = create<BrowsePanelState>()(
   persist(
     (set) => ({
       isOpen: false,
-      activeTab: 'spotify',
+      activeTab: 'browse',
+      providerId: 'spotify',
       searchQuery: '',
       width: 400,
       recsExpanded: false,
@@ -85,6 +90,7 @@ export const useBrowsePanelStore = create<BrowsePanelState>()(
       open: () => set({ isOpen: true }),
       close: () => set({ isOpen: false }),
       setActiveTab: (tab) => set({ activeTab: tab }),
+      setProviderId: (providerId) => set({ providerId, spotifySelection: [] }),
       setSearchQuery: (query) => set({ searchQuery: query }),
       setWidth: (width) => set({ width: Math.max(300, Math.min(800, width)) }),
       setRecsExpanded: (expanded) => set({ recsExpanded: expanded }),
@@ -141,6 +147,17 @@ export const useBrowsePanelStore = create<BrowsePanelState>()(
     }),
     {
       name: 'browse-panel-storage',
+      version: 2,
+      migrate: (persisted, version) => {
+        const state = persisted as Record<string, unknown>;
+        if (version < 2) {
+          // Rename old 'spotify' tab to 'browse'
+          if (state.activeTab === 'spotify') {
+            state.activeTab = 'browse';
+          }
+        }
+        return state as unknown as BrowsePanelState;
+      },
       partialize: (state) => ({
         isOpen: state.isOpen,
         activeTab: state.activeTab,
@@ -150,7 +167,7 @@ export const useBrowsePanelStore = create<BrowsePanelState>()(
         lastfmUsername: state.lastfmUsername,
         lastfmSource: state.lastfmSource,
         lastfmPeriod: state.lastfmPeriod,
-        // Don't persist searchQuery or selection - start fresh each session
+        // Don't persist searchQuery, selection, or providerId - start fresh each session
       }),
     }
   )

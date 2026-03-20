@@ -27,7 +27,7 @@ export function TrackRowWithHooks(props: TrackRowProps) {
   const { showHandle, handleOnlyDrag } = useDragHandle();
 
   const openSpotifyBrowsePanel = useCallback(() => {
-    setActiveTab('spotify');
+    setActiveTab('browse');
     openBrowsePanel();
   }, [setActiveTab, openBrowsePanel]);
 

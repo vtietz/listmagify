@@ -21,7 +21,7 @@ import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
 import { useDeviceType } from '@/hooks/useDeviceType';
 import { useMobileOverlayStore } from './mobile/MobileBottomNav';
 import { useDndStateStore } from '@/hooks/dnd/state';
-import type { Track } from '@/lib/music-provider/types';
+import type { Track, MusicProviderId } from '@/lib/music-provider/types';
 
 interface VirtualizedTrackListContainerProps {
   /** Unique identifier for this panel */
@@ -104,6 +104,8 @@ interface VirtualizedTrackListContainerProps {
   showReleaseYearColumn?: boolean;
   /** Whether to show popularity column */
   showPopularityColumn?: boolean;
+  /** Music provider ID for this panel (used to set browse panel provider) */
+  providerId?: MusicProviderId;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────
@@ -406,6 +408,7 @@ export function VirtualizedTrackListContainer({
   activePlayPosition,
   showReleaseYearColumn = true,
   showPopularityColumn = true,
+  providerId,
 }: VirtualizedTrackListContainerProps) {
   // ── Context menu (global store) ──────────────────────────────────────
   const contextMenu = useContextMenuStore();
@@ -419,6 +422,7 @@ export function VirtualizedTrackListContainer({
   const openBrowsePanel = useBrowsePanelStore((s) => s.open);
   const setBrowseActiveTab = useBrowsePanelStore((s) => s.setActiveTab);
   const setSearchQuery = useBrowsePanelStore((s) => s.setSearchQuery);
+  const setProviderId = useBrowsePanelStore((s) => s.setProviderId);
   const togglePoint = useInsertionPointsStore((s) => s.togglePoint);
   const hasActiveMarkersSelector = useInsertionPointsStore((s) => s.hasActiveMarkers);
   const hasAnyMarkersGlobal = hasActiveMarkersSelector();
@@ -429,10 +433,13 @@ export function VirtualizedTrackListContainer({
   const showHandle = hasTouch || !isDesktop;
   const handleOnlyDrag = hasTouch;
 
-  const openSpotifyBrowsePanel = useCallback(() => {
-    setBrowseActiveTab('spotify');
+  const openBrowsePanelForProvider = useCallback(() => {
+    setBrowseActiveTab('browse');
+    if (providerId) {
+      setProviderId(providerId);
+    }
     openBrowsePanel();
-  }, [setBrowseActiveTab, openBrowsePanel]);
+  }, [setBrowseActiveTab, openBrowsePanel, providerId, setProviderId]);
 
   // Stable values computed once, not per row
   const allowMarkerToggle = !searchQuery && !isSorted;
@@ -445,11 +452,11 @@ export function VirtualizedTrackListContainer({
   );
 
   const sharedCtx = useMemo(() => ({
-    isCompact, isAutoScrollEnabled, openBrowsePanel: openSpotifyBrowsePanel, setSearchQuery,
+    isCompact, isAutoScrollEnabled, openBrowsePanel: openBrowsePanelForProvider, setSearchQuery,
     togglePoint, hasAnyMarkersGlobal: hasAnyMarkersGlobal, isPhone,
     setMobileOverlay, isDndActive, openContextMenu, showHandle, handleOnlyDrag,
   }), [
-    isCompact, isAutoScrollEnabled, openSpotifyBrowsePanel, setSearchQuery,
+    isCompact, isAutoScrollEnabled, openBrowsePanelForProvider, setSearchQuery,
     togglePoint, hasAnyMarkersGlobal, isPhone, setMobileOverlay,
     isDndActive, openContextMenu, showHandle, handleOnlyDrag,
   ]);

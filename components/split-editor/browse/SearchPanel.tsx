@@ -25,7 +25,7 @@ import {
 } from './searchPanelHelpers';
 import { TRACK_ROW_HEIGHT, TRACK_ROW_HEIGHT_COMPACT, VIRTUALIZATION_OVERSCAN } from '../constants';
 import { makeCompositeId } from '@/lib/dnd/id';
-import type { Track } from '@/lib/music-provider/types';
+import type { Track, MusicProviderId } from '@/lib/music-provider/types';
 
 export const SEARCH_PANEL_ID = 'search-panel';
 
@@ -38,16 +38,21 @@ interface SearchResponse {
 interface SearchPanelProps {
   isActive?: boolean;
   inputRef?: React.RefObject<HTMLInputElement | null>;
+  providerId?: MusicProviderId;
 }
 
-export function SearchPanel({ isActive = true, inputRef: externalInputRef }: SearchPanelProps) {
+export function SearchPanel({ isActive = true, inputRef: externalInputRef, providerId }: SearchPanelProps) {
   const {
     searchQuery,
     setSearchQuery,
     spotifySelection,
     toggleSpotifySelection,
     clearSpotifySelection,
+    providerId: storeProviderId,
+    setProviderId,
   } = useBrowsePanelStore();
+
+  const effectiveProviderId = providerId ?? storeProviderId;
   const { isLiked, toggleLiked } = useSavedTracksIndex();
   const isCompact = useHydratedCompactMode();
 
@@ -85,13 +90,13 @@ export function SearchPanel({ isActive = true, inputRef: externalInputRef }: Sea
     isLoading,
     isError,
   } = useInfiniteQuery({
-    queryKey: ['spotify-search', debouncedQuery],
+    queryKey: ['browse-search', effectiveProviderId, debouncedQuery],
     queryFn: async ({ pageParam }: { pageParam: number }): Promise<SearchResponse> => {
       if (!debouncedQuery.trim()) {
         return { tracks: [], total: 0, nextOffset: null };
       }
       return apiFetch<SearchResponse>(
-        `/api/search/tracks?q=${encodeURIComponent(debouncedQuery)}&limit=50&offset=${pageParam}`
+        `/api/search/tracks?q=${encodeURIComponent(debouncedQuery)}&limit=50&offset=${pageParam}&provider=${effectiveProviderId}`
       );
     },
     initialPageParam: 0 as number,
@@ -209,6 +214,8 @@ export function SearchPanel({ isActive = true, inputRef: externalInputRef }: Sea
         hasAnyMarkers={hasAnyMarkers}
         selectedCount={spotifySelection.length}
         getTrackUris={getSelectedTrackUris}
+        providerId={effectiveProviderId}
+        onProviderChange={setProviderId}
       />
 
       <div className="flex-1 min-h-0 overflow-hidden">

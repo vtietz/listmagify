@@ -190,6 +190,7 @@ function PlaylistTrackListState({
       <VirtualizedTrackListContainer
         panelId={panelId}
         playlistId={state.playlistId!}
+        providerId={state.providerId}
         isEditable={state.isEditable}
         canDrag={isInteractionBlocked ? false : state.canDrag}
         dndMode={state.dndMode}
