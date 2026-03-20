@@ -73,20 +73,7 @@ function mapReorderThrownError(error: unknown): NextResponse {
   }
 
   if (error instanceof ProviderApiError) {
-    let errorMessage = error.message;
-    if (error.status === 400 && error.provider === 'spotify') {
-      errorMessage = 'Invalid reorder request. The playlist may have been modified by another client.';
-    } else if (error.status === 400 && error.provider === 'tidal') {
-      if (/invalid indexes/i.test(error.message)) {
-        errorMessage = 'Invalid reorder position.';
-      } else {
-        errorMessage = 'Unable to reorder tracks on TIDAL. Please refresh the playlist and try again.';
-      }
-    } else if (error.status === 403) {
-      errorMessage = "You don't have permission to modify this playlist.";
-    } else if (error.status === 404) {
-      errorMessage = 'Playlist not found.';
-    }
+    const errorMessage = mapProviderReorderErrorMessage(error);
 
     return NextResponse.json(
       { error: errorMessage, details: error.details },
@@ -100,6 +87,40 @@ function mapReorderThrownError(error: unknown): NextResponse {
     { error: error instanceof Error ? error.message : "Internal server error" },
     { status: 500 }
   );
+}
+
+function mapTidalReorderBadRequestMessage(error: ProviderApiError): string {
+  if (/invalid indexes/i.test(error.message)) {
+    return 'Invalid reorder position.';
+  }
+
+  if (typeof error.details === 'string' && error.details.trim().length > 0) {
+    return `Unable to reorder tracks on TIDAL: ${error.details.trim()}`;
+  }
+
+  return 'Unable to reorder tracks on TIDAL. Please refresh the playlist and try again.';
+}
+
+function mapProviderReorderErrorMessage(error: ProviderApiError): string {
+  if (error.status === 400) {
+    if (error.provider === 'spotify') {
+      return 'Invalid reorder request. The playlist may have been modified by another client.';
+    }
+
+    if (error.provider === 'tidal') {
+      return mapTidalReorderBadRequestMessage(error);
+    }
+  }
+
+  if (error.status === 403) {
+    return "You don't have permission to modify this playlist.";
+  }
+
+  if (error.status === 404) {
+    return 'Playlist not found.';
+  }
+
+  return error.message;
 }
 
 /**

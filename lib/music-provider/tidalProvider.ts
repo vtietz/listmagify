@@ -28,7 +28,6 @@ import {
   mapPlaylistResource,
   mapTrackListDocument,
   mapUserResource,
-  MAX_BATCH_SIZE,
   toTrackUri,
   type JsonApiDocument,
   type JsonApiIdentifier,
@@ -37,6 +36,7 @@ import {
 import { createTidalTransport, type TidalProviderDependencies } from '@/lib/music-provider/tidalTransport';
 
 const DEFAULT_PROVIDER_ID = 'tidal';
+const PLAYLIST_RELATIONSHIP_MAX_BATCH_SIZE = 20;
 
 function unsupported(operation: string): never {
   throw new ProviderApiError(`${operation} is not supported for TIDAL`, 501, DEFAULT_PROVIDER_ID);
@@ -51,11 +51,12 @@ async function readErrorText(response: Response): Promise<string> {
 }
 
 function throwProviderError(response: Response, details: string, operation: string): never {
+  const normalizedDetails = details.trim() || response.statusText || 'Unknown provider error';
   throw new ProviderApiError(
     `${operation} failed: ${response.status} ${response.statusText}`,
     response.status,
     DEFAULT_PROVIDER_ID,
-    details,
+    normalizedDetails,
   );
 }
 
@@ -135,8 +136,8 @@ export function createTidalProvider(dependencies: TidalProviderDependencies = {}
   async function appendPlaylistTracks(playlistId: string, trackIds: string[]): Promise<void> {
     const path = `/playlists/${encodeURIComponent(playlistId)}/relationships/items`;
 
-    for (let i = 0; i < trackIds.length; i += MAX_BATCH_SIZE) {
-      const batch = trackIds.slice(i, i + MAX_BATCH_SIZE);
+    for (let i = 0; i < trackIds.length; i += PLAYLIST_RELATIONSHIP_MAX_BATCH_SIZE) {
+      const batch = trackIds.slice(i, i + PLAYLIST_RELATIONSHIP_MAX_BATCH_SIZE);
       const response = await transport.executeWithSession(
         path,
         {
@@ -162,8 +163,8 @@ export function createTidalProvider(dependencies: TidalProviderDependencies = {}
     }
 
     const path = `/playlists/${encodeURIComponent(playlistId)}/relationships/items`;
-    for (let i = 0; i < items.length; i += MAX_BATCH_SIZE) {
-      const batch = items.slice(i, i + MAX_BATCH_SIZE);
+    for (let i = 0; i < items.length; i += PLAYLIST_RELATIONSHIP_MAX_BATCH_SIZE) {
+      const batch = items.slice(i, i + PLAYLIST_RELATIONSHIP_MAX_BATCH_SIZE);
       const response = await transport.executeWithSession(
         path,
         { method: 'DELETE', body: JSON.stringify({ data: batch }) },
