@@ -155,11 +155,17 @@ export function mapUserResource(raw: JsonApiResource): CurrentUserResult {
 
 type JsonApiFile = {
   href?: unknown;
+  url?: unknown;
+  src?: unknown;
+  width?: unknown;
+  height?: unknown;
   meta?: {
     width?: unknown;
     height?: unknown;
   } | null;
 };
+
+type UnknownRecord = Record<string, unknown>;
 
 function asOptionalString(value: unknown): string | null {
   return typeof value === 'string' ? value : null;
@@ -167,6 +173,37 @@ function asOptionalString(value: unknown): string | null {
 
 function asOptionalNumber(value: unknown): number | null {
   return typeof value === 'number' ? value : null;
+}
+
+function asRecord(value: unknown): UnknownRecord | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  return value as UnknownRecord;
+}
+
+function mapImageFromCandidate(candidate: unknown): Image | null {
+  if (typeof candidate === 'string' && candidate.length > 0) {
+    return { url: candidate, width: null, height: null };
+  }
+
+  const record = asRecord(candidate);
+  if (!record) {
+    return null;
+  }
+
+  const meta = asRecord(record.meta);
+  const url = asOptionalString(record.href) ?? asOptionalString(record.url) ?? asOptionalString(record.src);
+  if (!url) {
+    return null;
+  }
+
+  return {
+    url,
+    width: asOptionalNumber(record.width) ?? asOptionalNumber(meta?.width),
+    height: asOptionalNumber(record.height) ?? asOptionalNumber(meta?.height),
+  };
 }
 
 function getPrimaryFile(resource: JsonApiResource | null): JsonApiFile | null {
@@ -179,17 +216,30 @@ function getPrimaryFile(resource: JsonApiResource | null): JsonApiFile | null {
 }
 
 function mapImageFromFile(file: JsonApiFile | null): Image | null {
-  const url = asOptionalString(file?.href);
-  if (!url) {
+  return mapImageFromCandidate(file);
+}
+
+function mapImageFromResource(resource: JsonApiResource | null): Image | null {
+  if (!resource) {
     return null;
   }
 
-  const meta = file?.meta;
-  return {
-    url,
-    width: asOptionalNumber(meta?.width),
-    height: asOptionalNumber(meta?.height),
-  };
+  const fromFiles = mapImageFromFile(getPrimaryFile(resource));
+  if (fromFiles) {
+    return fromFiles;
+  }
+
+  const sources = resource.attributes?.sources;
+  if (Array.isArray(sources)) {
+    for (const source of sources) {
+      const mapped = mapImageFromCandidate(source);
+      if (mapped) {
+        return mapped;
+      }
+    }
+  }
+
+  return mapImageFromCandidate(resource.attributes);
 }
 
 function getPlaylistOwner(
@@ -207,8 +257,26 @@ function getPlaylistOwner(
 }
 
 function getPlaylistCoverImage(raw: JsonApiResource, includedIndex: Map<string, JsonApiResource>): Image | null {
-  const coverResource = getFirstRelationshipResource(raw, 'coverArt', includedIndex);
-  return mapImageFromFile(getPrimaryFile(coverResource));
+  const coverResource =
+    getFirstRelationshipResource(raw, 'coverArt', includedIndex)
+    ?? getFirstRelationshipResource(raw, 'image', includedIndex)
+    ?? getFirstRelationshipResource(raw, 'images', includedIndex)
+    ?? getFirstRelationshipResource(raw, 'squareImage', includedIndex);
+
+  const fromRelationship = mapImageFromResource(coverResource);
+  if (fromRelationship) {
+    return fromRelationship;
+  }
+
+  const attributes = raw.attributes ?? {};
+  return (
+    mapImageFromCandidate(attributes.coverArt)
+    ?? mapImageFromCandidate(attributes.image)
+    ?? mapImageFromCandidate(attributes.squareImage)
+    ?? mapImageFromCandidate(attributes.coverUrl)
+    ?? mapImageFromCandidate(attributes.imageUrl)
+    ?? null
+  );
 }
 
 function getPlaylistTracksTotal(attributes: Record<string, unknown>): number {

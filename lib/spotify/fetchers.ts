@@ -13,9 +13,14 @@ export async function getCurrentUserPlaylists(
   providerId: MusicProviderId = 'spotify'
 ): Promise<PageResult<Playlist>> {
   const provider = getMusicProvider(providerId);
-  const path = nextCursor ?? `/me/playlists?limit=${Math.min(Math.max(limit, 1), 50)}`;
-  const raw = await provider.getJSON<any>(path);
-  return pageFromSpotify(raw, mapPlaylist);
+  const boundedLimit = Math.min(Math.max(limit, 1), 50);
+  const page = await provider.getUserPlaylists(boundedLimit, nextCursor);
+
+  return {
+    items: page.items,
+    nextCursor: page.nextCursor,
+    total: typeof page.total === 'number' ? page.total : page.items.length,
+  };
 }
 
 /**

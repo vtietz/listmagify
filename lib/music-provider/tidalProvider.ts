@@ -426,7 +426,7 @@ export function createTidalProvider(dependencies: TidalProviderDependencies = {}
 
     async getUserPlaylists(limit = 50, nextCursor?: string | null): Promise<PlaylistPageResult<Playlist>> {
       const boundedLimit = Math.min(Math.max(limit, 1), 100);
-      const basePath = `/userCollectionPlaylists/me/relationships/items?include=items&page[size]=${boundedLimit}`;
+      const basePath = `/userCollectionPlaylists/me/relationships/items?include=items,items.owners,items.coverArt,items.collaborators&page[size]=${boundedLimit}`;
       const path = nextCursor ?? basePath;
       const response = await transport.executeWithSession(path, { method: 'GET' }, undefined);
       if (!response.ok) {

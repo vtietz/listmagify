@@ -140,7 +140,21 @@ async function executeWithSdk(
   const client = createAPIClient(createSdkCredentialsProvider(accessToken), baseUrl ?? getEffectiveBaseUrl());
   const requestOptions = buildSdkRequestOptions(init);
   const result = await (client as any)[method](path, requestOptions);
-  return result.response as Response;
+  const response = result.response as Response;
+
+  if (!response.bodyUsed) {
+    return response;
+  }
+
+  const headers = new Headers(response.headers);
+  const data = (result as { data?: unknown }).data;
+  const body = data === undefined ? null : JSON.stringify(data);
+
+  return new Response(body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
 }
 
 const TIDAL_PROVIDER_ID = 'tidal';
