@@ -27,6 +27,7 @@ import {
   dedupeTrackIds,
   readJsonApiErrorDetails,
   fromTrackUri,
+  stripFieldQualifiers,
   mapPlaylistResource,
   mapTrackListDocument,
   mapUserResource,
@@ -265,7 +266,12 @@ export function createTidalProvider(dependencies: TidalProviderDependencies = {}
         return { tracks: [], total: 0, nextOffset: null };
       }
 
-      const path = `/searchResults/${encodeURIComponent(query)}/relationships/tracks?include=tracks,tracks.artists,tracks.albums`;
+      const plainQuery = stripFieldQualifiers(query);
+      if (!plainQuery) {
+        return { tracks: [], total: 0, nextOffset: null };
+      }
+
+      const path = `/searchResults/${encodeURIComponent(plainQuery)}/relationships/tracks?include=tracks,tracks.artists,tracks.albums`;
       const response = await transport.executeWithSession(path, { method: 'GET' }, undefined);
       if (!response.ok) {
         throwProviderError(response, await readJsonApiErrorDetails(response), 'searchTracks');

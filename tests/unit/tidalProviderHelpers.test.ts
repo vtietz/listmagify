@@ -8,6 +8,7 @@ import {
   mapPlaylistResource,
   mapTrackListDocument,
   mapUserResource,
+  stripFieldQualifiers,
   toTrackUri,
   type JsonApiDocument,
   type JsonApiIdentifier,
@@ -204,5 +205,40 @@ describe('tidalProviderHelpers', () => {
 
     expect(() => applyReorder(['a', 'b'], -1, 1)).toThrow('invalid_indexes');
     expect(() => applyReorder(['a', 'b'], 0, 3)).toThrow('invalid_indexes');
+  });
+
+  describe('stripFieldQualifiers', () => {
+    it('strips artist: qualifier and quotes', () => {
+      expect(stripFieldQualifiers('artist:"Maxim"')).toBe('Maxim');
+    });
+
+    it('strips multiple qualifiers from a compound query', () => {
+      expect(stripFieldQualifiers('artist:"Miles Davis" track:"Doxy"')).toBe('Miles Davis Doxy');
+    });
+
+    it('handles qualifiers without quotes', () => {
+      expect(stripFieldQualifiers('artist:Maxim')).toBe('Maxim');
+    });
+
+    it('strips all supported qualifier types', () => {
+      expect(stripFieldQualifiers('album:"Gold" genre:jazz year:2020')).toBe('Gold jazz 2020');
+    });
+
+    it('leaves plain queries untouched', () => {
+      expect(stripFieldQualifiers('Maxim')).toBe('Maxim');
+      expect(stripFieldQualifiers('Miles Davis Doxy')).toBe('Miles Davis Doxy');
+    });
+
+    it('returns empty string for qualifier-only input', () => {
+      expect(stripFieldQualifiers('artist:')).toBe('');
+    });
+
+    it('collapses extra whitespace', () => {
+      expect(stripFieldQualifiers('  artist:"Maxim"   track:"Song"  ')).toBe('Maxim Song');
+    });
+
+    it('is case-insensitive for qualifier names', () => {
+      expect(stripFieldQualifiers('Artist:"Maxim" TRACK:"Song"')).toBe('Maxim Song');
+    });
   });
 });

@@ -540,6 +540,19 @@ export function extractPlaylistItemReferences(rawDocument: JsonApiDocument<JsonA
   }));
 }
 
+/**
+ * Strip Spotify-style field qualifiers (artist:, track:, album:, year:, genre:, etc.)
+ * from a search query, keeping only the plain-text values.
+ * TIDAL search is plain-text only and does not support field-specific filters.
+ */
+export function stripFieldQualifiers(query: string): string {
+  return query
+    .replace(/\b(?:artist|track|album|year|genre|isrc|upc|label|tag):\s*/gi, '')
+    .replace(/"/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export function applyReorder(trackUris: string[], fromIndex: number, toIndex: number, rangeLength = 1): string[] {
   const cloned = [...trackUris];
 
