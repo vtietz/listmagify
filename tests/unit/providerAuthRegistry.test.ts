@@ -17,6 +17,18 @@ describe('ProviderAuthRegistry', () => {
     expect(summary.anyAuthenticated).toBe(true);
   });
 
+  it('returns a stable summary snapshot when state does not change', () => {
+    const first = providerAuthRegistry.getSummary();
+    const second = providerAuthRegistry.getSummary();
+
+    expect(second).toBe(first);
+
+    providerAuthRegistry.setState(createProviderAuthState('spotify', 'ok', true, 5));
+
+    const third = providerAuthRegistry.getSummary();
+    expect(third).not.toBe(first);
+  });
+
   it('notifies listeners when state transitions', () => {
     const listener = vi.fn();
     const unsubscribe = providerAuthRegistry.onChange(listener);

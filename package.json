@@ -5,7 +5,7 @@
   "description": "Modern Spotify playlist editor (Next.js 15 + TS) — single-app at repo root",
   "packageManager": "pnpm@10.26.2",
   "scripts": {
-    "dev": "next dev --hostname 0.0.0.0",
+    "dev": "next dev --webpack --hostname 0.0.0.0",
     "build": "next build",
     "start": "next start --hostname 0.0.0.0",
     "lint": "eslint .",

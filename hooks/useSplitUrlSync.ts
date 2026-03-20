@@ -28,6 +28,7 @@ interface PanelSpec {
   k: 'p';
   p: {
     pl: string | null;  // playlistId
+    pr?: 's' | 't';     // provider: s = spotify, t = tidal (optional, spotify default)
     q?: string;         // searchQuery (optional, omit if empty)
     l?: boolean;        // locked (optional, omit if false)
     m?: 'copy' | 'move'; // dndMode (optional, omit if 'copy')
@@ -51,7 +52,7 @@ type LayoutSpec = PanelSpec | GroupSpec;
 // Format DSL (uses only URL-safe chars that don't get percent-encoded):
 //   p.PLAYLIST_ID        - panel with playlist
 //   p.                   - empty panel (no playlist)
-//   p.ID~q-search~l~m    - panel with options: q-=search, l=locked, m=move mode
+//   p.ID~q-search~l~m~r-t - panel with options: q-=search, l=locked, m=move mode, r-=provider
 //   h_child.child...!    - horizontal group: h_...!
 //   v_child.child...!    - vertical group: v_...!
 //
@@ -66,7 +67,7 @@ type LayoutSpec = PanelSpec | GroupSpec;
 //   p.abc123                           - single panel with playlist abc123
 //   h_p.abc.p.def!                     - two panels side by side
 //   h_p.abc.v_p.def~l.p.!              - left panel + right column with locked panel and empty panel
-//   p.abc~q-rock~l~m                   - panel with search "rock", locked, move mode
+//   p.abc~q-rock~l~m~r-t               - panel with search "rock", locked, move mode, tidal provider
 
 /**
  * Encode a SplitNode tree to a human-readable URL string
@@ -101,6 +102,9 @@ function panelToString(node: PanelNode): string {
   }
   if (panel.dndMode === 'move') {
     flags.push('m');
+  }
+  if (panel.providerId === 'tidal') {
+    flags.push('r-t');
   }
   
   if (flags.length > 0) {
@@ -225,6 +229,16 @@ function applyPanelFlags(panel: ReturnType<typeof createPanelConfig>, flags: str
 
     if (flag === 'm') {
       panel.dndMode = 'move';
+      continue;
+    }
+
+    if (flag === 'r-t') {
+      panel.providerId = 'tidal';
+      continue;
+    }
+
+    if (flag === 'r-s') {
+      panel.providerId = 'spotify';
     }
   }
 }
@@ -325,6 +339,9 @@ export function toLayoutSpec(node: SplitNode): LayoutSpec {
         pl: node.panel.playlistId,
       },
     };
+    if (node.panel.providerId === 'tidal') {
+      spec.p.pr = 't';
+    }
     if (node.panel.searchQuery) {
       spec.p.q = node.panel.searchQuery;
     }
@@ -345,7 +362,8 @@ export function toLayoutSpec(node: SplitNode): LayoutSpec {
 
 export function fromLayoutSpec(spec: LayoutSpec): SplitNode {
   if (spec.k === 'p') {
-    const panel = createPanelConfig(spec.p.pl);
+    const providerId = spec.p.pr === 't' ? 'tidal' : 'spotify';
+    const panel = createPanelConfig(spec.p.pl, providerId);
     if (spec.p.q) {
       panel.searchQuery = spec.p.q;
     }

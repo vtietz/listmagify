@@ -31,6 +31,8 @@ export class ProviderAuthRegistry {
     tidal: createProviderAuthState('tidal'),
   };
 
+  private summary: ProviderAuthSummary = withDerivedSummary(this.stateByProvider);
+
   private listeners = new Set<ProviderAuthListener>();
 
   private hydratedFromServer = false;
@@ -40,7 +42,7 @@ export class ProviderAuthRegistry {
   }
 
   getSummary(): ProviderAuthSummary {
-    return withDerivedSummary(this.stateByProvider);
+    return this.summary;
   }
 
   hasHydratedFromServer(): boolean {
@@ -57,6 +59,7 @@ export class ProviderAuthRegistry {
       ...this.stateByProvider,
       [next.provider]: next,
     };
+    this.summary = withDerivedSummary(this.stateByProvider);
 
     this.emitChange();
   }
@@ -75,6 +78,7 @@ export class ProviderAuthRegistry {
       spotify: summary.spotify,
       tidal: summary.tidal,
     };
+    this.summary = withDerivedSummary(this.stateByProvider);
     this.hydratedFromServer = true;
     this.emitChange();
   }
@@ -101,6 +105,7 @@ export class ProviderAuthRegistry {
       spotify: createProviderAuthState('spotify', 'unauthenticated', false, now),
       tidal: createProviderAuthState('tidal', 'unauthenticated', false, now),
     };
+    this.summary = withDerivedSummary(this.stateByProvider);
     this.hydratedFromServer = false;
     this.emitChange();
   }
