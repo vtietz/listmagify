@@ -1,15 +1,20 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { Playlist } from '@/lib/music-provider/types';
 import type { MusicProviderId } from '@/lib/music-provider/types';
 import { PlaylistsToolbar } from "@/components/playlist/PlaylistsToolbar";
 import { PlaylistsGrid } from "@/components/playlist/PlaylistsGrid";
+import { InlineSignInCard } from '@/components/auth/InlineSignInCard';
+import { useProviderAuth } from '@/hooks/auth/useAuth';
+import { useEnsureValidToken } from '@/hooks/auth/useEnsureValidToken';
 
 export interface PlaylistsContainerProps {
   initialItems: Playlist[];
   initialNextCursor: string | null;
   providerId: MusicProviderId;
+  availableProviders: MusicProviderId[];
 }
 
 /**
@@ -20,14 +25,38 @@ export function PlaylistsContainer({
   initialItems,
   initialNextCursor,
   providerId,
+  availableProviders,
 }: PlaylistsContainerProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const providerAuth = useProviderAuth(providerId);
+
+  useEnsureValidToken(providerId, {
+    enabled: providerAuth.code === 'expired' || providerAuth.code === 'invalid',
+  });
+
   const [searchTerm, setSearchTerm] = useState("");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [newlyCreatedPlaylist, setNewlyCreatedPlaylist] = useState<Playlist | null>(null);
 
+  const isProviderConnected = providerAuth.code === 'ok';
+  const shouldShowProviderCta = providerAuth.code === 'unauthenticated' || providerAuth.code === 'expired' || providerAuth.code === 'invalid';
+
   const handleRefresh = useCallback(() => {
     setIsRefreshing(true);
   }, []);
+
+  const handleProviderChange = useCallback((nextProviderId: MusicProviderId) => {
+    if (nextProviderId === providerId) {
+      return;
+    }
+
+    const params = new URLSearchParams(searchParams?.toString() ?? '');
+    params.set('provider', nextProviderId);
+    const query = params.toString();
+    router.push(query.length > 0 ? `${pathname}?${query}` : pathname);
+  }, [pathname, providerId, router, searchParams]);
 
   const handleRefreshComplete = useCallback(() => {
     setIsRefreshing(false);
@@ -48,25 +77,32 @@ export function PlaylistsContainer({
       <div className="flex-shrink-0">
         <PlaylistsToolbar
           providerId={providerId}
+          availableProviders={availableProviders}
+          onProviderChange={handleProviderChange}
           searchTerm={searchTerm}
           onSearchChange={setSearchTerm}
           isRefreshing={isRefreshing}
           onRefresh={handleRefresh}
           onPlaylistCreated={handlePlaylistCreated}
+          disableActions={!isProviderConnected}
         />
       </div>
 
       <div className="flex-1 min-h-0 overflow-auto">
-        <PlaylistsGrid
-          providerId={providerId}
-          initialItems={initialItems}
-          initialNextCursor={initialNextCursor}
-          searchTerm={searchTerm}
-          isRefreshing={isRefreshing}
-          onRefreshComplete={handleRefreshComplete}
-          newlyCreatedPlaylist={newlyCreatedPlaylist}
-          onNewPlaylistAdded={handleNewPlaylistAdded}
-        />
+        {shouldShowProviderCta ? (
+          <InlineSignInCard provider={providerId} reason={providerAuth.code} />
+        ) : (
+          <PlaylistsGrid
+            providerId={providerId}
+            initialItems={initialItems}
+            initialNextCursor={initialNextCursor}
+            searchTerm={searchTerm}
+            isRefreshing={isRefreshing}
+            onRefreshComplete={handleRefreshComplete}
+            newlyCreatedPlaylist={newlyCreatedPlaylist}
+            onNewPlaylistAdded={handleNewPlaylistAdded}
+          />
+        )}
       </div>
     </div>
   );

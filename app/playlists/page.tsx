@@ -1,10 +1,27 @@
-import Link from 'next/link';
 import { getCurrentUserPlaylists } from "@/lib/spotify/fetchers";
 import { PlaylistsContainer } from "@/components/playlist/PlaylistsContainer";
 import { parseMusicProviderId } from '@/lib/music-provider';
 import { getEnabledMusicProviders, getFallbackMusicProviderId } from '@/lib/music-provider/enabledProviders';
+import { ProviderApiError } from '@/lib/music-provider/types';
 
 export const dynamic = "force-dynamic";
+
+function isPlaylistAuthFailure(error: unknown): boolean {
+  if (error instanceof ProviderApiError) {
+    return error.status === 401;
+  }
+
+  if (error instanceof Error) {
+    return (
+      error.message.includes('401')
+      || error.message.includes('token_expired')
+      || error.message.includes('RefreshAccessTokenError')
+      || error.message.includes('Authentication required')
+    );
+  }
+
+  return false;
+}
 
 /**
  * Playlists index page with SSR initial data and client-side infinite scroll.
@@ -33,37 +50,23 @@ export default async function PlaylistsPage({
     providerId = fallbackProvider;
   }
 
-  const page = await getCurrentUserPlaylists(50, undefined, providerId);
+  const page = await getCurrentUserPlaylists(50, undefined, providerId).catch((error) => {
+    if (isPlaylistAuthFailure(error)) {
+      return {
+        items: [],
+        nextCursor: null,
+        total: 0,
+      };
+    }
+
+    throw error;
+  });
 
   return (
     <div className="container mx-auto p-6">
       <header className="flex items-center justify-between mb-6">
         <div className="space-y-2">
           <h1 className="text-xl font-semibold">Your Playlists</h1>
-          {availableProviders.length > 1 && (
-            <div className="inline-flex rounded-md border border-border bg-background p-1">
-              {availableProviders.map((provider) => {
-                const isActive = provider === providerId;
-                const label = provider === 'spotify' ? 'Spotify' : 'TIDAL';
-
-                return (
-                  <Link
-                    key={provider}
-                    href={`/playlists?provider=${provider}`}
-                    className={[
-                      'px-3 py-1 text-sm rounded-sm transition-colors',
-                      isActive
-                        ? 'bg-primary text-primary-foreground'
-                        : 'text-muted-foreground hover:text-foreground',
-                    ].join(' ')}
-                    prefetch={false}
-                  >
-                    {label}
-                  </Link>
-                );
-              })}
-            </div>
-          )}
         </div>
         <span className="text-sm text-muted-foreground">
           {page.total ?? page.items.length} {page.total === 1 ? "playlist" : "playlists"}
@@ -74,6 +77,7 @@ export default async function PlaylistsPage({
         initialItems={page.items}
         initialNextCursor={page.nextCursor}
         providerId={providerId}
+        availableProviders={availableProviders}
       />
     </div>
   );

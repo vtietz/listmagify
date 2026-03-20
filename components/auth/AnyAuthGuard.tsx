@@ -30,6 +30,7 @@ export function AnyAuthGuard({ children }: PropsWithChildren) {
   const hydrated = useAuthRegistryHydrated();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const shouldBypassGlobalGuard = pathname === '/playlists';
   const [providers, setProviders] = useState<ProviderId[]>(['spotify']);
 
   const callbackUrl = useMemo(() => {
@@ -38,7 +39,7 @@ export function AnyAuthGuard({ children }: PropsWithChildren) {
   }, [pathname, searchParams]);
 
   useEffect(() => {
-    if (!enabled) {
+    if (!enabled || shouldBypassGlobalGuard) {
       return;
     }
 
@@ -72,9 +73,13 @@ export function AnyAuthGuard({ children }: PropsWithChildren) {
     return () => {
       cancelled = true;
     };
-  }, [enabled]);
+  }, [enabled, shouldBypassGlobalGuard]);
 
   if (!enabled) {
+    return <>{children}</>;
+  }
+
+  if (shouldBypassGlobalGuard) {
     return <>{children}</>;
   }
 
