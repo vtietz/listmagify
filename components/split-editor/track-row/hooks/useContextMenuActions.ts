@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import type { MarkerActions, TrackActions } from '../../TrackContextMenu';
-import type { Track } from '@/lib/music-provider/types';
+import type { Track, MusicProviderId, SearchFilterType } from '@/lib/music-provider/types';
 import { getProviderEntityUrl } from '@/lib/music-provider/links';
 
 interface UseContextMenuActionsInput {
@@ -12,7 +12,9 @@ interface UseContextMenuActionsInput {
   onPlay: ((trackUri: string) => void) | undefined;
   onPause: (() => void) | undefined;
   onToggleLiked: ((trackId: string, currentlyLiked: boolean) => void) | undefined;
+  providerId: MusicProviderId;
   setSearchQuery: (q: string) => void;
+  setSearchFilter: (filter: SearchFilterType) => void;
   openBrowsePanel: () => void;
   hasAnyMarkers: boolean;
   hasInsertionMarker: boolean;
@@ -32,7 +34,9 @@ export function useContextMenuActions({
   onPlay,
   onPause,
   onToggleLiked,
+  providerId,
   setSearchQuery,
+  setSearchFilter,
   openBrowsePanel,
   hasAnyMarkers,
   hasInsertionMarker,
@@ -49,14 +53,24 @@ export function useContextMenuActions({
       onGoToArtist: () => {
         const artistName = track.artists?.[0];
         if (artistName) {
-          setSearchQuery(`artist:"${artistName}"`);
+          if (providerId === 'spotify') {
+            setSearchQuery(`artist:"${artistName}"`);
+          } else {
+            setSearchFilter('artists');
+            setSearchQuery(artistName);
+          }
           openBrowsePanel();
         }
       },
       onGoToAlbum: () => {
         const albumName = track.album?.name;
         if (albumName) {
-          setSearchQuery(`album:"${albumName}"`);
+          if (providerId === 'spotify') {
+            setSearchQuery(`album:"${albumName}"`);
+          } else {
+            setSearchFilter('albums');
+            setSearchQuery(albumName);
+          }
           openBrowsePanel();
         }
       },
@@ -83,7 +97,7 @@ export function useContextMenuActions({
     }
 
     return actions;
-  }, [contextTrackActions, track, onPlay, onPause, onToggleLiked, isLiked, isPlaying, setSearchQuery, openBrowsePanel]);
+  }, [contextTrackActions, track, onPlay, onPause, onToggleLiked, isLiked, isPlaying, providerId, setSearchQuery, setSearchFilter, openBrowsePanel]);
 
   const fullMarkerActions = useMemo((): MarkerActions => {
     const actions: MarkerActions = {

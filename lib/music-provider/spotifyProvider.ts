@@ -21,6 +21,11 @@ import {
   type ReorderTracksPayload,
   type TrackSavePayload,
   type TrackSearchResult,
+  type ArtistSearchResult,
+  type AlbumSearchResult,
+  type SearchArtistResult,
+  type SearchAlbumResult,
+  type Image,
   type UpdatePlaylistPayload,
 } from '@/lib/music-provider/types';
 import { mapDevice, mapPlaybackState } from '@/lib/spotify/playerTypes';
@@ -323,6 +328,110 @@ export function createSpotifyProvider(
       const nextOffset = boundedOffset + tracks.length < total ? boundedOffset + tracks.length : null;
 
       return { tracks, total, nextOffset };
+    },
+
+    async searchArtists(query: string, limit = 50, offset = 0): Promise<ArtistSearchResult> {
+      const boundedLimit = Math.min(Math.max(limit, 1), 50);
+      const boundedOffset = Math.max(offset, 0);
+      const path = `/search?q=${encodeURIComponent(query)}&type=artist&limit=${boundedLimit}&offset=${boundedOffset}`;
+      const response = await executeWithSession(path, { method: 'GET' }, undefined, deps);
+
+      if (!response.ok) {
+        throwProviderError(response, await readErrorText(response), 'searchArtists');
+      }
+
+      const raw = await response.json();
+      const rawArtists = Array.isArray(raw?.artists?.items) ? raw.artists.items : [];
+      const artists: SearchArtistResult[] = rawArtists.map((item: any) => {
+        const images = Array.isArray(item?.images) ? item.images : [];
+        const image: Image | null =
+          images.length > 0 && typeof images[0]?.url === 'string'
+            ? { url: images[0].url, width: images[0].width ?? null, height: images[0].height ?? null }
+            : null;
+        return {
+          id: String(item?.id ?? ''),
+          name: String(item?.name ?? ''),
+          image,
+        };
+      });
+      const total = typeof raw?.artists?.total === 'number' ? raw.artists.total : 0;
+      const nextOffset = boundedOffset + artists.length < total ? boundedOffset + artists.length : null;
+
+      return { artists, total, nextOffset };
+    },
+
+    async searchAlbums(query: string, limit = 50, offset = 0): Promise<AlbumSearchResult> {
+      const boundedLimit = Math.min(Math.max(limit, 1), 50);
+      const boundedOffset = Math.max(offset, 0);
+      const path = `/search?q=${encodeURIComponent(query)}&type=album&limit=${boundedLimit}&offset=${boundedOffset}`;
+      const response = await executeWithSession(path, { method: 'GET' }, undefined, deps);
+
+      if (!response.ok) {
+        throwProviderError(response, await readErrorText(response), 'searchAlbums');
+      }
+
+      const raw = await response.json();
+      const rawAlbums = Array.isArray(raw?.albums?.items) ? raw.albums.items : [];
+      const albums: SearchAlbumResult[] = rawAlbums.map((item: any) => {
+        const images = Array.isArray(item?.images) ? item.images : [];
+        const image: Image | null =
+          images.length > 0 && typeof images[0]?.url === 'string'
+            ? { url: images[0].url, width: images[0].width ?? null, height: images[0].height ?? null }
+            : null;
+        const artists = Array.isArray(item?.artists) ? item.artists : [];
+        const artistName = typeof artists[0]?.name === 'string' ? artists[0].name : '';
+        return {
+          id: String(item?.id ?? ''),
+          name: String(item?.name ?? ''),
+          artistName,
+          image,
+          releaseDate: typeof item?.release_date === 'string' ? item.release_date : null,
+        };
+      });
+      const total = typeof raw?.albums?.total === 'number' ? raw.albums.total : 0;
+      const nextOffset = boundedOffset + albums.length < total ? boundedOffset + albums.length : null;
+
+      return { albums, total, nextOffset };
+    },
+
+    async getArtistTopTracks(artistId: string): Promise<Track[]> {
+      const path = `/artists/${encodeURIComponent(artistId)}/top-tracks`;
+      const response = await executeWithSession(path, { method: 'GET' }, undefined, deps);
+
+      if (!response.ok) {
+        throwProviderError(response, await readErrorText(response), 'getArtistTopTracks');
+      }
+
+      const raw = await response.json();
+      const rawTracks = Array.isArray(raw?.tracks) ? raw.tracks : [];
+      return rawTracks.map((item: any) => mapPlaylistItemToTrack({ track: item }));
+    },
+
+    async getAlbumTracks(albumId: string): Promise<Track[]> {
+      const path = `/albums/${encodeURIComponent(albumId)}`;
+      const response = await executeWithSession(path, { method: 'GET' }, undefined, deps);
+
+      if (!response.ok) {
+        throwProviderError(response, await readErrorText(response), 'getAlbumTracks');
+      }
+
+      const raw = await response.json();
+      const albumInfo = {
+        id: typeof raw?.id === 'string' ? raw.id : null,
+        name: typeof raw?.name === 'string' ? raw.name : null,
+        image: Array.isArray(raw?.images) && raw.images.length > 0 && typeof raw.images[0]?.url === 'string'
+          ? { url: raw.images[0].url, width: raw.images[0].width ?? null, height: raw.images[0].height ?? null }
+          : null,
+        releaseDate: typeof raw?.release_date === 'string' ? raw.release_date : null,
+      };
+      const rawTracks = Array.isArray(raw?.tracks?.items) ? raw.tracks.items : [];
+      return rawTracks.map((item: any) => {
+        const track = mapPlaylistItemToTrack({ track: item });
+        return {
+          ...track,
+          album: albumInfo,
+        };
+      });
     },
 
     async getCurrentUser(): Promise<CurrentUserResult> {

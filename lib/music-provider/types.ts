@@ -169,6 +169,34 @@ export type TrackSearchResult<TTrack> = {
   nextOffset: number | null;
 };
 
+export type SearchArtistResult = {
+  id: string;
+  name: string;
+  image: Image | null;
+};
+
+export type SearchAlbumResult = {
+  id: string;
+  name: string;
+  artistName: string;
+  image: Image | null;
+  releaseDate?: string | null;
+};
+
+export type ArtistSearchResult = {
+  artists: SearchArtistResult[];
+  total: number;
+  nextOffset: number | null;
+};
+
+export type AlbumSearchResult = {
+  albums: SearchAlbumResult[];
+  total: number;
+  nextOffset: number | null;
+};
+
+export type SearchFilterType = 'all' | 'tracks' | 'artists' | 'albums';
+
 export type PlaylistPermissionsResult = {
   ownerId: string | null;
   collaborative: boolean;
@@ -218,6 +246,10 @@ export interface MusicProvider {
   containsTracks(payload: TrackSavePayload): Promise<boolean[]>;
   getLikedTracks(limit?: number, nextCursor?: string | null): Promise<LikedTracksPageResult<Track>>;
   searchTracks(query: string, limit?: number, offset?: number): Promise<TrackSearchResult<Track>>;
+  searchArtists(query: string, limit?: number, offset?: number): Promise<ArtistSearchResult>;
+  searchAlbums(query: string, limit?: number, offset?: number): Promise<AlbumSearchResult>;
+  getArtistTopTracks(artistId: string): Promise<Track[]>;
+  getAlbumTracks(albumId: string): Promise<Track[]>;
   getCurrentUser(): Promise<CurrentUserResult>;
   getUserProfile(userId: string): Promise<PublicUserProfileResult>;
   getPlaylistPermissions(playlistId: string): Promise<PlaylistPermissionsResult>;

@@ -17,6 +17,8 @@ import {
   type Track,
   type TrackSavePayload,
   type TrackSearchResult,
+  type ArtistSearchResult,
+  type AlbumSearchResult,
   type UpdatePlaylistPayload,
 } from '@/lib/music-provider/types';
 import {
@@ -27,9 +29,10 @@ import {
   dedupeTrackIds,
   readJsonApiErrorDetails,
   fromTrackUri,
-  stripFieldQualifiers,
   mapPlaylistResource,
   mapTrackListDocument,
+  mapArtistListDocument,
+  mapAlbumListDocument,
   mapUserResource,
   toTrackUri,
   type JsonApiDocument,
@@ -266,12 +269,7 @@ export function createTidalProvider(dependencies: TidalProviderDependencies = {}
         return { tracks: [], total: 0, nextOffset: null };
       }
 
-      const plainQuery = stripFieldQualifiers(query);
-      if (!plainQuery) {
-        return { tracks: [], total: 0, nextOffset: null };
-      }
-
-      const path = `/searchResults/${encodeURIComponent(plainQuery)}/relationships/tracks?include=tracks,tracks.artists,tracks.albums`;
+      const path = `/searchResults/${encodeURIComponent(query)}/relationships/tracks?include=tracks,tracks.artists,tracks.albums`;
       const response = await transport.executeWithSession(path, { method: 'GET' }, undefined);
       if (!response.ok) {
         throwProviderError(response, await readJsonApiErrorDetails(response), 'searchTracks');
@@ -280,6 +278,60 @@ export function createTidalProvider(dependencies: TidalProviderDependencies = {}
       const raw = (await response.json()) as JsonApiDocument<JsonApiIdentifier[]>;
       const page = mapTrackListDocument(raw);
       return { tracks: page.tracks, total: page.tracks.length, nextOffset: null };
+    },
+
+    async searchArtists(query: string, _limit = 20, offset = 0): Promise<ArtistSearchResult> {
+      if (offset > 0) {
+        return { artists: [], total: 0, nextOffset: null };
+      }
+
+      const path = `/searchResults/${encodeURIComponent(query)}/relationships/artists?include=artists`;
+      const response = await transport.executeWithSession(path, { method: 'GET' }, undefined);
+      if (!response.ok) {
+        throwProviderError(response, await readJsonApiErrorDetails(response), 'searchArtists');
+      }
+
+      const raw = (await response.json()) as JsonApiDocument<JsonApiIdentifier[]>;
+      const result = mapArtistListDocument(raw);
+      return { ...result, nextOffset: null };
+    },
+
+    async searchAlbums(query: string, _limit = 20, offset = 0): Promise<AlbumSearchResult> {
+      if (offset > 0) {
+        return { albums: [], total: 0, nextOffset: null };
+      }
+
+      const path = `/searchResults/${encodeURIComponent(query)}/relationships/albums?include=albums,albums.artists,albums.coverArt`;
+      const response = await transport.executeWithSession(path, { method: 'GET' }, undefined);
+      if (!response.ok) {
+        throwProviderError(response, await readJsonApiErrorDetails(response), 'searchAlbums');
+      }
+
+      const raw = (await response.json()) as JsonApiDocument<JsonApiIdentifier[]>;
+      const result = mapAlbumListDocument(raw);
+      return { ...result, nextOffset: null };
+    },
+
+    async getArtistTopTracks(artistId: string): Promise<Track[]> {
+      const path = `/artists/${encodeURIComponent(artistId)}/relationships/tracks?include=tracks,tracks.artists,tracks.albums&collapseBy=FINGERPRINT`;
+      const response = await transport.executeWithSession(path, { method: 'GET' }, undefined);
+      if (!response.ok) {
+        throwProviderError(response, await readJsonApiErrorDetails(response), 'getArtistTopTracks');
+      }
+
+      const raw = (await response.json()) as JsonApiDocument<JsonApiIdentifier[]>;
+      return mapTrackListDocument(raw).tracks;
+    },
+
+    async getAlbumTracks(albumId: string): Promise<Track[]> {
+      const path = `/albums/${encodeURIComponent(albumId)}/relationships/items?include=items,items.artists,items.albums`;
+      const response = await transport.executeWithSession(path, { method: 'GET' }, undefined);
+      if (!response.ok) {
+        throwProviderError(response, await readJsonApiErrorDetails(response), 'getAlbumTracks');
+      }
+
+      const raw = (await response.json()) as JsonApiDocument<JsonApiIdentifier[]>;
+      return mapTrackListDocument(raw).tracks;
     },
 
     async getCurrentUser(): Promise<CurrentUserResult> {

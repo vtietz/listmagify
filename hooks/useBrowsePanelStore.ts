@@ -6,9 +6,16 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { ImportSource, LastfmPeriod } from '@/lib/importers/types';
-import type { MusicProviderId } from '@/lib/music-provider/types';
+import type { Image, MusicProviderId, SearchFilterType } from '@/lib/music-provider/types';
 
 export type BrowseTab = 'browse' | 'lastfm';
+
+export type DrillDownTarget = {
+  type: 'artist' | 'album';
+  id: string;
+  name: string;
+  image?: Image | null;
+};
 
 interface BrowsePanelState {
   /** Whether the browse panel is open */
@@ -19,6 +26,10 @@ interface BrowsePanelState {
   providerId: MusicProviderId;
   /** Current search query */
   searchQuery: string;
+  /** Search filter type (tracks, artists, albums) */
+  searchFilter: SearchFilterType;
+  /** Drill-down target (artist or album to show tracks for) */
+  drillDown: DrillDownTarget | null;
   /** Panel width in pixels */
   width: number;
   /** Whether the recommendations panel is expanded */
@@ -47,6 +58,9 @@ interface BrowsePanelState {
   setActiveTab: (tab: BrowseTab) => void;
   setProviderId: (providerId: MusicProviderId) => void;
   setSearchQuery: (query: string) => void;
+  setSearchFilter: (filter: SearchFilterType) => void;
+  setDrillDown: (target: DrillDownTarget) => void;
+  clearDrillDown: () => void;
   setWidth: (width: number) => void;
   setRecsExpanded: (expanded: boolean) => void;
   toggleRecsExpanded: () => void;
@@ -74,6 +88,8 @@ export const useBrowsePanelStore = create<BrowsePanelState>()(
       activeTab: 'browse',
       providerId: 'spotify',
       searchQuery: '',
+      searchFilter: 'all',
+      drillDown: null,
       width: 400,
       recsExpanded: false,
       recsHeight: 300,
@@ -90,8 +106,11 @@ export const useBrowsePanelStore = create<BrowsePanelState>()(
       open: () => set({ isOpen: true }),
       close: () => set({ isOpen: false }),
       setActiveTab: (tab) => set({ activeTab: tab }),
-      setProviderId: (providerId) => set({ providerId, spotifySelection: [] }),
-      setSearchQuery: (query) => set({ searchQuery: query }),
+      setProviderId: (providerId) => set({ providerId, spotifySelection: [], drillDown: null }),
+      setSearchQuery: (query) => set({ searchQuery: query, drillDown: null }),
+      setSearchFilter: (filter) => set({ searchFilter: filter, spotifySelection: [], drillDown: null }),
+      setDrillDown: (target) => set({ drillDown: target, spotifySelection: [] }),
+      clearDrillDown: () => set({ drillDown: null, spotifySelection: [] }),
       setWidth: (width) => set({ width: Math.max(300, Math.min(800, width)) }),
       setRecsExpanded: (expanded) => set({ recsExpanded: expanded }),
       toggleRecsExpanded: () => set((state) => ({ recsExpanded: !state.recsExpanded })),

@@ -1,5 +1,6 @@
 import type * as React from 'react';
 import type { Track } from '@/lib/music-provider/types';
+import type { MusicProviderId, SearchFilterType } from '@/lib/music-provider/types';
 import { type MobileOverlay } from '../mobile/MobileBottomNav';
 import { useContextMenuStore } from '@/hooks/useContextMenuStore';
 import {
@@ -66,7 +67,9 @@ export interface TrackRowSharedContext {
   isCompact: boolean;
   isAutoScrollEnabled: boolean;
   openBrowsePanel: () => void;
+  providerId: MusicProviderId;
   setSearchQuery: (q: string) => void;
+  setSearchFilter: (filter: SearchFilterType) => void;
   togglePoint: (playlistId: string, position: number) => void;
   hasAnyMarkersGlobal: boolean;
   isPhone: boolean;

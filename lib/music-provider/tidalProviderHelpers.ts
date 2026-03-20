@@ -1,4 +1,4 @@
-import type { CurrentUserResult, Image, Playlist, PlaylistTracksPageResult, Track } from '@/lib/music-provider/types';
+import type { CurrentUserResult, Image, Playlist, PlaylistTracksPageResult, SearchArtistResult, SearchAlbumResult, Track } from '@/lib/music-provider/types';
 import { ProviderApiError } from '@/lib/music-provider/types';
 
 export type JsonApiIdentifier = {
@@ -499,6 +499,73 @@ function mapTrackResource(
   return withAddedAt(mapped, identifier);
 }
 
+export function mapArtistListDocument(
+  rawDocument: JsonApiDocument<JsonApiIdentifier[]>,
+): { artists: SearchArtistResult[]; total: number } {
+  const identifiers = Array.isArray(rawDocument.data) ? rawDocument.data : [];
+  const includedIndex = buildIncludedIndex(rawDocument.included);
+
+  const artists: SearchArtistResult[] = [];
+
+  for (const identifier of identifiers) {
+    if (identifier.type !== 'artists') {
+      continue;
+    }
+
+    const resource = includedIndex.get(`artists:${identifier.id}`);
+    if (!resource) {
+      continue;
+    }
+
+    const attributes = resource.attributes ?? {};
+    const imageResource = getFirstRelationshipResource(resource, 'picture', includedIndex)
+      ?? getFirstRelationshipResource(resource, 'images', includedIndex);
+
+    artists.push({
+      id: String(resource.id ?? identifier.id ?? ''),
+      name: typeof attributes.name === 'string' ? attributes.name : String(resource.id ?? ''),
+      image: mapImageFromResource(imageResource),
+    });
+  }
+
+  return { artists, total: artists.length };
+}
+
+export function mapAlbumListDocument(
+  rawDocument: JsonApiDocument<JsonApiIdentifier[]>,
+): { albums: SearchAlbumResult[]; total: number } {
+  const identifiers = Array.isArray(rawDocument.data) ? rawDocument.data : [];
+  const includedIndex = buildIncludedIndex(rawDocument.included);
+
+  const albums: SearchAlbumResult[] = [];
+
+  for (const identifier of identifiers) {
+    if (identifier.type !== 'albums') {
+      continue;
+    }
+
+    const resource = includedIndex.get(`albums:${identifier.id}`);
+    if (!resource) {
+      continue;
+    }
+
+    const attributes = resource.attributes ?? {};
+    const coverResource = getFirstRelationshipResource(resource, 'coverArt', includedIndex);
+    const artistIdentifiers = toIdentifierArray(resource.relationships?.artists);
+    const firstArtist = artistIdentifiers[0] ? includedIndex.get(`artists:${artistIdentifiers[0].id}`) : null;
+
+    albums.push({
+      id: String(resource.id ?? identifier.id ?? ''),
+      name: typeof attributes.title === 'string' ? attributes.title : (typeof attributes.name === 'string' ? attributes.name : String(resource.id ?? '')),
+      artistName: typeof firstArtist?.attributes?.name === 'string' ? firstArtist.attributes.name : '',
+      image: mapImageFromFile(getPrimaryFile(coverResource)),
+      releaseDate: typeof attributes.releaseDate === 'string' ? attributes.releaseDate : null,
+    });
+  }
+
+  return { albums, total: albums.length };
+}
+
 export function mapTrackListDocument(
   rawDocument: JsonApiDocument<JsonApiIdentifier[]>,
 ): PlaylistTracksPageResult<Track> {
@@ -538,19 +605,6 @@ export function extractPlaylistItemReferences(rawDocument: JsonApiDocument<JsonA
     ...(typeof identifier.meta?.itemId === 'string' ? { itemId: identifier.meta.itemId } : {}),
     ...(typeof identifier.meta?.addedAt === 'string' ? { addedAt: identifier.meta.addedAt } : {}),
   }));
-}
-
-/**
- * Strip Spotify-style field qualifiers (artist:, track:, album:, year:, genre:, etc.)
- * from a search query, keeping only the plain-text values.
- * TIDAL search is plain-text only and does not support field-specific filters.
- */
-export function stripFieldQualifiers(query: string): string {
-  return query
-    .replace(/\b(?:artist|track|album|year|genre|isrc|upc|label|tag):\s*/gi, '')
-    .replace(/"/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
 }
 
 export function applyReorder(trackUris: string[], fromIndex: number, toIndex: number, rangeLength = 1): string[] {

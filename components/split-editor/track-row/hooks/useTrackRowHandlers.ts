@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import type * as React from 'react';
 import { useLongPress } from '@/hooks/useLongPress';
 import type { MarkerActions, ReorderActions, TrackActions } from '../../TrackContextMenu';
-import type { Track } from '@/lib/music-provider/types';
+import type { Track, MusicProviderId, SearchFilterType } from '@/lib/music-provider/types';
 import type { MobileOverlay } from '../../mobile/MobileBottomNav';
 import { useContextMenuStore } from '@/hooks/useContextMenuStore';
 
@@ -19,7 +19,9 @@ interface UseTrackRowHandlersInput {
   isPlaying: boolean;
   onPlay: ((trackUri: string) => void) | undefined;
   onPause: (() => void) | undefined;
+  providerId: MusicProviderId;
   setSearchQuery: (q: string) => void;
+  setSearchFilter: (filter: SearchFilterType) => void;
   openBrowsePanel: () => void;
   isPhone: boolean;
   setMobileOverlay: (overlay: MobileOverlay) => void;
@@ -46,7 +48,9 @@ export function useTrackRowHandlers({
   isPlaying,
   onPlay,
   onPause,
+  providerId,
   setSearchQuery,
+  setSearchFilter,
   openBrowsePanel,
   isPhone,
   setMobileOverlay,
@@ -71,28 +75,38 @@ export function useTrackRowHandlers({
     (e: React.MouseEvent, artistName: string) => {
       e.stopPropagation();
       e.preventDefault();
-      setSearchQuery(`artist:"${artistName}"`);
+      if (providerId === 'spotify') {
+        setSearchQuery(`artist:"${artistName}"`);
+      } else {
+        setSearchFilter('artists');
+        setSearchQuery(artistName);
+      }
       if (isPhone) {
         setMobileOverlay('search');
       } else {
         openBrowsePanel();
       }
     },
-    [setSearchQuery, isPhone, setMobileOverlay, openBrowsePanel],
+    [providerId, setSearchQuery, setSearchFilter, isPhone, setMobileOverlay, openBrowsePanel],
   );
 
   const handleAlbumClick = useCallback(
     (e: React.MouseEvent, albumName: string) => {
       e.stopPropagation();
       e.preventDefault();
-      setSearchQuery(`album:"${albumName}"`);
+      if (providerId === 'spotify') {
+        setSearchQuery(`album:"${albumName}"`);
+      } else {
+        setSearchFilter('albums');
+        setSearchQuery(albumName);
+      }
       if (isPhone) {
         setMobileOverlay('search');
       } else {
         openBrowsePanel();
       }
     },
-    [setSearchQuery, isPhone, setMobileOverlay, openBrowsePanel],
+    [providerId, setSearchQuery, setSearchFilter, isPhone, setMobileOverlay, openBrowsePanel],
   );
 
   const handleClick = useCallback(
