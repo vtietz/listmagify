@@ -133,7 +133,7 @@ export async function GET() {
     const summary = fromSession(session as AuthStatusSession | null);
     return NextResponse.json(summary);
   } catch (error) {
-    console.error('[api/auth/status] Failed to compute auth summary', error);
+    console.error('[api/provider-auth/status] Failed to compute auth summary', error);
     return NextResponse.json(createDefaultProviderAuthSummary());
   }
 }

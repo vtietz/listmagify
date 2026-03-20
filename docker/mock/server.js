@@ -10,6 +10,19 @@ const path = require('path');
 const app = express();
 const PORT = 8080;
 
+const ACTIVE_DEVICE = {
+  id: 'mock-device-1',
+  is_active: true,
+  is_private_session: false,
+  is_restricted: false,
+  name: 'Mock Spotify Device',
+  type: 'Computer',
+  volume_percent: 75,
+  supports_volume: true,
+};
+
+let playbackState = null;
+
 // Middleware
 app.use(express.json());
 app.use((req, res, next) => {
@@ -27,6 +40,76 @@ app.use((req, res, next) => {
 function loadFixture(name) {
   const fixturePath = path.join(__dirname, 'fixtures', `${name}.json`);
   return JSON.parse(fs.readFileSync(fixturePath, 'utf8'));
+}
+
+function resolveContextFromUri(contextUri) {
+  if (!contextUri || typeof contextUri !== 'string') {
+    return null;
+  }
+
+  const [provider, type, id] = contextUri.split(':');
+  if (provider !== 'spotify' || !type || !id) {
+    return null;
+  }
+
+  return { type, id };
+}
+
+function loadPlaylistTracksById(playlistId) {
+  try {
+    const fixture = loadFixture(`playlist-${playlistId}-tracks`);
+    return Array.isArray(fixture.items) ? fixture.items : [];
+  } catch {
+    return [];
+  }
+}
+
+function findTrackByUri(trackUri, contextUri) {
+  if (typeof trackUri === 'string' && trackUri.length > 0) {
+    const allTracks = [
+      ...loadPlaylistTracksById('test-playlist-1'),
+      ...loadPlaylistTracksById('test-playlist-2'),
+    ];
+
+    const matched = allTracks.find((item) => item?.track?.uri === trackUri);
+    if (matched?.track) {
+      return matched.track;
+    }
+  }
+
+  const context = resolveContextFromUri(contextUri);
+  if (!context || context.type !== 'playlist') {
+    return null;
+  }
+
+  const playlistTracks = loadPlaylistTracksById(context.id);
+  const firstTrack = playlistTracks[0]?.track;
+  return firstTrack ?? null;
+}
+
+function buildPlaybackState({ track, contextUri, progressMs = 0 }) {
+  const context = resolveContextFromUri(contextUri);
+
+  return {
+    device: ACTIVE_DEVICE,
+    repeat_state: 'off',
+    shuffle_state: false,
+    context: context
+      ? {
+          type: context.type,
+          href: `http://spotify-mock:8080/v1/${context.type}s/${context.id}`,
+          uri: contextUri,
+        }
+      : null,
+    timestamp: Date.now(),
+    progress_ms: progressMs,
+    is_playing: true,
+    item: track,
+    currently_playing_type: 'track',
+    actions: {
+      disallows: {},
+    },
+  };
 }
 
 // GET /v1/me - Current user profile
@@ -95,12 +178,124 @@ app.get('/v1/playlists/:id/tracks', (req, res) => {
 
 // GET /v1/me/player - Current playback state (204 = no active playback)
 app.get('/v1/me/player', (_req, res) => {
-  res.status(204).send();
+  if (!playbackState) {
+    return res.status(204).send();
+  }
+
+  res.json(playbackState);
 });
 
 // GET /v1/me/player/devices - Available playback devices
 app.get('/v1/me/player/devices', (_req, res) => {
-  res.json({ devices: [] });
+  res.json({ devices: [ACTIVE_DEVICE] });
+});
+
+// PUT /v1/me/player/play - Start playback
+app.put('/v1/me/player/play', (req, res) => {
+  const trackUri = req.body?.offset?.uri || req.body?.uris?.[0];
+  const contextUri = req.body?.context_uri || null;
+  const track = findTrackByUri(trackUri, contextUri);
+
+  if (!track) {
+    return res.status(404).json({ error: { status: 404, message: 'No active device or track context' } });
+  }
+
+  playbackState = buildPlaybackState({
+    track,
+    contextUri,
+    progressMs: typeof req.body?.position_ms === 'number' ? req.body.position_ms : 0,
+  });
+
+  res.status(204).send();
+});
+
+// PUT /v1/me/player/pause - Pause playback
+app.put('/v1/me/player/pause', (_req, res) => {
+  if (playbackState) {
+    playbackState = {
+      ...playbackState,
+      is_playing: false,
+      timestamp: Date.now(),
+    };
+  }
+
+  res.status(204).send();
+});
+
+// POST /v1/me/player/next - Skip next
+app.post('/v1/me/player/next', (_req, res) => {
+  res.status(204).send();
+});
+
+// POST /v1/me/player/previous - Skip previous
+app.post('/v1/me/player/previous', (_req, res) => {
+  res.status(204).send();
+});
+
+// PUT /v1/me/player/seek - Seek position
+app.put('/v1/me/player/seek', (req, res) => {
+  if (playbackState) {
+    const parsedPosition = Number.parseInt(String(req.query.position_ms ?? '0'), 10);
+    playbackState = {
+      ...playbackState,
+      progress_ms: Number.isFinite(parsedPosition) ? parsedPosition : playbackState.progress_ms,
+      timestamp: Date.now(),
+    };
+  }
+
+  res.status(204).send();
+});
+
+// PUT /v1/me/player/shuffle - Toggle shuffle
+app.put('/v1/me/player/shuffle', (req, res) => {
+  if (playbackState) {
+    playbackState = {
+      ...playbackState,
+      shuffle_state: String(req.query.state) === 'true',
+      timestamp: Date.now(),
+    };
+  }
+
+  res.status(204).send();
+});
+
+// PUT /v1/me/player/repeat - Set repeat mode
+app.put('/v1/me/player/repeat', (req, res) => {
+  if (playbackState) {
+    playbackState = {
+      ...playbackState,
+      repeat_state: typeof req.query.state === 'string' ? req.query.state : playbackState.repeat_state,
+      timestamp: Date.now(),
+    };
+  }
+
+  res.status(204).send();
+});
+
+// PUT /v1/me/player/volume - Set volume
+app.put('/v1/me/player/volume', (req, res) => {
+  const volume = Number.parseInt(String(req.query.volume_percent ?? ACTIVE_DEVICE.volume_percent), 10);
+  if (Number.isFinite(volume)) {
+    ACTIVE_DEVICE.volume_percent = Math.max(0, Math.min(100, volume));
+  }
+
+  if (playbackState) {
+    playbackState = {
+      ...playbackState,
+      device: {
+        ...playbackState.device,
+        volume_percent: ACTIVE_DEVICE.volume_percent,
+      },
+      timestamp: Date.now(),
+    };
+  }
+
+  res.status(204).send();
+});
+
+// PUT /v1/me/player - Transfer playback
+app.put('/v1/me/player', (_req, res) => {
+  res.status(204).send();
 });
 
 // PUT /v1/playlists/:id/tracks - Reorder tracks

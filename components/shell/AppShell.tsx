@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { useAppShellLayout } from "@/hooks/shell/useAppShellLayout";
 import {
   AdaptiveNav,
+  HeaderProviderStatus,
   LoginButton,
   type MarkerStats,
 } from "./HeaderComponents";
@@ -216,27 +217,30 @@ function Header({ title: _title }: { title: string }) {
       <nav className="flex flex-1 items-center justify-end gap-1 text-sm min-w-0">
         {/* Only show nav items when authenticated */}
         {authenticated && (
-          <AdaptiveNav
-            isPhone={isPhone}
-            pathname={pathname}
-            hasStatsAccess={hasStatsAccess}
-            isBrowseOpen={isBrowseOpen}
-            toggleBrowse={toggleBrowse}
-            supportsBrowse={!isLandingPage && !isPlaylistsActive && !isAdminActive}
-            isPlayerVisible={isPlayerVisible}
-            togglePlayerVisible={togglePlayerVisible}
-            supportsPlayer={supportsPlayerAndCompare}
-            supportsCompact={!isLandingPage}
-            isCompact={isCompact}
-            toggleCompact={toggleCompact}
-            isAutoScrollText={isAutoScrollText}
-            toggleAutoScrollText={toggleAutoScrollText}
-            isCompareEnabled={isCompareEnabled}
-            toggleCompare={toggleCompare}
-            supportsCompare={supportsPlayerAndCompare}
-            markerStats={markerStats}
-            clearAllMarkers={clearAllMarkers}
-          />
+          <>
+            <HeaderProviderStatus />
+            <AdaptiveNav
+              isPhone={isPhone}
+              pathname={pathname}
+              hasStatsAccess={hasStatsAccess}
+              isBrowseOpen={isBrowseOpen}
+              toggleBrowse={toggleBrowse}
+              supportsBrowse={!isLandingPage && !isPlaylistsActive && !isAdminActive}
+              isPlayerVisible={isPlayerVisible}
+              togglePlayerVisible={togglePlayerVisible}
+              supportsPlayer={supportsPlayerAndCompare}
+              supportsCompact={!isLandingPage}
+              isCompact={isCompact}
+              toggleCompact={toggleCompact}
+              isAutoScrollText={isAutoScrollText}
+              toggleAutoScrollText={toggleAutoScrollText}
+              isCompareEnabled={isCompareEnabled}
+              toggleCompare={toggleCompare}
+              supportsCompare={supportsPlayerAndCompare}
+              markerStats={markerStats}
+              clearAllMarkers={clearAllMarkers}
+            />
+          </>
         )}
         
         {/* Show Login button when not authenticated */}

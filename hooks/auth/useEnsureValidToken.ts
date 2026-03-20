@@ -11,7 +11,7 @@ const inflightByProvider = new Map<ProviderId, Promise<void>>();
 const lastAttemptAtByProvider = new Map<ProviderId, number>();
 
 async function fetchAuthStatus(): Promise<ProviderAuthSummary> {
-  const response = await fetch('/api/auth/status', {
+  const response = await fetch('/api/provider-auth/status', {
     method: 'GET',
     cache: 'no-store',
   });

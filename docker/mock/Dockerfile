@@ -8,9 +8,8 @@ RUN echo '{"name":"spotify-mock","version":"1.0.0","type":"commonjs"}' > package
 # Install dependencies locally (not globally)
 RUN npm install express cors
 
-# Copy only the mock server code
-# Fixtures will be mounted as volume for instant updates
-COPY docker/mock/server.js .
+# Copy mock server code and fixtures (Spotify/TIDAL)
+COPY docker/mock/ ./
 
 EXPOSE 8080
 

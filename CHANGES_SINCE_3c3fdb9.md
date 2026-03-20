@@ -5,6 +5,57 @@
 
 ---
 
+## 0. Provider Connection UX + Dual-Provider E2E (Mar 2026)
+
+### Auth Architecture and Panel UX
+
+- `ProviderPanelGuard` now preserves panel content and mounts an auth overlay (`OverlaySignInCTA`) instead of replacing panel UI.
+- Underlay panel content is marked `aria-hidden` and interaction-blocked while overlay is active.
+- Panel interaction state is surfaced to children via guard context so keyboard and drag/drop are disabled when blocked.
+- `isPerPanelInlineLoginEnabled()` now accepts `true/false` and `1/0` for parity across local/dev/test environments.
+- `/api/provider-auth/status` now maps provider states consistently across `ok`, `unauthenticated`, `expired`, and `invalid`.
+
+### Reusable Provider Status Dropdown
+
+- Added `ProviderStatusDropdown` and integrated it in:
+  - Header (`HeaderProviderStatus`) for global provider status summary
+  - Panel toolbar to replace the previous provider select control
+- Status semantics:
+  - Connected: green check
+  - Disconnected: muted gray check
+  - Active playing panel/provider: waveform indicator replaces green check
+
+### Split Panel Provider Switching
+
+- Provider switching now keeps panel playlist context visible (no forced playlist clear), enabling direct provider round-trips and better continuity.
+
+### E2E Mock Infrastructure (Spotify + TIDAL)
+
+- Added TIDAL mock server: `docker/mock/tidal-server.js`
+- Added TIDAL fixtures under `docker/mock/fixtures/tidal/*.json`
+- Extended `docker/docker-compose.yml` test profile with:
+  - `tidal-mock` service (`tidal-mock:8081`)
+  - `web-test` routing to both provider mocks
+- Updated mock Docker image to include all mock servers/fixtures.
+- Expanded Spotify mock playback control coverage to support deterministic playing-panel flows.
+
+### E2E Auth/Test Mode Wiring
+
+- `.env.test` now enables dual-provider E2E and inline per-panel auth overlay defaults.
+- `SignInButton` supports E2E bootstrap via `/api/test/login` for deterministic auth success without external OAuth.
+- `/api/test/login` now updates provider auth cookie state used by `/api/provider-auth/status` in E2E mode.
+
+### New E2E Coverage
+
+- Added `tests/e2e/providerConnectionUx.e2e.spec.ts` covering:
+  - Header provider status summary (connected/disconnected indicators)
+  - Panel overlay visibility and disabled interactions
+  - Drag/drop blocked while overlay is active and re-enabled after sign-in
+  - Panel provider switching disconnected/connected transitions
+  - Playing panel waveform replacement indicator behavior
+
+---
+
 ## 1. Docker Build Cache Improvements (Commit 74f7fea)
 
 **Goal:** Speed up Docker builds by reusing cached layers

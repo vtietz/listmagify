@@ -7,7 +7,7 @@ import { createDefaultProviderAuthSummary, type ProviderAuthSummary } from '@/li
 import { isPerPanelInlineLoginEnabled } from '@/lib/utils';
 
 async function fetchProviderAuthStatus(): Promise<ProviderAuthSummary> {
-  const response = await fetch('/api/auth/status', {
+  const response = await fetch('/api/provider-auth/status', {
     method: 'GET',
     cache: 'no-store',
   });
@@ -22,6 +22,7 @@ async function fetchProviderAuthStatus(): Promise<ProviderAuthSummary> {
 export function ProviderAuthBootstrap() {
   const { status } = useSession();
   const enabled = isPerPanelInlineLoginEnabled();
+  const isE2EMode = process.env.NEXT_PUBLIC_E2E_MODE === '1';
 
   useEffect(() => {
     if (!enabled) {
@@ -34,7 +35,7 @@ export function ProviderAuthBootstrap() {
       return;
     }
 
-    if (status === 'unauthenticated') {
+    if (status === 'unauthenticated' && !isE2EMode) {
       providerAuthRegistry.hydrateFromServer(createDefaultProviderAuthSummary());
       return;
     }
@@ -54,7 +55,7 @@ export function ProviderAuthBootstrap() {
     return () => {
       cancelled = true;
     };
-  }, [enabled, status]);
+  }, [enabled, status, isE2EMode]);
 
   return null;
 }

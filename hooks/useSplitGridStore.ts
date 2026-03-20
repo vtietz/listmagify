@@ -162,7 +162,6 @@ export const useSplitGridStore = create<SplitGridState>()(
           return {
             ...panel,
             providerId,
-            playlistId: null,
             isEditable: false,
             searchQuery: '',
             selection: new Set(),

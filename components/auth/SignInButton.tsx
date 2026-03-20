@@ -41,6 +41,7 @@ export function SignInButton({
 }: Props) {
   const { credentials, hasCredentials } = useByokCredentials();
   const [isLoading, setIsLoading] = useState(false);
+  const isE2EMode = process.env.NEXT_PUBLIC_E2E_MODE === '1';
 
   const effectiveLabel = label
     ?? (providerId === 'spotify' ? 'Sign in with Spotify' : 'Sign in with TIDAL');
@@ -48,6 +49,19 @@ export function SignInButton({
   const handleSignIn = async () => {
     onClick?.();
     const callbackUrlWithProvider = withProviderInCallbackUrl(callbackUrl, providerId);
+
+    if (isE2EMode) {
+      setIsLoading(true);
+      try {
+        await fetch(`/api/test/login?provider=${providerId}`, {
+          method: 'GET',
+          cache: 'no-store',
+        });
+      } finally {
+        window.location.href = callbackUrlWithProvider;
+      }
+      return;
+    }
 
     if (providerId !== 'spotify') {
       signIn(providerId, { callbackUrl: callbackUrlWithProvider });

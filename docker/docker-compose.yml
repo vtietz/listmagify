@@ -65,20 +65,15 @@ services:
     working_dir: /usr/src/app
     ports:
       - "3100:3100"
+    env_file:
+      - ../.env.test
     environment:
       - NODE_ENV=development
-      - E2E_MODE=1
-      - NEXT_PUBLIC_E2E_MODE=1
       - NEXT_DIST_DIR=.next-e2e
       - NEXT_TELEMETRY_DISABLED=1
       - CHOKIDAR_USEPOLLING=1
       - WATCHPACK_POLLING=true
-      - PORT=3100
-      - NEXTAUTH_URL=http://127.0.0.1:3100
-      - NEXTAUTH_SECRET=test-secret-key-for-e2e
-      - SPOTIFY_CLIENT_ID=dummy-client-id
-      - SPOTIFY_CLIENT_SECRET=dummy-client-secret
-      - SPOTIFY_BASE_URL=http://spotify-mock:8080/v1
+      - HOSTNAME=0.0.0.0
     volumes:
       - ..:/usr/src/app:cached
       - ../node_modules:/usr/src/app/node_modules:cached
@@ -91,6 +86,7 @@ services:
         pnpm exec next dev --webpack --hostname 0.0.0.0 -p 3100
     depends_on:
       - spotify-mock
+      - tidal-mock
     networks:
       - test-network
 
@@ -103,6 +99,22 @@ services:
       - "8081:8080"  # Expose for local debugging
     volumes:
       - ../tests/fixtures:/app/fixtures:ro  # Mount fixtures for instant updates
+    command:
+      - node
+      - server.js
+    networks:
+      - test-network
+
+  tidal-mock:
+    profiles: ["test"]
+    build:
+      context: ..
+      dockerfile: docker/mock/Dockerfile
+    ports:
+      - "8082:8081"
+    command:
+      - node
+      - tidal-server.js
     networks:
       - test-network
 
@@ -128,6 +140,7 @@ services:
     depends_on:
       - web-test
       - spotify-mock
+      - tidal-mock
     networks:
       - test-network
 

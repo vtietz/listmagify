@@ -2,6 +2,73 @@
 
 This document describes how **Listmagify** implements secure, persistent Spotify OAuth authentication using NextAuth.js with the JWT strategy.
 
+## Multi-Provider Auth Model (Spotify + TIDAL)
+
+Listmagify uses `ProviderAuthRegistry` (`lib/providers/authRegistry.ts`) as the single source of truth for panel-level and global provider auth state.
+
+### Registry Contract
+
+- `setState(next)` updates one provider state and emits only when state changed (`areStatesEqual` guard)
+- `setFromAuthError(error)` maps provider API/auth failures into provider auth codes
+- `hydrateFromServer(summary)` atomically replaces `spotify` + `tidal` state and recomputes `summary.anyAuthenticated`
+- `summary.anyAuthenticated` is derived from provider codes (`ok` on either provider)
+
+### Status Codes in Use
+
+- `ok`: provider session is valid and usable
+- `unauthenticated`: no provider token/session
+- `expired`: token exists but expired/refresh failed
+- `invalid`: token/session is present but rejected as invalid
+
+Client selectors for this model:
+
+- `useAuthSummary()` for header/global status
+- `useProviderAuth(providerId)` for panel/provider-specific decisions
+
+## Per-Panel Overlay Login UX
+
+Per-panel auth gating is handled by `ProviderPanelGuard` (`components/auth/ProviderPanelGuard.tsx`):
+
+- Panel content remains visible even when auth is missing/expired
+- Overlay (`OverlaySignInCTA`) is mounted above panel content with `data-testid="panel-auth-overlay"`
+- Underlay content gets `aria-hidden` and pointer interactions are disabled while overlay is active
+- Overlay traps focus in the CTA region and uses `SignInButton` to re-authenticate the current provider
+
+Accessibility behavior:
+
+- Overlay exposes `role="dialog"` and `aria-modal="true"`
+- Panel interaction region is marked `aria-disabled` while blocked
+
+## ProviderStatusDropdown Usage
+
+`ProviderStatusDropdown` (`components/auth/ProviderStatusDropdown.tsx`) is reused in:
+
+- App header (status summary)
+- Panel toolbar (provider switch + status)
+
+Icon semantics:
+
+- Connected provider: green check
+- Disconnected provider: muted gray check
+- Currently playing provider in active panel: waveform indicator replaces the green check
+
+## Test Mode Mocks and Environment
+
+E2E test mode runs against Docker mocks for both providers:
+
+- Spotify mock: `http://spotify-mock:8080/v1`
+- TIDAL mock: `http://tidal-mock:8081/v2`
+
+Relevant test env keys (`.env.test`):
+
+- `E2E_MODE=1`
+- `NEXT_PUBLIC_E2E_MODE=1`
+- `MUSIC_PROVIDERS=spotify,tidal`
+- `SPOTIFY_BASE_URL=http://spotify-mock:8080/v1`
+- `TIDAL_BASE_URL=http://tidal-mock:8081/v2`
+- `ALLOW_PER_PANEL_INLINE_LOGIN=1`
+- `NEXT_PUBLIC_ALLOW_PER_PANEL_INLINE_LOGIN=1`
+
 ## Security Model
 
 ### 1. **Token Storage - Server-Side Only**

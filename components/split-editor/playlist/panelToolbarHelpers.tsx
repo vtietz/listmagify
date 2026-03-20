@@ -6,17 +6,11 @@ import { Search, ListChecks } from 'lucide-react';
 import { PlaylistSelector } from './PlaylistSelector';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { PlaylistDialog } from '@/components/playlist/PlaylistDialog';
 import { AdaptiveNav, type NavItem } from '@/components/ui/adaptive-nav';
 import { buildPanelToolbarNavItems } from './panelToolbarNavItems';
-import { PlayingIndicator } from '@/components/ui/playing-indicator';
+import { ProviderStatusDropdown } from '@/components/auth/ProviderStatusDropdown';
+import { useAuthSummary } from '@/hooks/auth/useAuth';
 import { useUpdatePlaylist } from '@/lib/spotify/playlistMutations';
 import { isLikedSongsPlaylist } from '@/hooks/useLikedVirtualPlaylist';
 import { cn } from '@/lib/utils';
@@ -25,11 +19,6 @@ import type { MusicProviderId } from '@/lib/music-provider/types';
 
 const ULTRA_COMPACT_BREAKPOINT = 280;
 const MIN_SPLIT_WIDTH = ULTRA_COMPACT_BREAKPOINT;
-
-const PROVIDER_LABELS: Record<MusicProviderId, string> = {
-  spotify: 'Spotify',
-  tidal: 'TIDAL',
-};
 
 interface AppConfigResponse {
   availableProviders?: MusicProviderId[];
@@ -55,31 +44,6 @@ function useAvailableProviders(): MusicProviderId[] {
   }
 
   return providers;
-}
-
-function ProviderSelector({
-  providerId,
-  onProviderChange,
-}: {
-  providerId: MusicProviderId;
-  onProviderChange: (providerId: MusicProviderId) => void;
-}) {
-  const availableProviders = useAvailableProviders();
-
-  return (
-    <Select value={providerId} onValueChange={(value) => onProviderChange(value as MusicProviderId)}>
-      <SelectTrigger className="h-9 w-[118px]">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {availableProviders.map((provider) => (
-          <SelectItem key={provider} value={provider}>
-            {PROVIDER_LABELS[provider] ?? provider}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
 }
 
 export interface PanelToolbarProps {
@@ -389,13 +353,28 @@ export function PanelToolbarContent({
   ultraCompactHeader: React.ReactNode;
   editDialog: React.ReactNode;
 }) {
+  const availableProviders = useAvailableProviders();
+  const authSummary = useAuthSummary();
+
+  const statusMap = useMemo(() => ({
+    spotify: authSummary.spotify.code === 'ok' ? 'connected' : 'disconnected',
+    tidal: authSummary.tidal.code === 'ok' ? 'connected' : 'disconnected',
+  } satisfies Record<MusicProviderId, 'connected' | 'disconnected'>), [authSummary.spotify.code, authSummary.tidal.code]);
+
   return (
     <div ref={toolbarRef} className="flex items-center gap-1 border-b border-border bg-card relative z-30">
       <div className="flex flex-1 min-w-0 basis-0 items-center gap-1">
         <div className="flex-1 min-w-0 basis-0 flex items-center gap-2">
-          {isPlayingPanel && <PlayingIndicator size="sm" className="ml-2 shrink-0" />}
           <div className="shrink-0">
-            <ProviderSelector providerId={providerId} onProviderChange={onProviderChange} />
+            <ProviderStatusDropdown
+              context="panel"
+              currentProviderId={providerId}
+              providers={availableProviders}
+              statusMap={statusMap}
+              playingProviderInPanel={isPlayingPanel ? providerId : null}
+              onProviderChange={onProviderChange}
+              data-testid="panel-provider-status-dropdown"
+            />
           </div>
           <div className="flex-1 min-w-0">
             <PlaylistSelector

@@ -34,11 +34,11 @@ export function isPerPanelInlineLoginEnabled(): boolean {
   const raw = process.env.NEXT_PUBLIC_ALLOW_PER_PANEL_INLINE_LOGIN
     ?? process.env.ALLOW_PER_PANEL_INLINE_LOGIN;
 
-  if (raw === 'true') {
+  if (raw === 'true' || raw === '1') {
     return true;
   }
 
-  if (raw === 'false') {
+  if (raw === 'false' || raw === '0') {
     return false;
   }
 

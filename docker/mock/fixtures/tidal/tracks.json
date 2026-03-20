@@ -1,0 +1,84 @@
+{
+  "items": {
+    "tidal-track-1": {
+      "title": "TIDAL Track 1",
+      "duration": "PT3M11S",
+      "popularity": 67,
+      "explicit": false,
+      "artists": [{ "id": "tidal-artist-1", "name": "TIDAL Artist 1" }],
+      "album": { "id": "tidal-album-1", "title": "TIDAL Album 1", "releaseDate": "2025-01-10", "coverUrl": "https://tidal-mock.local/images/tidal-album-1.jpg" }
+    },
+    "tidal-track-2": {
+      "title": "TIDAL Track 2",
+      "duration": "PT2M58S",
+      "popularity": 54,
+      "explicit": false,
+      "artists": [{ "id": "tidal-artist-2", "name": "TIDAL Artist 2" }],
+      "album": { "id": "tidal-album-2", "title": "TIDAL Album 2", "releaseDate": "2024-07-03", "coverUrl": "https://tidal-mock.local/images/tidal-album-2.jpg" }
+    },
+    "tidal-track-3": {
+      "title": "TIDAL Track 3",
+      "duration": "PT4M04S",
+      "popularity": 72,
+      "explicit": true,
+      "artists": [{ "id": "tidal-artist-1", "name": "TIDAL Artist 1" }],
+      "album": { "id": "tidal-album-1", "title": "TIDAL Album 1", "releaseDate": "2025-01-10", "coverUrl": "https://tidal-mock.local/images/tidal-album-1.jpg" }
+    },
+    "tidal-track-4": {
+      "title": "TIDAL Track 4",
+      "duration": "PT3M33S",
+      "popularity": 61,
+      "explicit": false,
+      "artists": [{ "id": "tidal-artist-3", "name": "TIDAL Artist 3" }],
+      "album": { "id": "tidal-album-3", "title": "TIDAL Album 3", "releaseDate": "2023-11-18", "coverUrl": "https://tidal-mock.local/images/tidal-album-3.jpg" }
+    },
+    "tidal-track-5": {
+      "title": "TIDAL Track 5",
+      "duration": "PT3M45S",
+      "popularity": 69,
+      "explicit": false,
+      "artists": [{ "id": "tidal-artist-4", "name": "TIDAL Artist 4" }],
+      "album": { "id": "tidal-album-4", "title": "TIDAL Album 4", "releaseDate": "2022-06-08", "coverUrl": "https://tidal-mock.local/images/tidal-album-4.jpg" }
+    },
+    "tidal-track-6": {
+      "title": "TIDAL Track 6",
+      "duration": "PT2M49S",
+      "popularity": 48,
+      "explicit": false,
+      "artists": [{ "id": "tidal-artist-5", "name": "TIDAL Artist 5" }],
+      "album": { "id": "tidal-album-5", "title": "TIDAL Album 5", "releaseDate": "2025-02-28", "coverUrl": "https://tidal-mock.local/images/tidal-album-5.jpg" }
+    },
+    "tidal-track-7": {
+      "title": "TIDAL Track 7",
+      "duration": "PT3M20S",
+      "popularity": 58,
+      "explicit": false,
+      "artists": [{ "id": "tidal-artist-6", "name": "TIDAL Artist 6" }],
+      "album": { "id": "tidal-album-6", "title": "TIDAL Album 6", "releaseDate": "2021-04-20", "coverUrl": "https://tidal-mock.local/images/tidal-album-6.jpg" }
+    },
+    "tidal-track-8": {
+      "title": "TIDAL Track 8",
+      "duration": "PT3M14S",
+      "popularity": 64,
+      "explicit": true,
+      "artists": [{ "id": "tidal-artist-5", "name": "TIDAL Artist 5" }],
+      "album": { "id": "tidal-album-5", "title": "TIDAL Album 5", "releaseDate": "2025-02-28", "coverUrl": "https://tidal-mock.local/images/tidal-album-5.jpg" }
+    },
+    "tidal-track-9": {
+      "title": "TIDAL Track 9",
+      "duration": "PT4M12S",
+      "popularity": 76,
+      "explicit": false,
+      "artists": [{ "id": "tidal-artist-7", "name": "TIDAL Artist 7" }],
+      "album": { "id": "tidal-album-7", "title": "TIDAL Album 7", "releaseDate": "2020-12-01", "coverUrl": "https://tidal-mock.local/images/tidal-album-7.jpg" }
+    },
+    "tidal-track-10": {
+      "title": "TIDAL Track 10",
+      "duration": "PT3M27S",
+      "popularity": 52,
+      "explicit": false,
+      "artists": [{ "id": "tidal-artist-8", "name": "TIDAL Artist 8" }],
+      "album": { "id": "tidal-album-8", "title": "TIDAL Album 8", "releaseDate": "2024-03-14", "coverUrl": "https://tidal-mock.local/images/tidal-album-8.jpg" }
+    }
+  }
+}

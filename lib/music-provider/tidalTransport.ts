@@ -13,6 +13,7 @@ import {
 } from '@/lib/music-provider/tidalProviderHelpers';
 
 const DEFAULT_BASE = 'https://openapi.tidal.com/v2';
+const REAL_TIDAL_HOSTS = new Set(['openapi.tidal.com', 'auth.tidal.com', 'login.tidal.com']);
 
 type InternalDependencies = {
   fetchImpl: typeof fetch;
@@ -25,11 +26,32 @@ export type TidalProviderDependencies = {
 };
 
 function buildUrl(path: string, baseUrl?: string): string {
-  if (path.startsWith('http')) {
-    return path;
+  const resolved = path.startsWith('http')
+    ? path
+    : `${baseUrl ?? getEffectiveBaseUrl()}${path}`;
+
+  if (process.env.E2E_MODE === '1') {
+    try {
+      const hostname = new URL(resolved).hostname;
+      if (REAL_TIDAL_HOSTS.has(hostname)) {
+        throw new Error(`[tidal] Real TIDAL host is blocked in E2E mode: ${resolved}`);
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('blocked in E2E mode')) {
+        throw error;
+      }
+    }
   }
 
-  return `${baseUrl ?? DEFAULT_BASE}${path}`;
+  return resolved;
+}
+
+function getEffectiveBaseUrl(): string {
+  if (process.env.E2E_MODE === '1') {
+    return process.env.TIDAL_BASE_URL ?? 'http://tidal-mock:8081/v2';
+  }
+
+  return DEFAULT_BASE;
 }
 
 function getSafeRequestPath(path: string): string {
@@ -115,7 +137,7 @@ async function executeWithSdk(
   init: RequestInit,
   baseUrl?: string,
 ): Promise<Response> {
-  const client = createAPIClient(createSdkCredentialsProvider(accessToken), baseUrl ?? DEFAULT_BASE);
+  const client = createAPIClient(createSdkCredentialsProvider(accessToken), baseUrl ?? getEffectiveBaseUrl());
   const requestOptions = buildSdkRequestOptions(init);
   const result = await (client as any)[method](path, requestOptions);
   return result.response as Response;

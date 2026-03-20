@@ -11,6 +11,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { 
   ListMusic, 
@@ -33,8 +34,12 @@ import {
   Github,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ProviderStatusDropdown } from '@/components/auth/ProviderStatusDropdown';
+import { useAuthSummary } from '@/hooks/auth/useAuth';
+import { useMusicProviderId } from '@/hooks/useMusicProviderId';
 import { FeedbackDialog } from '@/components/feedback';
 import { AdaptiveNav as AdaptiveNavComponent, type NavItem } from '@/components/ui/adaptive-nav';
+import type { ProviderId } from '@/lib/providers/types';
 
 // ============================================================================
 // Types
@@ -85,6 +90,60 @@ interface AdaptiveNavProps {
   markerStats: MarkerStats;
   /** Clear all markers */
   clearAllMarkers: () => void;
+}
+
+interface AppConfigResponse {
+  availableProviders?: ProviderId[];
+}
+
+function isProviderId(value: unknown): value is ProviderId {
+  return value === 'spotify' || value === 'tidal';
+}
+
+function useHeaderProviders(): ProviderId[] {
+  const { data } = useQuery({
+    queryKey: ['app-config-header-providers'],
+    queryFn: async () => {
+      const response = await fetch('/api/config');
+      if (!response.ok) {
+        return { availableProviders: ['spotify'] } satisfies AppConfigResponse;
+      }
+
+      return response.json() as Promise<AppConfigResponse>;
+    },
+    staleTime: Infinity,
+  });
+
+  const providers = data?.availableProviders;
+  if (!providers || providers.length === 0) {
+    return ['spotify'];
+  }
+
+  return providers.filter(isProviderId);
+}
+
+export function HeaderProviderStatus() {
+  const summary = useAuthSummary();
+  const currentProviderId = useMusicProviderId();
+  const providers = useHeaderProviders();
+
+  const statusMap = useMemo(() => ({
+    spotify: summary.spotify.code === 'ok' ? 'connected' : 'disconnected',
+    tidal: summary.tidal.code === 'ok' ? 'connected' : 'disconnected',
+  } as const), [summary.spotify.code, summary.tidal.code]);
+
+  return (
+    <ProviderStatusDropdown
+      context="header"
+      currentProviderId={currentProviderId}
+      providers={providers}
+      statusMap={statusMap}
+      onProviderChange={() => {
+        // Header dropdown is status-only in this phase.
+      }}
+      data-testid="header-provider-status-dropdown"
+    />
+  );
 }
 
 // ============================================================================

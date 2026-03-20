@@ -76,7 +76,7 @@ describe('Auth guards', () => {
     expect(screen.getByText('panel-content')).toBeInTheDocument();
   });
 
-  it('ProviderPanelGuard renders inline sign-in for expired provider', () => {
+  it('ProviderPanelGuard renders overlay sign-in for expired provider while keeping panel content mounted', () => {
     vi.mocked(useProviderAuth).mockReturnValue({
       provider: 'spotify',
       code: 'expired',
@@ -91,7 +91,10 @@ describe('Auth guards', () => {
     );
 
     expect(screen.getByText('Spotify sign-in required')).toBeInTheDocument();
-    expect(screen.queryByText('panel-content')).not.toBeInTheDocument();
+    expect(screen.getByTestId('panel-auth-overlay')).toBeInTheDocument();
+    const panelContent = screen.getByText('panel-content');
+    expect(panelContent).toBeInTheDocument();
+    expect(panelContent.closest('[aria-hidden="true"]')).not.toBeNull();
   });
 
   it('AnyAuthGuard renders global fallback when no provider is authenticated', async () => {

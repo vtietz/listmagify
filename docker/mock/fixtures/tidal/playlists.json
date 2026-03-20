@@ -1,0 +1,24 @@
+{
+  "items": [
+    {
+      "id": "test-playlist-1",
+      "name": "TIDAL Test Playlist 1",
+      "description": "Mock TIDAL playlist for E2E",
+      "accessType": "PUBLIC",
+      "ownerId": "tidal-user-1",
+      "ownerUsername": "tidal_test_user",
+      "coverUrl": "https://tidal-mock.local/images/tidal-playlist-1.jpg",
+      "collaborative": false
+    },
+    {
+      "id": "test-playlist-2",
+      "name": "TIDAL Test Playlist 2",
+      "description": "Second mock TIDAL playlist for E2E",
+      "accessType": "UNLISTED",
+      "ownerId": "tidal-user-1",
+      "ownerUsername": "tidal_test_user",
+      "coverUrl": "https://tidal-mock.local/images/tidal-playlist-2.jpg",
+      "collaborative": false
+    }
+  ]
+}

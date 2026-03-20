@@ -19,6 +19,7 @@ import { usePlayerStore } from '@/hooks/usePlayerStore';
 import { useHydratedAutoScrollPlay } from '@/hooks/useAutoScrollPlayStore';
 import { useAutoScrollPlayback } from '@/hooks/useAutoScrollPlayback';
 import { useDndStateStore } from '@/hooks/dnd';
+import { useProviderPanelGuardState } from '@/components/auth/ProviderPanelGuard';
 import { PanelToolbar } from './PanelToolbar';
 import { TableHeader } from '../TableHeader';
 import { VirtualizedTrackListContainer } from '../VirtualizedTrackListContainer';
@@ -30,6 +31,7 @@ import {
   EmptyTrackList,
   ConfirmDeleteDialog,
 } from '../panel';
+import { cn } from '@/lib/utils';
 import type { Track } from '@/lib/music-provider/types';
 
 interface PlaylistPanelProps {
@@ -137,6 +139,7 @@ function PlaylistTrackListState({
   hasActiveMarkers,
   handleAddToAllMarkers,
   activePlayPosition,
+  isInteractionBlocked,
 }: {
   panelId: string;
   state: PlaylistPanelViewState;
@@ -145,6 +148,7 @@ function PlaylistTrackListState({
   hasActiveMarkers: boolean;
   handleAddToAllMarkers: () => void;
   activePlayPosition: number;
+  isInteractionBlocked: boolean;
 }) {
   if (state.isLoading) {
     return <LoadingSkeletonList />;
@@ -159,7 +163,7 @@ function PlaylistTrackListState({
   }
 
   const optionalProps = buildTrackListOptionalProps({
-    isDragSource,
+    isDragSource: isInteractionBlocked ? false : isDragSource,
     hasActiveMarkers,
     handleAddToAllMarkers,
     isEditable: state.isEditable,
@@ -183,7 +187,7 @@ function PlaylistTrackListState({
         panelId={panelId}
         playlistId={state.playlistId!}
         isEditable={state.isEditable}
-        canDrag={state.canDrag}
+        canDrag={isInteractionBlocked ? false : state.canDrag}
         dndMode={state.dndMode}
         searchQuery={state.searchQuery}
         isSorted={state.isSorted}
@@ -229,6 +233,7 @@ function PlaylistPanelBody({
   handleAddToAllMarkers,
   hasActiveMarkers,
   activePlayPosition,
+  isInteractionBlocked,
 }: {
   panelId: string;
   state: PlaylistPanelViewState;
@@ -241,100 +246,110 @@ function PlaylistPanelBody({
   handleAddToAllMarkers: () => void;
   hasActiveMarkers: boolean;
   activePlayPosition: number;
+  isInteractionBlocked: boolean;
 }) {
   return (
     <div
       data-testid="playlist-panel"
       data-editable={state.isEditable}
+      data-auth-blocked={isInteractionBlocked ? 'true' : 'false'}
+      aria-disabled={isInteractionBlocked}
       className={getPlaylistPanelClassName({ isPlayingPanel, isActiveDropTarget })}
       onMouseEnter={() => state.setIsMouseOver(true)}
       onMouseLeave={() => state.setIsMouseOver(false)}
     >
-      <PanelToolbar
-        panelId={panelId}
-        providerId={state.providerId}
-        playlistId={state.playlistId ?? null}
-        playlistName={state.playlistName}
-        playlistDescription={state.playlistDescription}
-        playlistIsPublic={state.playlistIsPublic}
-        isEditable={state.isEditable}
-        dndMode={state.dndMode}
-        locked={state.locked}
-        searchQuery={state.searchQuery}
-        isReloading={state.isReloading}
-        sortKey={state.sortKey}
-        sortDirection={state.sortDirection}
-        insertionMarkerCount={state.activeMarkerIndices.size}
-        isSorted={state.isSorted}
-        isSavingOrder={state.isSavingOrder}
-        selectionCount={state.selection.size}
-        panelCount={state.panelCount}
-        hasTracks={state.hasTracks}
-        hasDuplicates={state.hasDuplicates}
-        isDeletingDuplicates={state.isDeletingDuplicates}
-        isPlayingPanel={isPlayingPanel}
-        onOpenSelectionMenu={handleOpenSelectionMenu}
-        onClearSelection={state.clearSelection}
-        onSearchChange={state.handleSearchChange}
-        onSortChange={(key, direction) => {
-          state.setSortKey(key);
-          state.setSortDirection(direction);
-        }}
-        onReload={state.handleReload}
-        onClose={state.handleClose}
-        onSplitHorizontal={state.handleSplitHorizontal}
-        onSplitVertical={state.handleSplitVertical}
-        onDndModeToggle={state.handleDndModeToggle}
-        onLockToggle={state.handleLockToggle}
-        onProviderChange={state.handleProviderChange}
-        onLoadPlaylist={state.handleLoadPlaylist}
-        onClearInsertionMarkers={() => state.playlistId && state.clearInsertionMarkers(state.playlistId)}
-        onSaveCurrentOrder={state.handleSaveCurrentOrder}
-        onPlayFirst={state.handlePlayFirst}
-        onDeleteDuplicates={state.handleDeleteAllDuplicates}
-      />
-
       <div
-        ref={scrollDroppableRef}
-        data-testid="track-list-scroll"
-        className="flex-1 overflow-auto focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
-        style={{
-          paddingBottom: TRACK_ROW_HEIGHT * 2,
-          overscrollBehaviorX: 'none',
-          overscrollBehaviorY: 'contain',
-          willChange: 'scroll-position',
-          touchAction: 'auto',
-          WebkitOverflowScrolling: 'touch',
-        }}
-        role="listbox"
-        aria-multiselectable="true"
-        aria-activedescendant={state.focusedIndex !== null ? `option-${panelId}-${state.focusedIndex}` : undefined}
-        tabIndex={0}
-        onKeyDown={state.handleKeyDownNavigation}
+        className={cn('flex min-h-0 flex-1 flex-col', isInteractionBlocked && 'pointer-events-none')}
+        aria-hidden={isInteractionBlocked ? true : undefined}
       >
-        <PlaylistTrackListState
+        <PanelToolbar
           panelId={panelId}
-          state={state}
-          playbackContext={playbackContext}
-          isDragSource={isDragSource}
-          hasActiveMarkers={hasActiveMarkers}
-          handleAddToAllMarkers={handleAddToAllMarkers}
-          activePlayPosition={activePlayPosition}
+          providerId={state.providerId}
+          playlistId={state.playlistId ?? null}
+          playlistName={state.playlistName}
+          playlistDescription={state.playlistDescription}
+          playlistIsPublic={state.playlistIsPublic}
+          isEditable={state.isEditable}
+          dndMode={state.dndMode}
+          locked={state.locked}
+          searchQuery={state.searchQuery}
+          isReloading={state.isReloading}
+          sortKey={state.sortKey}
+          sortDirection={state.sortDirection}
+          insertionMarkerCount={state.activeMarkerIndices.size}
+          isSorted={state.isSorted}
+          isSavingOrder={state.isSavingOrder}
+          selectionCount={state.selection.size}
+          panelCount={state.panelCount}
+          hasTracks={state.hasTracks}
+          hasDuplicates={state.hasDuplicates}
+          isDeletingDuplicates={state.isDeletingDuplicates}
+          isPlayingPanel={isPlayingPanel}
+          onOpenSelectionMenu={handleOpenSelectionMenu}
+          onClearSelection={state.clearSelection}
+          onSearchChange={state.handleSearchChange}
+          onSortChange={(key, direction) => {
+            state.setSortKey(key);
+            state.setSortDirection(direction);
+          }}
+          onReload={state.handleReload}
+          onClose={state.handleClose}
+          onSplitHorizontal={state.handleSplitHorizontal}
+          onSplitVertical={state.handleSplitVertical}
+          onDndModeToggle={state.handleDndModeToggle}
+          onLockToggle={state.handleLockToggle}
+          onProviderChange={state.handleProviderChange}
+          onLoadPlaylist={state.handleLoadPlaylist}
+          onClearInsertionMarkers={() => state.playlistId && state.clearInsertionMarkers(state.playlistId)}
+          onSaveCurrentOrder={state.handleSaveCurrentOrder}
+          onPlayFirst={state.handlePlayFirst}
+          onDeleteDuplicates={state.handleDeleteAllDuplicates}
         />
 
-        {state.isAutoLoading && (
-          <div className="p-3 text-center text-xs text-muted-foreground">
-            Loading all tracks for this playlist… ({state.tracks.length} loaded)
-          </div>
-        )}
-      </div>
+        <div
+          ref={scrollDroppableRef}
+          data-testid="track-list-scroll"
+          className="flex-1 overflow-auto focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+          style={{
+            paddingBottom: TRACK_ROW_HEIGHT * 2,
+            overscrollBehaviorX: 'none',
+            overscrollBehaviorY: 'contain',
+            willChange: 'scroll-position',
+            touchAction: 'auto',
+            WebkitOverflowScrolling: 'touch',
+          }}
+          role="listbox"
+          aria-disabled={isInteractionBlocked}
+          aria-multiselectable="true"
+          aria-activedescendant={state.focusedIndex !== null ? `option-${panelId}-${state.focusedIndex}` : undefined}
+          tabIndex={isInteractionBlocked ? -1 : 0}
+          onKeyDown={isInteractionBlocked ? undefined : state.handleKeyDownNavigation}
+        >
+          <PlaylistTrackListState
+            panelId={panelId}
+            state={state}
+            playbackContext={playbackContext}
+            isDragSource={isDragSource}
+            hasActiveMarkers={hasActiveMarkers}
+            handleAddToAllMarkers={handleAddToAllMarkers}
+            activePlayPosition={activePlayPosition}
+            isInteractionBlocked={isInteractionBlocked}
+          />
 
-      <ConfirmDeleteDialog
-        open={state.showDeleteConfirmation}
-        count={state.selection.size}
-        onOpenChange={state.setShowDeleteConfirmation}
-        onConfirm={state.handleConfirmMultiDelete}
-      />
+          {state.isAutoLoading && (
+            <div className="p-3 text-center text-xs text-muted-foreground">
+              Loading all tracks for this playlist… ({state.tracks.length} loaded)
+            </div>
+          )}
+        </div>
+
+        <ConfirmDeleteDialog
+          open={state.showDeleteConfirmation}
+          count={state.selection.size}
+          onOpenChange={state.setShowDeleteConfirmation}
+          onConfirm={state.handleConfirmMultiDelete}
+        />
+      </div>
     </div>
   );
 }
@@ -344,6 +359,7 @@ export function PlaylistPanel({
   onRegisterVirtualizer,
   onUnregisterVirtualizer,
 }: PlaylistPanelProps) {
+  const { isOverlayActive: isInteractionBlocked } = useProviderPanelGuardState();
   const isActiveDropTarget = useDndStateStore((s) => s.activePanelId === panelId);
   const isDragSource = useDndStateStore((s) => s.sourcePanelId === panelId);
   const panelState = usePlaylistPanelState({ panelId, isDragSource });
@@ -404,7 +420,7 @@ export function PlaylistPanel({
     virtualizer: state.virtualizer,
     scrollRef,
     filteredTracks: state.filteredTracks,
-    canDrop: state.canDrop,
+    canDrop: !isInteractionBlocked && state.canDrop,
     onRegisterVirtualizer,
     onUnregisterVirtualizer,
   });
@@ -436,6 +452,7 @@ export function PlaylistPanel({
       handleAddToAllMarkers={handleAddToAllMarkers}
       hasActiveMarkers={hasActiveMarkers}
       activePlayPosition={activePlayPosition}
+      isInteractionBlocked={isInteractionBlocked}
     />
   );
 }

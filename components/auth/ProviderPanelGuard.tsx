@@ -1,7 +1,7 @@
 'use client';
 
-import type { PropsWithChildren } from 'react';
-import { InlineSignInCard } from '@/components/auth/InlineSignInCard';
+import { createContext, type PropsWithChildren, useContext, useMemo } from 'react';
+import { OverlaySignInCTA } from '@/components/auth/OverlaySignInCTA';
 import { useProviderAuth } from '@/hooks/auth/useAuth';
 import { useEnsureValidToken } from '@/hooks/auth/useEnsureValidToken';
 import type { ProviderId } from '@/lib/providers/types';
@@ -11,8 +11,34 @@ interface ProviderPanelGuardProps extends PropsWithChildren {
   provider: ProviderId;
 }
 
+interface ProviderPanelGuardState {
+  provider: ProviderId;
+  isOverlayActive: boolean;
+  reason: 'unauthenticated' | 'expired' | null;
+}
+
+const defaultGuardState: ProviderPanelGuardState = {
+  provider: 'spotify',
+  isOverlayActive: false,
+  reason: null,
+};
+
+const ProviderPanelGuardContext = createContext<ProviderPanelGuardState>(defaultGuardState);
+
+export function useProviderPanelGuardState(): ProviderPanelGuardState {
+  return useContext(ProviderPanelGuardContext);
+}
+
 function shouldShowInlineLogin(code: string): boolean {
   return code === 'unauthenticated' || code === 'expired';
+}
+
+function getOverlayReason(code: string): 'unauthenticated' | 'expired' | null {
+  if (code === 'expired' || code === 'unauthenticated') {
+    return code;
+  }
+
+  return null;
 }
 
 export function ProviderPanelGuard({ provider, children }: ProviderPanelGuardProps) {
@@ -23,17 +49,39 @@ export function ProviderPanelGuard({ provider, children }: ProviderPanelGuardPro
     enabled: enabled && (authState.code === 'expired' || authState.code === 'invalid'),
   });
 
+  const reason = getOverlayReason(authState.code);
+  const isOverlayActive = enabled && !ensuring && shouldShowInlineLogin(authState.code) && reason !== null;
+
+  const contextValue = useMemo<ProviderPanelGuardState>(
+    () => ({
+      provider,
+      isOverlayActive,
+      reason,
+    }),
+    [provider, isOverlayActive, reason],
+  );
+
   if (!enabled) {
-    return <>{children}</>;
+    return (
+      <ProviderPanelGuardContext.Provider value={contextValue}>
+        <>{children}</>
+      </ProviderPanelGuardContext.Provider>
+    );
   }
 
-  if (ensuring) {
-    return null;
-  }
-
-  if (shouldShowInlineLogin(authState.code)) {
-    return <InlineSignInCard provider={provider} reason={authState.code} />;
-  }
-
-  return <>{children}</>;
+  return (
+    <ProviderPanelGuardContext.Provider value={contextValue}>
+      <div className="relative h-full w-full">
+        <div
+          className={isOverlayActive ? 'h-full w-full pointer-events-none select-none' : 'h-full w-full'}
+          aria-hidden={isOverlayActive ? true : undefined}
+        >
+          {children}
+        </div>
+        {isOverlayActive && reason && (
+          <OverlaySignInCTA providerId={provider} reason={reason} />
+        )}
+      </div>
+    </ProviderPanelGuardContext.Provider>
+  );
 }

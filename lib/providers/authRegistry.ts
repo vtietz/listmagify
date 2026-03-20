@@ -8,6 +8,13 @@ import type { ProviderAuthError } from '@/lib/providers/errors';
 
 type ProviderAuthListener = () => void;
 
+/**
+ * Public contract:
+ * - state updates are ignored when the full state is equal (`areStatesEqual`)
+ * - `summary.anyAuthenticated` is derived from provider codes (`ok`)
+ * - `setFromAuthError` writes provider code transitions from transport/auth errors
+ * - `hydrateFromServer` replaces both provider states in one atomic update
+ */
 function areStatesEqual(a: ProviderAuthState, b: ProviderAuthState): boolean {
   return (
     a.provider === b.provider
