@@ -79,6 +79,18 @@ describe('useSplitUrlSync', () => {
       });
     });
 
+    it('includes provider when panel uses tidal', () => {
+      const panel = createPanelConfig('playlist-123', 'tidal');
+      const node = createPanelNode(panel);
+
+      const spec = toLayoutSpec(node);
+
+      expect(spec).toEqual({
+        k: 'p',
+        p: { pl: 'playlist-123', pr: 't' },
+      });
+    });
+
     it('converts a horizontal group', () => {
       const panel1 = createPanelConfig('playlist-1');
       const panel2 = createPanelConfig('playlist-2');
@@ -206,6 +218,14 @@ describe('useSplitUrlSync', () => {
       expect(node.panel.dndMode).toBe('move');
     });
 
+    it('applies provider from spec', () => {
+      const spec = { k: 'p' as const, p: { pl: 'playlist-abc', pr: 't' as const } };
+
+      const node = fromLayoutSpec(spec) as PanelNode;
+
+      expect(node.panel.providerId).toBe('tidal');
+    });
+
     it('creates a horizontal group from spec', () => {
       const spec = {
         k: 'g' as const,
@@ -301,6 +321,17 @@ describe('useSplitUrlSync', () => {
       expect(decoded.panel.dndMode).toBe('move');
     });
 
+    it('round-trips a panel with tidal provider', () => {
+      const panel = createPanelConfig('my-playlist', 'tidal');
+      const node = createPanelNode(panel);
+
+      const encoded = encodeLayout(node);
+      const decoded = decodeLayout(encoded) as PanelNode;
+
+      expect(decoded.panel.playlistId).toBe('my-playlist');
+      expect(decoded.panel.providerId).toBe('tidal');
+    });
+
     it('round-trips a complex nested layout', () => {
       // Create a layout: horizontal group containing [panel-1, vertical group [panel-2, panel-3]]
       const panel1 = createPanelConfig('playlist-1');
@@ -389,6 +420,14 @@ describe('useSplitUrlSync', () => {
 
       const encoded = encodeLayout(node);
       expect(encoded).toBe('p.abc~q-rock~l~m');
+    });
+
+    it('encodes provider flag for tidal panels', () => {
+      const panel = createPanelConfig('abc', 'tidal');
+      const node = createPanelNode(panel);
+
+      const encoded = encodeLayout(node);
+      expect(encoded).toBe('p.abc~r-t');
     });
   });
 
