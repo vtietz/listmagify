@@ -83,7 +83,7 @@ describe('tidalTransport', () => {
     await transport.fetchPlaylistItemsPage('playlist/with slash');
 
     const url = fetchImpl.mock.calls[0]?.[0] as string;
-    expect(url).toBe('https://openapi.tidal.com/v2/playlists/playlist%2Fwith%20slash/relationships/items?include=items');
+    expect(url).toBe('https://openapi.tidal.com/v2/playlists/playlist%2Fwith%20slash/relationships/items?include=items,items.artists,items.albums');
   });
 
   it('follows next cursor when collecting playlist item references', async () => {
