@@ -13,6 +13,8 @@ interface UseTrackRowComputedInput {
   showCustomAddColumn: boolean;
   showMatchStatusColumn: boolean;
   showScrobbleDateColumn: boolean;
+  showReleaseYearColumn: boolean;
+  showPopularityColumn: boolean;
   showCumulativeTime: boolean;
   showHandle: boolean;
   isCompact: boolean;
@@ -30,6 +32,8 @@ export function useTrackRowComputed({
   showCustomAddColumn,
   showMatchStatusColumn,
   showScrobbleDateColumn,
+  showReleaseYearColumn,
+  showPopularityColumn,
   showCumulativeTime,
   showHandle,
   isCompact,
@@ -49,6 +53,8 @@ export function useTrackRowComputed({
         showMatchStatusColumn,
         showCustomAddColumn,
         showScrobbleDateColumn,
+        showReleaseYearColumn,
+        showPopularityColumn,
         showCumulativeTime,
         showDragHandle: showHandle,
       }),
@@ -59,6 +65,8 @@ export function useTrackRowComputed({
       showMatchStatusColumn,
       showCustomAddColumn,
       showScrobbleDateColumn,
+      showReleaseYearColumn,
+      showPopularityColumn,
       showCumulativeTime,
       showHandle,
     ],

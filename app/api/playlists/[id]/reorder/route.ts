@@ -74,8 +74,14 @@ function mapReorderThrownError(error: unknown): NextResponse {
 
   if (error instanceof ProviderApiError) {
     let errorMessage = error.message;
-    if (error.status === 400) {
+    if (error.status === 400 && error.provider === 'spotify') {
       errorMessage = 'Invalid reorder request. The playlist may have been modified by another client.';
+    } else if (error.status === 400 && error.provider === 'tidal') {
+      if (/invalid indexes/i.test(error.message)) {
+        errorMessage = 'Invalid reorder position.';
+      } else {
+        errorMessage = 'Unable to reorder tracks on TIDAL. Please refresh the playlist and try again.';
+      }
     } else if (error.status === 403) {
       errorMessage = "You don't have permission to modify this playlist.";
     } else if (error.status === 404) {

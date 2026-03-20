@@ -57,6 +57,8 @@ const TRACK_ROW_INNER_DEFAULTS = {
   showMatchStatusColumn: false,
   showCustomAddColumn: false,
   showScrobbleDateColumn: false,
+  showReleaseYearColumn: true,
+  showPopularityColumn: true,
   showCumulativeTime: true,
   dragType: 'track' as 'track' | 'lastfm-track',
   isDuplicate: false,
@@ -111,6 +113,8 @@ function TrackRowInnerComponent(props: TrackRowInnerProps) {
   showCustomAddColumn,
   scrobbleTimestamp,
   showScrobbleDateColumn,
+  showReleaseYearColumn,
+  showPopularityColumn,
   showCumulativeTime,
   dragType,
   matchedTrack,
@@ -193,6 +197,8 @@ function TrackRowInnerComponent(props: TrackRowInnerProps) {
     showCustomAddColumn,
     showMatchStatusColumn,
     showScrobbleDateColumn,
+    showReleaseYearColumn,
+    showPopularityColumn,
     showCumulativeTime,
     showHandle,
     isCompact,
@@ -310,6 +316,8 @@ function TrackRowInnerComponent(props: TrackRowInnerProps) {
         isPlaying={isPlaying}
         isPlaybackLoading={isPlaybackLoading}
         isPlayingFromThisPanel={isPlayingFromThisPanel}
+        showReleaseYearColumn={showReleaseYearColumn}
+        showPopularityColumn={showPopularityColumn}
         isAutoScrollEnabled={isAutoScrollEnabled}
         renderPrefixColumns={renderPrefixColumns}
         contributorProfile={contributorProfile}

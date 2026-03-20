@@ -152,6 +152,30 @@ export function createTidalProvider(dependencies: TidalProviderDependencies = {}
     }
   }
 
+  async function deletePlaylistTrackItems(
+    playlistId: string,
+    items: Array<{ id: string; type: 'tracks'; meta: { itemId: string } }>,
+    operation: string,
+  ): Promise<void> {
+    if (items.length === 0) {
+      return;
+    }
+
+    const path = `/playlists/${encodeURIComponent(playlistId)}/relationships/items`;
+    for (let i = 0; i < items.length; i += MAX_BATCH_SIZE) {
+      const batch = items.slice(i, i + MAX_BATCH_SIZE);
+      const response = await transport.executeWithSession(
+        path,
+        { method: 'DELETE', body: JSON.stringify({ data: batch }) },
+        undefined,
+      );
+
+      if (!response.ok) {
+        throwProviderError(response, await readErrorText(response), operation);
+      }
+    }
+  }
+
   return {
     async saveTracks(payload: TrackSavePayload): Promise<void> {
       const trackIds = dedupeTrackIds(payload.ids);
@@ -331,19 +355,13 @@ export function createTidalProvider(dependencies: TidalProviderDependencies = {}
     async replacePlaylistTracks(playlistId: string, trackUris: string[]): Promise<{ snapshotId: string }> {
       const existingReferences = await transport.fetchAllPlaylistItemReferences(playlistId);
       const removable = existingReferences
-        .filter((reference) => reference.type === 'tracks' && reference.itemId)
-        .map((reference) => ({ id: reference.id, type: 'tracks', meta: { itemId: reference.itemId } }));
+        .filter(
+          (reference): reference is { id: string; type: string; itemId: string } =>
+            reference.type === 'tracks' && typeof reference.itemId === 'string',
+        )
+        .map((reference) => ({ id: reference.id, type: 'tracks' as const, meta: { itemId: reference.itemId } }));
 
-      if (removable.length > 0) {
-        const deleteResponse = await transport.executeWithSession(
-          `/playlists/${encodeURIComponent(playlistId)}/relationships/items`,
-          { method: 'DELETE', body: JSON.stringify({ data: removable }) },
-          undefined,
-        );
-        if (!deleteResponse.ok) {
-          throwProviderError(deleteResponse, await readErrorText(deleteResponse), 'replacePlaylistTracks');
-        }
-      }
+      await deletePlaylistTrackItems(playlistId, removable, 'replacePlaylistTracks');
 
       const trackIds = trackUris.map(fromTrackUri);
       if (trackIds.length > 0) {
@@ -361,21 +379,17 @@ export function createTidalProvider(dependencies: TidalProviderDependencies = {}
 
       const allReferences = await transport.fetchAllPlaylistItemReferences(playlistId);
       const toRemove = allReferences
-        .filter((reference) => reference.type === 'tracks' && trackIds.has(reference.id) && reference.itemId)
-        .map((reference) => ({ id: reference.id, type: 'tracks', meta: { itemId: reference.itemId } }));
+        .filter(
+          (reference): reference is { id: string; type: string; itemId: string } =>
+            reference.type === 'tracks' && trackIds.has(reference.id) && typeof reference.itemId === 'string',
+        )
+        .map((reference) => ({ id: reference.id, type: 'tracks' as const, meta: { itemId: reference.itemId } }));
 
       if (toRemove.length === 0) {
         return { snapshotId: makeSnapshotId() };
       }
 
-      const response = await transport.executeWithSession(
-        `/playlists/${encodeURIComponent(playlistId)}/relationships/items`,
-        { method: 'DELETE', body: JSON.stringify({ data: toRemove }) },
-        undefined,
-      );
-      if (!response.ok) {
-        throwProviderError(response, await readErrorText(response), 'removePlaylistTracks');
-      }
+      await deletePlaylistTrackItems(playlistId, toRemove, 'removePlaylistTracks');
 
       return { snapshotId: makeSnapshotId() };
     },

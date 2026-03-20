@@ -44,6 +44,8 @@ interface TrackRowViewProps {
   renderPrefixColumns: (() => React.ReactNode) | undefined;
   contributorProfile: { userId: string; displayName: string | null; imageUrl: string | null } | null;
   scrobbleTimestamp: number | undefined;
+  showReleaseYearColumn: boolean;
+  showPopularityColumn: boolean;
   showCumulativeTime: boolean;
   cumulativeDurationMs: number;
   crossesHourBoundary: boolean;
@@ -279,6 +281,8 @@ export function TrackRowView({
   renderPrefixColumns,
   contributorProfile,
   scrobbleTimestamp,
+  showReleaseYearColumn,
+  showPopularityColumn,
   showCumulativeTime,
   cumulativeDurationMs,
   crossesHourBoundary,
@@ -357,9 +361,13 @@ export function TrackRowView({
         isAutoScrollEnabled={isAutoScrollEnabled}
       />
 
-      <DateCell isCompact={isCompact} track={track} scrobbleTimestamp={scrobbleTimestamp} />
+      {showReleaseYearColumn && (
+        <DateCell isCompact={isCompact} track={track} scrobbleTimestamp={scrobbleTimestamp} />
+      )}
 
-      <PopularityBar isCompact={isCompact} popularity={track.popularity} />
+      {showPopularityColumn && (
+        <PopularityBar isCompact={isCompact} popularity={track.popularity} />
+      )}
       <DurationCell isCompact={isCompact} durationMs={track.durationMs} />
 
       <CumulativeTimeCellIfEnabled

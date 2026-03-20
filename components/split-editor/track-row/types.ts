@@ -42,6 +42,8 @@ export interface TrackRowProps {
   showCustomAddColumn?: boolean;
   scrobbleTimestamp?: number | undefined;
   showScrobbleDateColumn?: boolean;
+  showReleaseYearColumn?: boolean;
+  showPopularityColumn?: boolean;
   showCumulativeTime?: boolean;
   dragType?: 'track' | 'lastfm-track';
   matchedTrack?: { id: string; uri: string; name: string; artist?: string | undefined; durationMs?: number | undefined } | null;

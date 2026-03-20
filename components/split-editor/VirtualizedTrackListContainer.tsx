@@ -100,6 +100,10 @@ interface VirtualizedTrackListContainerProps {
   buildReorderActions?: (trackPosition: number, playPosition?: number) => ReorderActions;
   /** Current playing track position for playback-aware reorder actions */
   activePlayPosition?: number;
+  /** Whether to show release year/date column */
+  showReleaseYearColumn?: boolean;
+  /** Whether to show popularity column */
+  showPopularityColumn?: boolean;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────
@@ -272,6 +276,8 @@ interface RenderVirtualizedTrackRowParams {
   activePlayPosition: number | undefined;
   contextTrackActions: Partial<TrackActions> | undefined;
   onDeleteTrackDuplicates: ((track: Track, position: number) => void | Promise<void>) | undefined;
+  showReleaseYearColumn: boolean;
+  showPopularityColumn: boolean;
   sharedCtx: TrackRowSharedContext;
 }
 
@@ -334,6 +340,8 @@ function renderVirtualizedTrackRow(params: RenderVirtualizedTrackRowParams): Rea
         onPause={params.pausePlayback}
         isPlayingFromThisPanel={params.isPlayingFromThisPanel}
         showLikedColumn
+        showReleaseYearColumn={params.showReleaseYearColumn}
+        showPopularityColumn={params.showPopularityColumn}
         isLiked={resolveTrackIdState(track, params.isLiked)}
         onToggleLiked={params.handleToggleLiked}
         hasInsertionMarker={params.allowMarkerToggle && params.activeMarkerIndices.has(trackPosition)}
@@ -396,6 +404,8 @@ export function VirtualizedTrackListContainer({
   hasAnyMarkers,
   buildReorderActions,
   activePlayPosition,
+  showReleaseYearColumn = true,
+  showPopularityColumn = true,
 }: VirtualizedTrackListContainerProps) {
   // ── Context menu (global store) ──────────────────────────────────────
   const contextMenu = useContextMenuStore();
@@ -527,6 +537,8 @@ export function VirtualizedTrackListContainer({
             activePlayPosition,
             contextTrackActions,
             onDeleteTrackDuplicates,
+            showReleaseYearColumn,
+            showPopularityColumn,
             sharedCtx,
           });
         })}

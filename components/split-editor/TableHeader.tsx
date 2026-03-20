@@ -28,6 +28,10 @@ interface TableHeaderProps {
   showScrobbleDateColumn?: boolean;
   /** Whether to show cumulative time column (default true) */
   showCumulativeTime?: boolean;
+  /** Whether to show release year/date column (default true) */
+  showReleaseYearColumn?: boolean;
+  /** Whether to show popularity column (default true) */
+  showPopularityColumn?: boolean;
 }
 
 /** Grid template for consistent column alignment between header and rows */
@@ -49,6 +53,10 @@ export interface TrackGridOptions {
   showCumulativeTime?: boolean;
   /** Show drag handle column (for touch devices) */
   showDragHandle?: boolean;
+  /** Show release year/date column (default true) */
+  showReleaseYearColumn?: boolean;
+  /** Show popularity column (default true) */
+  showPopularityColumn?: boolean;
 }
 
 /**
@@ -64,7 +72,7 @@ export function getTrackGridStyle(
   showPlayColumn: boolean,
   showAddToMarkedColumn: boolean,
   showContributorColumn: boolean = false,
-  options?: Pick<TrackGridOptions, 'showMatchStatusColumn' | 'showCustomAddColumn' | 'showScrobbleDateColumn' | 'showCumulativeTime' | 'showDragHandle'>,
+  options?: Pick<TrackGridOptions, 'showMatchStatusColumn' | 'showCustomAddColumn' | 'showScrobbleDateColumn' | 'showCumulativeTime' | 'showDragHandle' | 'showReleaseYearColumn' | 'showPopularityColumn'>,
   _isMobile: boolean = false // Unused - always use same layout
 ) {
   const optionalColumns: Array<[boolean, string]> = [
@@ -77,6 +85,8 @@ export function getTrackGridStyle(
   ];
 
   const dateColumn = options?.showScrobbleDateColumn ? '90px' : '36px';
+  const showReleaseYearColumn = options?.showReleaseYearColumn !== false;
+  const showPopularityColumn = options?.showPopularityColumn !== false;
   const cumulativeColumn = options?.showCumulativeTime === false ? [] : ['52px'];
 
   const columns = [
@@ -86,8 +96,8 @@ export function getTrackGridStyle(
     'minmax(100px, 3fr)',
     'minmax(60px, 1.5fr)',
     'minmax(60px, 1fr)',
-    dateColumn,
-    '36px',
+    ...(showReleaseYearColumn ? [dateColumn] : []),
+    ...(showPopularityColumn ? ['36px'] : []),
     '44px',
     ...cumulativeColumn,
   ];
@@ -277,6 +287,8 @@ export function TableHeader({
   showCustomAddColumn = false,
   showScrobbleDateColumn = false,
   showCumulativeTime = true,
+  showReleaseYearColumn = true,
+  showPopularityColumn = true,
 }: TableHeaderProps) {
   const { isCompact } = useCompactModeStore();
   const iconClass = isCompact ? 'h-2.5 w-2.5' : 'h-3 w-3';
@@ -310,6 +322,8 @@ export function TableHeader({
       showScrobbleDateColumn,
       showCumulativeTime,
       showDragHandle,
+      showReleaseYearColumn,
+      showPopularityColumn,
     }
   );
 
@@ -375,26 +389,30 @@ export function TableHeader({
       </div>
 
       {/* Year - sortable by release date */}
-      <SortableIconButton
-        icon={Calendar}
-        keyName="year"
-        sortKey={sortKey}
-        sortDirection={sortDirection}
-        onSort={onSort}
-        isCompact={isCompact}
-        title="Release Year"
-      />
+      {showReleaseYearColumn && (
+        <SortableIconButton
+          icon={Calendar}
+          keyName="year"
+          sortKey={sortKey}
+          sortDirection={sortDirection}
+          onSort={onSort}
+          isCompact={isCompact}
+          title="Release Year"
+        />
+      )}
 
       {/* Popularity */}
-      <SortableIconButton
-        icon={TrendingUp}
-        keyName="popularity"
-        sortKey={sortKey}
-        sortDirection={sortDirection}
-        onSort={onSort}
-        isCompact={isCompact}
-        title="Popularity"
-      />
+      {showPopularityColumn && (
+        <SortableIconButton
+          icon={TrendingUp}
+          keyName="popularity"
+          sortKey={sortKey}
+          sortDirection={sortDirection}
+          onSort={onSort}
+          isCompact={isCompact}
+          title="Popularity"
+        />
+      )}
 
       {/* Duration - right aligned */}
       <div className="text-right">

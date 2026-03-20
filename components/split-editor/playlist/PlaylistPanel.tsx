@@ -162,6 +162,8 @@ function PlaylistTrackListState({
     return <EmptyTrackList searchQuery={state.searchQuery} />;
   }
 
+  const showProviderMetadataColumns = state.providerId !== 'tidal';
+
   const optionalProps = buildTrackListOptionalProps({
     isDragSource: isInteractionBlocked ? false : isDragSource,
     hasActiveMarkers,
@@ -182,6 +184,8 @@ function PlaylistTrackListState({
         onSort={state.handleSort}
         showLikedColumn={true}
         isCollaborative={state.hasMultipleContributors}
+        showReleaseYearColumn={showProviderMetadataColumns}
+        showPopularityColumn={showProviderMetadataColumns}
       />
       <VirtualizedTrackListContainer
         panelId={panelId}
@@ -215,6 +219,8 @@ function PlaylistTrackListState({
         playTrack={state.playTrack}
         pausePlayback={state.pausePlayback}
         playbackContext={playbackContext}
+        showReleaseYearColumn={showProviderMetadataColumns}
+        showPopularityColumn={showProviderMetadataColumns}
         {...optionalProps}
       />
     </div>
