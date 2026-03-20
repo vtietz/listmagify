@@ -20,10 +20,12 @@ import {
   type UpdatePlaylistPayload,
 } from '@/lib/music-provider/types';
 import {
-  applyReorder,
+  applyReorderToTrackUris,
+  buildNativeReorderPayload,
   buildIncludedIndex,
   buildJsonApiDataPayload,
   dedupeTrackIds,
+  readJsonApiErrorDetails,
   fromTrackUri,
   mapPlaylistResource,
   mapTrackListDocument,
@@ -37,6 +39,15 @@ import { createTidalTransport, type TidalProviderDependencies } from '@/lib/musi
 
 const DEFAULT_PROVIDER_ID = 'tidal';
 const PLAYLIST_RELATIONSHIP_MAX_BATCH_SIZE = 20;
+const NATIVE_REORDER_FALLBACK_STATUSES = new Set([404, 405, 501]);
+
+function isNativeReorderEnabled(): boolean {
+  return process.env.TIDAL_NATIVE_REORDER === '1';
+}
+
+function isTidalReorderDebugEnabled(): boolean {
+  return process.env.DEBUG_TIDAL_REORDER === '1';
+}
 
 function unsupported(operation: string): never {
   throw new ProviderApiError(`${operation} is not supported for TIDAL`, 501, DEFAULT_PROVIDER_ID);
@@ -46,9 +57,22 @@ function makeSnapshotId(): string {
   return `tidal-${Date.now()}`;
 }
 
-async function readErrorText(response: Response): Promise<string> {
-  return response.text().catch(() => '');
+function redactId(value: string): string {
+  if (value.length <= 8) {
+    return value;
+  }
+
+  return `${value.slice(0, 4)}…${value.slice(-4)}`;
 }
+
+function logReorderDebug(message: string, data: Record<string, unknown>): void {
+  if (!isTidalReorderDebugEnabled()) {
+    return;
+  }
+
+  console.debug(`[tidal-reorder] ${message}`, data);
+}
+
 
 function throwProviderError(response: Response, details: string, operation: string): never {
   const normalizedDetails = details.trim() || response.statusText || 'Unknown provider error';
@@ -79,7 +103,7 @@ async function fetchUserCollectionTrackPage(
 ): Promise<JsonApiDocument<JsonApiIdentifier[]>> {
   const response = await transport.executeWithSession(path, { method: 'GET' }, undefined);
   if (!response.ok) {
-    throwProviderError(response, await readErrorText(response), 'containsTracks');
+    throwProviderError(response, await readJsonApiErrorDetails(response), 'containsTracks');
   }
 
   return response.json() as Promise<JsonApiDocument<JsonApiIdentifier[]>>;
@@ -148,7 +172,7 @@ export function createTidalProvider(dependencies: TidalProviderDependencies = {}
       );
 
       if (!response.ok) {
-        throwProviderError(response, await readErrorText(response), 'appendPlaylistTracks');
+        throwProviderError(response, await readJsonApiErrorDetails(response), 'appendPlaylistTracks');
       }
     }
   }
@@ -172,7 +196,7 @@ export function createTidalProvider(dependencies: TidalProviderDependencies = {}
       );
 
       if (!response.ok) {
-        throwProviderError(response, await readErrorText(response), operation);
+        throwProviderError(response, await readJsonApiErrorDetails(response), operation);
       }
     }
   }
@@ -191,7 +215,7 @@ export function createTidalProvider(dependencies: TidalProviderDependencies = {}
       );
 
       if (!response.ok) {
-        throwProviderError(response, await readErrorText(response), 'saveTracks');
+        throwProviderError(response, await readJsonApiErrorDetails(response), 'saveTracks');
       }
     },
 
@@ -208,7 +232,7 @@ export function createTidalProvider(dependencies: TidalProviderDependencies = {}
       );
 
       if (!response.ok) {
-        throwProviderError(response, await readErrorText(response), 'removeTracks');
+        throwProviderError(response, await readJsonApiErrorDetails(response), 'removeTracks');
       }
     },
 
@@ -228,7 +252,7 @@ export function createTidalProvider(dependencies: TidalProviderDependencies = {}
       const path = nextCursor ?? basePath;
       const response = await transport.executeWithSession(path, { method: 'GET' }, undefined);
       if (!response.ok) {
-        throwProviderError(response, await readErrorText(response), 'getLikedTracks');
+        throwProviderError(response, await readJsonApiErrorDetails(response), 'getLikedTracks');
       }
 
       const raw = (await response.json()) as JsonApiDocument<JsonApiIdentifier[]>;
@@ -244,7 +268,7 @@ export function createTidalProvider(dependencies: TidalProviderDependencies = {}
       const path = `/searchResults/${encodeURIComponent(query)}/relationships/tracks?include=tracks`;
       const response = await transport.executeWithSession(path, { method: 'GET' }, undefined);
       if (!response.ok) {
-        throwProviderError(response, await readErrorText(response), 'searchTracks');
+        throwProviderError(response, await readJsonApiErrorDetails(response), 'searchTracks');
       }
 
       const raw = (await response.json()) as JsonApiDocument<JsonApiIdentifier[]>;
@@ -255,7 +279,7 @@ export function createTidalProvider(dependencies: TidalProviderDependencies = {}
     async getCurrentUser(): Promise<CurrentUserResult> {
       const response = await transport.executeWithSession('/users/me', { method: 'GET' }, undefined);
       if (!response.ok) {
-        throwProviderError(response, await readErrorText(response), 'getCurrentUser');
+        throwProviderError(response, await readJsonApiErrorDetails(response), 'getCurrentUser');
       }
 
       const raw = (await response.json()) as JsonApiDocument<JsonApiResource>;
@@ -269,7 +293,7 @@ export function createTidalProvider(dependencies: TidalProviderDependencies = {}
         undefined,
       );
       if (!response.ok) {
-        throwProviderError(response, await readErrorText(response), 'getUserProfile');
+        throwProviderError(response, await readJsonApiErrorDetails(response), 'getUserProfile');
       }
 
       const raw = (await response.json()) as JsonApiDocument<JsonApiResource>;
@@ -284,7 +308,7 @@ export function createTidalProvider(dependencies: TidalProviderDependencies = {}
         undefined,
       );
       if (!response.ok) {
-        throwProviderError(response, await readErrorText(response), 'getPlaylistPermissions');
+        throwProviderError(response, await readJsonApiErrorDetails(response), 'getPlaylistPermissions');
       }
 
       const raw = (await response.json()) as JsonApiDocument<JsonApiResource>;
@@ -300,7 +324,7 @@ export function createTidalProvider(dependencies: TidalProviderDependencies = {}
         undefined,
       );
       if (!response.ok) {
-        throwProviderError(response, await readErrorText(response), 'getPlaylistDetails');
+        throwProviderError(response, await readJsonApiErrorDetails(response), 'getPlaylistDetails');
       }
 
       const raw = (await response.json()) as JsonApiDocument<JsonApiResource>;
@@ -317,7 +341,7 @@ export function createTidalProvider(dependencies: TidalProviderDependencies = {}
 
       const response = await transport.executeWithSession('/playlists', { method: 'POST', body: JSON.stringify(requestPayload) }, undefined);
       if (!response.ok) {
-        throwProviderError(response, await readErrorText(response), 'createPlaylist');
+        throwProviderError(response, await readJsonApiErrorDetails(response), 'createPlaylist');
       }
 
       const raw = (await response.json()) as JsonApiDocument<JsonApiResource>;
@@ -344,7 +368,7 @@ export function createTidalProvider(dependencies: TidalProviderDependencies = {}
       );
 
       if (!response.ok) {
-        throwProviderError(response, await readErrorText(response), 'updatePlaylistDetails');
+        throwProviderError(response, await readJsonApiErrorDetails(response), 'updatePlaylistDetails');
       }
     },
 
@@ -422,21 +446,56 @@ export function createTidalProvider(dependencies: TidalProviderDependencies = {}
     },
 
     async reorderTracks(payload: ReorderTracksPayload): Promise<{ snapshotId: string }> {
-      const currentTrackUris = await this.getPlaylistTrackUris(payload.playlistId);
-      let nextTrackUris: string[];
+      const rangeLength = typeof payload.rangeLength === 'number' ? Math.max(1, payload.rangeLength) : 1;
+      const { fromIndex, toIndex } = payload;
 
-      try {
-        nextTrackUris = applyReorder(
-          currentTrackUris,
-          payload.fromIndex,
-          payload.toIndex,
-          typeof payload.rangeLength === 'number' ? payload.rangeLength : 1,
-        );
-      } catch {
+      const allReferences = await transport.fetchAllPlaylistItemReferences(payload.playlistId);
+
+      if (fromIndex < 0 || fromIndex >= allReferences.length || toIndex < 0 || toIndex > allReferences.length) {
         throw new ProviderApiError('reorderTracks failed: invalid indexes', 400, DEFAULT_PROVIDER_ID);
       }
 
-      return this.replacePlaylistTracks(payload.playlistId, nextTrackUris);
+      const movedLength = Math.min(rangeLength, allReferences.length - fromIndex);
+      if (movedLength <= 0) {
+        return { snapshotId: makeSnapshotId() };
+      }
+
+      const fallbackReplace = async (): Promise<{ snapshotId: string }> => {
+        const reorderedTrackUris = applyReorderToTrackUris(allReferences, fromIndex, toIndex, movedLength, DEFAULT_PROVIDER_ID);
+        return this.replacePlaylistTracks(payload.playlistId, reorderedTrackUris);
+      };
+
+      if (!isNativeReorderEnabled()) {
+        return fallbackReplace();
+      }
+
+      const nativePlan = buildNativeReorderPayload(allReferences, fromIndex, toIndex, movedLength, DEFAULT_PROVIDER_ID);
+      if (nativePlan.payload.data.length === 0) {
+        return { snapshotId: makeSnapshotId() };
+      }
+
+      logReorderDebug('native patch payload', {
+        playlistId: redactId(payload.playlistId),
+        movedItemIds: nativePlan.movedItemIds.map(redactId),
+        positionBefore: nativePlan.anchorItemId ? redactId(nativePlan.anchorItemId) : null,
+      });
+
+      const path = `/playlists/${encodeURIComponent(payload.playlistId)}/relationships/items`;
+      const response = await transport.executeWithSession(
+        path,
+        { method: 'PATCH', body: JSON.stringify(nativePlan.payload) },
+        undefined,
+      );
+
+      if (!response.ok) {
+        if (NATIVE_REORDER_FALLBACK_STATUSES.has(response.status)) {
+          return fallbackReplace();
+        }
+
+        throwProviderError(response, await readJsonApiErrorDetails(response), 'reorderTracks');
+      }
+
+      return { snapshotId: makeSnapshotId() };
     },
 
     async getUserPlaylists(limit = 50, nextCursor?: string | null): Promise<PlaylistPageResult<Playlist>> {
@@ -445,7 +504,7 @@ export function createTidalProvider(dependencies: TidalProviderDependencies = {}
       const path = nextCursor ?? basePath;
       const response = await transport.executeWithSession(path, { method: 'GET' }, undefined);
       if (!response.ok) {
-        throwProviderError(response, await readErrorText(response), 'getUserPlaylists');
+        throwProviderError(response, await readJsonApiErrorDetails(response), 'getUserPlaylists');
       }
 
       const raw = (await response.json()) as JsonApiDocument<JsonApiIdentifier[]>;

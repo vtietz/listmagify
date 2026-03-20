@@ -52,6 +52,27 @@ describe('tidalTransport', () => {
     expect(headers.get('Authorization')).toBe('Bearer token-123');
     expect(headers.get('Accept')).toBe('application/vnd.api+json');
     expect(headers.get('Content-Type')).toBe('application/vnd.api+json');
+    expect(headers.get('Idempotency-Key')).toMatch(/^[0-9a-f-]{36}$/i);
+  });
+
+  it('adds idempotency key on session-scoped mutation requests', async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(makeResponse(200, { ok: true }));
+    const getSession = vi.fn().mockResolvedValue({
+      accessToken: 'tidal-token',
+      accessTokenExpires: Date.now() + 60_000,
+    });
+
+    const transport = createTidalTransport({ fetchImpl, getSession });
+
+    await transport.executeWithSession(
+      '/playlists/test/relationships/items',
+      { method: 'PATCH', body: JSON.stringify({ data: [] }) },
+      undefined,
+    );
+
+    const init = fetchImpl.mock.calls[0]?.[1] as RequestInit;
+    const headers = init.headers as Headers;
+    expect(headers.get('Idempotency-Key')).toMatch(/^[0-9a-f-]{36}$/i);
   });
 
   it('builds playlist item page URL with encoded playlist id', async () => {

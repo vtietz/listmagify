@@ -95,7 +95,16 @@ function mapTidalReorderBadRequestMessage(error: ProviderApiError): string {
   }
 
   if (typeof error.details === 'string' && error.details.trim().length > 0) {
-    return `Unable to reorder tracks on TIDAL: ${error.details.trim()}`;
+    const detail = error.details.trim();
+    if (/positionbefore/i.test(detail)) {
+      return 'Unable to reorder tracks on TIDAL: invalid target position.';
+    }
+
+    if (/itemid/i.test(detail)) {
+      return 'Unable to reorder tracks on TIDAL: invalid source track reference.';
+    }
+
+    return `Unable to reorder tracks on TIDAL: ${detail}`;
   }
 
   return 'Unable to reorder tracks on TIDAL. Please refresh the playlist and try again.';

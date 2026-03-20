@@ -14,7 +14,7 @@ const BASE = '/v2';
 app.use(express.json());
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+  res.header('Access-Control-Allow-Headers', 'Authorization, Content-Type, Idempotency-Key');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PATCH, PUT, DELETE, OPTIONS');
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
@@ -47,6 +47,7 @@ const userCollectionTrackIds = new Set(
     .flatMap((entries) => entries)
     .map((entry) => entry.trackId),
 );
+const processedIdempotencyKeys = new Set();
 
 function nowIso() {
   return new Date().toISOString();
@@ -226,6 +227,59 @@ function generateItemId() {
   return `item-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function getSourceItemIds(payload) {
+  return payload
+    .map((entry) => entry?.meta?.itemId)
+    .filter((itemId) => typeof itemId === 'string');
+}
+
+function buildMovedEntries(currentEntries, sourceItemIds) {
+  const entryByItemId = new Map(currentEntries.map((entry) => [entry.itemId, entry]));
+  const movedEntries = [];
+
+  for (const itemId of sourceItemIds) {
+    const entry = entryByItemId.get(itemId);
+    if (!entry) {
+      return { error: `Unknown itemId: ${itemId}` };
+    }
+
+    movedEntries.push(entry);
+  }
+
+  return { movedEntries };
+}
+
+function resolveInsertIndex(remainingEntries, positionBefore) {
+  if (typeof positionBefore !== 'string' || positionBefore.length === 0) {
+    return { insertIndex: remainingEntries.length };
+  }
+
+  const anchorIndex = remainingEntries.findIndex((entry) => entry.itemId === positionBefore);
+  if (anchorIndex < 0) {
+    return { error: `Invalid positionBefore anchor: ${positionBefore}` };
+  }
+
+  return { insertIndex: anchorIndex };
+}
+
+function sendBadRequest(res, detail) {
+  res.status(400).json({ errors: [{ detail }] });
+}
+
+function isDuplicateIdempotencyRequest(playlistId, idempotencyKey) {
+  if (typeof idempotencyKey !== 'string' || idempotencyKey.length === 0) {
+    return false;
+  }
+
+  const key = `${playlistId}:${idempotencyKey}`;
+  if (processedIdempotencyKeys.has(key)) {
+    return true;
+  }
+
+  processedIdempotencyKeys.add(key);
+  return false;
+}
+
 function getPlaylistOr404(playlistId, res) {
   const playlist = playlists.get(playlistId);
   if (!playlist) {
@@ -379,6 +433,49 @@ app.delete(`${BASE}/playlists/:playlistId/relationships/items`, (req, res) => {
   });
 
   playlistItems.set(playlist.id, nextEntries);
+  res.status(200).json({ data: [] });
+});
+
+app.patch(`${BASE}/playlists/:playlistId/relationships/items`, (req, res) => {
+  const playlist = getPlaylistOr404(req.params.playlistId, res);
+  if (!playlist) {
+    return;
+  }
+
+  if (isDuplicateIdempotencyRequest(playlist.id, req.header('Idempotency-Key'))) {
+    res.status(200).json({ data: [] });
+    return;
+  }
+
+  const currentEntries = playlistItems.get(playlist.id) ?? [];
+  const payload = Array.isArray(req.body?.data) ? req.body.data : [];
+  const sourceItemIds = getSourceItemIds(payload);
+
+  if (sourceItemIds.length === 0) {
+    sendBadRequest(res, 'Missing source itemIds in data[].meta.itemId');
+    return;
+  }
+
+  const movedResult = buildMovedEntries(currentEntries, sourceItemIds);
+  if (movedResult.error) {
+    sendBadRequest(res, movedResult.error);
+    return;
+  }
+
+  const movedSet = new Set(sourceItemIds);
+  const remainingEntries = currentEntries.filter((entry) => !movedSet.has(entry.itemId));
+  const positionBefore = req.body?.meta?.positionBefore;
+
+  const insertResult = resolveInsertIndex(remainingEntries, positionBefore);
+  if (insertResult.error) {
+    sendBadRequest(res, insertResult.error);
+    return;
+  }
+
+  const nextEntries = [...remainingEntries];
+  nextEntries.splice(insertResult.insertIndex, 0, ...movedResult.movedEntries);
+  playlistItems.set(playlist.id, nextEntries);
+
   res.status(200).json({ data: [] });
 });
 

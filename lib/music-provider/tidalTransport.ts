@@ -4,6 +4,7 @@ import { withRateLimitRetry } from '@/lib/spotify/rateLimit';
 import type { AuthenticatedSession } from '@/lib/auth/requireAuth';
 import { ProviderApiError, type ProviderClientOptions } from '@/lib/music-provider/types';
 import { createAPIClient } from '@tidal-music/api';
+import { randomUUID } from 'node:crypto';
 import {
   extractPlaylistItemReferences,
   JSON_API_CONTENT_TYPE,
@@ -90,6 +91,7 @@ type SdkMethod = 'GET' | 'POST' | 'PATCH' | 'DELETE' | 'PUT' | 'HEAD' | 'OPTIONS
 type SdkCredentialsProvider = Parameters<typeof createAPIClient>[0];
 
 const SDK_METHODS: ReadonlySet<string> = new Set(['GET', 'POST', 'PATCH', 'DELETE', 'PUT', 'HEAD', 'OPTIONS', 'TRACE']);
+const MUTATION_METHODS: ReadonlySet<string> = new Set(['POST', 'PATCH', 'DELETE', 'PUT']);
 
 function toSdkMethod(method: string | undefined): SdkMethod | null {
   const normalized = (method ?? 'GET').toUpperCase();
@@ -100,13 +102,27 @@ function isRelativePath(path: string): boolean {
   return path.startsWith('/');
 }
 
+function isMutationMethod(method: string | undefined): boolean {
+  const normalized = (method ?? 'GET').toUpperCase();
+  return MUTATION_METHODS.has(normalized);
+}
+
 function shouldUseSdk(
   path: string,
   method: string | undefined,
+  body: RequestInit['body'] | undefined,
   fetchImpl: typeof fetch,
 ): method is SdkMethod {
   const sdkMethod = toSdkMethod(method);
   if (!sdkMethod) {
+    return false;
+  }
+
+  if (isMutationMethod(sdkMethod)) {
+    return false;
+  }
+
+  if (typeof body === 'string' && body.length > 0) {
     return false;
   }
 
@@ -128,6 +144,16 @@ function buildSdkRequestOptions(init: RequestInit): Record<string, unknown> {
     headers: init.headers,
     ...(init.body !== undefined ? { body: init.body } : {}),
   };
+}
+
+function addMutationHeaders(headers: Headers, method: string | undefined): void {
+  if (!isMutationMethod(method)) {
+    return;
+  }
+
+  if (!headers.has('Idempotency-Key')) {
+    headers.set('Idempotency-Key', randomUUID());
+  }
 }
 
 async function executeWithSdk(
@@ -187,12 +213,13 @@ export function createTidalTransport(dependencies: TidalProviderDependencies = {
 
       const hasBody = init?.body !== undefined;
       const headers = buildHeaders(session.accessToken, init?.headers, hasBody);
+      addMutationHeaders(headers, init?.method);
       const requestInit: RequestInit = {
         ...init,
         headers,
       };
 
-      if (shouldUseSdk(path, init?.method, deps.fetchImpl)) {
+      if (shouldUseSdk(path, init?.method, init?.body, deps.fetchImpl)) {
         return withRateLimitRetry(
           () => executeWithSdk(session.accessToken, path, (init?.method ?? 'GET').toUpperCase() as SdkMethod, requestInit, opts?.baseUrl),
           opts?.backoff,
@@ -228,6 +255,7 @@ export function createTidalTransport(dependencies: TidalProviderDependencies = {
     const safePath = getSafeRequestPath(path);
     const hasBody = init?.body !== undefined;
     const headers = buildHeaders(accessToken, init?.headers, hasBody);
+    addMutationHeaders(headers, init?.method);
 
     return withRateLimitRetry(
       () =>
