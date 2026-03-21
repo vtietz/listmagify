@@ -117,5 +117,9 @@ export default async function Home({ searchParams }: Props) {
     return content;
   }
 
-  return <AuthPageLayout showLogoutLink={false}>{content}</AuthPageLayout>;
+  return (
+    <AuthPageLayout showLogoutLink={false} showHeader={false}>
+      {content}
+    </AuthPageLayout>
+  );
 }
