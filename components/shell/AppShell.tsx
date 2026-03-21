@@ -218,7 +218,6 @@ function Header({ title: _title }: { title: string }) {
         {/* Only show nav items when authenticated */}
         {authenticated && (
           <>
-            <HeaderProviderStatus />
             <AdaptiveNav
               isPhone={isPhone}
               pathname={pathname}
@@ -240,6 +239,9 @@ function Header({ title: _title }: { title: string }) {
               markerStats={markerStats}
               clearAllMarkers={clearAllMarkers}
             />
+            <div className="shrink-0">
+              <HeaderProviderStatus />
+            </div>
           </>
         )}
         

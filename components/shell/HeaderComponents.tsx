@@ -10,9 +10,10 @@
 
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
+import { signIn, useSession } from 'next-auth/react';
 import { 
   ListMusic, 
   LogIn, 
@@ -39,6 +40,8 @@ import { useAuthSummary } from '@/hooks/auth/useAuth';
 import { useMusicProviderId } from '@/hooks/useMusicProviderId';
 import { FeedbackDialog } from '@/components/feedback';
 import { AdaptiveNav as AdaptiveNavComponent, type NavItem } from '@/components/ui/adaptive-nav';
+import { providerAuthRegistry } from '@/lib/providers/authRegistry';
+import { createProviderAuthState } from '@/lib/providers/types';
 import type { ProviderId } from '@/lib/providers/types';
 
 // ============================================================================
@@ -122,15 +125,72 @@ function useHeaderProviders(): ProviderId[] {
   return providers.filter(isProviderId);
 }
 
+function withProviderInCallbackUrl(callbackUrl: string, providerId: ProviderId): string {
+  try {
+    if (callbackUrl.startsWith('/')) {
+      const [rawPath, rawQuery] = callbackUrl.split('?');
+      const path = rawPath ?? callbackUrl;
+      const params = new URLSearchParams(rawQuery ?? '');
+      params.set('provider', providerId);
+      const serialized = params.toString();
+      return serialized.length > 0 ? `${path}?${serialized}` : path;
+    }
+
+    const url = new URL(callbackUrl);
+    url.searchParams.set('provider', providerId);
+    return url.toString();
+  } catch {
+    return callbackUrl;
+  }
+}
+
 export function HeaderProviderStatus() {
   const summary = useAuthSummary();
+  const { update } = useSession();
   const currentProviderId = useMusicProviderId();
   const providers = useHeaderProviders();
+  const isE2EMode = process.env.NEXT_PUBLIC_E2E_MODE === '1';
 
   const statusMap = useMemo(() => ({
     spotify: summary.spotify.code === 'ok' ? 'connected' : 'disconnected',
     tidal: summary.tidal.code === 'ok' ? 'connected' : 'disconnected',
   } as const), [summary.spotify.code, summary.tidal.code]);
+
+  const handleProviderChange = useCallback((providerId: ProviderId) => {
+    if (summary[providerId].code === 'ok') {
+      return;
+    }
+
+    const callbackUrl = typeof window !== 'undefined'
+      ? `${window.location.pathname}${window.location.search}`
+      : '/split-editor';
+    const callbackUrlWithProvider = withProviderInCallbackUrl(callbackUrl, providerId);
+
+    if (isE2EMode) {
+      void fetch(`/api/test/login?provider=${providerId}`, {
+        method: 'GET',
+        cache: 'no-store',
+      }).finally(() => {
+        providerAuthRegistry.setState(createProviderAuthState(providerId, 'ok', true, Date.now()));
+      });
+      return;
+    }
+
+    void signIn(providerId, { callbackUrl: callbackUrlWithProvider });
+  }, [isE2EMode, summary]);
+
+  const handleProviderLogout = useCallback(async (providerId: ProviderId) => {
+    if (isE2EMode) {
+      await fetch(`/api/test/logout?provider=${providerId}`, {
+        method: 'GET',
+        cache: 'no-store',
+      });
+    } else if (typeof update === 'function') {
+      await update({ providerAuthAction: 'logout-provider', providerId });
+    }
+
+    providerAuthRegistry.setState(createProviderAuthState(providerId, 'unauthenticated', false, Date.now()));
+  }, [isE2EMode, update]);
 
   return (
     <ProviderStatusDropdown
@@ -138,9 +198,8 @@ export function HeaderProviderStatus() {
       currentProviderId={currentProviderId}
       providers={providers}
       statusMap={statusMap}
-      onProviderChange={() => {
-        // Header dropdown is status-only in this phase.
-      }}
+      onProviderChange={handleProviderChange}
+      onProviderLogout={handleProviderLogout}
       data-testid="header-provider-status-dropdown"
     />
   );

@@ -527,12 +527,21 @@ export const authOptions: AuthOptions = {
   },
   providers: authProviders,
   callbacks: {
-    async jwt({ token, account }: any) {
+    async jwt({ token, account, trigger, session }: any) {
       const nextToken = token as AuthJwtToken;
       const providerTokens = getProviderTokens(nextToken);
       const providerErrors = getInitialProviderErrors(nextToken);
 
       applyAccountToken(nextToken, account, providerTokens, providerErrors);
+
+      if (trigger === 'update' && session?.providerAuthAction === 'logout-provider') {
+        const providerId = toMusicProviderId(session.providerId);
+        if (providerId) {
+          delete providerTokens[providerId];
+          providerErrors[providerId] = undefined;
+        }
+      }
+
       await refreshProviderTokens(providerTokens, providerErrors);
 
       return buildJwtCallbackResult(nextToken, providerTokens, providerErrors);

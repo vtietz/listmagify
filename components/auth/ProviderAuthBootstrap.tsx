@@ -6,6 +6,8 @@ import { providerAuthRegistry } from '@/lib/providers/authRegistry';
 import { createDefaultProviderAuthSummary, type ProviderAuthSummary } from '@/lib/providers/types';
 import { isPerPanelInlineLoginEnabled } from '@/lib/utils';
 
+const STATUS_POLL_INTERVAL_MS = 30_000;
+
 async function fetchProviderAuthStatus(): Promise<ProviderAuthSummary> {
   const response = await fetch('/api/provider-auth/status', {
     method: 'GET',
@@ -30,6 +32,20 @@ export function ProviderAuthBootstrap() {
     }
 
     let cancelled = false;
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+
+    const syncStatus = async () => {
+      try {
+        const summary = await fetchProviderAuthStatus();
+        if (!cancelled) {
+          providerAuthRegistry.hydrateFromServer(summary);
+        }
+      } catch {
+        if (!cancelled) {
+          providerAuthRegistry.markHydrated();
+        }
+      }
+    };
 
     if (status === 'loading') {
       return;
@@ -40,20 +56,16 @@ export function ProviderAuthBootstrap() {
       return;
     }
 
-    fetchProviderAuthStatus()
-      .then((summary) => {
-        if (!cancelled) {
-          providerAuthRegistry.hydrateFromServer(summary);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          providerAuthRegistry.markHydrated();
-        }
-      });
+    void syncStatus();
+    intervalId = setInterval(() => {
+      void syncStatus();
+    }, STATUS_POLL_INTERVAL_MS);
 
     return () => {
       cancelled = true;
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
     };
   }, [enabled, status, isE2EMode]);
 
