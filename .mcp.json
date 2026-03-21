@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "context7": {
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp@latest"],
+      "description": "Library documentation lookups for up-to-date API references"
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@latest"],
+      "description": "Browser automation for visual testing and E2E validation"
+    }
+  }
+}
