@@ -50,6 +50,9 @@ export function SignInButton({
     onClick?.();
     const callbackUrlWithProvider = withProviderInCallbackUrl(callbackUrl, providerId);
 
+    // Backup existing provider tokens before OAuth redirect
+    await fetch('/api/auth/preserve-tokens', { method: 'POST' }).catch(() => {});
+
     if (isE2EMode) {
       setIsLoading(true);
       try {

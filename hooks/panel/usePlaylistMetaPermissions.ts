@@ -12,14 +12,16 @@ import {
   playlistPermissionsByProvider,
 } from '@/lib/api/queryKeys';
 import { isLikedSongsPlaylist, LIKED_SONGS_METADATA } from '@/hooks/useLikedVirtualPlaylist';
+import { useProviderQueryEnabled } from '@/hooks/auth/useProviderQueryEnabled';
 import type { MusicProviderId } from '@/lib/music-provider/types';
 
 export function usePlaylistMetaPermissions(
   playlistId: string | null | undefined,
   providerId: MusicProviderId
 ) {
+  const isProviderReady = useProviderQueryEnabled(providerId);
   const isLikedPlaylist = isLikedSongsPlaylist(playlistId);
-  
+
   const [playlistName, setPlaylistName] = useState<string>('');
   const [playlistDescription, setPlaylistDescription] = useState<string>('');
   const [playlistIsPublic, setPlaylistIsPublic] = useState<boolean>(false);
@@ -42,7 +44,7 @@ export function usePlaylistMetaPermissions(
         isPublic: boolean;
       }>(`/api/playlists/${playlistId}?provider=${providerId}`);
     },
-    enabled: !!playlistId && !isLikedPlaylist,
+    enabled: !!playlistId && !isLikedPlaylist && isProviderReady,
     staleTime: 60000,
   });
 
@@ -71,7 +73,7 @@ export function usePlaylistMetaPermissions(
         `/api/playlists/${playlistId}/permissions?provider=${providerId}`
       );
     },
-    enabled: !!playlistId && !isLikedPlaylist,
+    enabled: !!playlistId && !isLikedPlaylist && isProviderReady,
     staleTime: 60000,
   });
 

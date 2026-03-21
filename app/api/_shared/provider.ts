@@ -1,10 +1,12 @@
 import { NextRequest } from 'next/server';
 import { routeErrors } from '@/lib/errors';
 import { getMusicProvider, parseMusicProviderId } from '@/lib/music-provider';
+import type { MusicProviderId } from '@/lib/music-provider/types';
 import {
   getFallbackMusicProviderId,
   isMusicProviderEnabled,
 } from '@/lib/music-provider/enabledProviders';
+import { isPlaylistIdCompatibleWithProvider } from '@/lib/providers/playlistIdCompat';
 
 const PROVIDER_HINT = 'Use ?provider=spotify|tidal or x-music-provider header.';
 const FALLBACK_PROVIDER_ID = getFallbackMusicProviderId();
@@ -67,5 +69,16 @@ export function resolveMusicProviderFromRequest(request: NextRequest) {
 
     throw error;
   }
+}
 
+/**
+ * Validates that a playlist ID format is compatible with the resolved provider.
+ * Throws a 400 if a Spotify ID is sent to TIDAL or vice versa.
+ */
+export function assertPlaylistProviderCompat(playlistId: string, providerId: MusicProviderId): void {
+  if (!isPlaylistIdCompatibleWithProvider(playlistId, providerId)) {
+    throw routeErrors.validation(
+      `Playlist ID '${playlistId}' is not compatible with provider '${providerId}'`
+    );
+  }
 }

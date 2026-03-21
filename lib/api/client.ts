@@ -324,7 +324,10 @@ function handleErrorResponse(response: Response, data: any, requestPath: string,
 
   const errorMessage = data.error || data.details || `Request failed: ${response.status} ${response.statusText}`;
   const apiError = new ApiError(errorMessage, response.status, data);
-  const suppressDialog = requestPath === '/api/player/control' && data.error === 'no_active_device';
+  const isProviderMismatch = response.status === 400 && typeof errorMessage === 'string'
+    && (errorMessage.includes('not compatible with provider') || errorMessage.includes('Missing provider'));
+  const suppressDialog = isProviderMismatch
+    || (requestPath === '/api/player/control' && data.error === 'no_active_device');
 
   if (data.error === 'user_not_approved') {
     reportAndOpenDialog(buildUserNotApprovedAppError(response, requestPath), shouldOpenErrorDialog);

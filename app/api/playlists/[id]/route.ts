@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth/requireAuth';
-import { getMusicProviderHintFromRequest, resolveMusicProviderFromRequest } from '@/app/api/_shared/provider';
+import { assertPlaylistProviderCompat, getMusicProviderHintFromRequest, resolveMusicProviderFromRequest } from '@/app/api/_shared/provider';
 import { mapApiErrorToProviderAuthError, toProviderAuthErrorResponse } from '@/lib/api/errorHandler';
 import { parsePlaylistId, parsePlaylistUpdatePayload } from '@/lib/services/playlistService';
 import { getPlaylistFieldsQuery, mapPlaylistMetadata } from '@/lib/repositories/playlistRepository';
@@ -72,10 +72,11 @@ export async function GET(
 ) {
   try {
     await requireAuth();
-    const { provider } = resolveMusicProviderFromRequest(request);
+    const { provider, providerId } = resolveMusicProviderFromRequest(request);
 
     const { id } = await params;
     const playlistId = parsePlaylistId(id);
+    assertPlaylistProviderCompat(playlistId, providerId);
 
     const fields = getPlaylistFieldsQuery();
     const playlist = await provider.getPlaylistDetails(playlistId, fields);
@@ -122,10 +123,11 @@ export async function PUT(
 ) {
   try {
     await requireAuth();
-    const { provider } = resolveMusicProviderFromRequest(request);
+    const { provider, providerId } = resolveMusicProviderFromRequest(request);
 
     const { id } = await params;
     const playlistId = parsePlaylistId(id);
+    assertPlaylistProviderCompat(playlistId, providerId);
     const updatePayload = parsePlaylistUpdatePayload(await request.json());
 
     // Update the playlist

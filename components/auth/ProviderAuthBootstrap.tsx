@@ -1,30 +1,19 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { providerAuthRegistry } from '@/lib/providers/authRegistry';
-import { createDefaultProviderAuthSummary, type ProviderAuthSummary } from '@/lib/providers/types';
+import { syncProviderAuthStatusWithRetry } from '@/lib/providers/syncProviderAuth';
+import { createDefaultProviderAuthSummary } from '@/lib/providers/types';
 import { isPerPanelInlineLoginEnabled } from '@/lib/utils';
 
 const STATUS_POLL_INTERVAL_MS = 30_000;
 
-async function fetchProviderAuthStatus(): Promise<ProviderAuthSummary> {
-  const response = await fetch('/api/provider-auth/status', {
-    method: 'GET',
-    cache: 'no-store',
-  });
-
-  if (!response.ok) {
-    throw new Error(`auth_status_failed_${response.status}`);
-  }
-
-  return response.json() as Promise<ProviderAuthSummary>;
-}
-
 export function ProviderAuthBootstrap() {
-  const { status } = useSession();
+  const { status, update } = useSession();
   const enabled = isPerPanelInlineLoginEnabled();
   const isE2EMode = process.env.NEXT_PUBLIC_E2E_MODE === '1';
+  const lastSessionUpdateRef = useRef<number>(0);
 
   useEffect(() => {
     if (!enabled) {
@@ -35,15 +24,14 @@ export function ProviderAuthBootstrap() {
     let intervalId: ReturnType<typeof setInterval> | null = null;
 
     const syncStatus = async () => {
-      try {
-        const summary = await fetchProviderAuthStatus();
-        if (!cancelled) {
-          providerAuthRegistry.hydrateFromServer(summary);
-        }
-      } catch {
-        if (!cancelled) {
-          providerAuthRegistry.markHydrated();
-        }
+      if (cancelled) {
+        return;
+      }
+
+      const summary = await syncProviderAuthStatusWithRetry();
+      if (!cancelled && !summary) {
+        // Both attempts failed — mark hydrated so the UI isn't stuck in loading
+        providerAuthRegistry.markHydrated();
       }
     };
 
@@ -68,6 +56,30 @@ export function ProviderAuthBootstrap() {
       }
     };
   }, [enabled, status, isE2EMode]);
+
+  // Re-sync when session is updated (e.g. after NextAuth `update()` call for logout)
+  // The `update` function reference changes when the session is refreshed,
+  // which signals that the server-side JWT has been modified.
+  useEffect(() => {
+    if (!enabled || status !== 'authenticated') {
+      return;
+    }
+
+    const now = Date.now();
+    // Skip the initial mount — only react to subsequent session changes
+    if (lastSessionUpdateRef.current === 0) {
+      lastSessionUpdateRef.current = now;
+      return;
+    }
+
+    // Debounce: skip if last sync was very recent (< 2s ago)
+    if (now - lastSessionUpdateRef.current < 2_000) {
+      return;
+    }
+
+    lastSessionUpdateRef.current = now;
+    void syncProviderAuthStatusWithRetry();
+  }, [enabled, status, update]);
 
   return null;
 }

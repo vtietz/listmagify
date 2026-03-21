@@ -9,23 +9,25 @@ import { usePlaylistTracksInfinite } from '@/hooks/usePlaylistTracksInfinite';
 import { useLikedVirtualPlaylist, isLikedSongsPlaylist, LIKED_SONGS_METADATA } from '@/hooks/useLikedVirtualPlaylist';
 import { useSavedTracksIndex, usePrefetchSavedTracks } from '@/hooks/useSavedTracksIndex';
 import { useCapturePlaylist } from '@/hooks/useRecommendations';
+import { useProviderQueryEnabled } from '@/hooks/auth/useProviderQueryEnabled';
 import type { MusicProviderId } from '@/lib/music-provider/types';
 
 export function usePlaylistDataSource(
   playlistId: string | null | undefined,
   providerId: MusicProviderId
 ) {
+  const isProviderReady = useProviderQueryEnabled(providerId);
   const isSpotifyProvider = providerId === 'spotify';
   const isLikedPlaylist = isSpotifyProvider && isLikedSongsPlaylist(playlistId);
-  
+
   // Liked songs data source
   const likedPlaylistData = useLikedVirtualPlaylist(providerId);
-  
-  // Regular playlist data source
+
+  // Regular playlist data source — disabled when the provider is not authenticated
   const regularPlaylistData = usePlaylistTracksInfinite({
     playlistId: isLikedPlaylist ? null : playlistId,
     providerId,
-    enabled: !!playlistId && !isLikedPlaylist,
+    enabled: !!playlistId && !isLikedPlaylist && isProviderReady,
   });
 
   // Select the appropriate data source

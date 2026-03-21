@@ -41,6 +41,7 @@ import { useMusicProviderId } from '@/hooks/useMusicProviderId';
 import { FeedbackDialog } from '@/components/feedback';
 import { AdaptiveNav as AdaptiveNavComponent, type NavItem } from '@/components/ui/adaptive-nav';
 import { providerAuthRegistry } from '@/lib/providers/authRegistry';
+import { syncProviderAuthStatusWithRetry } from '@/lib/providers/syncProviderAuth';
 import { createProviderAuthState } from '@/lib/providers/types';
 import type { ProviderId } from '@/lib/providers/types';
 
@@ -167,19 +168,29 @@ export function HeaderProviderStatus() {
     const callbackUrlWithProvider = withProviderInCallbackUrl(callbackUrl, providerId);
 
     if (isE2EMode) {
-      void fetch(`/api/test/login?provider=${providerId}`, {
-        method: 'GET',
-        cache: 'no-store',
-      }).finally(() => {
-        providerAuthRegistry.setState(createProviderAuthState(providerId, 'ok', true, Date.now()));
-      });
+      void (async () => {
+        await fetch(`/api/test/login?provider=${providerId}`, {
+          method: 'GET',
+          cache: 'no-store',
+        });
+        // Re-sync from server to get the authoritative state after cookie update
+        await syncProviderAuthStatusWithRetry();
+      })();
       return;
     }
 
-    void signIn(providerId, { callbackUrl: callbackUrlWithProvider });
+    // Backup existing provider tokens before OAuth redirect so the JWT callback
+    // can restore them (NextAuth v4 creates a fresh token on sign-in).
+    void (async () => {
+      await fetch('/api/auth/preserve-tokens', { method: 'POST' }).catch(() => {});
+      void signIn(providerId, { callbackUrl: callbackUrlWithProvider });
+    })();
   }, [isE2EMode, summary]);
 
   const handleProviderLogout = useCallback(async (providerId: ProviderId) => {
+    // Optimistically update the UI immediately so the user sees feedback
+    providerAuthRegistry.setState(createProviderAuthState(providerId, 'unauthenticated', false, Date.now()));
+
     if (isE2EMode) {
       await fetch(`/api/test/logout?provider=${providerId}`, {
         method: 'GET',
@@ -189,7 +200,10 @@ export function HeaderProviderStatus() {
       await update({ providerAuthAction: 'logout-provider', providerId });
     }
 
-    providerAuthRegistry.setState(createProviderAuthState(providerId, 'unauthenticated', false, Date.now()));
+    // Re-sync from server to get the authoritative state — this prevents
+    // the 30s poll from reverting the optimistic update if the session
+    // hasn't fully propagated yet
+    await syncProviderAuthStatusWithRetry();
   }, [isE2EMode, update]);
 
   return (

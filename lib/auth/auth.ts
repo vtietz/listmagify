@@ -1,9 +1,12 @@
 import SpotifyProvider from "next-auth/providers/spotify";
 import type { AuthOptions } from "next-auth";
+import { cookies } from 'next/headers';
 import { serverEnv } from "@/lib/env";
 import { getFallbackMusicProviderId, isMusicProviderEnabled } from '@/lib/music-provider/enabledProviders';
 import type { MusicProviderId } from '@/lib/music-provider/types';
 import { authLogger, createAuthEvents } from '@/lib/auth/authLogging';
+
+const BACKUP_COOKIE_NAME = '__listmagify_provider_backup';
 
 const TOKEN_REFRESH_ERROR = 'RefreshAccessTokenError';
 const REFRESH_BUFFER_MS = 5 * 60 * 1000;
@@ -41,31 +44,58 @@ function toMusicProviderId(value: unknown): MusicProviderId | null {
   return null;
 }
 
-function getProviderTokens(token: AuthJwtToken): ProviderTokenStore {
+function resolveLegacyProviderId(
+  token: AuthJwtToken,
+  fromToken: ProviderTokenStore,
+  accountProviderId: MusicProviderId | null,
+): MusicProviderId | null {
+  if (accountProviderId) {
+    return accountProviderId;
+  }
+
+  if (Object.keys(fromToken).length > 0) {
+    return null;
+  }
+
+  if (token.isByok || token.byok) {
+    return 'spotify';
+  }
+
+  return FALLBACK_PROVIDER_ID;
+}
+
+function getProviderTokens(token: AuthJwtToken, accountProviderId: MusicProviderId | null = null): ProviderTokenStore {
   const fromToken = token.musicProviderTokens ?? {};
-  const spotifyToken = fromToken.spotify ?? {};
-  const hasLegacySpotifyToken =
+  const hasLegacyToken =
     typeof token.accessToken === 'string' ||
     typeof token.refreshToken === 'string' ||
     typeof token.accessTokenExpires === 'number';
-
-  const mergedSpotifyToken: ProviderJwtToken = hasLegacySpotifyToken
-    ? {
-        ...spotifyToken,
-        ...(typeof token.accessToken === 'string' ? { accessToken: token.accessToken } : {}),
-        ...(typeof token.refreshToken === 'string' ? { refreshToken: token.refreshToken } : {}),
-        ...(typeof token.accessTokenExpires === 'number' ? { accessTokenExpires: token.accessTokenExpires } : {}),
-        ...(token.isByok ? { isByok: true } : {}),
-        ...(token.byok ? { byok: token.byok } : {}),
-      }
-    : spotifyToken;
 
   const providerTokens: ProviderTokenStore = {
     ...fromToken,
   };
 
-  if (Object.keys(mergedSpotifyToken).length > 0) {
-    providerTokens.spotify = mergedSpotifyToken;
+  if (!hasLegacyToken) {
+    return providerTokens;
+  }
+
+  const legacyProviderId = resolveLegacyProviderId(token, fromToken, accountProviderId);
+  if (!legacyProviderId) {
+    return providerTokens;
+  }
+
+  const previousProviderToken = providerTokens[legacyProviderId] ?? {};
+  const mergedProviderToken: ProviderJwtToken = {
+    ...previousProviderToken,
+    ...(typeof token.accessToken === 'string' ? { accessToken: token.accessToken } : {}),
+    ...(typeof token.refreshToken === 'string' ? { refreshToken: token.refreshToken } : {}),
+    ...(typeof token.accessTokenExpires === 'number' ? { accessTokenExpires: token.accessTokenExpires } : {}),
+    ...(token.isByok ? { isByok: true } : {}),
+    ...(token.byok ? { byok: token.byok } : {}),
+  };
+
+  if (Object.keys(mergedProviderToken).length > 0) {
+    providerTokens[legacyProviderId] = mergedProviderToken;
   }
 
   return providerTokens;
@@ -511,6 +541,47 @@ function buildJwtCallbackResult(
     providerErrors,
   };
 }
+
+/**
+ * Reads the backup cookie saved by /api/auth/preserve-tokens before OAuth redirect.
+ * NextAuth v4 creates a fresh default token on sign-in (name/email/sub), which
+ * discards custom JWT fields like musicProviderTokens.  This function recovers
+ * provider tokens from the backup cookie so a second provider sign-in does not
+ * erase the first provider's tokens.
+ */
+async function restoreProviderTokensFromBackup(
+  providerTokens: ProviderTokenStore,
+  accountProviderId: MusicProviderId | null,
+): Promise<void> {
+  try {
+    const cookieStore = await cookies();
+    const raw = cookieStore.get(BACKUP_COOKIE_NAME)?.value;
+    if (!raw) {
+      return;
+    }
+
+    const backup = JSON.parse(raw) as Partial<Record<string, ProviderJwtToken>>;
+
+    for (const [key, token] of Object.entries(backup)) {
+      const pid = toMusicProviderId(key);
+      if (!pid || !token?.accessToken) {
+        continue;
+      }
+
+      if (pid === accountProviderId) {
+        continue;
+      }
+
+      if (!providerTokens[pid]?.accessToken) {
+        providerTokens[pid] = token;
+      }
+    }
+
+    cookieStore.delete(BACKUP_COOKIE_NAME);
+  } catch {
+    // Cookie parsing or deletion failed - not critical
+  }
+}
 export const authOptions: AuthOptions = {
   secret: serverEnv.NEXTAUTH_SECRET,
   session: {
@@ -529,10 +600,15 @@ export const authOptions: AuthOptions = {
   callbacks: {
     async jwt({ token, account, trigger, session }: any) {
       const nextToken = token as AuthJwtToken;
-      const providerTokens = getProviderTokens(nextToken);
+      const accountProviderId = toMusicProviderId((account as Record<string, unknown> | null)?.provider);
+      const providerTokens = getProviderTokens(nextToken, accountProviderId);
       const providerErrors = getInitialProviderErrors(nextToken);
 
       applyAccountToken(nextToken, account, providerTokens, providerErrors);
+
+      if (account) {
+        await restoreProviderTokensFromBackup(providerTokens, accountProviderId);
+      }
 
       if (trigger === 'update' && session?.providerAuthAction === 'logout-provider') {
         const providerId = toMusicProviderId(session.providerId);

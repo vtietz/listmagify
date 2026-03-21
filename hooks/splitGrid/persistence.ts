@@ -5,6 +5,7 @@
  * Extracted from useSplitGridStore for better modularity.
  */
 
+import { isPlaylistIdCompatibleWithProvider } from '@/lib/providers/playlistIdCompat';
 import type { SplitNode, PanelConfig } from './types';
 
 /**
@@ -47,13 +48,17 @@ export function deserializeTree(data: unknown): SplitNode | null {
   
   if (obj.kind === 'panel') {
     const panel = obj.panel as Record<string, unknown>;
+    const providerId = ((panel.providerId as 'spotify' | 'tidal') || 'spotify');
+    const rawPlaylistId = panel.playlistId as string | null;
+    // Clear playlist IDs that don't match the provider (e.g. Spotify ID on a TIDAL panel from stale state)
+    const playlistId = isPlaylistIdCompatibleWithProvider(rawPlaylistId, providerId) ? rawPlaylistId : null;
     return {
       kind: 'panel',
       id: obj.id as string,
       panel: {
         id: panel.id as string,
-        providerId: ((panel.providerId as 'spotify' | 'tidal') || 'spotify'),
-        playlistId: panel.playlistId as string | null,
+        providerId,
+        playlistId,
         isEditable: panel.isEditable as boolean,
         locked: panel.locked as boolean,
         searchQuery: panel.searchQuery as string,

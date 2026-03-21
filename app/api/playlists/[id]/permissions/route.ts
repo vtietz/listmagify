@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { assertAuthenticated } from '@/app/api/_shared/guard';
-import { getMusicProviderHintFromRequest, resolveMusicProviderFromRequest } from '@/app/api/_shared/provider';
+import { assertPlaylistProviderCompat, getMusicProviderHintFromRequest, resolveMusicProviderFromRequest } from '@/app/api/_shared/provider';
 import { mapApiErrorToProviderAuthError, toProviderAuthErrorResponse } from '@/lib/api/errorHandler';
 import { isAppRouteError } from '@/lib/errors';
 import { parsePlaylistId } from '@/lib/services/playlistService';
@@ -61,9 +61,10 @@ export async function GET(
 ) {
   try {
     await assertAuthenticated();
-    const { provider } = resolveMusicProviderFromRequest(_request);
+    const { provider, providerId } = resolveMusicProviderFromRequest(_request);
     const { id } = await params;
     const playlistId = parsePlaylistId(id);
+    assertPlaylistProviderCompat(playlistId, providerId);
 
     const playlistPermissions = await provider.getPlaylistPermissions(playlistId);
 

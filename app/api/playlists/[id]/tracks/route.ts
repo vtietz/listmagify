@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { assertAuthenticated } from '@/app/api/_shared/guard';
-import { getMusicProviderHintFromRequest, resolveMusicProviderFromRequest } from '@/app/api/_shared/provider';
+import { assertPlaylistProviderCompat, getMusicProviderHintFromRequest, resolveMusicProviderFromRequest } from '@/app/api/_shared/provider';
 import { isAppRouteError } from '@/lib/errors';
 import { ProviderApiError } from '@/lib/music-provider/types';
 import { parsePlaylistId } from '@/lib/services/playlistService';
@@ -24,7 +24,8 @@ export async function GET(
     const searchParams = request.nextUrl.searchParams;
     const nextCursorParam = searchParams.get("nextCursor");
 
-    const { provider } = resolveMusicProviderFromRequest(request);
+    const { provider, providerId } = resolveMusicProviderFromRequest(request);
+    assertPlaylistProviderCompat(playlistId, providerId);
     const result = await provider.getPlaylistTracks(playlistId, 100, nextCursorParam);
     return NextResponse.json(result);
   } catch (error) {
