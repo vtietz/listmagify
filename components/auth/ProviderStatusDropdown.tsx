@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Check, ChevronDown, Disc3, LogOut, Music2 } from 'lucide-react';
+import { Check, ChevronDown, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   AlertDialog,
@@ -43,10 +43,44 @@ function getProviderLabel(providerId: ProviderId): string {
 
 function ProviderGlyph({ providerId }: { providerId: ProviderId }) {
   if (providerId === 'spotify') {
-    return <Music2 className="h-3.5 w-3.5" aria-hidden="true" />;
+    return (
+      <>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/spotify/Spotify_Primary_Logo_RGB_White.png"
+          alt=""
+          aria-hidden="true"
+          className="h-4 w-4 shrink-0 hidden dark:block"
+        />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/spotify/Spotify_Primary_Logo_RGB_Black.png"
+          alt=""
+          aria-hidden="true"
+          className="h-4 w-4 shrink-0 dark:hidden"
+        />
+      </>
+    );
   }
 
-  return <Disc3 className="h-3.5 w-3.5" aria-hidden="true" />;
+  return (
+    <>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/tidal/Tidal_(service)_logo_only_white.svg"
+        alt=""
+        aria-hidden="true"
+        className="h-4 w-4 shrink-0 hidden dark:block"
+      />
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/tidal/Tidal_(service)_logo_only.svg"
+        alt=""
+        aria-hidden="true"
+        className="h-4 w-4 shrink-0 dark:hidden"
+      />
+    </>
+  );
 }
 
 function ProviderStatusIcon({
