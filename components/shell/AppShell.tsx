@@ -13,6 +13,7 @@ import { useStatsAccess } from "@/hooks/useStatsAccess";
 import { useDeviceType } from "@/hooks/useDeviceType";
 import { useSplitGridStore } from "@/hooks/useSplitGridStore";
 import { usePanelFocusStore } from "@/hooks/usePanelFocusStore";
+import { useAuthSummary } from '@/hooks/auth/useAuth';
 import { SpotifyPlayer } from "@/components/player";
 import { BrowsePanel } from "@/components/split-editor/browse/BrowsePanel";
 import { AppLogo } from "@/components/ui/app-logo";
@@ -194,6 +195,7 @@ function Header({ title: _title }: { title: string }) {
   const focusedPanelId = usePanelFocusStore((state) => state.focusedPanelId);
   const { authenticated, loading } = useSessionUser();
   const { hasAccess: hasStatsAccess } = useStatsAccess();
+  const authSummary = useAuthSummary();
   const { isPhone } = useDeviceType();
   const markerStats: MarkerStats = React.useMemo(() => {
     const playlistIds = Object.keys(playlists).filter(
@@ -227,6 +229,7 @@ function Header({ title: _title }: { title: string }) {
   
   // Pages that support player and compare mode
   const supportsPlayerAndCompare = isSplitEditorActive || isPlaylistsActive;
+  const supportsPlayerToggle = supportsPlayerAndCompare && authSummary.spotify.code === 'ok';
   
   return (
     <header className="h-12 flex items-center justify-between px-4 border-b">
@@ -245,7 +248,7 @@ function Header({ title: _title }: { title: string }) {
               supportsBrowse={!isLandingPage && !isPlaylistsActive && !isAdminActive}
               isPlayerVisible={isPlayerVisible}
               togglePlayerVisible={togglePlayerVisible}
-              supportsPlayer={supportsPlayerAndCompare}
+              supportsPlayer={supportsPlayerToggle}
               supportsCompact={!isLandingPage}
               isCompact={isCompact}
               toggleCompact={toggleCompact}

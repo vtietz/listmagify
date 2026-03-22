@@ -76,6 +76,46 @@ describe('Auth guards', () => {
     expect(screen.getByText('panel-content')).toBeInTheDocument();
   });
 
+  it('ProviderPanelGuard uses full-height wrapper by default', () => {
+    render(
+      <ProviderPanelGuard provider="spotify">
+        <div>panel-content</div>
+      </ProviderPanelGuard>,
+    );
+
+    const panelContent = screen.getByText('panel-content');
+    const innerWrapper = panelContent.parentElement;
+    const outerWrapper = innerWrapper?.parentElement;
+
+    expect(innerWrapper).not.toBeNull();
+    expect(outerWrapper).not.toBeNull();
+    expect(innerWrapper).toHaveClass('h-full');
+    expect(innerWrapper).toHaveClass('w-full');
+    expect(outerWrapper).toHaveClass('relative');
+    expect(outerWrapper).toHaveClass('h-full');
+    expect(outerWrapper).toHaveClass('w-full');
+  });
+
+  it('ProviderPanelGuard supports non-full-height wrapper when fillHeight is false', () => {
+    render(
+      <ProviderPanelGuard provider="spotify" fillHeight={false}>
+        <div>panel-content</div>
+      </ProviderPanelGuard>,
+    );
+
+    const panelContent = screen.getByText('panel-content');
+    const innerWrapper = panelContent.parentElement;
+    const outerWrapper = innerWrapper?.parentElement;
+
+    expect(innerWrapper).not.toBeNull();
+    expect(outerWrapper).not.toBeNull();
+    expect(innerWrapper).toHaveClass('w-full');
+    expect(innerWrapper).not.toHaveClass('h-full');
+    expect(outerWrapper).toHaveClass('relative');
+    expect(outerWrapper).toHaveClass('w-full');
+    expect(outerWrapper).not.toHaveClass('h-full');
+  });
+
   it('ProviderPanelGuard renders overlay sign-in for expired provider while keeping panel content mounted', () => {
     vi.mocked(useProviderAuth).mockReturnValue({
       provider: 'spotify',

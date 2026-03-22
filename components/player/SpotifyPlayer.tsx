@@ -552,7 +552,7 @@ export function SpotifyPlayer({ forceShow = false, onTrackClick }: SpotifyPlayer
   );
 
   return (
-    <ProviderPanelGuard provider="spotify">
+    <ProviderPanelGuard provider="spotify" fillHeight={false}>
       {content}
     </ProviderPanelGuard>
   );

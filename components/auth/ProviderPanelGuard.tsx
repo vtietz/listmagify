@@ -9,6 +9,7 @@ import { isPerPanelInlineLoginEnabled } from '@/lib/utils';
 
 interface ProviderPanelGuardProps extends PropsWithChildren {
   provider: ProviderId;
+  fillHeight?: boolean;
 }
 
 interface ProviderPanelGuardState {
@@ -41,7 +42,7 @@ function getOverlayReason(code: string): 'unauthenticated' | 'expired' | null {
   return null;
 }
 
-export function ProviderPanelGuard({ provider, children }: ProviderPanelGuardProps) {
+export function ProviderPanelGuard({ provider, fillHeight = true, children }: ProviderPanelGuardProps) {
   const enabled = isPerPanelInlineLoginEnabled();
 
   const authState = useProviderAuth(provider);
@@ -71,8 +72,8 @@ export function ProviderPanelGuard({ provider, children }: ProviderPanelGuardPro
 
   return (
     <ProviderPanelGuardContext.Provider value={contextValue}>
-      <div className="relative h-full w-full">
-        <div className="h-full w-full">
+      <div className={fillHeight ? 'relative h-full w-full' : 'relative w-full'}>
+        <div className={fillHeight ? 'h-full w-full' : 'w-full'}>
           {children}
         </div>
         {isOverlayActive && reason && (
