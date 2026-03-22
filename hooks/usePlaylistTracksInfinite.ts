@@ -271,8 +271,13 @@ export function usePlaylistTracksInfinite({
     getNextPageParam: (lastPage: PlaylistTracksPage) => lastPage.nextCursor,
     enabled: shouldEnablePlaylistTracksQuery(enabled, playlistId),
     staleTime: 30000, // 30 seconds
-    // CRITICAL: Keep previous data during refetch to prevent undefined flashes
-    placeholderData: (prev: InfiniteData<PlaylistTracksPage> | undefined) => prev,
+    // Keep previous data only while a playlist is still selected.
+    // Avoid carrying stale tracks across provider switches that clear playlistId.
+    ...(playlistId
+      ? {
+          placeholderData: (prev: InfiniteData<PlaylistTracksPage> | undefined) => prev,
+        }
+      : {}),
     // Disable automatic background refetches to prevent data resets during DnD
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,

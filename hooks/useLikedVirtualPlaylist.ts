@@ -30,6 +30,19 @@ export const LIKED_SONGS_METADATA = {
   isPublic: false,
 };
 
+const LIKED_PLAYLIST_METADATA_BY_PROVIDER: Record<MusicProviderId, typeof LIKED_SONGS_METADATA> = {
+  spotify: LIKED_SONGS_METADATA,
+  tidal: {
+    ...LIKED_SONGS_METADATA,
+    name: 'My Tracks',
+    description: 'Tracks saved to your collection',
+  },
+};
+
+export function getLikedPlaylistMetadata(providerId: MusicProviderId): typeof LIKED_SONGS_METADATA {
+  return LIKED_PLAYLIST_METADATA_BY_PROVIDER[providerId];
+}
+
 interface LikedTracksPage {
   tracks: Track[];
   total: number;
@@ -45,6 +58,8 @@ interface UseLikedVirtualPlaylistResult {
   isLoading: boolean;
   /** Whether additional pages are being fetched */
   isFetchingNextPage: boolean;
+  /** Whether query is currently refetching */
+  isRefetching: boolean;
   /** Whether all pages have been loaded */
   hasLoadedAll: boolean;
   /** Error if any */
@@ -76,13 +91,13 @@ export const likedPlaylistKey = (providerId: MusicProviderId) => ['liked-virtual
 export function useLikedVirtualPlaylist(providerId: MusicProviderId = 'spotify'): UseLikedVirtualPlaylistResult {
   const addToLikedSet = useSavedTracksStore((state) => state.addToLikedSet);
   const setTotal = useSavedTracksStore((state) => state.setTotal);
-  const isSpotifyProvider = providerId === 'spotify';
 
   const {
     data,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
+    isRefetching,
     isLoading,
     error,
     dataUpdatedAt,
@@ -90,8 +105,8 @@ export function useLikedVirtualPlaylist(providerId: MusicProviderId = 'spotify')
     queryKey: likedPlaylistKey(providerId),
     queryFn: async ({ pageParam }: { pageParam: string | null }): Promise<LikedTracksPage> => {
       const url = pageParam
-        ? `/api/liked/tracks?provider=spotify&limit=50&nextCursor=${encodeURIComponent(pageParam)}`
-        : '/api/liked/tracks?provider=spotify&limit=50';
+        ? `/api/liked/tracks?provider=${providerId}&limit=50&nextCursor=${encodeURIComponent(pageParam)}`
+        : `/api/liked/tracks?provider=${providerId}&limit=50`;
 
       const response = await apiFetch<LikedTracksPage>(url);
 
@@ -109,7 +124,6 @@ export function useLikedVirtualPlaylist(providerId: MusicProviderId = 'spotify')
     },
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage: LikedTracksPage) => lastPage.nextCursor,
-    enabled: isSpotifyProvider,
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 10 * 60 * 1000, // 10 minutes
   });
@@ -132,7 +146,7 @@ export function useLikedVirtualPlaylist(providerId: MusicProviderId = 'spotify')
   const total = data?.pages?.[data.pages.length - 1]?.total ?? 0;
 
   // Determine if all pages are loaded
-  const hasLoadedAll = isSpotifyProvider ? (!hasNextPage && !isLoading) : true;
+  const hasLoadedAll = !hasNextPage && !isLoading;
 
   // Auto-fetch remaining pages after initial load
   const autoFetchNextPage = useCallback(() => {
@@ -154,6 +168,7 @@ export function useLikedVirtualPlaylist(providerId: MusicProviderId = 'spotify')
     total,
     isLoading,
     isFetchingNextPage,
+    isRefetching,
     hasLoadedAll,
     error: error as Error | null,
     fetchNextPage,

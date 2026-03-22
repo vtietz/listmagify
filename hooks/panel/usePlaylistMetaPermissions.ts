@@ -11,7 +11,7 @@ import {
   playlistMetaByProvider,
   playlistPermissionsByProvider,
 } from '@/lib/api/queryKeys';
-import { isLikedSongsPlaylist, LIKED_SONGS_METADATA } from '@/hooks/useLikedVirtualPlaylist';
+import { getLikedPlaylistMetadata, isLikedSongsPlaylist } from '@/hooks/useLikedVirtualPlaylist';
 import { useProviderQueryEnabled } from '@/hooks/auth/useProviderQueryEnabled';
 import type { MusicProviderId } from '@/lib/music-provider/types';
 
@@ -21,6 +21,7 @@ export function usePlaylistMetaPermissions(
 ) {
   const isProviderReady = useProviderQueryEnabled(providerId);
   const isLikedPlaylist = isLikedSongsPlaylist(playlistId);
+  const likedPlaylistMetadata = getLikedPlaylistMetadata(providerId);
 
   const [playlistName, setPlaylistName] = useState<string>('');
   const [playlistDescription, setPlaylistDescription] = useState<string>('');
@@ -51,15 +52,15 @@ export function usePlaylistMetaPermissions(
   // Update name/description from metadata
   useEffect(() => {
     if (isLikedPlaylist) {
-      setPlaylistName(LIKED_SONGS_METADATA.name);
-      setPlaylistDescription(LIKED_SONGS_METADATA.description ?? '');
+      setPlaylistName(likedPlaylistMetadata.name);
+      setPlaylistDescription(likedPlaylistMetadata.description ?? '');
       setPlaylistIsPublic(false);
     } else if (playlistMetaData?.name) {
       setPlaylistName(playlistMetaData.name);
       setPlaylistDescription(playlistMetaData.description ?? '');
       setPlaylistIsPublic(playlistMetaData.isPublic ?? false);
     }
-  }, [playlistMetaData, isLikedPlaylist]);
+  }, [playlistMetaData, isLikedPlaylist, likedPlaylistMetadata]);
 
   // Permissions query
   const { data: permissionsData } = useQuery({

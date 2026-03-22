@@ -8,7 +8,7 @@ import { Check, Heart } from 'lucide-react';
 import { apiFetch } from '@/lib/api/client';
 import { userPlaylistsByProvider } from '@/lib/api/queryKeys';
 import { cn, matchesAllWords } from '@/lib/utils';
-import { LIKED_SONGS_PLAYLIST_ID, LIKED_SONGS_METADATA, isLikedSongsPlaylist } from '@/hooks/useLikedVirtualPlaylist';
+import { LIKED_SONGS_PLAYLIST_ID, getLikedPlaylistMetadata, isLikedSongsPlaylist } from '@/hooks/useLikedVirtualPlaylist';
 import type { Playlist } from '@/lib/music-provider/types';
 import type { MusicProviderId } from '@/lib/music-provider/types';
 
@@ -108,31 +108,31 @@ export function useFilteredPlaylists(allPlaylists: Playlist[], query: string) {
 }
 
 export function useShowLikedSongs(query: string, providerId: MusicProviderId) {
-  return useMemo(() => {
-    if (providerId !== 'spotify') {
-      return false;
-    }
+  const likedPlaylistMetadata = getLikedPlaylistMetadata(providerId);
 
+  return useMemo(() => {
     const normalizedQuery = query.trim();
 
     return !normalizedQuery
-      || matchesAllWords(LIKED_SONGS_METADATA.name, normalizedQuery)
+      || matchesAllWords(likedPlaylistMetadata.name, normalizedQuery)
       || matchesAllWords('liked', normalizedQuery)
       || matchesAllWords('saved', normalizedQuery);
-  }, [query, providerId]);
+  }, [query, likedPlaylistMetadata]);
 }
 
 export function getSelectedPlaylistLabel({
   selectedPlaylistId,
   selected,
   selectedPlaylistName,
+  providerId,
 }: {
   selectedPlaylistId: string | null;
   selected: Playlist | null;
   selectedPlaylistName: string | undefined;
+  providerId: MusicProviderId;
 }) {
   if (isLikedSongsPlaylist(selectedPlaylistId)) {
-    return LIKED_SONGS_METADATA.name;
+    return getLikedPlaylistMetadata(providerId).name;
   }
 
   return selected?.name || selectedPlaylistName || 'Select a playlist...';
@@ -324,6 +324,7 @@ function PlaylistOptionsContent({
   isLoading,
   allPlaylistsLength,
   showLikedSongs,
+  likedPlaylistName,
   filtered,
   activeIndex,
   selectedPlaylistId,
@@ -333,6 +334,7 @@ function PlaylistOptionsContent({
   isLoading: boolean;
   allPlaylistsLength: number;
   showLikedSongs: boolean;
+  likedPlaylistName: string;
   filtered: Playlist[];
   activeIndex: number;
   selectedPlaylistId: string | null;
@@ -368,7 +370,7 @@ function PlaylistOptionsContent({
             />
             <div className="min-w-0 flex items-center gap-1.5">
               <Heart className="h-3.5 w-3.5 fill-[#9759f5] text-[#9759f5] shrink-0" />
-              <div className="truncate">{LIKED_SONGS_METADATA.name}</div>
+              <div className="truncate">{likedPlaylistName}</div>
             </div>
           </div>
         </button>
@@ -407,6 +409,7 @@ export function PlaylistSelectorDropdown({
   isLoading,
   allPlaylists,
   showLikedSongs,
+  providerId,
   filtered,
   activeIndex,
   selectedPlaylistId,
@@ -422,6 +425,7 @@ export function PlaylistSelectorDropdown({
   isLoading: boolean;
   allPlaylists: Playlist[];
   showLikedSongs: boolean;
+  providerId: MusicProviderId;
   filtered: Playlist[];
   activeIndex: number;
   selectedPlaylistId: string | null;
@@ -461,6 +465,7 @@ export function PlaylistSelectorDropdown({
           isLoading={isLoading}
           allPlaylistsLength={allPlaylists.length}
           showLikedSongs={showLikedSongs}
+          likedPlaylistName={getLikedPlaylistMetadata(providerId).name}
           filtered={filtered}
           activeIndex={activeIndex}
           selectedPlaylistId={selectedPlaylistId}

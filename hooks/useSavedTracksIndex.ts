@@ -18,6 +18,8 @@ import { create } from 'zustand';
 import { persist, createJSONStorage, StateStorage } from 'zustand/middleware';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { apiFetch } from '@/lib/api/client';
+import type { MusicProviderId } from '@/lib/music-provider/types';
+import { resolveClientMusicProviderId } from '@/hooks/useMusicProviderId';
 
 /**
  * Cache duration for localStorage (24 hours in ms)
@@ -30,6 +32,8 @@ const CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
  * Note: likedIds is stored as array for JSON serialization, converted to Set in hook
  */
 interface SavedTracksIndexState {
+  /** Provider this cache belongs to */
+  providerId: MusicProviderId;
   /** Array of track IDs that are saved (persisted, converted to Set in hook) */
   likedIds: string[];
   /** Total number of saved tracks (from API) */
@@ -62,11 +66,14 @@ interface SavedTracksIndexState {
   removePendingContains: (ids: string[]) => void;
   /** Set error state */
   setError: (error: string | null) => void;
+  /** Set active provider and clear cached tracks when provider changes */
+  setProviderId: (providerId: MusicProviderId) => void;
   /** Reset the entire state (for testing or logout) */
   reset: () => void;
 }
 
 const initialState = {
+  providerId: 'spotify' as MusicProviderId,
   likedIds: [] as string[],
   total: 0,
   isPrefetching: false,
@@ -141,14 +148,28 @@ export const useSavedTracksStore = create<SavedTracksIndexState>()(
       }),
       
       setError: (error) => set({ error }),
+
+      setProviderId: (providerId) => set((state) => {
+        if (state.providerId === providerId) {
+          return {};
+        }
+
+        return {
+          providerId,
+        };
+      }),
       
-      reset: () => set(initialState),
+      reset: () => set((state) => ({
+        ...initialState,
+        providerId: state.providerId,
+      })),
     }),
     {
-      name: 'spotify-liked-tracks-cache',
+      name: 'liked-tracks-cache',
       storage: createJSONStorage(() => customStorage),
       // Only persist essential data, not transient state
       partialize: (state) => ({
+        providerId: state.providerId,
         likedIds: state.likedIds,
         total: state.total,
         isPrefetchComplete: state.isPrefetchComplete,
@@ -207,19 +228,24 @@ function extractLikedTrackIds(response: LikedTracksResponse): string[] {
     .filter((id: string | null): id is string => id !== null);
 }
 
-async function fetchLikedTracksPage(nextCursor: string | null): Promise<LikedTracksResponse> {
+async function fetchLikedTracksPage(providerId: MusicProviderId, nextCursor: string | null): Promise<LikedTracksResponse> {
   const url: string = nextCursor
-    ? `/api/liked/tracks?provider=spotify&limit=50&nextCursor=${encodeURIComponent(nextCursor)}`
-    : '/api/liked/tracks?provider=spotify&limit=50';
+    ? `/api/liked/tracks?provider=${providerId}&limit=50&nextCursor=${encodeURIComponent(nextCursor)}`
+    : `/api/liked/tracks?provider=${providerId}&limit=50`;
 
   return apiFetch<LikedTracksResponse>(url);
+}
+
+function resolveProviderId(providerId?: MusicProviderId): MusicProviderId {
+  return providerId ?? resolveClientMusicProviderId();
 }
 
 /**
  * Hook providing access to the global saved tracks index with methods
  * for prefetching, coverage checking, and toggle operations.
  */
-export function useSavedTracksIndex() {
+export function useSavedTracksIndex(providerId?: MusicProviderId) {
+  const activeProviderId = resolveProviderId(providerId);
   const likedIds = useSavedTracksStore((state) => state.likedIds);
   const total = useSavedTracksStore((state) => state.total);
   const isPrefetching = useSavedTracksStore((state) => state.isPrefetching);
@@ -247,8 +273,13 @@ export function useSavedTracksIndex() {
     addPendingContains,
     removePendingContains,
     setError,
+    setProviderId,
     reset,
   } = useSavedTracksStore.getState();
+
+  useEffect(() => {
+    setProviderId(activeProviderId);
+  }, [activeProviderId, setProviderId]);
 
   // Ref to track if prefetch has been initiated this session
   const prefetchInitiatedRef = useRef(false);
@@ -295,10 +326,10 @@ export function useSavedTracksIndex() {
       let hasMore = true;
       const allIds: string[] = [];
       
-      console.debug('🔄 Fetching liked tracks from Spotify...');
+      console.debug('🔄 Fetching liked tracks...');
       
       while (hasMore) {
-        const response = await fetchLikedTracksPage(nextCursor);
+        const response = await fetchLikedTracksPage(activeProviderId, nextCursor);
         const ids = extractLikedTrackIds(response);
         
         allIds.push(...ids);
@@ -323,7 +354,7 @@ export function useSavedTracksIndex() {
       completePrefetch(); // Mark as complete even on error to prevent infinite retries
       console.error('❌ Failed to load liked tracks:', errorMsg);
     }
-  }, [isPrefetching, isPrefetchComplete, isCacheStale, likedIds.length, startPrefetch, reset, setTotal, addToLikedSet, completePrefetch, setError]);
+  }, [isPrefetching, isPrefetchComplete, isCacheStale, likedIds.length, startPrefetch, reset, setTotal, addToLikedSet, completePrefetch, setError, activeProviderId]);
 
   /**
    * Ensure coverage for specific track IDs.
@@ -367,7 +398,7 @@ export function useSavedTracksIndex() {
         // Fetch all batches in parallel
         const results = await Promise.all(
           batches.map(batch =>
-            apiFetch<boolean[]>(`/api/tracks/contains?ids=${batch.join(',')}`)
+            apiFetch<boolean[]>(`/api/tracks/contains?provider=${activeProviderId}&ids=${batch.join(',')}`)
           )
         );
         
@@ -394,7 +425,7 @@ export function useSavedTracksIndex() {
         removePendingContains(idsToCheck);
       }
     }, ENSURE_COVERAGE_DEBOUNCE);
-  }, [addPendingContains, removePendingContains, addToLikedSet, setError]); // Removed likedSet/pendingSet - using refs
+  }, [addPendingContains, removePendingContains, addToLikedSet, setError, activeProviderId]); // Removed likedSet/pendingSet - using refs
 
   /**
    * Check if a track is liked (in likedSet)
@@ -417,13 +448,13 @@ export function useSavedTracksIndex() {
     
     try {
       if (currentlyLiked) {
-        await apiFetch('/api/tracks/remove', {
+        await apiFetch(`/api/tracks/remove?provider=${activeProviderId}`, {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ids: [trackId] }),
         });
       } else {
-        await apiFetch('/api/tracks/save', {
+        await apiFetch(`/api/tracks/save?provider=${activeProviderId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ids: [trackId] }),
@@ -440,7 +471,7 @@ export function useSavedTracksIndex() {
       setError(errorMsg);
       throw err;
     }
-  }, [addToLikedSet, removeFromLikedSet, setError]);
+  }, [addToLikedSet, removeFromLikedSet, setError, activeProviderId]);
 
   /**
    * Force refresh cache from API (ignores cache TTL)
@@ -493,8 +524,8 @@ export function useSavedTracksIndex() {
  * Hook to auto-start prefetch on mount (use in app root or first panel)
  * Respects cache TTL - only refetches if cache is stale or missing
  */
-export function usePrefetchSavedTracks(enabled = true) {
-  const { prefetchAllSavedTracks, isPrefetching, isPrefetchComplete, isCacheStale } = useSavedTracksIndex();
+export function usePrefetchSavedTracks(enabled = true, providerId?: MusicProviderId) {
+  const { prefetchAllSavedTracks, isPrefetching, isPrefetchComplete, isCacheStale } = useSavedTracksIndex(providerId);
   
   useEffect(() => {
     if (!enabled) {
@@ -513,10 +544,16 @@ export function usePrefetchSavedTracks(enabled = true) {
  * Makes a single lightweight API call (limit=1) if total is not already cached.
  * Ideal for displaying track count on playlist cards without full prefetch.
  */
-export function useLikedSongsTotal(enabled = true) {
+export function useLikedSongsTotal(enabled = true, providerId?: MusicProviderId) {
+  const activeProviderId = resolveProviderId(providerId);
   const total = useSavedTracksStore((state) => state.total);
   const setTotal = useSavedTracksStore((state) => state.setTotal);
+  const setProviderId = useSavedTracksStore((state) => state.setProviderId);
   const lastUpdatedAt = useSavedTracksStore((state) => state.lastUpdatedAt);
+
+  useEffect(() => {
+    setProviderId(activeProviderId);
+  }, [activeProviderId, setProviderId]);
   
   useEffect(() => {
     if (!enabled) {
@@ -536,7 +573,7 @@ export function useLikedSongsTotal(enabled = true) {
     const fetchTotal = async () => {
       try {
         // Use limit=1 to minimize data transfer - we only need the total
-        const response = await apiFetch<{ total: number }>('/api/liked/tracks?provider=spotify&limit=1');
+        const response = await apiFetch<{ total: number }>(`/api/liked/tracks?provider=${activeProviderId}&limit=1`);
         if (response.total !== undefined) {
           setTotal(response.total);
         }
@@ -546,7 +583,7 @@ export function useLikedSongsTotal(enabled = true) {
     };
     
     fetchTotal();
-  }, [enabled, total, lastUpdatedAt, setTotal]);
+  }, [enabled, total, lastUpdatedAt, setTotal, activeProviderId]);
   
   return total;
 }

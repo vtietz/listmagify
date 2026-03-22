@@ -8,6 +8,7 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import {
+  getLikedPlaylistMetadata,
   useLikedVirtualPlaylist,
   isLikedSongsPlaylist,
   LIKED_SONGS_PLAYLIST_ID,
@@ -69,6 +70,10 @@ describe('LIKED_SONGS_METADATA', () => {
   it('should have correct name', () => {
     expect(LIKED_SONGS_METADATA.name).toBe('Liked Songs');
   });
+
+  it('should expose TIDAL-specific metadata', () => {
+    expect(getLikedPlaylistMetadata('tidal').name).toBe('My Tracks');
+  });
 });
 
 describe('useLikedVirtualPlaylist', () => {
@@ -113,6 +118,25 @@ describe('useLikedVirtualPlaylist', () => {
     expect(mockApiFetch).toHaveBeenCalledWith('/api/liked/tracks?provider=spotify&limit=50');
     expect(result.current.allTracks).toHaveLength(2);
     expect(result.current.allTracks[0]!.name).toBe('Track 1');
+  });
+
+  it('should use TIDAL provider when requested', async () => {
+    mockApiFetch.mockResolvedValueOnce({
+      tracks: [{ id: 'tidal-track-1', name: 'Track 1' }],
+      total: 1,
+      nextCursor: null,
+    });
+
+    const { result } = renderHook(() => useLikedVirtualPlaylist('tidal'), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    expect(mockApiFetch).toHaveBeenCalledWith('/api/liked/tracks?provider=tidal&limit=50');
+    expect(result.current.allTracks).toHaveLength(1);
   });
 
   it('should handle pagination', async () => {

@@ -19,15 +19,7 @@ export async function GET(request: NextRequest) {
     const nextCursor = searchParams.get('nextCursor');
     const limit = Math.min(Math.max(parseInt(limitParam || '50', 10), 1), 50);
 
-    const { providerId, provider } = resolveMusicProviderFromRequest(request);
-
-    if (providerId !== 'spotify') {
-      return NextResponse.json({
-        tracks: [],
-        total: 0,
-        nextCursor: null,
-      });
-    }
+    const { provider } = resolveMusicProviderFromRequest(request);
 
     const page = await provider.getLikedTracks(limit, nextCursor);
 

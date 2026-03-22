@@ -12,6 +12,7 @@ import {
   playlistMetaByProvider,
   playlistTracksInfiniteByProvider,
 } from '@/lib/api/queryKeys';
+import { isLikedSongsPlaylist, likedPlaylistKey } from '@/hooks/useLikedVirtualPlaylist';
 import type { MusicProviderId } from '@/lib/music-provider/types';
 
 interface UsePlaylistEventsOptions {
@@ -30,6 +31,8 @@ export function usePlaylistEvents({
       return;
     }
 
+    const isLikedPlaylist = isLikedSongsPlaylist(playlistId);
+
     const unsubscribeUpdate = eventBus.on('playlist:update', ({ playlistId: id, providerId: eventProviderId }) => {
       if (id !== playlistId || eventProviderId !== providerId) {
         return;
@@ -42,6 +45,11 @@ export function usePlaylistEvents({
     });
     const unsubscribeReload = eventBus.on('playlist:reload', ({ playlistId: id, providerId: eventProviderId }) => {
       if (id === playlistId && eventProviderId === providerId) {
+        if (isLikedPlaylist) {
+          queryClient.invalidateQueries({ queryKey: likedPlaylistKey(providerId) });
+          return;
+        }
+
         // Invalidate queries - scroll restoration is handled by usePanelScrollSync
         // when dataUpdatedAt changes after the queries refetch
         queryClient.invalidateQueries({

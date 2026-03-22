@@ -17,8 +17,7 @@ export function usePlaylistDataSource(
   providerId: MusicProviderId
 ) {
   const isProviderReady = useProviderQueryEnabled(providerId);
-  const isSpotifyProvider = providerId === 'spotify';
-  const isLikedPlaylist = isSpotifyProvider && isLikedSongsPlaylist(playlistId);
+  const isLikedPlaylist = isLikedSongsPlaylist(playlistId);
 
   // Liked songs data source
   const likedPlaylistData = useLikedVirtualPlaylist(providerId);
@@ -46,7 +45,7 @@ export function usePlaylistDataSource(
         snapshotId: 'liked-songs',
         isLoading: likedPlaylistData.isLoading,
         isFetchingNextPage: likedPlaylistData.isFetchingNextPage,
-        isRefetching: false,
+        isRefetching: likedPlaylistData.isRefetching,
         hasLoadedAll: likedPlaylistData.hasLoadedAll,
         error: likedPlaylistData.error,
         dataUpdatedAt: likedPlaylistData.dataUpdatedAt,
@@ -63,16 +62,16 @@ export function usePlaylistDataSource(
       };
 
   // Saved tracks index for liked status
-  usePrefetchSavedTracks(isSpotifyProvider);
-  const { isLiked, toggleLiked, ensureCoverage } = useSavedTracksIndex();
+  usePrefetchSavedTracks(isProviderReady, providerId);
+  const { isLiked, toggleLiked, ensureCoverage } = useSavedTracksIndex(providerId);
 
   // Ensure saved tracks coverage when tracks load
   useEffect(() => {
-    if (isSpotifyProvider && tracks.length > 0 && hasLoadedAll) {
+    if (playlistId && tracks.length > 0 && hasLoadedAll) {
       const trackIds = tracks.map((t) => t.id).filter((id): id is string => id !== null);
       ensureCoverage(trackIds);
     }
-  }, [isSpotifyProvider, tracks, hasLoadedAll, ensureCoverage]);
+  }, [playlistId, tracks, hasLoadedAll, ensureCoverage]);
 
   // Capture playlist for recommendations
   const capturePlaylist = useCapturePlaylist();

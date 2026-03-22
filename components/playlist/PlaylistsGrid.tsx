@@ -7,7 +7,7 @@ import { PlaylistCard } from "@/components/playlist/PlaylistCard";
 import { PlaylistListItem } from "@/components/playlist/PlaylistListItem";
 import { apiFetch, ApiError } from "@/lib/api/client";
 import { useAutoLoadPaginated } from "@/hooks/useAutoLoadPaginated";
-import { LIKED_SONGS_METADATA } from "@/hooks/useLikedVirtualPlaylist";
+import { getLikedPlaylistMetadata } from "@/hooks/useLikedVirtualPlaylist";
 import { useLikedSongsTotal } from "@/hooks/useSavedTracksIndex";
 import { useCompactModeStore } from "@/hooks/useCompactModeStore";
 import { matchesAllWords } from "@/lib/utils";
@@ -55,7 +55,8 @@ export function PlaylistsGrid({
   });
 
   // Get cached liked songs total (fetches on mount if not cached)
-  const likedSongsTotal = useLikedSongsTotal(providerId === 'spotify');
+  const likedSongsTotal = useLikedSongsTotal(true, providerId);
+  const likedPlaylistMetadata = useMemo(() => getLikedPlaylistMetadata(providerId), [providerId]);
 
   // Add newly created playlist to items immediately for instant feedback
   useEffect(() => {
@@ -115,14 +116,14 @@ export function PlaylistsGrid({
   // Virtual playlist for Liked Songs (shown first)
   // Uses cached total from saved tracks index (populated when user visits split-editor)
   const likedSongsPlaylist: Playlist = useMemo(() => ({
-    id: LIKED_SONGS_METADATA.id,
-    name: LIKED_SONGS_METADATA.name,
-    description: LIKED_SONGS_METADATA.description,
-    ownerName: LIKED_SONGS_METADATA.ownerName,
-    image: LIKED_SONGS_METADATA.image,
-    isPublic: LIKED_SONGS_METADATA.isPublic,
+    id: likedPlaylistMetadata.id,
+    name: likedPlaylistMetadata.name,
+    description: likedPlaylistMetadata.description,
+    ownerName: likedPlaylistMetadata.ownerName,
+    image: likedPlaylistMetadata.image,
+    isPublic: likedPlaylistMetadata.isPublic,
     tracksTotal: likedSongsTotal,
-  }), [likedSongsTotal]);
+  }), [likedSongsTotal, likedPlaylistMetadata]);
 
   // Filter items by search term (case-insensitive, name and owner, words in any order)
   const filteredItems = useMemo(() => {
@@ -140,10 +141,6 @@ export function PlaylistsGrid({
       });
     }
     
-    if (providerId !== 'spotify') {
-      return filtered;
-    }
-
     // Check if Liked Songs matches search (or show if no search)
     const likedMatches = !query || 
       matchesAllWords(likedSongsPlaylist.name, query) ||
@@ -151,7 +148,7 @@ export function PlaylistsGrid({
     
     // Prepend Liked Songs if it matches
     return likedMatches ? [likedSongsPlaylist, ...filtered] : filtered;
-  }, [items, searchTerm, likedSongsPlaylist, providerId]);
+  }, [items, searchTerm, likedSongsPlaylist]);
 
   if (filteredItems.length === 0) {
     return (

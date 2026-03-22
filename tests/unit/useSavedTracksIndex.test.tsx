@@ -68,7 +68,7 @@ describe('useSavedTracksIndex', () => {
       expect(result.current.isLiked('track-1')).toBe(true);
       
       // Should have called save API (with headers for JSON body)
-      expect(mockApiFetch).toHaveBeenCalledWith('/api/tracks/save', {
+      expect(mockApiFetch).toHaveBeenCalledWith('/api/tracks/save?provider=spotify', {
         method: 'PUT',
         body: JSON.stringify({ ids: ['track-1'] }),
         headers: { 'Content-Type': 'application/json' },
@@ -93,7 +93,7 @@ describe('useSavedTracksIndex', () => {
       expect(result.current.isLiked('track-1')).toBe(false);
       
       // Should have called remove API (with headers for JSON body)
-      expect(mockApiFetch).toHaveBeenCalledWith('/api/tracks/remove', {
+      expect(mockApiFetch).toHaveBeenCalledWith('/api/tracks/remove?provider=spotify', {
         method: 'DELETE',
         body: JSON.stringify({ ids: ['track-1'] }),
         headers: { 'Content-Type': 'application/json' },

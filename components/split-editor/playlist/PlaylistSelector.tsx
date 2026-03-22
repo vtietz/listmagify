@@ -49,6 +49,7 @@ export function PlaylistSelector({ providerId, selectedPlaylistId, selectedPlayl
     selectedPlaylistId,
     selected,
     selectedPlaylistName,
+    providerId,
   });
 
   useCloseOnOutsideClick({
@@ -146,6 +147,7 @@ export function PlaylistSelector({ providerId, selectedPlaylistId, selectedPlayl
         isLoading={isLoading}
         allPlaylists={allPlaylists}
         showLikedSongs={showLikedSongs}
+        providerId={providerId}
         filtered={filtered}
         activeIndex={activeIndex}
         selectedPlaylistId={selectedPlaylistId}
