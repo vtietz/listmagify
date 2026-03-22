@@ -265,10 +265,7 @@ function PlaylistPanelBody({
       onMouseEnter={() => state.setIsMouseOver(true)}
       onMouseLeave={() => state.setIsMouseOver(false)}
     >
-      <div
-        className={cn('flex min-h-0 flex-1 flex-col', isInteractionBlocked && 'pointer-events-none')}
-        aria-hidden={isInteractionBlocked ? true : undefined}
-      >
+      <div className="flex min-h-0 flex-1 flex-col">
         <PanelToolbar
           panelId={panelId}
           providerId={state.providerId}
@@ -316,7 +313,8 @@ function PlaylistPanelBody({
         <div
           ref={scrollDroppableRef}
           data-testid="track-list-scroll"
-          className="flex-1 overflow-auto focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+          className={cn('flex-1 overflow-auto focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0', isInteractionBlocked && 'pointer-events-none')}
+          aria-hidden={isInteractionBlocked ? true : undefined}
           style={{
             paddingBottom: TRACK_ROW_HEIGHT * 2,
             overscrollBehaviorX: 'none',

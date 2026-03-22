@@ -273,18 +273,20 @@ function addClosePanelNavItem(items: NavItem[], params: PanelToolbarNavItemsPara
 }
 
 function addPanelNavItems(items: NavItem[], params: PanelToolbarNavItemsParams): void {
-  items.push({
-    id: 'auto-scroll',
-    icon: <ArrowDownToLine className="h-4 w-4" />,
-    label: params.autoScrollEnabled ? 'Auto-scroll: On' : 'Auto-scroll: Off',
-    onClick: params.toggleAutoScroll,
-    showCheckmark: true,
-    isActive: params.autoScrollEnabled,
-    title: params.autoScrollEnabled
-      ? 'Auto-scroll during playback is enabled - click to disable'
-      : 'Enable auto-scroll to follow playing track',
-    group: 'panel',
-  });
+  if (params.playlistId) {
+    items.push({
+      id: 'auto-scroll',
+      icon: <ArrowDownToLine className="h-4 w-4" />,
+      label: params.autoScrollEnabled ? 'Auto-scroll: On' : 'Auto-scroll: Off',
+      onClick: params.toggleAutoScroll,
+      showCheckmark: true,
+      isActive: params.autoScrollEnabled,
+      title: params.autoScrollEnabled
+        ? 'Auto-scroll during playback is enabled - click to disable'
+        : 'Enable auto-scroll to follow playing track',
+      group: 'panel',
+    });
+  }
 
   if (params.playlistId) {
     items.push({

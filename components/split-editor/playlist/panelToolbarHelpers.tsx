@@ -362,7 +362,7 @@ export function PanelToolbarContent({
   } satisfies Record<MusicProviderId, 'connected' | 'disconnected'>), [authSummary.spotify.code, authSummary.tidal.code]);
 
   return (
-    <div ref={toolbarRef} className="flex items-center gap-1 border-b border-border bg-card relative z-30">
+    <div ref={toolbarRef} className="flex items-center gap-1 border-b border-border bg-card relative z-50">
       <div className="flex flex-1 min-w-0 basis-0 items-center gap-1">
         <div className="flex-1 min-w-0 basis-0 flex items-center gap-2">
           <div className="shrink-0">

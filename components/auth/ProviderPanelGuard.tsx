@@ -72,10 +72,7 @@ export function ProviderPanelGuard({ provider, children }: ProviderPanelGuardPro
   return (
     <ProviderPanelGuardContext.Provider value={contextValue}>
       <div className="relative h-full w-full">
-        <div
-          className={isOverlayActive ? 'h-full w-full pointer-events-none select-none' : 'h-full w-full'}
-          aria-hidden={isOverlayActive ? true : undefined}
-        >
+        <div className="h-full w-full">
           {children}
         </div>
         {isOverlayActive && reason && (

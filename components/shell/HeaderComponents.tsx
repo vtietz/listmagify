@@ -13,11 +13,11 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
-import { signIn, useSession } from 'next-auth/react';
+import { signIn } from 'next-auth/react';
 import { 
   ListMusic, 
   LogIn, 
-  LogOut, 
+  LogOut,
   Minimize2, 
   MapPinOff, 
   BarChart3, 
@@ -40,9 +40,7 @@ import { useAuthSummary } from '@/hooks/auth/useAuth';
 import { useMusicProviderId } from '@/hooks/useMusicProviderId';
 import { FeedbackDialog } from '@/components/feedback';
 import { AdaptiveNav as AdaptiveNavComponent, type NavItem } from '@/components/ui/adaptive-nav';
-import { providerAuthRegistry } from '@/lib/providers/authRegistry';
 import { syncProviderAuthStatusWithRetry } from '@/lib/providers/syncProviderAuth';
-import { createProviderAuthState } from '@/lib/providers/types';
 import type { ProviderId } from '@/lib/providers/types';
 
 // ============================================================================
@@ -147,7 +145,6 @@ function withProviderInCallbackUrl(callbackUrl: string, providerId: ProviderId):
 
 export function HeaderProviderStatus() {
   const summary = useAuthSummary();
-  const { update } = useSession();
   const currentProviderId = useMusicProviderId();
   const providers = useHeaderProviders();
   const isE2EMode = process.env.NEXT_PUBLIC_E2E_MODE === '1';
@@ -187,25 +184,6 @@ export function HeaderProviderStatus() {
     })();
   }, [isE2EMode, summary]);
 
-  const handleProviderLogout = useCallback(async (providerId: ProviderId) => {
-    // Optimistically update the UI immediately so the user sees feedback
-    providerAuthRegistry.setState(createProviderAuthState(providerId, 'unauthenticated', false, Date.now()));
-
-    if (isE2EMode) {
-      await fetch(`/api/test/logout?provider=${providerId}`, {
-        method: 'GET',
-        cache: 'no-store',
-      });
-    } else if (typeof update === 'function') {
-      await update({ providerAuthAction: 'logout-provider', providerId });
-    }
-
-    // Re-sync from server to get the authoritative state — this prevents
-    // the 30s poll from reverting the optimistic update if the session
-    // hasn't fully propagated yet
-    await syncProviderAuthStatusWithRetry();
-  }, [isE2EMode, update]);
-
   return (
     <ProviderStatusDropdown
       context="header"
@@ -213,7 +191,6 @@ export function HeaderProviderStatus() {
       providers={providers}
       statusMap={statusMap}
       onProviderChange={handleProviderChange}
-      onProviderLogout={handleProviderLogout}
       data-testid="header-provider-status-dropdown"
     />
   );
@@ -245,6 +222,8 @@ export function AdaptiveNav({
   clearAllMarkers,
 }: AdaptiveNavProps) {
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const headerProviders = useHeaderProviders();
+  const isSingleProvider = headerProviders.length <= 1;
   
   const isPlaylistsActive = pathname === '/playlists' || pathname.startsWith('/playlists/');
   const isSplitEditorActive = pathname === '/split-editor';
@@ -339,14 +318,14 @@ export function AdaptiveNav({
         </span>
       ),
     }] : []),
-    // Group 4: User actions
-    {
+    // Group 4: User actions (logout only for single-provider; multi-provider uses /logout page)
+    ...(isSingleProvider ? [{
       id: 'logout',
       icon: <LogOut className="h-3.5 w-3.5" />,
       label: 'Logout',
       href: '/logout',
       group: 'user',
-    },
+    }] : []),
     // Group 5: Footer items (only visible on phone in burger menu)
     ...(isPhone ? [{
       id: 'feedback',
@@ -386,6 +365,7 @@ export function AdaptiveNav({
     isCompact, toggleCompact, isAutoScrollText, toggleAutoScrollText,
     isCompareEnabled, toggleCompare, supportsCompare,
     markerStats.totalMarkers, clearAllMarkers,
+    isSingleProvider,
   ]);
 
   return (
