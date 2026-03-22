@@ -1,13 +1,15 @@
 'use client';
 
 import { useState } from 'react';
-import { Check, ChevronDown, LogIn } from 'lucide-react';
+import { Check, ChevronDown, LogIn, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { PlayingIndicator } from '@/components/ui/playing-indicator';
@@ -23,6 +25,7 @@ interface ProviderStatusDropdownProps {
   statusMap: Record<ProviderId, ProviderConnectionStatus>;
   playingProviderInPanel?: ProviderId | null;
   onProviderChange: (providerId: ProviderId) => void;
+  onProviderLogout?: (providerId: ProviderId) => Promise<void> | void;
   'data-testid'?: string;
 }
 
@@ -147,6 +150,56 @@ function isPlayingProviderInPanel(
   return context === 'panel' && status === 'connected' && playingProviderInPanel === providerId;
 }
 
+function HeaderProviderLogoutItems({
+  context,
+  connectedProviders,
+  onProviderLogout,
+  loggingOutProviderId,
+  setLoggingOutProviderId,
+  setOpen,
+  dataTestId,
+}: {
+  context: 'header' | 'panel';
+  connectedProviders: ProviderId[];
+  onProviderLogout: ((providerId: ProviderId) => Promise<void> | void) | undefined;
+  loggingOutProviderId: ProviderId | null;
+  setLoggingOutProviderId: (providerId: ProviderId | null | ((current: ProviderId | null) => ProviderId | null)) => void;
+  setOpen: (open: boolean) => void;
+  dataTestId: string | undefined;
+}) {
+  if (context !== 'header' || !onProviderLogout || connectedProviders.length === 0) {
+    return null;
+  }
+
+  return (
+    <>
+      <DropdownMenuSeparator />
+      {connectedProviders.map((providerId) => {
+        const isLoggingOut = loggingOutProviderId === providerId;
+
+        return (
+          <DropdownMenuItem
+            key={`logout-${providerId}`}
+            disabled={loggingOutProviderId !== null}
+            data-testid={`${dataTestId ?? 'provider-status-dropdown'}-logout-${providerId}`}
+            onSelect={() => {
+              setOpen(false);
+              setLoggingOutProviderId(providerId);
+              void Promise.resolve(onProviderLogout(providerId)).finally(() => {
+                setLoggingOutProviderId((current) => (current === providerId ? null : current));
+              });
+            }}
+            className="gap-2"
+          >
+            <LogOut className="h-3.5 w-3.5" aria-hidden="true" />
+            <span className="flex-1 text-sm">{isLoggingOut ? `Logging out ${getProviderLabel(providerId)}…` : `Logout ${getProviderLabel(providerId)}`}</span>
+          </DropdownMenuItem>
+        );
+      })}
+    </>
+  );
+}
+
 export function ProviderStatusDropdown({
   context,
   currentProviderId,
@@ -154,11 +207,14 @@ export function ProviderStatusDropdown({
   statusMap,
   playingProviderInPanel = null,
   onProviderChange,
+  onProviderLogout,
   'data-testid': dataTestId,
 }: ProviderStatusDropdownProps) {
   const [open, setOpen] = useState(false);
+  const [loggingOutProviderId, setLoggingOutProviderId] = useState<ProviderId | null>(null);
   const isPanelContext = context === 'panel';
   const isSingleProvider = providers.length <= 1;
+  const connectedProviders = providers.filter((providerId) => (statusMap[providerId] ?? 'disconnected') === 'connected');
 
   // Single provider: nothing to switch — hide entirely
   if (isSingleProvider) {
@@ -240,6 +296,16 @@ export function ProviderStatusDropdown({
             );
           })}
         </DropdownMenuRadioGroup>
+
+        <HeaderProviderLogoutItems
+          context={context}
+          connectedProviders={connectedProviders}
+          onProviderLogout={onProviderLogout}
+          loggingOutProviderId={loggingOutProviderId}
+          setLoggingOutProviderId={setLoggingOutProviderId}
+          setOpen={setOpen}
+          dataTestId={dataTestId}
+        />
       </DropdownMenuContent>
     </DropdownMenu>
   );

@@ -13,7 +13,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
-import { signIn } from 'next-auth/react';
+import { signIn, useSession } from 'next-auth/react';
 import { 
   ListMusic, 
   LogIn, 
@@ -145,6 +145,7 @@ function withProviderInCallbackUrl(callbackUrl: string, providerId: ProviderId):
 
 export function HeaderProviderStatus() {
   const summary = useAuthSummary();
+  const { update } = useSession();
   const currentProviderId = useMusicProviderId();
   const providers = useHeaderProviders();
   const isE2EMode = process.env.NEXT_PUBLIC_E2E_MODE === '1';
@@ -184,6 +185,27 @@ export function HeaderProviderStatus() {
     })();
   }, [isE2EMode, summary]);
 
+  const handleProviderLogout = useCallback(async (providerId: ProviderId) => {
+    if (summary[providerId].code !== 'ok') {
+      return;
+    }
+
+    if (isE2EMode) {
+      await fetch(`/api/test/logout?provider=${providerId}`, {
+        method: 'GET',
+        cache: 'no-store',
+      });
+      await syncProviderAuthStatusWithRetry();
+      return;
+    }
+
+    if (typeof update === 'function') {
+      await update({ providerAuthAction: 'logout-provider', providerId });
+    }
+
+    await syncProviderAuthStatusWithRetry();
+  }, [isE2EMode, summary, update]);
+
   return (
     <ProviderStatusDropdown
       context="header"
@@ -191,6 +213,7 @@ export function HeaderProviderStatus() {
       providers={providers}
       statusMap={statusMap}
       onProviderChange={handleProviderChange}
+      onProviderLogout={handleProviderLogout}
       data-testid="header-provider-status-dropdown"
     />
   );
