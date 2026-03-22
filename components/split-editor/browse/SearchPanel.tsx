@@ -279,6 +279,7 @@ export function SearchPanel({ isActive = true, inputRef: externalInputRef, provi
                 onSelect={handleSelect}
                 onClick={handleClick}
                 isFetchingNextPage={isFetchingNextPage}
+                providerId={effectiveProviderId}
               />
             </SearchResultsState>
 

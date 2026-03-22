@@ -85,6 +85,7 @@ function PanelToolbarInner({
   const isPlaylistDetailRoute = pathname.startsWith('/playlists/');
   const canCloseLastPanel = isPlaylistDetailRoute;
   const disableClose = !isPhone && isLastPanel && !canCloseLastPanel;
+  const canPlayInProvider = providerId === 'spotify';
 
   const navItems = useToolbarNavItems({
     playlistId,
@@ -93,7 +94,7 @@ function PanelToolbarInner({
     isReloading,
     onReload,
     hasTracks,
-    onPlayFirst,
+    onPlayFirst: canPlayInProvider ? onPlayFirst : undefined,
     isEditable,
     locked,
     panelCount,

@@ -187,6 +187,7 @@ function PlaylistTrackListState({
         isCollaborative={state.hasMultipleContributors}
         showReleaseYearColumn={trackColumnVisibility.showReleaseYearColumn}
         showPopularityColumn={trackColumnVisibility.showPopularityColumn}
+        providerId={state.providerId}
       />
       <VirtualizedTrackListContainer
         panelId={panelId}

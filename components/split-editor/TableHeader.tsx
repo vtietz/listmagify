@@ -10,6 +10,7 @@ import { useCompactModeStore } from '@/hooks/useCompactModeStore';
 import { useDragHandle } from './mobile/DragHandle';
 import type { SortKey, SortDirection } from '@/hooks/usePlaylistSort';
 import type { LucideIcon } from 'lucide-react';
+import type { MusicProviderId } from '@/lib/music-provider/types';
 
 interface TableHeaderProps {
   isEditable: boolean;
@@ -32,6 +33,8 @@ interface TableHeaderProps {
   showReleaseYearColumn?: boolean;
   /** Whether to show popularity column (default true) */
   showPopularityColumn?: boolean;
+  /** Provider for playback-capable columns */
+  providerId?: MusicProviderId;
 }
 
 /** Grid template for consistent column alignment between header and rows */
@@ -289,12 +292,12 @@ export function TableHeader({
   showCumulativeTime = true,
   showReleaseYearColumn = true,
   showPopularityColumn = true,
+  providerId = 'spotify',
 }: TableHeaderProps) {
   const { isCompact } = useCompactModeStore();
   const iconClass = isCompact ? 'h-2.5 w-2.5' : 'h-3 w-3';
   
-  // Always show play button regardless of player visibility
-  const showPlayButton = true;
+  const showPlayButton = providerId === 'spotify';
   
   // Mobile drag handle visibility (matches TrackRow)
   const { showHandle: showDragHandle } = useDragHandle();

@@ -224,6 +224,7 @@ export function SearchTracksVirtualList({
   onSelect,
   onClick,
   isFetchingNextPage,
+  providerId,
 }: {
   panelId: string;
   sortableIds: string[];
@@ -245,6 +246,7 @@ export function SearchTracksVirtualList({
   onSelect: (_selectionKey: string, index: number, event: React.MouseEvent) => void;
   onClick: (_selectionKey: string, index: number) => void;
   isFetchingNextPage: boolean;
+  providerId: MusicProviderId;
 }) {
   return (
     <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
@@ -256,6 +258,7 @@ export function SearchTracksVirtualList({
             sortDirection={sortDirection}
             onSort={onSort}
             showLikedColumn={true}
+            providerId={providerId}
           />
           <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
             {virtualizer.getVirtualItems().map((virtualRow) => {

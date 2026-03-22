@@ -204,6 +204,7 @@ function TrackRowInnerComponent(props: TrackRowInnerProps) {
     showCumulativeTime,
     showHandle,
     isCompact,
+    providerId,
     isCollaborative,
     getProfile,
   });

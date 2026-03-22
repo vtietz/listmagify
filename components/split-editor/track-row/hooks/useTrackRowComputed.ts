@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
 import { getTrackGridStyle } from '../../TableHeader';
-import type { Track } from '@/lib/music-provider/types';
-import { useMusicProviderId } from '@/hooks/useMusicProviderId';
+import type { Track, MusicProviderId } from '@/lib/music-provider/types';
 
 interface UseTrackRowComputedInput {
   track: Track;
@@ -18,6 +17,7 @@ interface UseTrackRowComputedInput {
   showCumulativeTime: boolean;
   showHandle: boolean;
   isCompact: boolean;
+  providerId: MusicProviderId;
   isCollaborative: boolean;
   getProfile?: ((userId: string) => { displayName?: string | null; imageUrl?: string | null } | undefined) | undefined;
 }
@@ -37,10 +37,10 @@ export function useTrackRowComputed({
   showCumulativeTime,
   showHandle,
   isCompact,
+  providerId,
   isCollaborative,
   getProfile,
 }: UseTrackRowComputedInput) {
-  const providerId = useMusicProviderId();
   const shouldShowPlayButton = providerId === 'spotify';
   const showStandardAddColumn = !showCustomAddColumn;
   const isLocalFile = track.id === null;
