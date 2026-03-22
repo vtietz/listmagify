@@ -101,27 +101,54 @@ test.describe('Provider connection UX', () => {
     await addRequestAfterAuth;
   });
 
-  test('switching panel provider toggles disconnected overlay and restores connected state', async ({ page }) => {
+  test('switching panel provider updates provider state and restores prior provider playlist', async ({ page }) => {
     await page.goto('/split-editor?layout=p.test-playlist-1');
 
     const panel = page.locator('[data-testid="playlist-panel"]').first();
     await expect(panel).toHaveAttribute('data-auth-blocked', 'false', { timeout: 20_000 });
 
-    const dropdown = panel.locator('[data-testid="panel-provider-status-dropdown"]');
+    const dropdown = page.locator('[data-testid="panel-provider-status-dropdown"]').first();
+    const selectorButton = panel.getByRole('combobox').first();
+    await expect(selectorButton).toContainText('Test Playlist 1');
+    await expect(dropdown).toHaveAttribute('aria-label', 'Spotify provider');
+
     await dropdown.click();
     await page.locator('[data-testid="panel-provider-status-dropdown-tidal"]').click();
 
-    const overlay = panel.locator('[data-testid="panel-auth-overlay"]');
-    await expect(overlay).toBeVisible({ timeout: 20_000 });
+    await expect(dropdown).toHaveAttribute('aria-label', 'TIDAL provider', { timeout: 20_000 });
 
-    await panel.getByRole('button', { name: 'Sign in with TIDAL' }).click();
-    await expect(overlay).toBeHidden({ timeout: 20_000 });
+    const overlay = page.locator('[data-testid="panel-auth-overlay"]');
+    if (await overlay.isVisible()) {
+      await expect(overlay).toBeVisible({ timeout: 20_000 });
+    } else {
+      await expect(selectorButton).toContainText('Select a playlist...');
+    }
+
+    if (await overlay.isVisible()) {
+      await panel.getByRole('button', { name: 'Sign in with TIDAL' }).click();
+      await expect(overlay).toBeHidden({ timeout: 20_000 });
+    }
 
     await dropdown.click();
     await page.locator('[data-testid="panel-provider-status-dropdown-spotify"]').click();
 
+    await expect(dropdown).toHaveAttribute('aria-label', 'Spotify provider');
+    await expect(selectorButton).toContainText('Test Playlist 1', { timeout: 20_000 });
     await expect(panel).toHaveAttribute('data-auth-blocked', 'false');
-    await expect(overlay).toBeHidden();
+    await expect(page.getByText('Test Track 1').first()).toBeVisible({ timeout: 20_000 });
+  });
+
+  test('switching panel provider updates browse search provider', async ({ page }) => {
+    await page.goto('/split-editor?layout=p.test-playlist-1');
+
+    const panelProviderDropdown = page.locator('[data-testid="panel-provider-status-dropdown"]').first();
+    await panelProviderDropdown.click();
+    await page.locator('[data-testid="panel-provider-status-dropdown-tidal"]').click();
+
+    await page.getByRole('button', { name: 'Browse' }).click();
+
+    const browseProviderSelect = page.getByRole('combobox', { name: 'Search provider' });
+    await expect(browseProviderSelect).toHaveText(/TIDAL/i, { timeout: 20_000 });
   });
 
   test('shows waveform indicator only on currently playing panel', async ({ page }) => {

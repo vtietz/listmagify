@@ -8,6 +8,32 @@
 import { isPlaylistIdCompatibleWithProvider } from '@/lib/providers/playlistIdCompat';
 import type { SplitNode, PanelConfig } from './types';
 
+function deserializeLastPlaylistByProvider(
+  value: unknown,
+  providerId: 'spotify' | 'tidal',
+  playlistId: string | null,
+): Partial<Record<'spotify' | 'tidal', string>> {
+  const result: Partial<Record<'spotify' | 'tidal', string>> = {};
+
+  if (value && typeof value === 'object') {
+    const source = value as Record<string, unknown>;
+
+    if (typeof source.spotify === 'string' && isPlaylistIdCompatibleWithProvider(source.spotify, 'spotify')) {
+      result.spotify = source.spotify;
+    }
+
+    if (typeof source.tidal === 'string' && isPlaylistIdCompatibleWithProvider(source.tidal, 'tidal')) {
+      result.tidal = source.tidal;
+    }
+  }
+
+  if (playlistId && isPlaylistIdCompatibleWithProvider(playlistId, providerId)) {
+    result[providerId] = playlistId;
+  }
+
+  return result;
+}
+
 /**
  * Serialize tree for persistence (convert Sets to arrays).
  * 
@@ -25,6 +51,7 @@ export function serializeTree(node: SplitNode | null): unknown {
         selection: Array.from(node.panel.selection),
         sortKey: node.panel.sortKey,
         sortDirection: node.panel.sortDirection,
+        lastPlaylistByProvider: node.panel.lastPlaylistByProvider,
       },
     };
   }
@@ -52,6 +79,7 @@ export function deserializeTree(data: unknown): SplitNode | null {
     const rawPlaylistId = panel.playlistId as string | null;
     // Clear playlist IDs that don't match the provider (e.g. Spotify ID on a TIDAL panel from stale state)
     const playlistId = isPlaylistIdCompatibleWithProvider(rawPlaylistId, providerId) ? rawPlaylistId : null;
+    const lastPlaylistByProvider = deserializeLastPlaylistByProvider(panel.lastPlaylistByProvider, providerId, playlistId);
     return {
       kind: 'panel',
       id: obj.id as string,
@@ -59,6 +87,7 @@ export function deserializeTree(data: unknown): SplitNode | null {
         id: panel.id as string,
         providerId,
         playlistId,
+        lastPlaylistByProvider,
         isEditable: panel.isEditable as boolean,
         locked: panel.locked as boolean,
         searchQuery: panel.searchQuery as string,

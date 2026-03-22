@@ -19,6 +19,7 @@ export interface PanelConfig {
   id: string;
   providerId: MusicProviderId;
   playlistId: string | null;
+  lastPlaylistByProvider: Partial<Record<MusicProviderId, string>>;
   isEditable: boolean;
   locked: boolean; // User-controlled lock (prevents dragging tracks from this panel)
   searchQuery: string;
@@ -68,10 +69,14 @@ export function createPanelConfig(
   playlistId: string | null = null,
   providerId: MusicProviderId = 'spotify'
 ): PanelConfig {
+  const lastPlaylistByProvider: Partial<Record<MusicProviderId, string>> =
+    playlistId ? { [providerId]: playlistId } : {};
+
   return {
     id: generatePanelId(),
     providerId,
     playlistId,
+    lastPlaylistByProvider,
     isEditable: false,
     locked: false,
     searchQuery: '',

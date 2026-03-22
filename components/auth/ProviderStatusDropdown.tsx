@@ -6,12 +6,13 @@ import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { PlayingIndicator } from '@/components/ui/playing-indicator';
 import { cn } from '@/lib/utils';
-import type { ProviderId } from '@/lib/providers/types';
+import { isProviderId, type ProviderId } from '@/lib/providers/types';
 
 type ProviderConnectionStatus = 'connected' | 'disconnected';
 
@@ -197,32 +198,48 @@ export function ProviderStatusDropdown({
         align={context === 'header' ? 'end' : 'start'}
         className="w-52"
       >
-        {providers.map((providerId) => {
-          const status = statusMap[providerId] ?? 'disconnected';
-          const isSelected = providerId === currentProviderId;
-          const showPlaying = isPlayingProviderInPanel(context, providerId, playingProviderInPanel, status);
+        <DropdownMenuRadioGroup
+          value={currentProviderId}
+          onValueChange={(value) => {
+            if (!isProviderId(value)) {
+              return;
+            }
 
-          return (
-            <DropdownMenuItem
-              key={providerId}
-              data-testid={`${dataTestId ?? 'provider-status-dropdown'}-${providerId}`}
-              onSelect={() => {
-                if (providerId !== currentProviderId) {
-                  onProviderChange(providerId);
-                }
-              }}
-              className={cn('gap-2', isSelected && 'bg-accent/60')}
-            >
-              <ProviderGlyph providerId={providerId} />
-              <span className="flex-1 text-sm">{getProviderLabel(providerId)}</span>
-              <ProviderStatusIcon
-                status={status}
-                showPlaying={showPlaying}
-                dataTestId={`${dataTestId ?? 'provider-status-dropdown'}-${providerId}-status`}
-              />
-            </DropdownMenuItem>
-          );
-        })}
+            if (value !== currentProviderId) {
+              setOpen(false);
+              onProviderChange(value);
+            }
+          }}
+        >
+          {providers.map((providerId) => {
+            const status = statusMap[providerId] ?? 'disconnected';
+            const isSelected = providerId === currentProviderId;
+            const showPlaying = isPlayingProviderInPanel(context, providerId, playingProviderInPanel, status);
+
+            return (
+              <DropdownMenuRadioItem
+                key={providerId}
+                value={providerId}
+                data-testid={`${dataTestId ?? 'provider-status-dropdown'}-${providerId}`}
+                onPointerDown={(event) => {
+                  event.stopPropagation();
+                }}
+                onClick={(event) => {
+                  event.stopPropagation();
+                }}
+                className={cn('gap-2 pl-2', isSelected && 'bg-accent/60')}
+              >
+                <ProviderGlyph providerId={providerId} />
+                <span className="flex-1 text-sm">{getProviderLabel(providerId)}</span>
+                <ProviderStatusIcon
+                  status={status}
+                  showPlaying={showPlaying}
+                  dataTestId={`${dataTestId ?? 'provider-status-dropdown'}-${providerId}-status`}
+                />
+              </DropdownMenuRadioItem>
+            );
+          })}
+        </DropdownMenuRadioGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   );

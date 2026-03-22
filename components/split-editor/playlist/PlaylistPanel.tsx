@@ -364,7 +364,9 @@ export function PlaylistPanel({
   onRegisterVirtualizer,
   onUnregisterVirtualizer,
 }: PlaylistPanelProps) {
-  const { isOverlayActive: isInteractionBlocked } = useProviderPanelGuardState();
+  const {
+    isOverlayActive: isInteractionBlocked,
+  } = useProviderPanelGuardState();
   const isActiveDropTarget = useDndStateStore((s) => s.activePanelId === panelId);
   const isDragSource = useDndStateStore((s) => s.sourcePanelId === panelId);
   const panelState = usePlaylistPanelState({ panelId, isDragSource });
@@ -436,10 +438,12 @@ export function PlaylistPanel({
       <EmptyPanel
         panelId={panelId}
         panelCount={state.panelCount}
+        providerId={state.providerId}
         onLoadPlaylist={state.handleLoadPlaylist}
         onClose={state.handleClose}
         onSplitHorizontal={state.handleSplitHorizontal}
         onSplitVertical={state.handleSplitVertical}
+        onProviderChange={state.handleProviderChange}
       />
     );
   }

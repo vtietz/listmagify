@@ -11,6 +11,8 @@ import { useInsertionPointsStore } from "@/hooks/useInsertionPointsStore";
 import { useSessionUser } from "@/hooks/useSessionUser";
 import { useStatsAccess } from "@/hooks/useStatsAccess";
 import { useDeviceType } from "@/hooks/useDeviceType";
+import { useSplitGridStore } from "@/hooks/useSplitGridStore";
+import { usePanelFocusStore } from "@/hooks/usePanelFocusStore";
 import { SpotifyPlayer } from "@/components/player";
 import { BrowsePanel } from "@/components/split-editor/browse/BrowsePanel";
 import { AppLogo } from "@/components/ui/app-logo";
@@ -184,10 +186,12 @@ function Header({ title: _title }: { title: string }) {
   const { isCompact, toggle: toggleCompact } = useCompactModeStore();
   const { isEnabled: isAutoScrollText, toggle: toggleAutoScrollText } = useAutoScrollTextStore();
   const { isEnabled: isCompareEnabled, toggle: toggleCompare } = useCompareModeStore();
-  const { isOpen: isBrowseOpen, toggle: toggleBrowse } = useBrowsePanelStore();
+  const { isOpen: isBrowseOpen, open: openBrowse, close: closeBrowse, setProviderId: setBrowseProviderId } = useBrowsePanelStore();
   const { isPlayerVisible, togglePlayerVisible } = usePlayerStore();
   const clearAllMarkers = useInsertionPointsStore((s) => s.clearAll);
   const playlists = useInsertionPointsStore((s) => s.playlists);
+  const panels = useSplitGridStore((state) => state.panels);
+  const focusedPanelId = usePanelFocusStore((state) => state.focusedPanelId);
   const { authenticated, loading } = useSessionUser();
   const { hasAccess: hasStatsAccess } = useStatsAccess();
   const { isPhone } = useDeviceType();
@@ -206,6 +210,20 @@ function Header({ title: _title }: { title: string }) {
   const isSplitEditorActive = pathname === '/split-editor';
   const isAdminActive = pathname === '/admin' || pathname.startsWith('/admin/');
   const isLandingPage = pathname === '/';
+
+  const toggleBrowse = React.useCallback(() => {
+    if (isBrowseOpen) {
+      closeBrowse();
+      return;
+    }
+
+    const focusedPanel = focusedPanelId ? panels.find((panel) => panel.id === focusedPanelId) : null;
+    const fallbackPanel = panels[0] ?? null;
+    const browseProviderId = focusedPanel?.providerId ?? fallbackPanel?.providerId ?? 'spotify';
+
+    setBrowseProviderId(browseProviderId);
+    openBrowse();
+  }, [isBrowseOpen, closeBrowse, focusedPanelId, panels, setBrowseProviderId, openBrowse]);
   
   // Pages that support player and compare mode
   const supportsPlayerAndCompare = isSplitEditorActive || isPlaylistsActive;

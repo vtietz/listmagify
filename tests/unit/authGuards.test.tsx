@@ -94,7 +94,7 @@ describe('Auth guards', () => {
     expect(screen.getByTestId('panel-auth-overlay')).toBeInTheDocument();
     const panelContent = screen.getByText('panel-content');
     expect(panelContent).toBeInTheDocument();
-    expect(panelContent.closest('[aria-hidden="true"]')).not.toBeNull();
+    expect(panelContent.closest('[aria-hidden="true"]')).toBeNull();
   });
 
   it('AnyAuthGuard renders global fallback when no provider is authenticated', async () => {

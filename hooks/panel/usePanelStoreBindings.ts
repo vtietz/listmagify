@@ -6,7 +6,9 @@
 
 import { useCallback } from 'react';
 import { useSplitGridStore } from '@/hooks/useSplitGridStore';
+import { countPanels, findPanelById } from '@/hooks/splitGrid/tree';
 import { useMobileOverlayStore } from '@/components/split-editor/mobile/MobileBottomNav';
+import { useBrowsePanelStore } from '@/hooks/useBrowsePanelStore';
 import { useDeviceType } from '@/hooks/useDeviceType';
 import { eventBus } from '@/lib/sync/eventBus';
 import type { SortKey, SortDirection } from '@/lib/utils/sort';
@@ -71,6 +73,7 @@ function usePanelActionBindings({
   togglePanelLock,
   selectPlaylist,
   setPanelProvider,
+  setBrowseProviderId,
 }: {
   panelId: string;
   providerId: MusicProviderId;
@@ -85,6 +88,7 @@ function usePanelActionBindings({
   togglePanelLock: (panelId: string) => void;
   selectPlaylist: (panelId: string, playlistId: string, providerId?: MusicProviderId) => void;
   setPanelProvider: (panelId: string, providerId: MusicProviderId) => void;
+  setBrowseProviderId: (providerId: MusicProviderId) => void;
 }) {
   const handleSearchChange = useCallback(
     (query: string, setSearch: (panelId: string, query: string) => void) => setSearch(panelId, query),
@@ -125,8 +129,9 @@ function usePanelActionBindings({
   const handleProviderChange = useCallback(
     (nextProviderId: MusicProviderId) => {
       setPanelProvider(panelId, nextProviderId);
+      setBrowseProviderId(nextProviderId);
     },
-    [panelId, setPanelProvider]
+    [panelId, setPanelProvider, setBrowseProviderId]
   );
 
   return {
@@ -173,12 +178,15 @@ function derivePanelState(panel: {
   };
 }
 
-export function usePanelStoreBindings(panelId: string, dndMode: 'move' | 'copy') {
+export function usePanelStoreBindings(
+  panelId: string,
+  dndMode: 'move' | 'copy',
+) {
   // Store selectors - using typed selectors for type safety
   const panel = useSplitGridStore(
-    (state) => state.panels.find((p) => p.id === panelId)
+    (state) => findPanelById(state.root, panelId) ?? state.panels.find((p) => p.id === panelId)
   );
-  const panelCount = useSplitGridStore((state) => state.panels.length);
+  const panelCount = useSplitGridStore((state) => countPanels(state.root));
   const setSearch = useSplitGridStore((state) => state.setSearch);
   const setSelection = useSplitGridStore((state) => state.setSelection);
   const toggleSelection = useSplitGridStore((state) => state.toggleSelection);
@@ -187,6 +195,7 @@ export function usePanelStoreBindings(panelId: string, dndMode: 'move' | 'copy')
   const splitPanel = useSplitGridStore((state) => state.splitPanel);
   const setPanelDnDMode = useSplitGridStore((state) => state.setPanelDnDMode);
   const setPanelProvider = useSplitGridStore((state) => state.setPanelProvider);
+  const setBrowseProviderId = useBrowsePanelStore((state) => state.setProviderId);
   const togglePanelLock = useSplitGridStore((state) => state.togglePanelLock);
   const loadPlaylist = useSplitGridStore((state) => state.loadPlaylist);
   const selectPlaylist = useSplitGridStore((state) => state.selectPlaylist);
@@ -240,6 +249,7 @@ export function usePanelStoreBindings(panelId: string, dndMode: 'move' | 'copy')
     togglePanelLock,
     selectPlaylist,
     setPanelProvider,
+    setBrowseProviderId,
   });
 
   const handleSearchChange = useCallback(

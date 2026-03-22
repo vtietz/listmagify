@@ -30,6 +30,7 @@ import {
 
 import { serializeTree, deserializeTree } from './splitGrid/persistence';
 import { migrateLegacyPanels } from './splitGrid/migrate';
+import { isPlaylistIdCompatibleWithProvider } from '@/lib/providers/playlistIdCompat';
 
 // Re-export types and functions for external consumers
 export type { PanelConfig, PanelNode, GroupNode, SplitNode };
@@ -88,6 +89,30 @@ interface SplitGridState {
 
 const MAX_PANELS = 16;
 
+function rememberCurrentProviderPlaylist(panel: PanelConfig): Partial<Record<PanelConfig['providerId'], string>> {
+  const next = { ...panel.lastPlaylistByProvider };
+
+  if (panel.playlistId && isPlaylistIdCompatibleWithProvider(panel.playlistId, panel.providerId)) {
+    next[panel.providerId] = panel.playlistId;
+  }
+
+  return next;
+}
+
+function rememberPlaylistForProvider(
+  panel: PanelConfig,
+  providerId: PanelConfig['providerId'],
+  playlistId: string,
+): Partial<Record<PanelConfig['providerId'], string>> {
+  const next = rememberCurrentProviderPlaylist(panel);
+
+  if (isPlaylistIdCompatibleWithProvider(playlistId, providerId)) {
+    next[providerId] = playlistId;
+  }
+
+  return next;
+}
+
 // ============================================================================
 // Store Implementation
 // ============================================================================
@@ -124,6 +149,7 @@ export const useSplitGridStore = create<SplitGridState>()(
           ...panel,
           providerId: providerId ?? panel.providerId,
           playlistId,
+          lastPlaylistByProvider: rememberPlaylistForProvider(panel, providerId ?? panel.providerId, playlistId),
           isEditable,
           searchQuery: '',
           scrollOffset: 0,
@@ -141,6 +167,7 @@ export const useSplitGridStore = create<SplitGridState>()(
           ...panel,
           providerId: providerId ?? panel.providerId,
           playlistId,
+          lastPlaylistByProvider: rememberPlaylistForProvider(panel, providerId ?? panel.providerId, playlistId),
           isEditable: false, // Will be updated by PlaylistPanel after permissions check
           searchQuery: '',
           scrollOffset: 0,
@@ -159,10 +186,17 @@ export const useSplitGridStore = create<SplitGridState>()(
             return panel;
           }
 
+          const rememberedPlaylists = rememberCurrentProviderPlaylist(panel);
+          const rawRememberedPlaylistId = rememberedPlaylists[providerId] ?? null;
+          const playlistId = isPlaylistIdCompatibleWithProvider(rawRememberedPlaylistId, providerId)
+            ? rawRememberedPlaylistId
+            : null;
+
           return {
             ...panel,
             providerId,
-            playlistId: null,
+            playlistId,
+            lastPlaylistByProvider: rememberedPlaylists,
             isEditable: false,
             searchQuery: '',
             selection: new Set(),
