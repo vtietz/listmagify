@@ -24,6 +24,7 @@ import { PanelToolbar } from './PanelToolbar';
 import { TableHeader } from '../TableHeader';
 import { VirtualizedTrackListContainer } from '../VirtualizedTrackListContainer';
 import { TRACK_ROW_HEIGHT } from '../constants';
+import { getTrackColumnVisibility } from '../columns/providerTrackColumns';
 import {
   LoadingSkeletonList,
   ErrorPanel,
@@ -162,7 +163,7 @@ function PlaylistTrackListState({
     return <EmptyTrackList searchQuery={state.searchQuery} />;
   }
 
-  const showProviderMetadataColumns = state.providerId !== 'tidal';
+  const trackColumnVisibility = getTrackColumnVisibility(state.providerId);
 
   const optionalProps = buildTrackListOptionalProps({
     isDragSource: isInteractionBlocked ? false : isDragSource,
@@ -184,8 +185,8 @@ function PlaylistTrackListState({
         onSort={state.handleSort}
         showLikedColumn={true}
         isCollaborative={state.hasMultipleContributors}
-        showReleaseYearColumn={showProviderMetadataColumns}
-        showPopularityColumn={showProviderMetadataColumns}
+        showReleaseYearColumn={trackColumnVisibility.showReleaseYearColumn}
+        showPopularityColumn={trackColumnVisibility.showPopularityColumn}
       />
       <VirtualizedTrackListContainer
         panelId={panelId}
@@ -220,8 +221,8 @@ function PlaylistTrackListState({
         playTrack={state.playTrack}
         pausePlayback={state.pausePlayback}
         playbackContext={playbackContext}
-        showReleaseYearColumn={showProviderMetadataColumns}
-        showPopularityColumn={showProviderMetadataColumns}
+        showReleaseYearColumn={trackColumnVisibility.showReleaseYearColumn}
+        showPopularityColumn={trackColumnVisibility.showPopularityColumn}
         {...optionalProps}
       />
     </div>

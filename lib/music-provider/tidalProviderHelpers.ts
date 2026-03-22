@@ -313,6 +313,28 @@ function asOptionalNumber(value: unknown): number | null {
   return typeof value === 'number' ? value : null;
 }
 
+function clampToTrackPopularityRange(value: number): number {
+  if (value < 0) {
+    return 0;
+  }
+
+  if (value > 100) {
+    return 100;
+  }
+
+  return value;
+}
+
+function normalizeTidalPopularity(value: unknown): number | null {
+  const numeric = asOptionalNumber(value);
+  if (numeric == null || Number.isNaN(numeric) || !Number.isFinite(numeric)) {
+    return null;
+  }
+
+  const normalized = numeric <= 1 ? numeric * 100 : numeric;
+  return Math.round(clampToTrackPopularityRange(normalized));
+}
+
 function asRecord(value: unknown): UnknownRecord | null {
   if (!value || typeof value !== 'object') {
     return null;
@@ -492,7 +514,7 @@ function mapTrackResource(
     durationMs: parseDurationToMs(attributes.duration),
     position,
     album: mapAlbumResource(albumResource, includedIndex),
-    popularity: asOptionalNumber(attributes.popularity),
+    popularity: normalizeTidalPopularity(attributes.popularity),
     explicit: attributes.explicit === true,
   };
 

@@ -112,7 +112,7 @@ describe('tidalProviderHelpers', () => {
           attributes: {
             title: 'Song A',
             duration: 'PT3M30S',
-            popularity: 77,
+            popularity: 0.77,
             explicit: true,
           },
           relationships: {
