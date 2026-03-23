@@ -222,6 +222,7 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
   // --- Duplicates ---
   const duplicates = useDuplicates({
     playlistId,
+    providerId,
     isEditable,
     filteredTracks,
     selection,
