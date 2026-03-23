@@ -367,6 +367,7 @@ function handlePlaylistTrackDrop(
       sourceData.track,
       targetPlaylistId,
       targetProviderId,
+      ctx.panels,
       targetPanelId,
       targetPanel,
       finalDropPosition,
@@ -529,6 +530,7 @@ function handleBrowsePanelCopyDrop(
   sourceTrack: Track,
   targetPlaylistId: string,
   targetProviderId: MusicProviderId,
+  panels: PanelConfig[],
   _targetPanelId: string, // Used for logging only
   targetPanel: PanelConfig | undefined,
   finalDropPosition: number | null,
@@ -542,8 +544,19 @@ function handleBrowsePanelCopyDrop(
 
   const targetIndex = finalDropPosition ?? (targetData.position as number ?? 0);
   const payloads = getBrowsePanelDragPayloads(sourceData, sourceTrack);
+  const sourcePanelId = typeof sourceData.panelId === 'string' ? sourceData.panelId : null;
+  const sourcePanel = sourcePanelId
+    ? panels.find((panel) => panel.id === sourcePanelId)
+    : undefined;
+  const sourceProviderId = payloads[0]?.sourceProvider
+    ?? (sourcePanel ? resolvePanelProviderId(sourcePanel) : undefined);
 
-  if (enqueuePendingFromBrowseDrop && payloads.length > 0) {
+  if (
+    enqueuePendingFromBrowseDrop
+    && payloads.length > 0
+    && sourceProviderId
+    && sourceProviderId !== targetProviderId
+  ) {
     const handled = enqueuePendingFromBrowseDrop({
       targetPlaylistId,
       targetProviderId,
