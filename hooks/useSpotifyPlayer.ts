@@ -30,11 +30,17 @@ import {
   logTrackEnded,
 } from './player/useSpotifyPlayerHelpers';
 
-export function useSpotifyPlayer() {
+type UseSpotifyPlayerOptions = {
+  enableStatePolling?: boolean;
+};
+
+export function useSpotifyPlayer(options?: UseSpotifyPlayerOptions) {
   const queryClient = useQueryClient();
   const providerId = useMusicProviderId();
   const isPlaybackSupported = providerId === 'spotify';
   const { authenticated } = useSessionUser();
+  const enableStatePolling = options?.enableStatePolling ?? true;
+  const shouldPollPlaybackState = authenticated && isPlaybackSupported && enableStatePolling;
   const { isPhone } = useDeviceType();
   const setMobileOverlay = useMobileOverlayStore((s) => s.setActiveOverlay);
   const {
@@ -74,8 +80,8 @@ export function useSpotifyPlayer() {
       const data = await apiFetch<PlaybackResponse>(`/api/player/state?provider=${providerId}`);
       return data.playback;
     },
-    enabled: authenticated && isPlaybackSupported,
-    refetchInterval: authenticated && isPlaybackSupported ? POLL_INTERVAL : false,
+    enabled: shouldPollPlaybackState,
+    refetchInterval: shouldPollPlaybackState ? POLL_INTERVAL : false,
     staleTime: 2000,
     retry: false, // Don't retry on auth errors
   });

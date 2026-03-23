@@ -131,7 +131,7 @@ export function PlaylistListItem({ playlist, providerId, className }: PlaylistLi
   const { user } = useSessionUser();
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const updatePlaylist = useUpdatePlaylist();
-  const { play } = useSpotifyPlayer();
+  const { play } = useSpotifyPlayer({ enableStatePolling: false });
   const isPlayerVisible = usePlayerStore((s) => s.isPlayerVisible);
   
   const cover = playlist.image?.url;

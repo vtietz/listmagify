@@ -11,6 +11,7 @@ import { useCallback, useState, useEffect, useRef } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import { useSpotifyPlayer } from '@/hooks/useSpotifyPlayer';
 import { useMusicProviderId } from '@/hooks/useMusicProviderId';
+import { usePlayerStore } from '@/hooks/usePlayerStore';
 import { useWebPlaybackSDK } from '@/hooks/useWebPlaybackSDK';
 import { useSavedTracksIndex } from '@/hooks/useSavedTracksIndex';
 import { useInsertionPointsStore, computeInsertionPositions } from '@/hooks/useInsertionPointsStore';
@@ -366,11 +367,11 @@ function usePlayerViewportFlags() {
   return { isMobileDevice: isPhone || isTablet };
 }
 
-function useSpotifyPlayerViewModel() {
+function useSpotifyPlayerViewModel(shouldPollPlaybackState: boolean) {
   const { isReady: isWebPlayerReady, isInitializing: isWebPlayerInitializing } = useWebPlaybackSDK();
   const { isMobileDevice } = usePlayerViewportFlags();
 
-  const player = useSpotifyPlayer();
+  const player = useSpotifyPlayer({ enableStatePolling: shouldPollPlaybackState });
   const derived = getPlayerDerivedState(player.playbackState);
 
   const [isSeekDragging, _setIsSeekDragging] = useState(false);
@@ -490,7 +491,9 @@ interface SpotifyPlayerProps {
 
 export function SpotifyPlayer({ forceShow = false, onTrackClick }: SpotifyPlayerProps) {
   const providerId = useMusicProviderId();
-  const model = useSpotifyPlayerViewModel();
+  const isPlayerVisible = usePlayerStore((s) => s.isPlayerVisible);
+  const shouldPollPlaybackState = forceShow || isPlayerVisible;
+  const model = useSpotifyPlayerViewModel(shouldPollPlaybackState);
 
   if (providerId !== 'spotify') {
     return null;
