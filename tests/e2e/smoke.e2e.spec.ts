@@ -56,4 +56,87 @@ test.describe('E2E Smoke Tests', () => {
     await expect(page.getByText('Test Track 3').first()).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText('Test Track 5').first()).toBeVisible({ timeout: 20_000 });
   });
+
+  test('should delete duplicates while keeping first occurrence', async ({ page }) => {
+    let duplicatePosition: number | null = null;
+    let firstTrackPosition: number | null = null;
+    let didInjectDuplicate = false;
+
+    await page.route('**/api/playlists/test-playlist-1/tracks**', async (route) => {
+      const request = route.request();
+      if (request.method() !== 'GET') {
+        await route.continue();
+        return;
+      }
+
+      const upstream = await route.fetch();
+      const data = (await upstream.json()) as {
+        tracks?: Array<Record<string, unknown>>;
+        total?: number;
+      };
+
+      if (!didInjectDuplicate && Array.isArray(data.tracks) && data.tracks.length > 0) {
+        const firstTrack = data.tracks[0];
+        if (firstTrack) {
+          const positions = data.tracks.map((track, index) => {
+            const position = track.position;
+            return typeof position === 'number' ? position : index;
+          });
+          const maxPosition = positions.length > 0 ? Math.max(...positions) : 0;
+          const basePosition = typeof firstTrack.position === 'number' ? firstTrack.position : 0;
+
+          firstTrackPosition = basePosition;
+          duplicatePosition = maxPosition + 1;
+          data.tracks = [...data.tracks, { ...firstTrack, position: duplicatePosition }];
+          data.total = data.tracks.length;
+          didInjectDuplicate = true;
+        }
+      }
+
+      await route.fulfill({
+        status: upstream.status(),
+        headers: {
+          ...upstream.headers(),
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+    });
+
+    await page.route('**/api/playlists/test-playlist-1/tracks/remove**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ snapshotId: 'test-snapshot-duplicate-delete' }),
+      });
+    });
+
+    await gotoSplitEditorAndWaitForTracks(page);
+
+    await expect(page.getByText('Test Track 1')).toHaveCount(2, { timeout: 20_000 });
+
+    const deleteRequestPromise = page.waitForRequest(
+      (request) =>
+        request.method() === 'DELETE' &&
+        /\/api\/playlists\/test-playlist-1\/tracks\/remove(?:\?|$)/.test(request.url()),
+      { timeout: 10_000 }
+    );
+
+    await page.locator('[title="Delete duplicates"]').first().click();
+
+    const deleteRequest = await deleteRequestPromise;
+    const payload = deleteRequest.postDataJSON() as {
+      tracks?: Array<{ uri?: string; positions?: number[]; position?: number }>;
+    };
+
+    const duplicateTrackPayload = payload.tracks?.find((track) => track.uri === 'spotify:track:track1');
+
+    if (firstTrackPosition === null || duplicatePosition === null || !duplicateTrackPayload) {
+      throw new Error('Duplicate setup or delete payload was not captured correctly');
+    }
+
+    expect(duplicateTrackPayload.positions).toEqual([duplicatePosition]);
+    expect(duplicateTrackPayload.positions).not.toContain(firstTrackPosition);
+    expect(Object.prototype.hasOwnProperty.call(duplicateTrackPayload, 'position')).toBe(false);
+  });
 });

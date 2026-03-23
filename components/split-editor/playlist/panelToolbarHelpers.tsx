@@ -255,7 +255,7 @@ function ToolbarSearchInput({
   compact: boolean;
 }) {
   return (
-    <div className={compact ? 'relative' : 'relative flex-1 min-w-0 basis-0'}>
+    <div className={compact ? 'relative' : 'relative flex-[0.8] min-w-0 basis-0'}>
       <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
       <Input
         type="text"

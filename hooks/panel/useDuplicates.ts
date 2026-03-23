@@ -96,27 +96,27 @@ export function useDuplicates({
       });
 
       // Find all positions to remove (keep first occurrence)
-      const positionsToRemove: Array<{ uri: string; position: number }> = [];
+      const tracksToRemove: Array<{ uri: string; positions: number[] }> = [];
       for (const [uri, positions] of uriPositions) {
         if (positions.length > 1) {
-          for (let i = 1; i < positions.length; i++) {
-            positionsToRemove.push({ uri, position: positions[i]! });
-          }
+          tracksToRemove.push({ uri, positions: positions.slice(1) });
         }
       }
 
-      if (positionsToRemove.length === 0) {
+      if (tracksToRemove.length === 0) {
         toast.success('No duplicates found');
         return;
       }
 
       await removeTracks.mutateAsync({
         playlistId,
-        tracks: positionsToRemove,
+        tracks: tracksToRemove,
       });
 
+      const removedCount = tracksToRemove.reduce((count, track) => count + track.positions.length, 0);
+
       toast.success(
-        `Removed ${positionsToRemove.length} duplicate track${positionsToRemove.length > 1 ? 's' : ''}`
+        `Removed ${removedCount} duplicate track${removedCount > 1 ? 's' : ''}`
       );
     } catch (error) {
       console.error('[handleDeleteAllDuplicates] Failed:', error);
@@ -148,10 +148,12 @@ export function useDuplicates({
       try {
         await removeTracks.mutateAsync({
           playlistId,
-          tracks: duplicatePositions.map((position) => ({
-            uri: track.uri,
-            position,
-          })),
+          tracks: [
+            {
+              uri: track.uri,
+              positions: duplicatePositions,
+            },
+          ],
         });
 
         toast.success(
