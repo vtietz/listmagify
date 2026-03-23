@@ -3,6 +3,7 @@
  * Used for displaying user avatars in compact spaces.
  */
 
+import Image from 'next/image';
 import { cn } from '@/lib/utils';
 
 interface AvatarProps {
@@ -89,11 +90,13 @@ export function Avatar({ displayName, userId, imageUrl, size = 'sm', className, 
         )}
         title={tooltipText}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
+        {/* unoptimized because avatar URLs can originate from any CDN */}
+        <Image
           src={imageUrl}
           alt={displayName || userId || 'User avatar'}
-          className="h-full w-full object-cover"
+          fill
+          className="object-cover"
+          unoptimized
           onError={(e) => {
             // On error, hide the image to show the fallback
             e.currentTarget.style.display = 'none';

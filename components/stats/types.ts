@@ -217,3 +217,28 @@ export interface EventsData {
   dailyUsers: DailyUsers[];
   dailyActions: DailyActions[];
 }
+
+export interface StatsDashboardViewProps {
+  timeRange: TimeRange;
+  onTimeRangeChange: (range: TimeRange) => void;
+  onRefresh: () => void;
+  isRefreshing: boolean;
+  dateRange: DateRange;
+  kpis: OverviewKPIs | undefined;
+  overviewData: { data: OverviewKPIs; dbStats?: { sizeBytes: number; sizeMB: number } } | undefined;
+  overviewLoading: boolean;
+  events: EventsData | undefined;
+  eventsLoading: boolean;
+  recsData: RecsStats | undefined;
+  recsLoading: boolean;
+  registrationsLoading: boolean;
+  registrationsData: { data: RegisteredUsersPerDay[] } | undefined;
+  feedbackSummaryLoading: boolean;
+  feedbackSummary: { data: { totalResponses: number } } | undefined;
+  errorReportsSummaryLoading: boolean;
+  errorReportsSummary: { data: unknown[]; pagination: { total: number } } | undefined;
+  errorReportsResolvedSummary: { data: unknown[]; pagination: { total: number } } | undefined;
+  accessRequestsSummaryLoading: boolean;
+  accessRequestsSummary: { data: unknown[]; pagination: { total: number } } | undefined;
+  accessRequestsApprovedSummary: { data: unknown[]; pagination: { total: number } } | undefined;
+}

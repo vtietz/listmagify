@@ -5,6 +5,7 @@ import { Separator } from '@/components/ui/separator';
 import { PlayingIndicator } from '@/components/ui/playing-indicator';
 import { cn } from '@/lib/utils';
 import type { Playlist } from '@/lib/music-provider/types';
+import { ArtworkImage } from '@/components/shared/ArtworkImage';
 
 type PlaylistListItem = Playlist | { kind: 'separator' };
 
@@ -48,11 +49,13 @@ function canInteractWithPlaylist(state: PlaylistRowState): boolean {
 function PlaylistCover({ playlist }: { playlist: Playlist }) {
   if (playlist.image?.url) {
     return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
+      // Parent container must have position:relative for fill to work
+      <ArtworkImage
         src={playlist.image.url}
         alt={playlist.name}
-        className="w-full h-full object-cover"
+        fill
+        className="object-cover"
+        sizes="48px"
       />
     );
   }
@@ -127,7 +130,7 @@ function renderPlaylistItem(
         !interactive && 'opacity-50 cursor-not-allowed',
       )}
     >
-      <div className="w-12 h-12 rounded bg-muted flex-shrink-0 overflow-hidden">
+      <div className="relative w-12 h-12 rounded bg-muted flex-shrink-0 overflow-hidden">
         <PlaylistCover playlist={playlist} />
       </div>
 

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 // Github brand icon is deprecated in lucide-react but still functional
 // TODO: Consider migrating to SimpleIcons in the future
@@ -18,19 +19,22 @@ export function AppFooter({ showSpotifyAttribution = true }: { showSpotifyAttrib
       {/* Per Spotify guidelines: full logo min 70px width, icon min 21px. Using logo. */}
       {showSpotifyAttribution ? (
         <div className="flex items-center gap-2">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
+        {/* SVG logos from public folder - unoptimized since SVG doesn't benefit from raster optimization */}
+        <Image
           src="/spotify/Primary_Logo_White_RGB.svg"
           alt="Spotify"
-          className="h-5 hidden dark:block"
-          style={{ minWidth: '70px' }}
+          width={70}
+          height={21}
+          className="hidden dark:block"
+          unoptimized
         />
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
+        <Image
           src="/spotify/Primary_Logo_Black_RGB.svg"
           alt="Spotify"
-          className="h-5 dark:hidden"
-          style={{ minWidth: '70px' }}
+          width={70}
+          height={21}
+          className="dark:hidden"
+          unoptimized
         />
         <span className="text-[10px]">
           Content provided by{" "}
