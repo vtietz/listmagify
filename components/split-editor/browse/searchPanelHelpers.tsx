@@ -1,13 +1,16 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { Search, X, Loader2 } from 'lucide-react';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useContextMenuStore } from '@/hooks/useContextMenuStore';
+import { useAuthSummary } from '@/hooks/auth/useAuth';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { ProviderStatusDropdown } from '@/components/auth/ProviderStatusDropdown';
 import { TrackRow } from '../TrackRow';
 import { TrackContextMenu } from '../TrackContextMenu';
 import { TableHeader } from '../TableHeader';
@@ -15,7 +18,32 @@ import { AddSelectedToMarkersButton } from '../playlist/AddSelectedToMarkersButt
 import { makeCompositeId } from '@/lib/dnd/id';
 import type { SortKey, SortDirection } from '@/hooks/usePlaylistSort';
 import type { Track, MusicProviderId } from '@/lib/music-provider/types';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
+interface AppConfigResponse {
+  availableProviders?: MusicProviderId[];
+}
+
+function useAvailableProviders(): MusicProviderId[] {
+  const { data } = useQuery({
+    queryKey: ['app-config'],
+    queryFn: async () => {
+      const response = await fetch('/api/config');
+      if (!response.ok) {
+        return { availableProviders: ['spotify'] } satisfies AppConfigResponse;
+      }
+
+      return response.json() as Promise<AppConfigResponse>;
+    },
+    staleTime: Infinity,
+  });
+
+  const providers = data?.availableProviders;
+  if (!providers || providers.length === 0) {
+    return ['spotify'];
+  }
+
+  return providers;
+}
 
 export function useSearchQueryState(
   searchQuery: string,
@@ -117,18 +145,27 @@ export function SearchInputBar({
   providerId: MusicProviderId;
   onProviderChange: (id: MusicProviderId) => void;
 }) {
+  const availableProviders = useAvailableProviders();
+  const authSummary = useAuthSummary();
+
+  const statusMap = useMemo(() => ({
+    spotify: authSummary.spotify.code === 'ok' ? 'connected' : 'disconnected',
+    tidal: authSummary.tidal.code === 'ok' ? 'connected' : 'disconnected',
+  } satisfies Record<MusicProviderId, 'connected' | 'disconnected'>), [authSummary.spotify.code, authSummary.tidal.code]);
+
   return (
     <div className="px-3 py-2 border-b border-border">
       <div className="relative flex items-center gap-1.5">
-        <Select value={providerId} onValueChange={(v) => onProviderChange(v as MusicProviderId)}>
-          <SelectTrigger className="w-[100px] h-9 text-sm shrink-0">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="spotify">Spotify</SelectItem>
-            <SelectItem value="tidal">TIDAL</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="shrink-0">
+          <ProviderStatusDropdown
+            context="panel"
+            currentProviderId={providerId}
+            providers={availableProviders}
+            statusMap={statusMap}
+            onProviderChange={onProviderChange}
+            data-testid="browse-provider-status-dropdown"
+          />
+        </div>
         <div className="relative flex-1">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input

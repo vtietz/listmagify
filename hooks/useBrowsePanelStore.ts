@@ -17,6 +17,22 @@ export type DrillDownTarget = {
   image?: Image | null;
 };
 
+type BrowseProviderSearchState = {
+  searchQuery: string;
+  searchFilter: SearchFilterType;
+};
+
+const DEFAULT_PROVIDER_SEARCH_STATE: Record<MusicProviderId, BrowseProviderSearchState> = {
+  spotify: {
+    searchQuery: '',
+    searchFilter: 'tracks',
+  },
+  tidal: {
+    searchQuery: '',
+    searchFilter: 'all',
+  },
+};
+
 interface BrowsePanelState {
   /** Whether the browse panel is open */
   isOpen: boolean;
@@ -28,6 +44,8 @@ interface BrowsePanelState {
   searchQuery: string;
   /** Search filter type (tracks, artists, albums) */
   searchFilter: SearchFilterType;
+  /** Search state by provider for quick switching */
+  searchStateByProvider: Record<MusicProviderId, BrowseProviderSearchState>;
   /** Drill-down target (artist or album to show tracks for) */
   drillDown: DrillDownTarget | null;
   /** Panel width in pixels */
@@ -87,8 +105,9 @@ export const useBrowsePanelStore = create<BrowsePanelState>()(
       isOpen: false,
       activeTab: 'browse',
       providerId: 'spotify',
-      searchQuery: '',
-      searchFilter: 'all',
+      searchQuery: DEFAULT_PROVIDER_SEARCH_STATE.spotify.searchQuery,
+      searchFilter: DEFAULT_PROVIDER_SEARCH_STATE.spotify.searchFilter,
+      searchStateByProvider: DEFAULT_PROVIDER_SEARCH_STATE,
       drillDown: null,
       width: 400,
       recsExpanded: false,
@@ -106,9 +125,39 @@ export const useBrowsePanelStore = create<BrowsePanelState>()(
       open: () => set({ isOpen: true }),
       close: () => set({ isOpen: false }),
       setActiveTab: (tab) => set({ activeTab: tab }),
-      setProviderId: (providerId) => set({ providerId, spotifySelection: [], drillDown: null }),
-      setSearchQuery: (query) => set({ searchQuery: query, drillDown: null }),
-      setSearchFilter: (filter) => set({ searchFilter: filter, spotifySelection: [], drillDown: null }),
+      setProviderId: (providerId) => set((state) => {
+        const providerSearchState = state.searchStateByProvider[providerId] ?? DEFAULT_PROVIDER_SEARCH_STATE[providerId];
+        return {
+          providerId,
+          searchQuery: providerSearchState.searchQuery,
+          searchFilter: providerSearchState.searchFilter,
+          spotifySelection: [],
+          drillDown: null,
+        };
+      }),
+      setSearchQuery: (query) => set((state) => ({
+        searchQuery: query,
+        drillDown: null,
+        searchStateByProvider: {
+          ...state.searchStateByProvider,
+          [state.providerId]: {
+            ...state.searchStateByProvider[state.providerId],
+            searchQuery: query,
+          },
+        },
+      })),
+      setSearchFilter: (filter) => set((state) => ({
+        searchFilter: filter,
+        spotifySelection: [],
+        drillDown: null,
+        searchStateByProvider: {
+          ...state.searchStateByProvider,
+          [state.providerId]: {
+            ...state.searchStateByProvider[state.providerId],
+            searchFilter: filter,
+          },
+        },
+      })),
       setDrillDown: (target) => set({ drillDown: target, spotifySelection: [] }),
       clearDrillDown: () => set({ drillDown: null, spotifySelection: [] }),
       setWidth: (width) => set({ width: Math.max(300, Math.min(800, width)) }),
@@ -166,7 +215,7 @@ export const useBrowsePanelStore = create<BrowsePanelState>()(
     }),
     {
       name: 'browse-panel-storage',
-      version: 2,
+      version: 3,
       migrate: (persisted, version) => {
         const state = persisted as Record<string, unknown>;
         if (version < 2) {
@@ -174,6 +223,11 @@ export const useBrowsePanelStore = create<BrowsePanelState>()(
           if (state.activeTab === 'spotify') {
             state.activeTab = 'browse';
           }
+        }
+        if (version < 3) {
+          state.searchStateByProvider = DEFAULT_PROVIDER_SEARCH_STATE;
+          state.searchQuery = DEFAULT_PROVIDER_SEARCH_STATE.spotify.searchQuery;
+          state.searchFilter = DEFAULT_PROVIDER_SEARCH_STATE.spotify.searchFilter;
         }
         return state as unknown as BrowsePanelState;
       },
