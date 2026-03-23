@@ -183,7 +183,7 @@ export function StatsDashboardView({
         <section id="feedback" className="scroll-mt-28">
           <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
             <MessageSquare className="h-5 w-5" />
-            Feedback &amp; Reports
+            Feedback & Reports
           </h2>
           <div className="space-y-4">
             <FeedbackStatsCard dateRange={dateRange} isLoading={overviewLoading} />
@@ -194,7 +194,7 @@ export function StatsDashboardView({
         <section id="auth" className="scroll-mt-28">
           <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
             <Shield className="h-5 w-5" />
-            Authentication &amp; Access
+            Authentication & Access
           </h2>
           <div className="space-y-4">
             <AuthenticationStatsCard dateRange={dateRange} />

@@ -37,34 +37,7 @@ import type { StatsDashboardViewProps } from './types';
 
 const LOADING_PLACEHOLDER = '...';
 
-/** Helper that shows a loading placeholder or the actual content. */
-export function LoadingCard({ children, isLoading }: { children: React.ReactNode; isLoading: boolean }) {
-  if (isLoading) {
-    return (
-      <div className="h-32 flex items-center justify-center text-muted-foreground">
-        Loading...
-      </div>
-    );
-  }
-  return <>{children}</>;
-}
-
-export function OverviewSection({
-  overviewLoading,
-  recsLoading,
-  feedbackSummaryLoading,
-  errorReportsSummaryLoading,
-  accessRequestsSummaryLoading,
-  kpis,
-  recsData,
-  overviewData,
-  feedbackSummary,
-  errorReportsSummary,
-  errorReportsResolvedSummary,
-  accessRequestsSummary,
-  accessRequestsApprovedSummary,
-  dateRange,
-}: Pick<
+type OverviewSectionProps = Pick<
   StatsDashboardViewProps,
   | 'overviewLoading'
   | 'recsLoading'
@@ -80,20 +53,68 @@ export function OverviewSection({
   | 'accessRequestsSummary'
   | 'accessRequestsApprovedSummary'
   | 'dateRange'
->) {
-  const activeUsers = overviewLoading ? LOADING_PLACEHOLDER : (kpis?.activeUsers ?? 0);
-  const totalEvents = overviewLoading ? LOADING_PLACEHOLDER : (kpis?.totalEvents ?? 0);
-  const totalSessions = overviewLoading ? LOADING_PLACEHOLDER : (kpis?.totalSessions ?? 0);
-  const totalRecs = recsLoading ? LOADING_PLACEHOLDER : (recsData?.totalTracks ?? 0);
-  const feedbackTotal = feedbackSummaryLoading ? LOADING_PLACEHOLDER : (feedbackSummary?.data?.totalResponses ?? 0);
-  const errorOpen = errorReportsSummary?.pagination?.total ?? 0;
-  const errorSolved = errorReportsResolvedSummary?.pagination?.total ?? 0;
-  const errorReports = errorReportsSummaryLoading ? LOADING_PLACEHOLDER : `${errorOpen} / ${errorSolved}`;
-  const accessPending = accessRequestsSummary?.pagination?.total ?? 0;
-  const accessApproved = accessRequestsApprovedSummary?.pagination?.total ?? 0;
-  const accessRequests = accessRequestsSummaryLoading ? LOADING_PLACEHOLDER : `${accessPending} / ${accessApproved}`;
-  const dbSize = overviewLoading ? LOADING_PLACEHOLDER : (overviewData?.dbStats ? `${overviewData.dbStats.sizeMB} MB` : 'N/A');
+>;
 
+type OverviewKPIValues = {
+  activeUsers: number | string;
+  totalEvents: number | string;
+  totalSessions: number | string;
+  totalRecs: number | string;
+  feedbackTotal: number | string;
+  errorReports: string;
+  accessRequests: string;
+  dbSize: string;
+};
+
+type SummaryWithTotal = { data: unknown[]; pagination: { total: number } } | undefined;
+
+/** Returns loading placeholder or the numeric KPI value. */
+function kpiValue(isLoading: boolean, value: number | undefined): number | string {
+  return isLoading ? LOADING_PLACEHOLDER : (value ?? 0);
+}
+
+/** Returns "open / resolved" summary string or the loading placeholder. */
+function countSummary(isLoading: boolean, open: SummaryWithTotal, resolved: SummaryWithTotal): string {
+  if (isLoading) return LOADING_PLACEHOLDER;
+  return `${open?.pagination?.total ?? 0} / ${resolved?.pagination?.total ?? 0}`;
+}
+
+/** Returns the database size string or the loading placeholder. */
+function dbSizeValue(isLoading: boolean, overviewData: OverviewSectionProps['overviewData']): string {
+  if (isLoading) return LOADING_PLACEHOLDER;
+  if (!overviewData?.dbStats) return 'N/A';
+  return `${overviewData.dbStats.sizeMB} MB`;
+}
+
+/** Pure computation of KPI display values; each loader helper has its own bounded complexity. */
+function computeOverviewKPIs(props: OverviewSectionProps): OverviewKPIValues {
+  return {
+    activeUsers:    kpiValue(props.overviewLoading, props.kpis?.activeUsers),
+    totalEvents:    kpiValue(props.overviewLoading, props.kpis?.totalEvents),
+    totalSessions:  kpiValue(props.overviewLoading, props.kpis?.totalSessions),
+    totalRecs:      kpiValue(props.recsLoading, props.recsData?.totalTracks),
+    feedbackTotal:  kpiValue(props.feedbackSummaryLoading, props.feedbackSummary?.data?.totalResponses),
+    errorReports:   countSummary(props.errorReportsSummaryLoading, props.errorReportsSummary, props.errorReportsResolvedSummary),
+    accessRequests: countSummary(props.accessRequestsSummaryLoading, props.accessRequestsSummary, props.accessRequestsApprovedSummary),
+    dbSize:         dbSizeValue(props.overviewLoading, props.overviewData),
+  };
+}
+
+/** Helper that shows a loading placeholder or the actual content. */
+export function LoadingWrapper({ children, isLoading }: { children: React.ReactNode; isLoading: boolean }) {
+  if (isLoading) {
+    return (
+      <div className="h-32 flex items-center justify-center text-muted-foreground">
+        Loading...
+      </div>
+    );
+  }
+  return <>{children}</>;
+}
+
+export function OverviewSection(props: OverviewSectionProps) {
+  const { dateRange } = props;
+  const kpiValues = computeOverviewKPIs(props);
   return (
     <section id="overview" className="scroll-mt-28">
       <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
@@ -104,7 +125,7 @@ export function OverviewSection({
         <a href="#users" className="block transition-transform hover:scale-105">
           <KPICard
             title="Active Users"
-            value={activeUsers}
+            value={kpiValues.activeUsers}
             subtitle={`${dateRange.from} to ${dateRange.to}`}
             icon={Users}
             description="Number of unique users who have interacted with the app during the selected time period"
@@ -113,7 +134,7 @@ export function OverviewSection({
         <a href="#activity" className="block transition-transform hover:scale-105">
           <KPICard
             title="Total Events"
-            value={totalEvents}
+            value={kpiValues.totalEvents}
             icon={Activity}
             description="Sum of all tracked events including track additions, removals, reorders, and API calls"
           />
@@ -121,7 +142,7 @@ export function OverviewSection({
         <a href="#traffic" className="block transition-transform hover:scale-105">
           <KPICard
             title="Total Sessions"
-            value={totalSessions}
+            value={kpiValues.totalSessions}
             icon={Globe}
             description="Number of unique user sessions started during the selected period"
           />
@@ -129,7 +150,7 @@ export function OverviewSection({
         <a href="#recs" className="block transition-transform hover:scale-105">
           <KPICard
             title="Recommendations"
-            value={totalRecs}
+            value={kpiValues.totalRecs}
             icon={Sparkles}
             description="Total number of tracks in the recommendations database"
           />
@@ -137,7 +158,7 @@ export function OverviewSection({
         <a href="#feedback" className="block transition-transform hover:scale-105">
           <KPICard
             title="Feedback"
-            value={feedbackTotal}
+            value={kpiValues.feedbackTotal}
             icon={MessageSquare}
             description="Total feedback responses received during the selected period"
           />
@@ -145,7 +166,7 @@ export function OverviewSection({
         <a href="#feedback" className="block transition-transform hover:scale-105">
           <KPICard
             title="Error Reports"
-            value={errorReports}
+            value={kpiValues.errorReports}
             subtitle="Open / Solved"
             icon={AlertTriangle}
             description="Error reports submitted by users - open vs resolved"
@@ -154,7 +175,7 @@ export function OverviewSection({
         <a href="#auth" className="block transition-transform hover:scale-105">
           <KPICard
             title="Access Requests"
-            value={accessRequests}
+            value={kpiValues.accessRequests}
             subtitle="Pending / Approved"
             icon={UserPlus}
             description="Access requests from users - pending vs approved"
@@ -162,7 +183,7 @@ export function OverviewSection({
         </a>
         <KPICard
           title="Database Size"
-          value={dbSize}
+          value={kpiValues.dbSize}
           icon={Database}
           description="Size of the metrics database file (metrics.db) on disk"
         />
@@ -192,7 +213,7 @@ export function ActivitySection({ events, eventsLoading }: Pick<StatsDashboardVi
             {eventsLoading ? (
               <div className="h-32 flex items-center justify-center text-muted-foreground">Loading...</div>
             ) : hasDailyData ? (
-              <SimpleBarChart data={events!.dailySummaries} label="" />
+              <SimpleBarChart data={events?.dailySummaries ?? []} label="" />
             ) : (
               <div className="h-32 flex items-center justify-center text-muted-foreground">
                 No data for selected period
@@ -206,9 +227,9 @@ export function ActivitySection({ events, eventsLoading }: Pick<StatsDashboardVi
             <CardTitle>Action Distribution</CardTitle>
           </CardHeader>
           <CardContent>
-            <LoadingCard isLoading={eventsLoading}>
+            <LoadingWrapper isLoading={eventsLoading}>
               <ActionDonut data={events?.actionDistribution ?? []} />
-            </LoadingCard>
+            </LoadingWrapper>
           </CardContent>
         </Card>
       </div>
@@ -221,9 +242,9 @@ export function ActivitySection({ events, eventsLoading }: Pick<StatsDashboardVi
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <LoadingCard isLoading={eventsLoading}>
+          <LoadingWrapper isLoading={eventsLoading}>
             <ActionsBarChart data={events?.dailyActions ?? []} />
-          </LoadingCard>
+          </LoadingWrapper>
         </CardContent>
       </Card>
     </section>
@@ -241,7 +262,7 @@ export function UsersSection({
     <section id="users" className="scroll-mt-28">
       <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
         <TrendingUp className="h-5 w-5" />
-        User Growth &amp; Activity
+        User Growth & Activity
       </h2>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <Card>
@@ -252,9 +273,9 @@ export function UsersSection({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <LoadingCard isLoading={eventsLoading}>
+            <LoadingWrapper isLoading={eventsLoading}>
               <UsersBarChart data={events?.dailyUsers ?? []} />
-            </LoadingCard>
+            </LoadingWrapper>
           </CardContent>
         </Card>
 
@@ -273,9 +294,9 @@ export function UsersSection({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <LoadingCard isLoading={registrationsLoading}>
+            <LoadingWrapper isLoading={registrationsLoading}>
               <UserGrowthChart data={registrationsData?.data ?? []} />
-            </LoadingCard>
+            </LoadingWrapper>
           </CardContent>
         </Card>
       </div>
