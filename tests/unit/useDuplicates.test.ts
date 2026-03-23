@@ -48,6 +48,7 @@ describe('useDuplicates', () => {
     const { result } = renderHook(() =>
       useDuplicates({
         playlistId: 'playlist-1',
+        providerId: 'spotify',
         isEditable: true,
         filteredTracks,
         selection: new Set<string>(),
@@ -62,6 +63,7 @@ describe('useDuplicates', () => {
     expect(mutateAsync).toHaveBeenCalledTimes(1);
     expect(mutateAsync).toHaveBeenCalledWith({
       playlistId: 'playlist-1',
+      providerId: 'spotify',
       tracks: [{ uri: 'spotify:track:track1', positions: [2, 3] }],
     });
   });
@@ -77,6 +79,7 @@ describe('useDuplicates', () => {
     const { result } = renderHook(() =>
       useDuplicates({
         playlistId: 'playlist-1',
+        providerId: 'spotify',
         isEditable: true,
         filteredTracks,
         selection: new Set<string>(),
@@ -91,6 +94,7 @@ describe('useDuplicates', () => {
     expect(mutateAsync).toHaveBeenCalledTimes(1);
     expect(mutateAsync).toHaveBeenCalledWith({
       playlistId: 'playlist-1',
+      providerId: 'spotify',
       tracks: [{ uri: 'spotify:track:track1', positions: [0, 3] }],
     });
   });

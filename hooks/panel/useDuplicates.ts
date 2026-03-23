@@ -7,18 +7,20 @@
 import { useMemo, useState, useCallback } from 'react';
 import { toast } from '@/lib/ui/toast';
 import { buildDuplicateUris, buildSelectedDuplicateUris, buildSoftDuplicateUris } from './panelUtils';
-import type { Track } from '@/lib/music-provider/types';
+import type { Track, MusicProviderId } from '@/lib/music-provider/types';
 
 export type DuplicateType = 'real' | 'soft' | null;
 
 interface UseDuplicatesOptions {
   playlistId: string | null | undefined;
+  providerId: MusicProviderId;
   isEditable: boolean;
   filteredTracks: Track[];
   selection: Set<string>;
   removeTracks: {
     mutateAsync: (params: {
       playlistId: string;
+      providerId?: MusicProviderId;
       tracks: Array<{ uri: string; position?: number; positions?: number[] }>;
       snapshotId?: string;
     }) => Promise<void>;
@@ -27,6 +29,7 @@ interface UseDuplicatesOptions {
 
 export function useDuplicates({
   playlistId,
+  providerId,
   isEditable,
   filteredTracks,
   selection,
@@ -110,6 +113,7 @@ export function useDuplicates({
 
       await removeTracks.mutateAsync({
         playlistId,
+        providerId,
         tracks: tracksToRemove,
       });
 
@@ -124,7 +128,7 @@ export function useDuplicates({
     } finally {
       setIsDeletingDuplicates(false);
     }
-  }, [playlistId, isEditable, isDeletingDuplicates, filteredTracks, removeTracks]);
+  }, [playlistId, providerId, isEditable, isDeletingDuplicates, filteredTracks, removeTracks]);
 
   // Delete duplicates of a specific track (keep the selected instance)
   const handleDeleteTrackDuplicates = useCallback(
@@ -148,6 +152,7 @@ export function useDuplicates({
       try {
         await removeTracks.mutateAsync({
           playlistId,
+          providerId,
           tracks: [
             {
               uri: track.uri,
@@ -164,7 +169,7 @@ export function useDuplicates({
         toast.error('Failed to delete duplicates');
       }
     },
-    [playlistId, isEditable, filteredTracks, removeTracks]
+    [playlistId, providerId, isEditable, filteredTracks, removeTracks]
   );
 
   return {
