@@ -131,6 +131,8 @@ function TrackRowInnerComponent(props: TrackRowInnerProps) {
   isMultiSelect,
   selectedCount,
   selectedTracks,
+  pendingStatus,
+  pendingMessage,
   ctx,
   } = resolveTrackRowInnerProps(props);
 
@@ -346,6 +348,8 @@ function TrackRowInnerComponent(props: TrackRowInnerProps) {
         onArtistClick={handleArtistClick}
         onAlbumClick={handleAlbumClick}
         dragListeners={listeners as SyntheticListenerMap | undefined}
+        pendingStatus={pendingStatus}
+        pendingMessage={pendingMessage}
       />
     </RowWrapper>
   );

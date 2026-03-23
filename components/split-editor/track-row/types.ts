@@ -61,6 +61,8 @@ export interface TrackRowProps {
   isMultiSelect?: boolean;
   selectedCount?: number;
   selectedTracks?: Track[] | undefined;
+  pendingStatus?: 'matching' | 'unresolved' | undefined;
+  pendingMessage?: string | undefined;
 }
 
 export interface TrackRowSharedContext {

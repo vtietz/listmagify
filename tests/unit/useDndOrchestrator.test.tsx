@@ -11,6 +11,8 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
+import type { PropsWithChildren } from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useDndOrchestrator } from '@/hooks/useDndOrchestrator';
 import type { Track } from '@/lib/spotify/types';
 import type { Virtualizer } from '@tanstack/react-virtual';
@@ -62,6 +64,23 @@ const createMockTrack = (id = 'track-1'): Track => ({
   addedAt: '2024-01-01T00:00:00Z',
 });
 
+function createWrapper() {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
+  });
+
+  function TestQueryWrapper({ children }: PropsWithChildren) {
+    return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+  }
+
+  TestQueryWrapper.displayName = 'TestQueryWrapper';
+
+  return TestQueryWrapper;
+}
+
 describe('useDndOrchestrator', () => {
   const mockPanels = [
     { id: 'panel-1', isEditable: true, dndMode: 'copy' as const, playlistId: 'playlist-1' },
@@ -78,7 +97,7 @@ describe('useDndOrchestrator', () => {
 
   describe('Initialization', () => {
     it('should initialize with null drag state', () => {
-      const { result } = renderHook(() => useDndOrchestrator(mockPanels));
+      const { result } = renderHook(() => useDndOrchestrator(mockPanels), { wrapper: createWrapper() });
 
       expect(result.current.activeTrack).toBeNull();
       expect(result.current.activeId).toBeNull();
@@ -87,7 +106,7 @@ describe('useDndOrchestrator', () => {
     });
 
     it('should provide DnD context props', () => {
-      const { result } = renderHook(() => useDndOrchestrator(mockPanels));
+      const { result } = renderHook(() => useDndOrchestrator(mockPanels), { wrapper: createWrapper() });
 
       expect(result.current.sensors).toBeDefined();
       expect(result.current.collisionDetection).toBeDefined();
@@ -98,14 +117,14 @@ describe('useDndOrchestrator', () => {
     });
 
     it('should provide virtualizer registry functions', () => {
-      const { result } = renderHook(() => useDndOrchestrator(mockPanels));
+      const { result } = renderHook(() => useDndOrchestrator(mockPanels), { wrapper: createWrapper() });
 
       expect(typeof result.current.registerVirtualizer).toBe('function');
       expect(typeof result.current.unregisterVirtualizer).toBe('function');
     });
 
     it('should provide utility functions', () => {
-      const { result } = renderHook(() => useDndOrchestrator(mockPanels));
+      const { result } = renderHook(() => useDndOrchestrator(mockPanels), { wrapper: createWrapper() });
 
       expect(typeof result.current.getEffectiveDndMode).toBe('function');
       expect(typeof result.current.isTargetEditable).toBe('function');
@@ -114,7 +133,7 @@ describe('useDndOrchestrator', () => {
 
   describe('Virtualizer Registration', () => {
     it('should register a virtualizer for a panel', () => {
-      const { result } = renderHook(() => useDndOrchestrator(mockPanels));
+      const { result } = renderHook(() => useDndOrchestrator(mockPanels), { wrapper: createWrapper() });
       
       const mockVirtualizer = { getVirtualItems: vi.fn() } as unknown as Virtualizer<HTMLDivElement, Element>;
       const mockScrollRef = { current: document.createElement('div') };
@@ -129,7 +148,7 @@ describe('useDndOrchestrator', () => {
     });
 
     it('should unregister a virtualizer for a panel', () => {
-      const { result } = renderHook(() => useDndOrchestrator(mockPanels));
+      const { result } = renderHook(() => useDndOrchestrator(mockPanels), { wrapper: createWrapper() });
       
       const mockVirtualizer = { getVirtualItems: vi.fn() } as unknown as Virtualizer<HTMLDivElement, Element>;
       const mockScrollRef = { current: document.createElement('div') };
@@ -147,13 +166,13 @@ describe('useDndOrchestrator', () => {
 
   describe('Effective DnD Mode', () => {
     it('should return null when no drag is active', () => {
-      const { result } = renderHook(() => useDndOrchestrator(mockPanels));
+      const { result } = renderHook(() => useDndOrchestrator(mockPanels), { wrapper: createWrapper() });
 
       expect(result.current.getEffectiveDndMode()).toBeNull();
     });
 
     it('should return copy mode for copy panel without Ctrl', () => {
-      const { result } = renderHook(() => useDndOrchestrator(mockPanels));
+      const { result } = renderHook(() => useDndOrchestrator(mockPanels), { wrapper: createWrapper() });
 
       // Simulate drag start to set sourcePanelId
       const mockTrack = createMockTrack();
@@ -177,7 +196,7 @@ describe('useDndOrchestrator', () => {
     });
 
     it('should return move mode for move panel without Ctrl', () => {
-      const { result } = renderHook(() => useDndOrchestrator(mockPanels));
+      const { result } = renderHook(() => useDndOrchestrator(mockPanels), { wrapper: createWrapper() });
 
       const mockTrack = createMockTrack();
 
@@ -202,13 +221,13 @@ describe('useDndOrchestrator', () => {
 
   describe('Target Editability', () => {
     it('should return true when no panel is active', () => {
-      const { result } = renderHook(() => useDndOrchestrator(mockPanels));
+      const { result } = renderHook(() => useDndOrchestrator(mockPanels), { wrapper: createWrapper() });
 
       expect(result.current.isTargetEditable()).toBe(true);
     });
 
     it('should return true for editable panel', () => {
-      const { result } = renderHook(() => useDndOrchestrator(mockPanels));
+      const { result } = renderHook(() => useDndOrchestrator(mockPanels), { wrapper: createWrapper() });
 
       const mockTrack = createMockTrack();
 
@@ -252,7 +271,7 @@ describe('useDndOrchestrator', () => {
     });
 
     it('should return false for non-editable panel', () => {
-      const { result } = renderHook(() => useDndOrchestrator(mockPanels));
+      const { result } = renderHook(() => useDndOrchestrator(mockPanels), { wrapper: createWrapper() });
 
       const mockTrack = createMockTrack();
 
@@ -301,7 +320,7 @@ describe('useDndOrchestrator', () => {
 
   describe('Drag Lifecycle', () => {
     it('should set active state on drag start', () => {
-      const { result } = renderHook(() => useDndOrchestrator(mockPanels));
+      const { result } = renderHook(() => useDndOrchestrator(mockPanels), { wrapper: createWrapper() });
 
       const mockTrack = createMockTrack();
 
@@ -326,7 +345,7 @@ describe('useDndOrchestrator', () => {
     });
 
     it('should reset state on drag end', () => {
-      const { result } = renderHook(() => useDndOrchestrator(mockPanels));
+      const { result } = renderHook(() => useDndOrchestrator(mockPanels), { wrapper: createWrapper() });
 
       const mockTrack = createMockTrack();
 
@@ -377,7 +396,7 @@ describe('useDndOrchestrator', () => {
         { id: 'panel-1', isEditable: true, dndMode: 'move' as const, playlistId: 'playlist-1', selection },
       ];
 
-      const { result } = renderHook(() => useDndOrchestrator(panels));
+      const { result } = renderHook(() => useDndOrchestrator(panels), { wrapper: createWrapper() });
 
       const mockVirtualizer = { getVirtualItems: vi.fn(() => []) } as unknown as Virtualizer<HTMLDivElement, Element>;
       const mockScrollRef = { current: document.createElement('div') };

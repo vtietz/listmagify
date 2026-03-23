@@ -27,9 +27,65 @@ import { useBrowsePanelStore } from '../../useBrowsePanelStore';
 import { apiFetch } from '@/lib/api/client';
 import { toast } from '@/lib/ui/toast';
 import { logDebug } from '@/lib/utils/debug';
+import { isPlaylistIdCompatibleWithProvider } from '@/lib/providers/playlistIdCompat';
 
-function resolvePanelProviderId(panel: PanelConfig): MusicProviderId {
+function inferProviderIdFromPlaylistId(playlistId: string | null | undefined): MusicProviderId | null {
+  if (!playlistId) {
+    return null;
+  }
+
+  if (isPlaylistIdCompatibleWithProvider(playlistId, 'tidal')) {
+    return 'tidal';
+  }
+
+  if (isPlaylistIdCompatibleWithProvider(playlistId, 'spotify')) {
+    return 'spotify';
+  }
+
+  return null;
+}
+
+function resolvePanelProviderId(panel: PanelConfig, playlistId?: string | null): MusicProviderId {
+  const inferredProvider = inferProviderIdFromPlaylistId(playlistId ?? panel.playlistId);
+
+  if (panel.providerId && (!inferredProvider || panel.providerId === inferredProvider)) {
+    return panel.providerId;
+  }
+
+  if (!panel.providerId && inferredProvider) {
+    return inferredProvider;
+  }
+
+  if (inferredProvider) {
+    return inferredProvider;
+  }
+
   return panel.providerId ?? 'spotify';
+}
+
+function parseReleaseYear(releaseDate: string | null | undefined): number | undefined {
+  if (!releaseDate) {
+    return undefined;
+  }
+
+  const parsedYear = Number.parseInt(releaseDate.slice(0, 4), 10);
+  return Number.isFinite(parsedYear) ? parsedYear : undefined;
+}
+
+function buildPayloadFromTrack(track: Track, sourceProvider: MusicProviderId): TrackPayload {
+  const artists = track.artists ?? [];
+  return {
+    title: track.name,
+    artists,
+    normalizedArtists: artists.map((artist) => artist.trim().toLowerCase()),
+    album: track.album?.name ?? null,
+    durationSec: Math.max(0, Math.round((track.durationMs ?? 0) / 1000)),
+    sourceProvider,
+    sourceProviderId: track.id ?? undefined,
+    sourceProviderUri: track.uri || undefined,
+    coverUrl: track.album?.image?.url,
+    year: parseReleaseYear(track.album?.releaseDate),
+  };
 }
 
 /**
@@ -60,6 +116,8 @@ type TrackSourceData = Record<string, unknown> & {
   playlistId?: string;
   track: Track;
   position: number;
+  trackPayload?: TrackPayload;
+  selectedTrackPayloads?: TrackPayload[];
 };
 
 type LastfmTrackSourceData = Record<string, unknown> & {
@@ -116,7 +174,7 @@ function handleLastfmTrackDrop(
     return;
   }
 
-  const targetProviderId = resolvePanelProviderId(targetPanel);
+  const targetProviderId = resolvePanelProviderId(targetPanel, targetPlaylistId);
   const dropContext: DropContext = {
     panels: ctx.panels,
     mutations: ctx.mutations,
@@ -194,6 +252,22 @@ function resolveDragTracks(
   };
 }
 
+function resolveCrossProviderPayloads(
+  sourceData: TrackSourceData,
+  dragTracks: Track[],
+  sourceProvider: MusicProviderId,
+): TrackPayload[] {
+  if (sourceData.selectedTrackPayloads && sourceData.selectedTrackPayloads.length > 0) {
+    return sourceData.selectedTrackPayloads;
+  }
+
+  if (sourceData.trackPayload) {
+    return [sourceData.trackPayload];
+  }
+
+  return dragTracks.map((track) => buildPayloadFromTrack(track, sourceProvider));
+}
+
 function resolveSourceAndTargetPanels(
   panels: PanelConfig[],
   sourcePanelId: string,
@@ -247,12 +321,8 @@ function preparePlaylistDropExecutionContext(
     return null;
   }
 
-  const sourceProviderId = resolvePanelProviderId(panelPair.sourcePanel);
-  const targetProviderId = resolvePanelProviderId(panelPair.targetPanel);
-  if (sourceProviderId !== targetProviderId) {
-    toast.error('Drag and drop is only supported within the same provider');
-    return null;
-  }
+  const sourceProviderId = resolvePanelProviderId(panelPair.sourcePanel, sourcePlaylistId);
+  const targetProviderId = resolvePanelProviderId(panelPair.targetPanel, targetPlaylistId);
 
   const sourceDndMode = panelPair.sourcePanel.dndMode || 'copy';
   const { ctrlKey: isCtrlPressed } = ctx.pointerTracker.getModifiers();
@@ -287,7 +357,9 @@ function handlePlaylistTrackDrop(
     const targetPanelId = targetData.panelId!;
     const targetPlaylistId = targetData.playlistId!;
     const targetPanel = ctx.panels.find((panel) => panel.id === targetPanelId);
-    const targetProviderId = targetPanel ? resolvePanelProviderId(targetPanel) : 'spotify';
+    const targetProviderId = targetPanel
+      ? resolvePanelProviderId(targetPanel, targetPlaylistId)
+      : (inferProviderIdFromPlaylistId(targetPlaylistId) ?? 'spotify');
 
     handleBrowsePanelCopyDrop(
       sourceData,
@@ -345,6 +417,37 @@ function handlePlaylistTrackDrop(
     orderedTracks
   );
   if (!executionContext) {
+    return;
+  }
+
+  if (executionContext.sourceProviderId !== executionContext.targetProviderId) {
+    if (!ctx.enqueuePendingFromBrowseDrop) {
+      toast.error('Cross-provider drop is currently unavailable');
+      return;
+    }
+
+    const payloads = resolveCrossProviderPayloads(
+      sourceData,
+      dragTracks,
+      executionContext.sourceProviderId,
+    );
+
+    if (payloads.length === 0) {
+      toast.error('No tracks available for cross-provider drop');
+      return;
+    }
+
+    const handled = ctx.enqueuePendingFromBrowseDrop({
+      targetPlaylistId,
+      targetProviderId: executionContext.targetProviderId,
+      insertPosition: targetIndex,
+      payloads,
+    });
+
+    if (!handled) {
+      toast.error('Cross-provider drop could not be queued');
+    }
+
     return;
   }
 

@@ -3,6 +3,21 @@ import type { MusicProviderId } from '@/lib/music-provider/types';
 import type { TrackPayload } from '@/hooks/dnd/types';
 import type { MatchCandidate } from '@/lib/matching/providers';
 
+const PENDING_URI_PREFIX = 'pending:';
+
+export function toPendingTrackUri(tempId: string): string {
+  return `${PENDING_URI_PREFIX}${tempId}`;
+}
+
+export function getPendingIdFromUri(uri: string): string | null {
+  if (!uri.startsWith(PENDING_URI_PREFIX)) {
+    return null;
+  }
+
+  const value = uri.slice(PENDING_URI_PREFIX.length).trim();
+  return value.length > 0 ? value : null;
+}
+
 export type PendingStatus = 'matching' | 'matched' | 'unresolved' | 'cancelled';
 
 export interface PendingTrack {

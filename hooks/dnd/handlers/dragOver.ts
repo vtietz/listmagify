@@ -69,25 +69,13 @@ function resetDropPosition(ctx: DragOverContext, activePanelId: string | null = 
   });
 }
 
-function canDropOnPanel(ctx: DragOverContext, targetPanelId: string, sourcePanelId: string | null): boolean {
+function canDropOnPanel(ctx: DragOverContext, targetPanelId: string, _sourcePanelId: string | null): boolean {
   const targetPanel = ctx.panels.find((panel) => panel.id === targetPanelId);
   if (!targetPanel || !targetPanel.isEditable) {
     return false;
   }
 
-  const sourcePanel = sourcePanelId
-    ? ctx.panels.find((panel) => panel.id === sourcePanelId)
-    : null;
-
-  if (sourcePanel && !sourcePanel.playlistId) {
-    return true;
-  }
-
-  if (!sourcePanel?.providerId || !targetPanel.providerId) {
-    return true;
-  }
-
-  return sourcePanel.providerId === targetPanel.providerId;
+  return true;
 }
 
 function resolveDropData(

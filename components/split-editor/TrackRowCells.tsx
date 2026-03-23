@@ -49,9 +49,10 @@ interface TitleCellProps extends CellProps {
   track: Track;
   /** Optional slot for the more button */
   moreButton?: React.ReactNode;
+  statusIndicator?: React.ReactNode;
 }
 
-export function TitleCell({ isCompact, track, moreButton, isAutoScrollEnabled = false }: TitleCellProps) {
+export function TitleCell({ isCompact, track, moreButton, statusIndicator, isAutoScrollEnabled = false }: TitleCellProps) {
   return (
     <div className="min-w-0 relative flex items-center gap-1.5 group/title">
       {/* Explicit content badge per Spotify guidelines */}
@@ -83,6 +84,7 @@ export function TitleCell({ isCompact, track, moreButton, isAutoScrollEnabled = 
           {track.name}
         </span>
       )}
+      {statusIndicator}
       {/* More button - absolutely positioned to allow text underneath */}
       {moreButton && (
         <div className="absolute right-0 top-1/2 -translate-y-1/2">

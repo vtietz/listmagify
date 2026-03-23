@@ -21,6 +21,7 @@ import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
 import { useDeviceType } from '@/hooks/useDeviceType';
 import { useMobileOverlayStore } from './mobile/MobileBottomNav';
 import { useDndStateStore } from '@/hooks/dnd/state';
+import { getPendingIdFromUri, usePendingStateStore } from '@/hooks/pending/state';
 import type { Track, MusicProviderId } from '@/lib/music-provider/types';
 
 interface VirtualizedTrackListContainerProps {
@@ -187,6 +188,10 @@ function resolveTrackIdState(track: Track, getState: (trackId: string) => boolea
   return getState(track.id);
 }
 
+function resolvePendingId(track: Track): string | null {
+  return getPendingIdFromUri(track.uri);
+}
+
 interface TrackRowOptionalProps {
   reorderActions?: ReorderActions;
   contextTrackActions?: TrackActions;
@@ -281,6 +286,7 @@ interface RenderVirtualizedTrackRowParams {
   showReleaseYearColumn: boolean;
   showPopularityColumn: boolean;
   sharedCtx: TrackRowSharedContext;
+  pendingById: Map<string, { status: 'matching' | 'unresolved' | 'matched' | 'cancelled'; message?: string }>;
 }
 
 function renderVirtualizedTrackRow(params: RenderVirtualizedTrackRowParams): ReactElement | null {
@@ -290,6 +296,11 @@ function renderVirtualizedTrackRow(params: RenderVirtualizedTrackRowParams): Rea
   }
 
   const index = params.virtualRow.index;
+  const pendingId = resolvePendingId(track);
+  const pendingState = pendingId ? params.pendingById.get(pendingId) : undefined;
+  const isPendingRow = Boolean(
+    pendingState && (pendingState.status === 'matching' || pendingState.status === 'unresolved')
+  );
   const selectionId = params.selectionKey(track, index);
   const trackPosition = track.position ?? index;
   const trackUri = track.uri;
@@ -327,13 +338,13 @@ function renderVirtualizedTrackRow(params: RenderVirtualizedTrackRowParams): Rea
         selectionKey={selectionId}
         isSelected={params.selection.has(selectionId)}
         isEditable={params.isEditable}
-        locked={!params.canDrag}
+        locked={!params.canDrag || isPendingRow}
         panelId={params.panelId}
         playlistId={params.playlistId}
         dndMode={params.dndMode}
         isDragSourceSelected={Boolean(params.isDragSource && params.selection.has(selectionId))}
-        onSelect={params.handleTrackSelect}
-        onClick={params.handleTrackClick}
+        onSelect={isPendingRow ? () => {} : params.handleTrackSelect}
+        onClick={isPendingRow ? () => {} : params.handleTrackClick}
         isMultiSelect={params.selection.size > 1}
         selectedCount={params.selection.size}
         isPlaying={resolveTrackIdState(track, params.isTrackPlaying)}
@@ -359,6 +370,8 @@ function renderVirtualizedTrackRow(params: RenderVirtualizedTrackRowParams): Rea
         crossesHourBoundary={params.hourBoundaries.has(index)}
         hourNumber={params.hourBoundaries.get(index) || 0}
         markerActions={params.panelMarkerActions}
+        pendingStatus={pendingState?.status === 'unresolved' ? 'unresolved' : pendingState?.status === 'matching' ? 'matching' : undefined}
+        pendingMessage={pendingState?.message}
         {...rowOptionalProps}
       />
     </div>
@@ -430,9 +443,30 @@ export function VirtualizedTrackListContainer({
   const { isPhone, hasTouch, isDesktop } = useDeviceType();
   const setMobileOverlay = useMobileOverlayStore((s) => s.setActiveOverlay);
   const isDndActive = useDndStateStore((s) => s.activeId !== null);
+  const pendingForPlaylist = usePendingStateStore((s) => s.byPlaylist[playlistId]?.pending);
   const openContextMenu = useContextMenuStore((s) => s.openMenu);
   const showHandle = hasTouch || !isDesktop;
   const handleOnlyDrag = hasTouch;
+
+  const pendingById = useMemo(() => {
+    const map = new Map<string, { status: 'matching' | 'unresolved' | 'matched' | 'cancelled'; message?: string }>();
+    if (!pendingForPlaylist) return map;
+    pendingForPlaylist.forEach((row) => {
+      map.set(
+        row.tempId,
+        row.errorMessage
+          ? {
+              status: row.status,
+              message: row.errorMessage,
+            }
+          : {
+              status: row.status,
+            },
+      );
+    });
+
+    return map;
+  }, [pendingForPlaylist]);
 
   const openBrowsePanelForProvider = useCallback(() => {
     setBrowseActiveTab('browse');
@@ -558,6 +592,7 @@ export function VirtualizedTrackListContainer({
             showReleaseYearColumn,
             showPopularityColumn,
             sharedCtx,
+            pendingById,
           });
         })}
       </div>

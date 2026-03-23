@@ -1,5 +1,6 @@
 import type * as React from 'react';
 import { MoreHorizontal } from 'lucide-react';
+import { AlertTriangle, Loader2 } from 'lucide-react';
 import type { SyntheticListenerMap } from '@dnd-kit/core/dist/hooks/utilities';
 import { AddToMarkedButton } from '../../playlist/AddToMarkedButton';
 import { DragHandle } from '../../mobile/DragHandle';
@@ -62,6 +63,31 @@ interface TrackRowViewProps {
   onArtistClick: (e: React.MouseEvent, artistName: string) => void;
   onAlbumClick: (e: React.MouseEvent, albumName: string) => void;
   dragListeners: SyntheticListenerMap | undefined;
+  pendingStatus?: 'matching' | 'unresolved' | undefined;
+  pendingMessage?: string | undefined;
+}
+
+function PendingStatusIndicator({
+  pendingStatus,
+  pendingMessage,
+  isCompact,
+}: {
+  pendingStatus?: 'matching' | 'unresolved' | undefined;
+  pendingMessage?: string | undefined;
+  isCompact: boolean;
+}): React.ReactNode {
+  if (!pendingStatus || pendingStatus === 'matching') {
+    return null;
+  }
+
+  return (
+    <span
+      className="inline-flex items-center text-amber-500"
+      title={pendingMessage ?? 'Match unresolved'}
+    >
+      <AlertTriangle className={cn(isCompact ? 'h-3 w-3' : 'h-3.5 w-3.5')} />
+    </span>
+  );
 }
 
 interface DragHandleCellProps {
@@ -153,13 +179,33 @@ function AddToMarkedCell({
   showStandardAddColumn,
   track,
   playlistId,
+  pendingStatus,
+  isCompact,
 }: {
   showStandardAddColumn: boolean;
   track: Track;
   playlistId: string | undefined;
+  pendingStatus?: 'matching' | 'unresolved' | undefined;
+  isCompact: boolean;
 }): React.ReactNode {
   if (!showStandardAddColumn) {
     return null;
+  }
+
+  if (pendingStatus === 'matching') {
+    return (
+      <div className="flex items-center justify-center" style={{ width: isCompact ? 24 : 28 }}>
+        <Loader2 className={cn('animate-spin text-muted-foreground', isCompact ? 'h-3.5 w-3.5' : 'h-4 w-4')} />
+      </div>
+    );
+  }
+
+  if (pendingStatus === 'unresolved') {
+    return (
+      <div className="flex items-center justify-center" style={{ width: isCompact ? 24 : 28 }}>
+        <AlertTriangle className={cn('text-amber-500', isCompact ? 'h-3.5 w-3.5' : 'h-4 w-4')} />
+      </div>
+    );
   }
 
   return (
@@ -299,6 +345,8 @@ export function TrackRowView({
   onArtistClick,
   onAlbumClick,
   dragListeners,
+  pendingStatus,
+  pendingMessage,
 }: TrackRowViewProps) {
   return (
     <>
@@ -328,7 +376,7 @@ export function TrackRowView({
         onPlayClick={onPlayClick}
       />
 
-      <AddToMarkedCell showStandardAddColumn={showStandardAddColumn} track={track} playlistId={playlistId} />
+      <AddToMarkedCell showStandardAddColumn={showStandardAddColumn} track={track} playlistId={playlistId} pendingStatus={pendingStatus} isCompact={isCompact} />
 
       <LikedColumnCell
         showLikedColumn={showLikedColumn}
@@ -344,6 +392,7 @@ export function TrackRowView({
         isCompact={isCompact}
         track={track}
         isAutoScrollEnabled={isAutoScrollEnabled}
+        statusIndicator={PendingStatusIndicator({ pendingStatus, pendingMessage, isCompact })}
         moreButton={TitleMoreButton({ showHandle, isCompact, onMoreButtonClick })}
       />
 

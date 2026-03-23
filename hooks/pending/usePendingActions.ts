@@ -1,11 +1,22 @@
 'use client';
 
 import { useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import type { MusicProviderId } from '@/lib/music-provider/types';
+import type { Track } from '@/lib/music-provider/types';
 import type { TrackPayload } from '@/hooks/dnd/types';
 import { useAddTracks } from '@/lib/spotify/playlistMutations';
-import { usePendingStateStore } from './state';
+import { playlistTracksInfiniteByProvider } from '@/lib/api/queryKeys';
+import { applyAddToInfinitePages, type InfiniteData } from '@/lib/dnd/sortUtils';
+import { usePendingStateStore, toPendingTrackUri } from './state';
 import { getMatchEngine } from '@/lib/matching/matchEngine';
+
+type PlaylistTracksPage = {
+  tracks: Track[];
+  snapshotId: string;
+  total: number;
+  nextCursor: string | null;
+};
 
 interface EnqueuePendingParams {
   targetPlaylistId: string;
@@ -15,11 +26,52 @@ interface EnqueuePendingParams {
 }
 
 export function usePendingActions() {
+  const queryClient = useQueryClient();
   const addTracks = useAddTracks();
   const addPending = usePendingStateStore((state) => state.addPending);
   const markMatched = usePendingStateStore((state) => state.markMatched);
   const markUnresolved = usePendingStateStore((state) => state.markUnresolved);
   const removePending = usePendingStateStore((state) => state.removePending);
+
+  const upsertPendingTrackInCache = useCallback((params: {
+    providerId: MusicProviderId;
+    playlistId: string;
+    pendingTrackId: string;
+    payload: TrackPayload;
+    position: number;
+  }) => {
+    if (!queryClient) {
+      return;
+    }
+
+    const queryKey = playlistTracksInfiniteByProvider(params.playlistId, params.providerId);
+    const pendingUri = toPendingTrackUri(params.pendingTrackId);
+
+    queryClient.setQueryData(queryKey, (current: InfiniteData<PlaylistTracksPage> | undefined) => {
+      if (!current) {
+        return current;
+      }
+
+      const syntheticTrack: Track = {
+        id: null,
+        uri: pendingUri,
+        name: params.payload.title,
+        artists: params.payload.artists,
+        durationMs: Math.max(0, params.payload.durationSec * 1000),
+        position: params.position,
+        album: params.payload.album
+          ? {
+              name: params.payload.album,
+              image: params.payload.coverUrl ? { url: params.payload.coverUrl } : null,
+              releaseDate: params.payload.year ? String(params.payload.year) : null,
+              releaseDatePrecision: params.payload.year ? 'year' : null,
+            }
+          : null,
+      };
+
+      return applyAddToInfinitePages(current, [syntheticTrack], params.position);
+    });
+  }, [queryClient]);
 
   const enqueuePendingFromBrowseDrop = useCallback((params: EnqueuePendingParams): boolean => {
     if (params.payloads.length === 0) {
@@ -32,6 +84,16 @@ export function usePendingActions() {
       sourcePanel: 'browse',
       position: params.insertPosition,
       payloads: params.payloads,
+    });
+
+    pendingTracks.forEach((pendingTrack) => {
+      upsertPendingTrackInCache({
+        providerId: params.targetProviderId,
+        playlistId: params.targetPlaylistId,
+        pendingTrackId: pendingTrack.tempId,
+        payload: pendingTrack.sourceMeta,
+        position: pendingTrack.position,
+      });
     });
 
     const engine = getMatchEngine();
@@ -50,6 +112,10 @@ export function usePendingActions() {
           }, {
             onSuccess: () => {
               markMatched(pendingTrack.tempId);
+              // Don't remove the synthetic track from cache manually.
+              // The addTracks mutation triggers invalidateQueries which refetches
+              // server data — that refetch atomically replaces the cache,
+              // swapping the pending placeholder for the real track without layout shift.
               removePending(pendingTrack.tempId);
             },
             onError: () => {
@@ -70,7 +136,14 @@ export function usePendingActions() {
     });
 
     return true;
-  }, [addPending, addTracks, markMatched, markUnresolved, removePending]);
+  }, [
+    addPending,
+    addTracks,
+    markMatched,
+    markUnresolved,
+    removePending,
+    upsertPendingTrackInCache,
+  ]);
 
   return {
     enqueuePendingFromBrowseDrop,
