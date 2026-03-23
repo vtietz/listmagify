@@ -156,6 +156,7 @@ function TrackRowInnerComponent(props: TrackRowInnerProps) {
     index,
     panelId,
     playlistId,
+    providerId,
     disabled: locked,
     dragType,
     matchedTrack,

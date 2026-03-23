@@ -79,6 +79,10 @@ function canDropOnPanel(ctx: DragOverContext, targetPanelId: string, sourcePanel
     ? ctx.panels.find((panel) => panel.id === sourcePanelId)
     : null;
 
+  if (sourcePanel && !sourcePanel.playlistId) {
+    return true;
+  }
+
   if (!sourcePanel?.providerId || !targetPanel.providerId) {
     return true;
   }

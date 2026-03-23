@@ -10,14 +10,14 @@
 import type { DragEndEvent } from '@dnd-kit/core';
 import type { Track } from '@/lib/music-provider/types';
 import type { MusicProviderId } from '@/lib/music-provider/types';
-import type { PanelConfig, PanelVirtualizerData } from '../types';
+import type { PanelConfig, PanelVirtualizerData, TrackPayload } from '../types';
 import type { DropContext, MutationHandlers } from '../mutations';
 import {
   handleLastfmDrop,
   handleSamePanelDrop,
   handleCrossPanelDrop,
 } from '../mutations';
-import { computeAdjustedTargetIndex, getBrowsePanelDragUris } from '../helpers';
+import { computeAdjustedTargetIndex, getBrowsePanelDragPayloads, getBrowsePanelDragUris } from '../helpers';
 import {
   determineEffectiveMode,
   shouldAdjustTargetIndex,
@@ -42,6 +42,12 @@ export interface DragEndContext {
     getModifiers: () => { ctrlKey: boolean; shiftKey: boolean; altKey: boolean };
   };
   mutations: MutationHandlers;
+  enqueuePendingFromBrowseDrop?: (params: {
+    targetPlaylistId: string;
+    targetProviderId: MusicProviderId;
+    insertPosition: number;
+    payloads: TrackPayload[];
+  }) => boolean;
   getFinalDropPosition: () => number | null;
   getSelectedIndices: () => number[];
   getOrderedTracksSnapshot: () => Track[];
@@ -292,7 +298,8 @@ function handlePlaylistTrackDrop(
       targetPanelId,
       targetPanel,
       finalDropPosition,
-      ctx.mutations.addTracks
+      ctx.mutations.addTracks,
+      ctx.enqueuePendingFromBrowseDrop
     );
     return;
   }
@@ -422,7 +429,8 @@ function handleBrowsePanelCopyDrop(
   _targetPanelId: string, // Used for logging only
   targetPanel: PanelConfig | undefined,
   finalDropPosition: number | null,
-  addTracks: DragEndContext['mutations']['addTracks']
+  addTracks: DragEndContext['mutations']['addTracks'],
+  enqueuePendingFromBrowseDrop: DragEndContext['enqueuePendingFromBrowseDrop']
 ): boolean {
   if (!targetPanel?.isEditable) {
     toast.error('Target playlist is not editable');
@@ -430,6 +438,21 @@ function handleBrowsePanelCopyDrop(
   }
 
   const targetIndex = finalDropPosition ?? (targetData.position as number ?? 0);
+  const payloads = getBrowsePanelDragPayloads(sourceData, sourceTrack);
+
+  if (enqueuePendingFromBrowseDrop && payloads.length > 0) {
+    const handled = enqueuePendingFromBrowseDrop({
+      targetPlaylistId,
+      targetProviderId,
+      insertPosition: targetIndex,
+      payloads,
+    });
+
+    if (handled) {
+      return true;
+    }
+  }
+
   const trackUris = getBrowsePanelDragUris(sourceData, sourceTrack);
 
   if (trackUris.length === 0) {

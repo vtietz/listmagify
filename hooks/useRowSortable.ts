@@ -9,6 +9,8 @@ import { useMemo } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { makeCompositeId, getTrackPosition } from '@/lib/dnd/id';
 import type { Track } from '@/lib/music-provider/types';
+import type { MusicProviderId } from '@/lib/music-provider/types';
+import type { TrackPayload } from '@/hooks/dnd/types';
 
 // ============================================================================
 // Types
@@ -23,6 +25,8 @@ interface StandardDragData {
   position: number;
   /** Selected tracks for browse panels (search, recommendations) */
   selectedTracks?: Track[] | undefined;
+  trackPayload?: TrackPayload | undefined;
+  selectedTrackPayloads?: TrackPayload[] | undefined;
 }
 
 interface LastfmDragData {
@@ -61,6 +65,8 @@ interface UseRowSortableOptions {
   selectedTracks?: Track[] | undefined;
   /** Callback when drag starts (used to trigger Last.fm matching) */
   onDragStart?: (() => void) | undefined;
+  /** Source provider for provider-agnostic payload generation */
+  providerId?: MusicProviderId | undefined;
 }
 
 interface UseRowSortableReturn {
@@ -80,6 +86,35 @@ interface UseRowSortableReturn {
   listeners: ReturnType<typeof useDraggable>['listeners'];
 }
 
+function normalizeArtists(artists: string[] | undefined): string[] {
+  return (artists ?? []).map((artist) => artist.trim().toLowerCase());
+}
+
+function parseReleaseYear(releaseDate: string | null | undefined): number | undefined {
+  if (!releaseDate) {
+    return undefined;
+  }
+
+  const parsedYear = Number.parseInt(releaseDate.slice(0, 4), 10);
+  return Number.isFinite(parsedYear) ? parsedYear : undefined;
+}
+
+function buildTrackPayload(sourceTrack: Track, providerId?: MusicProviderId): TrackPayload {
+  const artists = sourceTrack.artists ?? [];
+  return {
+    title: sourceTrack.name,
+    artists,
+    normalizedArtists: normalizeArtists(artists),
+    album: sourceTrack.album?.name ?? null,
+    durationSec: Math.max(0, Math.round((sourceTrack.durationMs ?? 0) / 1000)),
+    sourceProvider: providerId ?? 'spotify',
+    sourceProviderId: sourceTrack.id ?? undefined,
+    sourceProviderUri: sourceTrack.uri || undefined,
+    coverUrl: sourceTrack.album?.image?.url,
+    year: parseReleaseYear(sourceTrack.album?.releaseDate),
+  };
+}
+
 /**
  * Hook to manage draggable row state and generate appropriate drag data.
  * Creates a globally unique composite ID scoped by panel and position to
@@ -97,6 +132,7 @@ export function useRowSortable({
   selectedMatchedUris,
   selectedTracks,
   onDragStart,
+  providerId,
 }: UseRowSortableOptions): UseRowSortableReturn {
   // Create globally unique composite ID scoped by panel and position
   const trackId = track.id || track.uri;
@@ -124,8 +160,10 @@ export function useRowSortable({
       playlistId,
       position,
       selectedTracks,
+      trackPayload: buildTrackPayload(track, providerId),
+      selectedTrackPayloads: selectedTracks?.map((selectedTrack) => buildTrackPayload(selectedTrack, providerId)),
     };
-  }, [dragType, lastfmDto, matchedTrack, selectedMatchedUris, selectedTracks, panelId, position, trackId, track, playlistId]);
+  }, [dragType, lastfmDto, matchedTrack, selectedMatchedUris, selectedTracks, panelId, position, trackId, track, playlistId, providerId]);
 
   const {
     attributes,

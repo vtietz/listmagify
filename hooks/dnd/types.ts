@@ -8,6 +8,20 @@ import type { Track } from '@/lib/music-provider/types';
 import type { MusicProviderId } from '@/lib/music-provider/types';
 import type { Virtualizer } from '@tanstack/react-virtual';
 
+export interface TrackPayload {
+  title: string;
+  artists: string[];
+  normalizedArtists: string[];
+  album: string | null;
+  durationSec: number;
+  isrc?: string | undefined;
+  year?: number | undefined;
+  sourceProvider: MusicProviderId;
+  sourceProviderId?: string | undefined;
+  sourceProviderUri?: string | undefined;
+  coverUrl?: string | undefined;
+}
+
 /**
  * Minimal panel configuration required for DnD operations.
  * Compatible with the full PanelConfig from useSplitGridStore.

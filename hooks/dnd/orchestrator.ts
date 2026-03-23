@@ -39,6 +39,7 @@ import { useContinuousAutoScroll } from '../useAutoScrollEdge';
 import { useHydratedCompactMode } from '../useCompactModeStore';
 import { usePlayerStore } from '../usePlayerStore';
 import { useAddTracks, useRemoveTracks, useReorderTracks } from '@/lib/spotify/playlistMutations';
+import { usePendingActions } from '@/hooks/pending/usePendingActions';
 import { TABLE_HEADER_HEIGHT, TABLE_HEADER_HEIGHT_COMPACT } from '@/components/split-editor/constants';
 import type { Track } from '@/lib/music-provider/types';
 
@@ -126,6 +127,7 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
   const addTracks = useAddTracks();
   const removeTracks = useRemoveTracks();
   const reorderTracks = useReorderTracks();
+  const { enqueuePendingFromBrowseDrop } = usePendingActions();
 
   // Check if any mutations are pending
   const isMutationPending = addTracks.isPending || removeTracks.isPending || reorderTracks.isPending;
@@ -302,6 +304,7 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
       panelVirtualizersRef,
       pointerTracker: pointerTracker as DragEndContext['pointerTracker'],
       mutations: { addTracks, removeTracks, reorderTracks } as unknown as DragEndContext['mutations'],
+      enqueuePendingFromBrowseDrop,
       getFinalDropPosition,
       getSelectedIndices,
       getOrderedTracksSnapshot,
@@ -313,6 +316,7 @@ export function useDndOrchestrator(panels: PanelConfig[]): UseDndOrchestratorRet
     addTracks,
     removeTracks,
     reorderTracks,
+    enqueuePendingFromBrowseDrop,
     getFinalDropPosition,
     getSelectedIndices,
     getOrderedTracksSnapshot,

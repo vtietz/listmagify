@@ -6,6 +6,47 @@
 
 import type { Track } from '@/lib/music-provider/types';
 import type { TrackWithPositions } from './types';
+import type { TrackPayload } from './types';
+
+function extractPayloadsFromSourceData(
+  sourceData: Record<string, unknown> | undefined,
+): TrackPayload[] | null {
+  const selectedTrackPayloads = sourceData?.selectedTrackPayloads as TrackPayload[] | undefined;
+  if (selectedTrackPayloads && selectedTrackPayloads.length > 0) {
+    return selectedTrackPayloads;
+  }
+
+  const trackPayload = sourceData?.trackPayload as TrackPayload | undefined;
+  if (trackPayload) {
+    return [trackPayload];
+  }
+
+  return null;
+}
+
+function parseReleaseYear(releaseDate: string | null | undefined): number | undefined {
+  if (!releaseDate) {
+    return undefined;
+  }
+
+  const parsedYear = Number.parseInt(releaseDate.slice(0, 4), 10);
+  return Number.isFinite(parsedYear) ? parsedYear : undefined;
+}
+
+function buildFallbackTrackPayload(fallbackTrack: Track): TrackPayload {
+  return {
+    title: fallbackTrack.name,
+    artists: fallbackTrack.artists ?? [],
+    normalizedArtists: (fallbackTrack.artists ?? []).map((artist) => artist.trim().toLowerCase()),
+    album: fallbackTrack.album?.name ?? null,
+    durationSec: Math.max(0, Math.round((fallbackTrack.durationMs ?? 0) / 1000)),
+    sourceProvider: 'spotify',
+    sourceProviderId: fallbackTrack.id ?? undefined,
+    sourceProviderUri: fallbackTrack.uri || undefined,
+    coverUrl: fallbackTrack.album?.image?.url,
+    year: parseReleaseYear(fallbackTrack.album?.releaseDate),
+  };
+}
 
 /**
  * Get tracks to drag from browse panel drag data.
@@ -31,6 +72,25 @@ export function getBrowsePanelDragUris(
   }
   
   return [];
+}
+
+/**
+ * Get provider-agnostic track payloads from browse panel drag data.
+ */
+export function getBrowsePanelDragPayloads(
+  sourceData: Record<string, unknown> | undefined,
+  fallbackTrack: Track | undefined,
+): TrackPayload[] {
+  const payloadsFromSourceData = extractPayloadsFromSourceData(sourceData);
+  if (payloadsFromSourceData) {
+    return payloadsFromSourceData;
+  }
+
+  if (!fallbackTrack) {
+    return [];
+  }
+
+  return [buildFallbackTrackPayload(fallbackTrack)];
 }
 
 /**
