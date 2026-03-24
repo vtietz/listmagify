@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getMusicProviderHintFromRequest, resolveMusicProviderFromRequest } from '@/app/api/_shared/provider';
 import { mapApiErrorToProviderAuthError, toProviderAuthErrorResponse } from '@/lib/api/errorHandler';
 import { ProviderApiError } from '@/lib/music-provider/types';
+import { isTrackIdCompatibleWithProvider } from '@/lib/providers/trackIdCompat';
 
 function getProviderErrorMessage(errorData: any, status: number): string {
   return errorData.error?.message || errorData.message || `Provider API error: ${status}`;
@@ -59,9 +60,33 @@ export async function GET(request: NextRequest) {
   }
 
   const { providerId, provider } = resolveMusicProviderFromRequest(request);
+
+  const indexedIds = ids.map((id, index) => ({ id, index }));
+  const compatible = indexedIds.filter(({ id }) => isTrackIdCompatibleWithProvider(id, providerId));
+  const incompatible = indexedIds.filter(({ id }) => !isTrackIdCompatibleWithProvider(id, providerId));
+
+  if (compatible.length === 0) {
+    return NextResponse.json(new Array(ids.length).fill(false));
+  }
+
   try {
-    const data = await provider.containsTracks({ ids });
-    return NextResponse.json(data);
+    const data = await provider.containsTracks({ ids: compatible.map(({ id }) => id) });
+
+    const result = new Array<boolean>(ids.length).fill(false);
+    compatible.forEach(({ index }, compatibleIndex) => {
+      result[index] = Boolean(data[compatibleIndex]);
+    });
+
+    if (incompatible.length > 0) {
+      console.warn('[api/tracks/contains] Filtered incompatible track IDs for provider', {
+        provider: providerId,
+        total: ids.length,
+        compatible: compatible.length,
+        incompatible: incompatible.length,
+      });
+    }
+
+    return NextResponse.json(result);
   } catch (error) {
     const authError = mapApiErrorToProviderAuthError(error, getMusicProviderHintFromRequest(request));
     if (authError) {

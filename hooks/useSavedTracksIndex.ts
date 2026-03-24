@@ -20,6 +20,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { apiFetch } from '@/lib/api/client';
 import type { MusicProviderId } from '@/lib/music-provider/types';
 import { resolveClientMusicProviderId } from '@/hooks/useMusicProviderId';
+import { isTrackIdCompatibleWithProvider } from '@/lib/providers/trackIdCompat';
 
 /**
  * Cache duration for localStorage (24 hours in ms)
@@ -365,7 +366,10 @@ export function useSavedTracksIndex(providerId?: MusicProviderId) {
   const ensureCoverage = useCallback((ids: string[]) => {
     // Filter to IDs not in likedSet and not already pending (using refs for stability)
     const unknownIds = ids.filter(
-      id => id && !likedSetRef.current.has(id) && !pendingSetRef.current.has(id)
+      id => id
+        && isTrackIdCompatibleWithProvider(id, activeProviderId)
+        && !likedSetRef.current.has(id)
+        && !pendingSetRef.current.has(id)
     );
     
     if (unknownIds.length === 0) return;
