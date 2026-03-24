@@ -46,7 +46,7 @@ const eslintConfig = [
     },
   },
   {
-    ignores: ['node_modules/**', '.next/**', 'coverage/**'],
+    ignores: ['node_modules/**', '.next/**', '.next-e2e/**', 'coverage/**'],
   },
 ];
 
