@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback, type Dispatch, type SetStateAction, type KeyboardEvent } from 'react';
+import { useState, useEffect, useLayoutEffect, useMemo, useCallback, type Dispatch, type SetStateAction, type KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Input } from '@/components/ui/input';
@@ -178,7 +178,7 @@ export function useDropdownPositionOnOpen(
 ) {
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!open || !buttonRef.current) {
       return;
     }
