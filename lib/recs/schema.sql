@@ -58,6 +58,46 @@ CREATE TABLE IF NOT EXISTS dismissed_recommendations (
 CREATE INDEX IF NOT EXISTS idx_dismissed_context ON dismissed_recommendations(context_id);
 
 --------------------------------------------------------------------------------
+-- CANONICAL CROSS-PROVIDER TABLES
+--------------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS canonical_tracks (
+  id TEXT PRIMARY KEY,
+  isrc TEXT,
+  title_norm TEXT NOT NULL,
+  artist_norm TEXT NOT NULL,
+  duration_sec INTEGER,
+  album_upc TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_canonical_tracks_isrc ON canonical_tracks(isrc);
+CREATE INDEX IF NOT EXISTS idx_canonical_tracks_title_artist ON canonical_tracks(title_norm, artist_norm);
+
+CREATE TABLE IF NOT EXISTS provider_track_map (
+  provider TEXT NOT NULL CHECK(provider IN ('spotify','tidal')),
+  provider_track_id TEXT NOT NULL,
+  canonical_track_id TEXT NOT NULL REFERENCES canonical_tracks(id),
+  isrc TEXT,
+  match_score REAL NOT NULL,
+  confidence TEXT NOT NULL CHECK(confidence IN ('high','medium','low')),
+  resolved_at TEXT NOT NULL,
+  UNIQUE(provider, provider_track_id)
+);
+CREATE INDEX IF NOT EXISTS idx_provider_track_map_canonical ON provider_track_map(canonical_track_id);
+
+CREATE TABLE IF NOT EXISTS rec_edges_canonical (
+  src_canonical_track_id TEXT NOT NULL REFERENCES canonical_tracks(id),
+  dst_canonical_track_id TEXT NOT NULL REFERENCES canonical_tracks(id),
+  weight REAL NOT NULL,
+  type TEXT NOT NULL CHECK(type IN ('sequential','cooccur')),
+  created_at TEXT NOT NULL,
+  PRIMARY KEY(src_canonical_track_id, dst_canonical_track_id, type)
+);
+CREATE INDEX IF NOT EXISTS idx_rec_edges_canonical_src ON rec_edges_canonical(src_canonical_track_id, type);
+CREATE INDEX IF NOT EXISTS idx_rec_edges_canonical_dst ON rec_edges_canonical(dst_canonical_track_id, type);
+
+--------------------------------------------------------------------------------
 -- VIEWS (for common queries)
 --------------------------------------------------------------------------------
 

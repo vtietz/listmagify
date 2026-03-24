@@ -6,6 +6,7 @@
 import { createHash, randomUUID } from 'crypto';
 import { getDb, execute } from './db';
 import { getMetricsConfig } from './env';
+import type { MusicProviderId } from '@/lib/music-provider/types';
 
 // Event types for type safety
 export type MetricEvent =
@@ -37,6 +38,7 @@ export interface EventParams {
   success?: boolean | undefined;
   errorCode?: string | undefined;
   isByok?: boolean | undefined; // Flag for BYOK authentication
+  provider?: MusicProviderId | undefined;
   meta?: Record<string, unknown> | undefined;
 }
 
@@ -77,6 +79,7 @@ function buildEventValues(params: EventParams): (string | number | null)[] {
     toSuccessFlag(params.success),
     params.errorCode || null,
     toBoolFlag(params.isByok),
+    params.provider ?? null,
     metaJson,
   ];
 }
@@ -91,8 +94,8 @@ export function insertEvent(params: EventParams): void {
 
   try {
     execute(
-      `INSERT INTO events (user_id, user_hash, event, source, entity_type, entity_id, count, duration_ms, success, error_code, is_byok, meta_json)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO events (user_id, user_hash, event, source, entity_type, entity_id, count, duration_ms, success, error_code, is_byok, provider, meta_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       buildEventValues(params)
     );
   } catch (error) {
@@ -105,7 +108,7 @@ export function insertEvent(params: EventParams): void {
  * Start a new session and return the session ID.
  * Also records user registration on first login.
  */
-export function startSession(userId: string, userAgent?: string): string {
+export function startSession(userId: string, userAgent?: string, provider?: MusicProviderId): string {
   const db = getDb();
   if (!db) return '';
 
@@ -117,9 +120,9 @@ export function startSession(userId: string, userAgent?: string): string {
     // Record user registration if first time
     try {
       execute(
-        `INSERT OR IGNORE INTO user_registrations (user_id, user_hash)
-         VALUES (?, ?)`,
-        [userId, userHash]
+        `INSERT OR IGNORE INTO user_registrations (user_id, user_hash, provider)
+         VALUES (?, ?, ?)`,
+        [userId, userHash, provider ?? null]
       );
     } catch (regError) {
       // Silently ignore registration errors (table might not exist in old DBs)
@@ -244,7 +247,8 @@ export function logAuthEvent(
   event: 'login_success' | 'login_failure',
   userId?: string,
   errorCode?: string,
-  isByok?: boolean
+  isByok?: boolean,
+  provider?: MusicProviderId
 ): void {
   insertEvent({
     event,
@@ -254,6 +258,7 @@ export function logAuthEvent(
     success: event === 'login_success',
     errorCode,
     isByok,
+    provider,
   });
 }
 

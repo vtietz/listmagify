@@ -11,10 +11,11 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const errorCode = body.error;
+    const provider = body.provider === 'tidal' ? 'tidal' : 'spotify';
 
     if (errorCode && typeof errorCode === 'string') {
       // Log the failed attempt
-      logAuthEvent('login_failure', undefined, errorCode);
+      logAuthEvent('login_failure', undefined, errorCode, undefined, provider);
       
       return NextResponse.json({ success: true });
     }

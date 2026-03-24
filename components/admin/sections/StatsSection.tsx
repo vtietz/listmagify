@@ -39,7 +39,7 @@ import { AuthenticationStatsCard } from '@/components/stats/cards/Authentication
 import { UserRegistrationChart } from '@/components/stats/cards/UserRegistrationChart';
 import { TrafficStatsCard } from '@/components/stats/cards/TrafficStatsCard';
 import { getDateRange } from '@/components/stats/utils';
-import type { OverviewKPIs, RecsStats, EventsData, TimeRange, RegisteredUsersPerDay } from '@/components/stats/types';
+import type { OverviewKPIs, RecsStats, EventsData, TimeRange, RegisteredUsersPerDay, StatsProviderFilter } from '@/components/stats/types';
 import { buildOverviewCards } from './statsSelectors';
 
 type OverviewResponse = {
@@ -76,15 +76,17 @@ const TIME_RANGES: { value: TimeRange; label: string }[] = [
  */
 export function StatsSection() {
   const [timeRange, setTimeRange] = useState<TimeRange>('all');
+  const [providerFilter, setProviderFilter] = useState<StatsProviderFilter>('all');
   const dateRange = useMemo(() => getDateRange(timeRange), [timeRange]);
   const queryClient = useQueryClient();
   const dateRangeKey = `${dateRange.from}_${dateRange.to}`;
+  const providerParam = providerFilter === 'all' ? '' : `&provider=${providerFilter}`;
 
   // Fetch overview KPIs
   const { data: overviewData, isLoading: overviewLoading, isFetching: overviewFetching } = useQuery<OverviewResponse>({
-    queryKey: ['stats', 'overview', dateRangeKey],
+    queryKey: ['stats', 'overview', dateRangeKey, providerFilter],
     queryFn: async ({ signal }: { signal: AbortSignal }) => {
-      const res = await fetch(`/api/stats/overview?from=${dateRange.from}&to=${dateRange.to}`, { signal });
+      const res = await fetch(`/api/stats/overview?from=${dateRange.from}&to=${dateRange.to}${providerParam}`, { signal });
       if (!res.ok) throw new Error('Failed to fetch overview');
       return res.json();
     },
@@ -143,6 +145,8 @@ export function StatsSection() {
       <StatsHeader
         timeRange={timeRange}
         onTimeRangeChange={setTimeRange}
+        providerFilter={providerFilter}
+        onProviderFilterChange={setProviderFilter}
         isRefreshing={isRefreshing}
         onRefresh={handleRefresh}
       />
@@ -168,9 +172,9 @@ export function StatsSection() {
 
       <TrafficSection dateRange={dateRange} />
 
-      <RankingsSection eventsLoading={eventsLoading} events={events} dateRange={dateRange} />
+      <RankingsSection eventsLoading={eventsLoading} events={events} dateRange={dateRange} providerFilter={providerFilter} />
 
-      <AuthenticationSection dateRange={dateRange} />
+      <AuthenticationSection dateRange={dateRange} providerFilter={providerFilter} />
 
       <RecommendationsSection recsData={recsData} recsLoading={recsLoading} />
     </section>
@@ -180,11 +184,15 @@ export function StatsSection() {
 function StatsHeader({
   timeRange,
   onTimeRangeChange,
+  providerFilter,
+  onProviderFilterChange,
   isRefreshing,
   onRefresh,
 }: {
   timeRange: TimeRange;
   onTimeRangeChange: (value: TimeRange) => void;
+  providerFilter: StatsProviderFilter;
+  onProviderFilterChange: (value: StatsProviderFilter) => void;
   isRefreshing: boolean;
   onRefresh: () => void;
 }) {
@@ -230,6 +238,19 @@ function StatsHeader({
         <Button variant="outline" size="sm" onClick={onRefresh} disabled={isRefreshing}>
           <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
         </Button>
+
+        <div className="flex gap-1">
+          {(['all', 'spotify', 'tidal'] as const).map((provider) => (
+            <Button
+              key={provider}
+              variant={providerFilter === provider ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => onProviderFilterChange(provider)}
+            >
+              {provider === 'all' ? 'All Providers' : provider === 'spotify' ? 'Spotify' : 'TIDAL'}
+            </Button>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -426,10 +447,12 @@ function RankingsSection({
   eventsLoading,
   events,
   dateRange,
+  providerFilter,
 }: {
   eventsLoading: boolean;
   events: EventsData | undefined;
   dateRange: { from: string; to: string };
+  providerFilter: StatsProviderFilter;
 }) {
   return (
     <div>
@@ -438,7 +461,7 @@ function RankingsSection({
         Rankings
       </h3>
       <div className="grid gap-4 md:grid-cols-2">
-        <TopUsersCard dateRange={dateRange} />
+        <TopUsersCard dateRange={dateRange} provider={providerFilter} />
 
         <Card>
           <CardHeader>
@@ -457,14 +480,20 @@ function RankingsSection({
   );
 }
 
-function AuthenticationSection({ dateRange }: { dateRange: { from: string; to: string } }) {
+function AuthenticationSection({
+  dateRange,
+  providerFilter,
+}: {
+  dateRange: { from: string; to: string };
+  providerFilter: StatsProviderFilter;
+}) {
   return (
     <div>
       <h3 className="text-lg font-medium mb-4 flex items-center gap-2">
         <Shield className="h-5 w-5" />
         Authentication
       </h3>
-      <AuthenticationStatsCard dateRange={dateRange} />
+      <AuthenticationStatsCard dateRange={dateRange} provider={providerFilter} />
     </div>
   );
 }

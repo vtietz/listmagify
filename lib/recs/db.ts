@@ -4,11 +4,13 @@
  */
 
 import Database from "better-sqlite3";
-import { mkdirSync, existsSync } from "fs";
+import { mkdirSync, existsSync, unlinkSync, copyFileSync } from "fs";
 import { dirname, resolve } from "path";
 import { recsEnv } from "./env";
 import { runMigrations, getMigrationStatus } from "@/lib/db";
 import { recsMigrations } from "@/lib/db/recs-migrations";
+
+const CANONICAL_MIGRATION_VERSION = 4;
 
 /** Singleton database instance */
 let _db: Database.Database | null = null;
@@ -41,18 +43,82 @@ function initializeDatabase(): Database.Database {
     mkdirSync(dbDir, { recursive: true });
   }
   
-  // Open database with WAL mode enabled
-  const db = new Database(dbPath);
-  
-  // Enable WAL mode for better concurrency
-  db.pragma("journal_mode = WAL");
-  db.pragma("foreign_keys = ON");
-  db.pragma("busy_timeout = 5000");
-  
-  // Run migrations
+  const openConfiguredDb = () => {
+    const database = new Database(dbPath);
+    database.pragma("journal_mode = WAL");
+    database.pragma("foreign_keys = ON");
+    database.pragma("busy_timeout = 5000");
+    return database;
+  };
+
+  let db = openConfiguredDb();
+
+  if (shouldResetLegacyRecsDatabase(db)) {
+    try {
+      db.pragma("wal_checkpoint(TRUNCATE)");
+    } catch {
+      // Ignore checkpoint errors and still proceed with backup/reset.
+    }
+
+    db.close();
+    backupRecsDatabaseFiles(dbPath);
+    resetRecsDatabaseFiles(dbPath);
+    db = openConfiguredDb();
+  }
+
   runMigrations(db, recsMigrations, 'recs');
-  
+
   return db;
+}
+
+function backupRecsDatabaseFiles(dbPath: string): void {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+
+  for (const filePath of [dbPath, `${dbPath}-wal`, `${dbPath}-shm`]) {
+    if (!existsSync(filePath)) {
+      continue;
+    }
+
+    copyFileSync(filePath, `${filePath}.legacy-backup-${timestamp}`);
+  }
+
+  console.warn('[recs] Backed up legacy recommendation database before canonical migration rollout.');
+}
+
+function shouldResetLegacyRecsDatabase(db: Database.Database): boolean {
+  const hasMigrationsTable = !!db
+    .prepare("SELECT 1 as ok FROM sqlite_master WHERE type='table' AND name='_migrations'")
+    .get();
+
+  if (hasMigrationsTable) {
+    const versionRow = db.prepare('SELECT MAX(version) as version FROM _migrations').get() as
+      | { version: number | null }
+      | undefined;
+    const currentVersion = versionRow?.version ?? 0;
+
+    return currentVersion > 0 && currentVersion < CANONICAL_MIGRATION_VERSION;
+  }
+
+  const hasLegacyTrackTables = !!db
+    .prepare("SELECT 1 as ok FROM sqlite_master WHERE type='table' AND name='track_edges_seq'")
+    .get();
+  const hasCanonicalTables = !!db
+    .prepare("SELECT 1 as ok FROM sqlite_master WHERE type='table' AND name='canonical_tracks'")
+    .get();
+
+  return hasLegacyTrackTables && !hasCanonicalTables;
+}
+
+function resetRecsDatabaseFiles(dbPath: string): void {
+  for (const filePath of [dbPath, `${dbPath}-wal`, `${dbPath}-shm`]) {
+    if (!existsSync(filePath)) {
+      continue;
+    }
+
+    unlinkSync(filePath);
+  }
+
+  console.warn('[recs] Reset legacy recommendation database before canonical migration rollout.');
 }
 
 /**

@@ -95,8 +95,9 @@ export function createAuthEvents() {
         });
 
         if (trackedUserId) {
-          logAuthEvent('login_success', trackedUserId);
-          startSession(trackedUserId, userAgent);
+          const providerId = provider === 'tidal' ? 'tidal' : 'spotify';
+          logAuthEvent('login_success', trackedUserId, undefined, undefined, providerId);
+          startSession(trackedUserId, userAgent, providerId);
 
           if (provider === 'spotify') {
             await linkUserToAccessRequest(trackedUserId, email);
@@ -126,7 +127,8 @@ export const authLogger = {
         errorStr.includes('oauth') ||
         errorStr.includes('unauthorized')
       ) {
-        logAuthEvent('login_failure', undefined, errorStr.substring(0, 100));
+        const provider = errorStr.includes('tidal') ? 'tidal' : 'spotify';
+        logAuthEvent('login_failure', undefined, errorStr.substring(0, 100), undefined, provider);
       }
     }
   },

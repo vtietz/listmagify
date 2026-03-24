@@ -56,6 +56,22 @@ export async function GET(request: NextRequest) {
       dismissedRecommendations: (db.prepare('SELECT COUNT(*) as cnt FROM dismissed_recommendations').get() as { cnt: number }).cnt,
     };
 
+    let canonicalStats: {
+      canonicalTracks: number;
+      providerTrackMappings: number;
+      canonicalEdges: number;
+    } | null = null;
+
+    try {
+      canonicalStats = {
+        canonicalTracks: (db.prepare('SELECT COUNT(*) as cnt FROM canonical_tracks').get() as { cnt: number }).cnt,
+        providerTrackMappings: (db.prepare('SELECT COUNT(*) as cnt FROM provider_track_map').get() as { cnt: number }).cnt,
+        canonicalEdges: (db.prepare('SELECT COUNT(*) as cnt FROM rec_edges_canonical').get() as { cnt: number }).cnt,
+      };
+    } catch {
+      canonicalStats = null;
+    }
+
     // Get database size
     const pageCount = (db.prepare('PRAGMA page_count').get() as { page_count: number }).page_count;
     const pageSize = (db.prepare('PRAGMA page_size').get() as { page_size: number }).page_size;
@@ -80,6 +96,7 @@ export async function GET(request: NextRequest) {
       enabled: true,
       stats: {
         ...stats,
+        ...(canonicalStats ?? {}),
         dbSizeBytes,
         dbSizeMB: (dbSizeBytes / (1024 * 1024)).toFixed(2),
         totalEdges: stats.seqEdges + stats.cooccurEdges,

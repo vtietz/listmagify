@@ -9,8 +9,40 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/auth';
-import { isUserAllowedForStats } from '@/lib/metrics/env';
+import { getMetricsConfig, isUserAllowedForStats } from '@/lib/metrics/env';
 import { getTopUsers, getTotalUserCount, type UserSortField, type SortDirection } from '@/lib/metrics';
+import type { MusicProviderId } from '@/lib/music-provider/types';
+
+function parseProvider(value: string | null): MusicProviderId | undefined {
+  if (value === 'spotify' || value === 'tidal') {
+    return value;
+  }
+
+  return undefined;
+}
+
+function getDefaultDateRange() {
+  const today = new Date().toISOString().split('T')[0]!;
+  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]!;
+  return { today, weekAgo };
+}
+
+function getUsersQueryParams(request: NextRequest) {
+  const searchParams = request.nextUrl.searchParams;
+  const { today, weekAgo } = getDefaultDateRange();
+  const from = searchParams.get('from') || weekAgo;
+  const to = searchParams.get('to') || today;
+  const limit = parseInt(searchParams.get('limit') || '10', 10);
+  const offset = parseInt(searchParams.get('offset') || '0', 10);
+  const sortBy = (searchParams.get('sortBy') || 'eventCount') as UserSortField;
+  const sortDirection = (searchParams.get('sortDirection') || 'desc') as SortDirection;
+  const config = getMetricsConfig();
+  const provider = config.providerDimensionEnabled
+    ? parseProvider(searchParams.get('provider'))
+    : undefined;
+
+  return { from, to, limit, offset, sortBy, sortDirection, config, provider };
+}
 
 export async function GET(request: NextRequest) {
   // Check authentication and authorization
@@ -22,22 +54,12 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const searchParams = request.nextUrl.searchParams;
-  
-  // Default to last 7 days if no range specified
-  const today = new Date().toISOString().split('T')[0]!;
-  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]!;
-  
-  const from = searchParams.get('from') || weekAgo;
-  const to = searchParams.get('to') || today;
-  const limit = parseInt(searchParams.get('limit') || '10', 10);
-  const offset = parseInt(searchParams.get('offset') || '0', 10);
-  const sortBy = (searchParams.get('sortBy') || 'eventCount') as UserSortField;
-  const sortDirection = (searchParams.get('sortDirection') || 'desc') as SortDirection;
+  const { from, to, limit, offset, sortBy, sortDirection, config, provider } = getUsersQueryParams(request);
 
   try {
-    const users = getTopUsers({ from, to }, limit, offset, sortBy, sortDirection);
-    const totalUsers = getTotalUserCount({ from, to });
+    const scopedRange = { from, to, ...(provider ? { provider } : {}) };
+    const users = getTopUsers(scopedRange, limit, offset, sortBy, sortDirection);
+    const totalUsers = getTotalUserCount(scopedRange);
     
     return NextResponse.json({
       success: true,
@@ -50,6 +72,7 @@ export async function GET(request: NextRequest) {
       },
       range: { from, to },
       sort: { sortBy, sortDirection },
+      providerDimensionEnabled: config.providerDimensionEnabled,
     });
   } catch (error) {
     console.error('[stats/users] Error:', error);

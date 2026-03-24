@@ -6,6 +6,7 @@
 export type TimeRange = 'today' | '7d' | '30d' | '90d' | 'ytd' | 'all' | 'custom';
 export type UserSortField = 'eventCount' | 'tracksAdded' | 'tracksRemoved' | 'byokLogins' | 'regularLogins' | 'lastActive' | 'firstLoginAt';
 export type SortDirection = 'asc' | 'desc';
+export type StatsProviderFilter = 'all' | 'spotify' | 'tidal';
 
 export interface DateRange {
   from: string;
@@ -21,6 +22,10 @@ export interface OverviewKPIs {
   errorRate: number;
   totalSessions: number;
   avgSessionDurationMs: number;
+  authByProvider?: {
+    spotify: { successes: number; failures: number };
+    tidal: { successes: number; failures: number };
+  };
 }
 
 export interface DatabaseStats {
@@ -36,6 +41,9 @@ export interface RecsStats {
     playlistsIndexed: number;
     seqEdges: number;
     cooccurEdges: number;
+    canonicalTracks?: number;
+    providerTrackMappings?: number;
+    canonicalEdges?: number;
     catalogEdges: number;
     artistTopTracks: number;
     albumTracks: number;
@@ -89,6 +97,7 @@ export interface TopUser {
   regularLogins: number;
   lastActive: string;
   firstLoginAt: string | null;
+  provider?: 'spotify' | 'tidal' | null;
 }
 
 export interface TopUsersResponse {
@@ -144,15 +153,27 @@ export interface RegisteredUsersPerDay {
 export interface AuthStats {
   loginSuccesses: number;
   loginFailures: number;
+  byokLogins: number;
+  regularLogins: number;
   successRate: number;
+  providerBreakdown: Array<{
+    provider: 'spotify' | 'tidal';
+    successes: number;
+    failures: number;
+    byokSuccesses: number;
+  }>;
   dailyStats: Array<{
     date: string;
     successes: number;
     failures: number;
+    byokSuccesses: number;
+    spotifySuccesses: number;
+    tidalSuccesses: number;
   }>;
   recentFailures: Array<{
     ts: string;
     errorCode: string | null;
+    provider: 'spotify' | 'tidal' | null;
   }>;
 }
 

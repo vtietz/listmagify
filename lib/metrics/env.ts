@@ -9,6 +9,7 @@ export interface MetricsConfig {
   salt: string;
   allowedUserIds: string[];
   showUserDetails: boolean; // Whether to show user detail popup (fetches username/email from Spotify API on-click)
+  providerDimensionEnabled: boolean;
 }
 
 /**
@@ -27,6 +28,7 @@ export function getMetricsConfig(): MetricsConfig {
     .filter(Boolean);
 
   const showUserDetails = process.env.STATS_SHOW_USER_DETAILS === 'true';
+  const providerDimensionEnabled = process.env.STATS_PROVIDER_DIMENSION === 'true';
 
   return {
     enabled,
@@ -34,6 +36,7 @@ export function getMetricsConfig(): MetricsConfig {
     salt,
     allowedUserIds,
     showUserDetails,
+    providerDimensionEnabled,
   };
 }
 

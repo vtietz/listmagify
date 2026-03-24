@@ -345,4 +345,17 @@ export const metricsMigrations: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_access_requests_user_id ON access_requests(user_id);
     `,
   },
+  {
+    version: 15,
+    name: 'add_provider_dimension_for_stats',
+    sql: `
+      -- Add provider dimension to events for auth/provider-aware stats
+      ALTER TABLE events ADD COLUMN provider TEXT CHECK(provider IN ('spotify','tidal'));
+      CREATE INDEX IF NOT EXISTS idx_events_provider ON events(provider);
+
+      -- Add provider attribution for user registrations
+      ALTER TABLE user_registrations ADD COLUMN provider TEXT;
+      CREATE INDEX IF NOT EXISTS idx_user_registrations_provider ON user_registrations(provider);
+    `,
+  },
 ];

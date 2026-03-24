@@ -377,6 +377,7 @@ STATS_ALLOWED_USER_IDS=your-provider-user-id
 | `STATS_DB_PATH` | SQLite database path | `development: /tmp/listmagify-metrics.db`<br>`production: ./data/metrics.db` |
 | `STATS_SALT` | Salt for hashing user IDs | `default-salt-change-me` |
 | `STATS_ALLOWED_USER_IDS` | Comma-separated provider user IDs (Spotify or TIDAL) for /stats access | (none) |
+| `STATS_PROVIDER_DIMENSION` | Enable provider-scoped auth and top-users stats filters | `false` |
 
 ## Legal Pages (Imprint & Privacy)
 
@@ -456,6 +457,9 @@ For detailed documentation, see [docs/RECOMMENDATIONS.md](docs/RECOMMENDATIONS.m
 |----------|-------------|---------|
 | `RECS_ENABLED` | Enable/disable recommendations | `false` |
 | `RECS_DB_PATH` | SQLite database path | `./data/recs.db` |
+| `RECS_CANONICAL_MODE` | Enable canonical track-id capture for cross-provider materialization | `false` |
+
+When canonical mode rollout encounters a legacy rec DB (pre-canonical schema), Listmagify performs a one-time automatic backup and reset before running migrations.
 
 ## Playlist Auto-Reload (Optional)
 

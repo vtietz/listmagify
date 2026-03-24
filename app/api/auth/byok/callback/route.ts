@@ -163,8 +163,8 @@ export async function GET(request: NextRequest) {
 
     // Track BYOK login success event
     try {
-      logAuthEvent('login_success', profile.id, undefined, true); // Mark as BYOK
-      startSession(profile.id);
+      logAuthEvent('login_success', profile.id, undefined, true, 'spotify'); // Mark as BYOK
+      startSession(profile.id, undefined, 'spotify');
     } catch {
       // Don't fail auth if metrics fail
     }

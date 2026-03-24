@@ -1,14 +1,16 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
+import Image from 'next/image';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Users, AlertCircle } from 'lucide-react';
 import { formatDate } from '../utils';
-import type { AuthStats } from '../types';
+import type { AuthStats, StatsProviderFilter } from '../types';
 
 interface AuthenticationStatsCardProps {
   dateRange: { from: string; to: string };
+  provider?: StatsProviderFilter;
 }
 
 type DailyAuthStat = {
@@ -16,11 +18,12 @@ type DailyAuthStat = {
   successes: number;
   failures: number;
   byokSuccesses: number;
+  spotifySuccesses: number;
+  tidalSuccesses: number;
 };
 
 function DailyAuthBar({ day, maxValue }: { day: DailyAuthStat; maxValue: number }) {
   const total = day.successes + day.failures;
-  const regularSuccesses = day.successes - day.byokSuccesses;
   const segments = [
     {
       key: 'failures',
@@ -28,14 +31,14 @@ function DailyAuthBar({ day, maxValue }: { day: DailyAuthStat; maxValue: number 
       className: 'bg-red-500/80 rounded-t hover:bg-red-500 transition-colors',
     },
     {
-      key: 'byok',
-      count: day.byokSuccesses,
-      className: 'bg-purple-500/80 rounded-t hover:bg-purple-500 transition-colors',
+      key: 'spotify',
+      count: day.spotifySuccesses,
+      className: 'bg-green-500/80 rounded-t hover:bg-green-500 transition-colors',
     },
     {
-      key: 'regular',
-      count: regularSuccesses,
-      className: 'bg-green-500/80 rounded-t hover:bg-green-500 transition-colors',
+      key: 'tidal',
+      count: day.tidalSuccesses,
+      className: 'bg-cyan-500/80 rounded-t hover:bg-cyan-500 transition-colors',
     },
   ]
     .map((segment) => ({
@@ -45,8 +48,8 @@ function DailyAuthBar({ day, maxValue }: { day: DailyAuthStat; maxValue: number 
     .filter((segment) => segment.count > 0 && segment.height > 0);
 
   const tooltipRows = [
-    { key: 'regular', count: regularSuccesses, className: 'text-green-500', label: 'regular' },
-    { key: 'byok', count: day.byokSuccesses, className: 'text-purple-500', label: 'BYOK' },
+    { key: 'spotify', count: day.spotifySuccesses, className: 'text-green-500', label: 'Spotify success' },
+    { key: 'tidal', count: day.tidalSuccesses, className: 'text-cyan-500', label: 'TIDAL success' },
     {
       key: 'failures',
       count: day.failures,
@@ -83,13 +86,50 @@ function DailyAuthBar({ day, maxValue }: { day: DailyAuthStat; maxValue: number 
   );
 }
 
-export function AuthenticationStatsCard({ dateRange }: AuthenticationStatsCardProps) {
+function ProviderBadge({ provider, count }: { provider: 'spotify' | 'tidal'; count: number }) {
+  const isSpotify = provider === 'spotify';
+
+  return (
+    <div className="flex items-center justify-center gap-1.5 rounded-md border px-2 py-1 text-xs">
+      {isSpotify ? (
+        <>
+          <Image
+            src="/spotify/Spotify_Primary_Logo_RGB_Black.png"
+            alt="Spotify"
+            width={14}
+            height={14}
+            className="dark:hidden"
+          />
+          <Image
+            src="/spotify/Spotify_Primary_Logo_RGB_White.png"
+            alt="Spotify"
+            width={14}
+            height={14}
+            className="hidden dark:block"
+          />
+        </>
+      ) : (
+        <Image
+          src="/tidal/Tidal_(service)_logo_only.svg"
+          alt="TIDAL"
+          width={14}
+          height={14}
+          className="dark:invert"
+        />
+      )}
+      <span className="text-muted-foreground">{count}</span>
+    </div>
+  );
+}
+
+export function AuthenticationStatsCard({ dateRange, provider = 'all' }: AuthenticationStatsCardProps) {
   const dateRangeKey = `${dateRange.from}_${dateRange.to}`;
+  const providerParam = provider === 'all' ? '' : `&provider=${provider}`;
 
   const { data, isLoading } = useQuery<{ data: AuthStats }>({
-    queryKey: ['stats', 'auth', dateRangeKey],
+    queryKey: ['stats', 'auth', dateRangeKey, provider],
     queryFn: async ({ signal }: { signal: AbortSignal }) => {
-      const res = await fetch(`/api/stats/auth?from=${dateRange.from}&to=${dateRange.to}`, { signal });
+      const res = await fetch(`/api/stats/auth?from=${dateRange.from}&to=${dateRange.to}${providerParam}`, { signal });
       if (!res.ok) throw new Error('Failed to fetch auth stats');
       return res.json();
     },
@@ -141,6 +181,13 @@ export function AuthenticationStatsCard({ dateRange }: AuthenticationStatsCardPr
                     </div>
                   </div>
                 )}
+                {stats.providerBreakdown.length > 0 && (
+                  <div className="mt-2 flex items-center justify-center gap-1">
+                    {stats.providerBreakdown.map((row: AuthStats['providerBreakdown'][number]) => (
+                      <ProviderBadge key={row.provider} provider={row.provider} count={row.successes} />
+                    ))}
+                  </div>
+                )}
               </div>
               <div className="text-center p-4 bg-red-500/10 rounded-lg">
                 <div className="text-2xl font-bold text-red-500">
@@ -160,18 +207,18 @@ export function AuthenticationStatsCard({ dateRange }: AuthenticationStatsCardPr
               <div>
                 <div className="text-sm font-medium mb-3">Daily Authentication Activity</div>
                 <div className="flex items-end gap-1 h-32">
-                  {stats.dailyStats.map((d: { date: string; successes: number; failures: number; byokSuccesses: number }) => (
+                  {stats.dailyStats.map((d: DailyAuthStat) => (
                     <DailyAuthBar key={d.date} day={d} maxValue={maxValue} />
                   ))}
                 </div>
                 <div className="flex items-center gap-4 mt-2 text-xs">
                   <div className="flex items-center gap-1">
                     <div className="w-3 h-3 bg-green-500 rounded" />
-                    <span className="text-muted-foreground">Regular</span>
+                    <span className="text-muted-foreground">Spotify</span>
                   </div>
                   <div className="flex items-center gap-1">
-                    <div className="w-3 h-3 bg-purple-500 rounded" />
-                    <span className="text-muted-foreground">BYOK</span>
+                    <div className="w-3 h-3 bg-cyan-500 rounded" />
+                    <span className="text-muted-foreground">TIDAL</span>
                   </div>
                   <div className="flex items-center gap-1">
                     <div className="w-3 h-3 bg-red-500 rounded" />
@@ -185,7 +232,7 @@ export function AuthenticationStatsCard({ dateRange }: AuthenticationStatsCardPr
               <div className="border-t pt-4">
                 <div className="text-sm font-medium mb-3">Recent Failed Attempts</div>
                 <div className="space-y-2 max-h-48 overflow-y-auto">
-                  {stats.recentFailures.map((failure: { ts: string; errorCode: string | null }, idx: number) => (
+                  {stats.recentFailures.map((failure: AuthStats['recentFailures'][number], idx: number) => (
                     <div 
                       key={idx} 
                       className="flex items-start gap-3 p-2 bg-red-500/5 rounded text-sm"
@@ -198,6 +245,11 @@ export function AuthenticationStatsCard({ dateRange }: AuthenticationStatsCardPr
                         {failure.errorCode && (
                           <div className="font-mono text-xs truncate mt-0.5" title={failure.errorCode}>
                             {failure.errorCode}
+                          </div>
+                        )}
+                        {failure.provider && (
+                          <div className="text-[10px] uppercase tracking-wide text-muted-foreground mt-0.5">
+                            {failure.provider}
                           </div>
                         )}
                       </div>

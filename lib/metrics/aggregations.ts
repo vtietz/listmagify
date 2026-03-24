@@ -4,10 +4,15 @@
  */
 
 import { getDb, queryAll, queryOne, execute } from './db';
+import type { MusicProviderId } from '@/lib/music-provider/types';
 
 export interface DateRange {
   from: string; // ISO date string (YYYY-MM-DD)
   to: string;   // ISO date string (YYYY-MM-DD)
+}
+
+export interface ProviderScopedRange extends DateRange {
+  provider?: MusicProviderId;
 }
 
 export interface EventCount {
@@ -35,6 +40,7 @@ export interface OverviewKPIs {
   errorRate: number;
   totalSessions: number;
   avgSessionDurationMs: number;
+  authByProvider?: Record<MusicProviderId, { successes: number; failures: number }>;
 }
 
 export interface TopPlaylist {
@@ -90,7 +96,7 @@ export function getDailySummaries(range: DateRange): DailyEventSummary[] {
 /**
  * Get overview KPIs for a date range.
  */
-export function getOverviewKPIs(range: DateRange): OverviewKPIs {
+export function getOverviewKPIs(range: ProviderScopedRange): OverviewKPIs {
   const db = getDb();
   if (!db) {
     return {
@@ -113,11 +119,13 @@ export function getOverviewKPIs(range: DateRange): OverviewKPIs {
        FROM events 
        WHERE date(ts) BETWEEN ? AND ? 
          AND event != 'login_failure'
+         AND (? IS NULL OR provider = ?)
          AND user_hash IN (
            SELECT user_hash 
            FROM events 
            WHERE date(ts) BETWEEN ? AND ? 
              AND event != 'login_failure'
+             AND (? IS NULL OR provider = ?)
            GROUP BY user_hash 
            HAVING COUNT(*) > 1
          )
@@ -130,8 +138,22 @@ export function getOverviewKPIs(range: DateRange): OverviewKPIs {
         NULLIF(SUM(CASE WHEN event IN ('api_call', 'api_error') THEN 1 ELSE 0 END), 0) as errorRate
     FROM events
     WHERE date(ts) BETWEEN ? AND ?
+      AND (? IS NULL OR provider = ?)
       AND event != 'login_failure'`,
-    [range.from, range.to, range.from, range.to, range.from, range.to]
+    [
+      range.from,
+      range.to,
+      range.provider ?? null,
+      range.provider ?? null,
+      range.from,
+      range.to,
+      range.provider ?? null,
+      range.provider ?? null,
+      range.from,
+      range.to,
+      range.provider ?? null,
+      range.provider ?? null,
+    ]
   ) ?? {};
 
   // Sessions stats
@@ -148,6 +170,35 @@ export function getOverviewKPIs(range: DateRange): OverviewKPIs {
     [range.from, range.to]
   ) ?? {};
 
+  const authByProviderRows = queryAll<{
+    provider: MusicProviderId;
+    successes: number;
+    failures: number;
+  }>(
+    `SELECT
+      provider,
+      SUM(CASE WHEN event = 'login_success' THEN 1 ELSE 0 END) as successes,
+      SUM(CASE WHEN event = 'login_failure' THEN 1 ELSE 0 END) as failures
+    FROM events
+    WHERE date(ts) BETWEEN ? AND ?
+      AND event IN ('login_success', 'login_failure')
+      AND provider IN ('spotify', 'tidal')
+    GROUP BY provider`,
+    [range.from, range.to]
+  );
+
+  const authByProvider = {
+    spotify: { successes: 0, failures: 0 },
+    tidal: { successes: 0, failures: 0 },
+  } satisfies Record<MusicProviderId, { successes: number; failures: number }>;
+
+  for (const row of authByProviderRows) {
+    authByProvider[row.provider] = {
+      successes: row.successes,
+      failures: row.failures,
+    };
+  }
+
   return {
     activeUsers: eventsResult.activeUsers ?? 0,
     totalEvents: eventsResult.totalEvents ?? 0,
@@ -157,6 +208,7 @@ export function getOverviewKPIs(range: DateRange): OverviewKPIs {
     errorRate: eventsResult.errorRate ?? 0,
     totalSessions: sessionsResult.totalSessions ?? 0,
     avgSessionDurationMs: Math.round(sessionsResult.avgSessionDurationMs ?? 0),
+    authByProvider,
   };
 }
 
@@ -296,6 +348,7 @@ export interface TopUser {
   regularLogins: number;
   lastActive: string;
   firstLoginAt: string | null; // When user first logged in
+  provider: MusicProviderId | null;
 }
 
 export type UserSortField = 'eventCount' | 'tracksAdded' | 'tracksRemoved' | 'byokLogins' | 'regularLogins' | 'lastActive' | 'firstLoginAt';
@@ -305,7 +358,7 @@ export type SortDirection = 'asc' | 'desc';
  * Get top users by event count (paginated and sortable).
  */
 export function getTopUsers(
-  range: DateRange, 
+  range: ProviderScopedRange,
   limit: number = 10, 
   offset: number = 0,
   sortBy: UserSortField = 'eventCount',
@@ -340,32 +393,35 @@ export function getTopUsers(
       SUM(CASE WHEN e.event = 'login_success' AND e.is_byok = 1 THEN 1 ELSE 0 END) as byokLogins,
       SUM(CASE WHEN e.event = 'login_success' AND (e.is_byok IS NULL OR e.is_byok = 0) THEN 1 ELSE 0 END) as regularLogins,
       MAX(e.ts) as lastActive,
-      r.registered_at as firstLoginAt
+      r.registered_at as firstLoginAt,
+      MAX(COALESCE(e.provider, r.provider)) as provider
     FROM events e
     LEFT JOIN user_registrations r ON e.user_id = r.user_id
     WHERE 
       date(e.ts) BETWEEN ? AND ?
+      AND (? IS NULL OR e.provider = ?)
       AND e.user_hash IS NOT NULL
       AND e.event != 'login_failure'
     GROUP BY e.user_hash, e.user_id, r.registered_at
     ORDER BY ${orderClause}
     LIMIT ? OFFSET ?`,
-    [range.from, range.to, limit, offset]
+    [range.from, range.to, range.provider ?? null, range.provider ?? null, limit, offset]
   );
 }
 
 /**
  * Get total count of unique users for pagination.
  */
-export function getTotalUserCount(range: DateRange): number {
+export function getTotalUserCount(range: ProviderScopedRange): number {
   const result = queryOne<{ count: number }>(
     `SELECT COUNT(DISTINCT user_hash) as count
     FROM events
     WHERE 
       date(ts) BETWEEN ? AND ?
+      AND (? IS NULL OR provider = ?)
       AND user_hash IS NOT NULL
       AND event != 'login_failure'`,
-    [range.from, range.to]
+    [range.from, range.to, range.provider ?? null, range.provider ?? null]
   );
   return result?.count ?? 0;
 }
@@ -407,17 +463,26 @@ export interface AuthStats {
     successes: number;
     failures: number;
     byokSuccesses: number;
+    spotifySuccesses: number;
+    tidalSuccesses: number;
+  }>;
+  providerBreakdown: Array<{
+    provider: MusicProviderId;
+    successes: number;
+    failures: number;
+    byokSuccesses: number;
   }>;
   recentFailures: Array<{
     ts: string;
     errorCode: string | null;
+    provider: MusicProviderId | null;
   }>;
 }
 
 /**
  * Get authentication statistics (login successes and failures).
  */
-export function getAuthStats(range: DateRange): AuthStats {
+export function getAuthStats(range: ProviderScopedRange): AuthStats {
   const db = getDb();
   if (!db) {
     return {
@@ -427,6 +492,7 @@ export function getAuthStats(range: DateRange): AuthStats {
       regularLogins: 0,
       successRate: 0,
       dailyStats: [],
+      providerBreakdown: [],
       recentFailures: [],
     };
   }
@@ -443,8 +509,9 @@ export function getAuthStats(range: DateRange): AuthStats {
       SUM(CASE WHEN event = 'login_success' AND is_byok = 1 THEN 1 ELSE 0 END) as byokSuccesses
     FROM events
     WHERE date(ts) BETWEEN ? AND ?
+      AND (? IS NULL OR provider = ?)
       AND event IN ('login_success', 'login_failure')`,
-    [range.from, range.to]
+    [range.from, range.to, range.provider ?? null, range.provider ?? null]
   );
 
   const successes = overallResult?.successes ?? 0;
@@ -460,34 +527,63 @@ export function getAuthStats(range: DateRange): AuthStats {
     successes: number;
     failures: number;
     byokSuccesses: number;
+    spotifySuccesses: number;
+    tidalSuccesses: number;
   }>(
     `SELECT 
       date(ts) as date,
+      SUM(CASE WHEN event = 'login_success' THEN 1 ELSE 0 END) as successes,
+      SUM(CASE WHEN event = 'login_failure' THEN 1 ELSE 0 END) as failures,
+      SUM(CASE WHEN event = 'login_success' AND is_byok = 1 THEN 1 ELSE 0 END) as byokSuccesses,
+      SUM(CASE WHEN event = 'login_success' AND provider = 'spotify' THEN 1 ELSE 0 END) as spotifySuccesses,
+      SUM(CASE WHEN event = 'login_success' AND provider = 'tidal' THEN 1 ELSE 0 END) as tidalSuccesses
+    FROM events
+    WHERE date(ts) BETWEEN ? AND ?
+      AND (? IS NULL OR provider = ?)
+      AND event IN ('login_success', 'login_failure')
+    GROUP BY date(ts)
+    ORDER BY date(ts)`,
+    [range.from, range.to, range.provider ?? null, range.provider ?? null]
+  );
+
+  const providerBreakdown = queryAll<{
+    provider: MusicProviderId;
+    successes: number;
+    failures: number;
+    byokSuccesses: number;
+  }>(
+    `SELECT
+      provider,
       SUM(CASE WHEN event = 'login_success' THEN 1 ELSE 0 END) as successes,
       SUM(CASE WHEN event = 'login_failure' THEN 1 ELSE 0 END) as failures,
       SUM(CASE WHEN event = 'login_success' AND is_byok = 1 THEN 1 ELSE 0 END) as byokSuccesses
     FROM events
     WHERE date(ts) BETWEEN ? AND ?
       AND event IN ('login_success', 'login_failure')
-    GROUP BY date(ts)
-    ORDER BY date(ts)`,
-    [range.from, range.to]
+      AND provider IN ('spotify', 'tidal')
+      AND (? IS NULL OR provider = ?)
+    GROUP BY provider
+    ORDER BY provider`,
+    [range.from, range.to, range.provider ?? null, range.provider ?? null]
   );
 
   // Recent failures (last 20)
   const recentFailures = queryAll<{
     ts: string;
     errorCode: string | null;
+    provider: MusicProviderId | null;
   }>(
     `SELECT 
       ts,
-      error_code as errorCode
+      error_code as errorCode,
+      provider
     FROM events
     WHERE date(ts) BETWEEN ? AND ?
+      AND (? IS NULL OR provider = ?)
       AND event = 'login_failure'
     ORDER BY ts DESC
     LIMIT 20`,
-    [range.from, range.to]
+    [range.from, range.to, range.provider ?? null, range.provider ?? null]
   );
 
   return {
@@ -497,6 +593,7 @@ export function getAuthStats(range: DateRange): AuthStats {
     regularLogins,
     successRate,
     dailyStats,
+    providerBreakdown,
     recentFailures,
   };
 }

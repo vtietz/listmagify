@@ -43,6 +43,7 @@ export {
   updateDailyAggregates,
   getDatabaseStats,
   type DateRange,
+  type ProviderScopedRange,
   type EventCount,
   type DailyEventSummary,
   type OverviewKPIs,

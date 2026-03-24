@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { assertAuthenticated } from '@/app/api/_shared/guard';
-import { getMusicProviderHintFromRequest } from '@/app/api/_shared/provider';
+import { getMusicProviderHintFromRequest, resolveMusicProviderIdFromRequest } from '@/app/api/_shared/provider';
 import { mapApiErrorToProviderAuthError, toProviderAuthErrorResponse } from '@/lib/api/errorHandler';
 import { 
   isRecsAvailable, 
@@ -32,6 +32,7 @@ import type { Track } from '@/lib/music-provider/types';
 export async function POST(request: NextRequest) {
   try {
     await assertAuthenticated();
+    const providerId = resolveMusicProviderIdFromRequest(request);
 
     if (!isRecsAvailable()) {
       return NextResponse.json({
@@ -61,6 +62,7 @@ export async function POST(request: NextRequest) {
     const input: PlaylistSnapshotInput = {
       playlistId,
       tracks: tracks as Track[],
+      provider: providerId,
       cooccurrenceOnly: cooccurrenceOnly === true,
     };
 

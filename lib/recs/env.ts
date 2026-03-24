@@ -17,6 +17,9 @@ const recsEnvSchema = z.object({
   
   /** SQLite database path (relative to project root or absolute) */
   RECS_DB_PATH: z.string().default("./data/recs.db"),
+
+  /** Enable canonical-id storage path for recommendation capture/materialization */
+  RECS_CANONICAL_MODE: z.coerce.boolean().default(false),
 });
 
 export type RecsEnv = z.infer<typeof recsEnvSchema>;
@@ -28,6 +31,7 @@ export const recsEnv: RecsEnv = (() => {
   const raw = {
     RECS_ENABLED: process.env.RECS_ENABLED,
     RECS_DB_PATH: process.env.RECS_DB_PATH,
+    RECS_CANONICAL_MODE: process.env.RECS_CANONICAL_MODE,
   };
   
   return recsEnvSchema.parse(raw);

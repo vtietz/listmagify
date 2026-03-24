@@ -48,3 +48,11 @@ export {
   type Recommendation,
   type RecommendationContext,
 } from "./score";
+
+// Canonical materialization
+export {
+  materializeCanonicalTrackIds,
+  type MaterializeCanonicalInput,
+  type MaterializeCanonicalResult,
+  type MaterializeProviderAdapter,
+} from './materialize';

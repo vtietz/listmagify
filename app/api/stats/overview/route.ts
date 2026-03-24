@@ -9,8 +9,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/auth';
-import { isUserAllowedForStats } from '@/lib/metrics/env';
+import { getMetricsConfig, isUserAllowedForStats } from '@/lib/metrics/env';
 import { getOverviewKPIs, getDatabaseStats } from '@/lib/metrics';
+import type { MusicProviderId } from '@/lib/music-provider/types';
+
+function parseProvider(value: string | null): MusicProviderId | undefined {
+  if (value === 'spotify' || value === 'tidal') {
+    return value;
+  }
+
+  return undefined;
+}
 
 export async function GET(request: NextRequest) {
   // Check authentication and authorization
@@ -30,9 +39,13 @@ export async function GET(request: NextRequest) {
   
   const from = searchParams.get('from') || weekAgo;
   const to = searchParams.get('to') || today;
+  const config = getMetricsConfig();
+  const provider = config.providerDimensionEnabled
+    ? parseProvider(searchParams.get('provider'))
+    : undefined;
 
   try {
-    const kpis = getOverviewKPIs({ from, to });
+    const kpis = getOverviewKPIs({ from, to, ...(provider ? { provider } : {}) });
     const dbStats = getDatabaseStats();
     
     return NextResponse.json({
@@ -40,6 +53,7 @@ export async function GET(request: NextRequest) {
       data: kpis,
       dbStats: dbStats || undefined, // Include DB stats if available
       range: { from, to },
+      providerDimensionEnabled: config.providerDimensionEnabled,
     });
   } catch (error) {
     console.error('[stats/overview] Error:', error);

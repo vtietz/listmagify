@@ -7,13 +7,14 @@ import { Button } from '@/components/ui/button';
 import { Users, ChevronLeft, ChevronRight, ArrowUpDown, ArrowDown, ArrowUp } from 'lucide-react';
 import { UserDetailDialog } from '../UserDetailDialog';
 import { cn } from '@/lib/utils';
-import type { TopUser, TopUsersResponse } from '../types';
+import type { TopUser, TopUsersResponse, StatsProviderFilter } from '../types';
 
 type UserSortField = 'eventCount' | 'byokLogins' | 'regularLogins' | 'lastActive' | 'firstLoginAt';
 type SortDirection = 'asc' | 'desc';
 
 interface TopUsersCardProps {
   dateRange: { from: string; to: string };
+  provider?: StatsProviderFilter;
 }
 
 function formatUserDate(value: string | null): string {
@@ -308,7 +309,7 @@ function TopUsersDetailsDialog({
   );
 }
 
-export function TopUsersCard({ dateRange }: TopUsersCardProps) {
+export function TopUsersCard({ dateRange, provider = 'all' }: TopUsersCardProps) {
   const [page, setPage] = useState(0);
   const [sortBy, setSortBy] = useState<UserSortField>('eventCount');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
@@ -316,12 +317,13 @@ export function TopUsersCard({ dateRange }: TopUsersCardProps) {
   const [showUserDetails, setShowUserDetails] = useState(false);
   const pageSize = 10;
   const dateRangeKey = `${dateRange.from}_${dateRange.to}`;
+  const providerParam = provider === 'all' ? '' : `&provider=${provider}`;
 
   const { data, isLoading } = useQuery<TopUsersResponse>({
-    queryKey: ['stats', 'users', dateRangeKey, page, sortBy, sortDirection],
+    queryKey: ['stats', 'users', dateRangeKey, provider, page, sortBy, sortDirection],
     queryFn: async ({ signal }: { signal: AbortSignal }) => {
       const res = await fetch(
-        `/api/stats/users?from=${dateRange.from}&to=${dateRange.to}&limit=${pageSize}&offset=${page * pageSize}&sortBy=${sortBy}&sortDirection=${sortDirection}`,
+        `/api/stats/users?from=${dateRange.from}&to=${dateRange.to}&limit=${pageSize}&offset=${page * pageSize}&sortBy=${sortBy}&sortDirection=${sortDirection}${providerParam}`,
         { signal }
       );
       if (!res.ok) throw new Error('Failed to fetch top users');
