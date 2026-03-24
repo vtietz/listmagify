@@ -11,6 +11,12 @@ type Props = {
   searchParams: Promise<{ next?: string; reason?: string; error?: string; landing?: string; callbackUrl?: string }>;
 };
 
+type SessionLike = {
+  error?: string;
+  accessToken?: string;
+  musicProviderTokens?: Record<string, { accessToken?: string }>;
+};
+
 function resolveReturnTo(next: string | undefined): string {
   return next && next.startsWith("/") ? next : "/split-editor";
 }
@@ -66,9 +72,14 @@ export default async function Home({ searchParams }: Props) {
   const isAccessRequestEnabled = serverEnv.ACCESS_REQUEST_ENABLED ?? false;
   const oauthProvider = resolveOAuthProviderFromCallbackUrl(callbackUrl);
 
-  const sessionError = (session as { error?: string } | null)?.error;
-  const hasAccessToken = session && (session as any).accessToken;
-  const hasValidSession = session && !sessionError && hasAccessToken;
+  const typedSession = session as SessionLike | null;
+  const sessionError = typedSession?.error;
+  const hasPrimaryAccessToken = Boolean(typedSession?.accessToken);
+  const hasProviderAccessToken = Boolean(
+    typedSession?.musicProviderTokens
+      && Object.values(typedSession.musicProviderTokens).some((providerToken) => Boolean(providerToken?.accessToken))
+  );
+  const hasValidSession = Boolean(session && !sessionError && (hasPrimaryAccessToken || hasProviderAccessToken));
   const isAuthenticated = Boolean(hasValidSession);
   const returnTo = resolveReturnTo(next);
   const forceLanding = landing === "1";

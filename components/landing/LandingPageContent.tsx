@@ -2,20 +2,28 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { useSplitGridStore } from '@/hooks/useSplitGridStore';
 import Image from 'next/image';
 import { SignInButton } from '@/components/auth/SignInButton';
 import { AccessRequestDialog } from '@/components/landing/AccessRequestDialog';
-import { ByokSignInButton } from '@/components/landing/ByokSignInButton';
+import { ByokDialog } from '@/components/landing/ByokDialog';
 import { AuthMessage } from '@/components/auth/AuthMessage';
 import { DevModeNotice } from '@/components/auth/DevModeNotice';
 import { UnapprovedUserDialog } from '@/components/auth/UnapprovedUserDialog';
 import { AppLogo } from '@/components/ui/app-logo';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useByokCredentials } from '@/hooks/useByokCredentials';
 import { useAuthSummary } from '@/hooks/auth/useAuth';
+import { syncProviderAuthStatusWithRetry } from '@/lib/providers/syncProviderAuth';
 import type { MusicProviderId } from '@/lib/music-provider/types';
 import { 
   Check,
+  CheckCircle,
   Columns, 
   GripVertical, 
   Search, 
@@ -30,7 +38,11 @@ import {
   Music2,
   Github,
   MapPin,
-  TextCursorInput
+  TextCursorInput,
+  ChevronDown,
+  Key,
+  UserPlus,
+  LogOut,
 } from 'lucide-react';
 
 interface LandingPageContentProps {
@@ -49,23 +61,111 @@ function getProviderLabel(provider: MusicProviderId): string {
   return provider === 'spotify' ? 'Spotify' : 'TIDAL';
 }
 
-function ConnectedProvidersSummary({
-  isAuthenticated,
-  connectedProviders,
+function ProviderAuthButton({
+  provider,
+  status,
+  returnTo,
+  isAccessRequestEnabled,
+  hasCredentials,
+  onLogout,
 }: {
-  isAuthenticated: boolean;
-  connectedProviders: MusicProviderId[];
+  provider: MusicProviderId;
+  status: 'connected' | 'disconnected';
+  returnTo: string;
+  isAccessRequestEnabled: boolean;
+  hasCredentials: boolean;
+  onLogout: (provider: MusicProviderId) => void;
 }) {
-  if (!isAuthenticated) {
-    return null;
-  }
+  const isConnected = status === 'connected';
+  const providerLabel = getProviderLabel(provider);
 
   return (
-    <p className="text-sm text-muted-foreground">
-      {connectedProviders.length > 0
-        ? `Connected: ${connectedProviders.map(getProviderLabel).join(', ')}`
-        : 'No provider connected yet'}
-    </p>
+    <div className="inline-flex rounded-md border border-border overflow-hidden bg-background">
+      {isConnected ? (
+        <button
+          type="button"
+          disabled
+          className="inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-medium text-foreground bg-background"
+        >
+          <Check className="h-4 w-4 text-green-500" />
+          Connected with {providerLabel}
+        </button>
+      ) : (
+        <SignInButton
+          callbackUrl={returnTo}
+          providerId={provider}
+          label={provider === 'spotify' ? 'Sign in with Spotify' : 'Sign in with TIDAL'}
+          className="rounded-none border-0 px-5 py-3 text-sm font-medium"
+        />
+      )}
+
+      <DropdownMenu modal={false}>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            className="inline-flex items-center justify-center border-l border-border px-3 text-muted-foreground hover:bg-accent"
+            aria-label={`${providerLabel} actions`}
+          >
+            <ChevronDown className="h-4 w-4" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="center" className="w-56 p-1.5">
+          {isConnected ? (
+            <button
+              type="button"
+              onClick={() => onLogout(provider)}
+              className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+              Logout
+            </button>
+          ) : (
+            <div className="space-y-1">
+              {provider === 'spotify' && isAccessRequestEnabled && !hasCredentials && (
+                <AccessRequestDialog
+                  trigger={(
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+                    >
+                      <UserPlus className="h-3.5 w-3.5" />
+                      Request Access
+                    </button>
+                  )}
+                />
+              )}
+
+              {provider === 'spotify' ? (
+                <ByokDialog
+                  trigger={(
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+                    >
+                      {hasCredentials ? (
+                        <CheckCircle className="h-3.5 w-3.5 text-green-500" />
+                      ) : (
+                        <Key className="h-3.5 w-3.5" />
+                      )}
+                      Use Your Own API Key
+                    </button>
+                  )}
+                />
+              ) : (
+                <button
+                  type="button"
+                  disabled
+                  className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-muted-foreground opacity-70"
+                >
+                  <Key className="h-3.5 w-3.5" />
+                  Use Your Own API Key (coming soon)
+                </button>
+              )}
+            </div>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   );
 }
 
@@ -77,6 +177,7 @@ function LandingAuthActions({
   onOpenApp,
   isAccessRequestEnabled,
   hasCredentials,
+  onProviderLogout,
 }: {
   isAuthenticated: boolean;
   availableProviders: MusicProviderId[];
@@ -85,65 +186,29 @@ function LandingAuthActions({
   onOpenApp: () => void;
   isAccessRequestEnabled: boolean;
   hasCredentials: boolean;
+  onProviderLogout: (provider: MusicProviderId) => void;
 }) {
-  if (isAuthenticated) {
-    return (
-      <>
+  return (
+    <>
+      {isAuthenticated && (
         <button
           onClick={onOpenApp}
           className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-6 py-3 text-sm font-medium hover:bg-primary/90 transition-colors"
         >
           Open App
         </button>
-        {availableProviders.map((provider) => {
-          const status = providerStatusMap[provider];
-          if (status === 'connected') {
-            return (
-              <button
-                key={provider}
-                type="button"
-                disabled
-                className="inline-flex items-center justify-center gap-2 rounded-md border border-border bg-background px-6 py-3 text-sm font-medium text-muted-foreground"
-              >
-                <Check className="h-4 w-4 text-green-500" />
-                {getProviderLabel(provider)} connected
-              </button>
-            );
-          }
-
-          return (
-            <SignInButton
-              key={provider}
-              callbackUrl={returnTo}
-              providerId={provider}
-              label={provider === 'spotify' ? 'Connect Spotify' : 'Connect TIDAL'}
-            />
-          );
-        })}
-      </>
-    );
-  }
-
-  return (
-    <>
+      )}
       {availableProviders.map((provider) => (
-        <SignInButton
+        <ProviderAuthButton
           key={provider}
-          callbackUrl={returnTo}
-          providerId={provider}
-          label={provider === 'spotify' ? 'Sign in with Spotify' : 'Sign in with TIDAL'}
+          provider={provider}
+          status={providerStatusMap[provider]}
+          returnTo={returnTo}
+          isAccessRequestEnabled={isAccessRequestEnabled}
+          hasCredentials={hasCredentials}
+          onLogout={onProviderLogout}
         />
       ))}
-      {isAccessRequestEnabled && !hasCredentials && availableProviders.includes('spotify') && (
-        <AccessRequestDialog
-          trigger={
-            <button className="inline-flex items-center justify-center gap-2 rounded-md border border-border bg-background px-6 py-3 text-sm font-medium hover:bg-accent transition-colors">
-              Request Access
-            </button>
-          }
-        />
-      )}
-      {availableProviders.includes('spotify') && <ByokSignInButton />}
     </>
   );
 }
@@ -162,13 +227,37 @@ export function LandingPageContent({
   const [byokEnabled, setByokEnabled] = useState<boolean | null>(null);
   const [availableProviders, setAvailableProviders] = useState<MusicProviderId[]>(['spotify']);
   const { hasCredentials } = useByokCredentials();
+  const { update } = useSession();
   const authSummary = useAuthSummary();
+  const isE2EMode = process.env.NEXT_PUBLIC_E2E_MODE === '1';
 
   const providerStatusMap: ProviderStatusMap = {
     spotify: authSummary.spotify.code === 'ok' ? 'connected' : 'disconnected',
     tidal: authSummary.tidal.code === 'ok' ? 'connected' : 'disconnected',
   };
-  const connectedProviders = availableProviders.filter((provider) => providerStatusMap[provider] === 'connected');
+
+  const handleProviderLogout = (provider: MusicProviderId) => {
+    void (async () => {
+      if (providerStatusMap[provider] !== 'connected') {
+        return;
+      }
+
+      if (isE2EMode) {
+        await fetch(`/api/test/logout?provider=${provider}`, {
+          method: 'GET',
+          cache: 'no-store',
+        });
+        await syncProviderAuthStatusWithRetry();
+        return;
+      }
+
+      if (typeof update === 'function') {
+        await update({ providerAuthAction: 'logout-provider', providerId: provider });
+      }
+
+      await syncProviderAuthStatusWithRetry();
+    })();
+  };
 
   useEffect(() => {
     fetch('/api/config')
@@ -225,15 +314,11 @@ export function LandingPageContent({
           )}
           
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            Professional playlist management for Spotify. Edit multiple playlists side-by-side with drag-and-drop.
+            Professional playlist management for Spotify and TIDAL. Edit multiple playlists side-by-side with drag-and-drop.
           </p>
           <p className="text-sm text-muted-foreground">
-            Open source • Free to use • Your data stays with Spotify
+            Open source • Free to use • Your data stays with your music provider
           </p>
-          <ConnectedProvidersSummary
-            isAuthenticated={isAuthenticated}
-            connectedProviders={connectedProviders}
-          />
           <div className="flex flex-wrap justify-center gap-4 pt-4">
             <LandingAuthActions
               isAuthenticated={isAuthenticated}
@@ -243,6 +328,7 @@ export function LandingPageContent({
               onOpenApp={handleGetStarted}
               isAccessRequestEnabled={isAccessRequestEnabled}
               hasCredentials={hasCredentials}
+              onProviderLogout={handleProviderLogout}
             />
           </div>
           
