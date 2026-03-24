@@ -11,6 +11,16 @@ const nextConfig = {
   turbopack: {},
   // Allow isolated build output for E2E dev server to avoid lock conflicts
   ...(process.env.NEXT_DIST_DIR ? { distDir: process.env.NEXT_DIST_DIR } : {}),
+  images: {
+    remotePatterns: [
+      // Spotify image CDN - album art, playlist covers, artist images
+      { protocol: 'https', hostname: 'i.scdn.co' },
+      // Spotify mosaic cover generator
+      { protocol: 'https', hostname: 'mosaic.scdn.co' },
+      // Spotify thumbnail CDN
+      { protocol: 'https', hostname: 't.scdn.co' },
+    ],
+  },
 } as const;
 
 export default nextConfig;
