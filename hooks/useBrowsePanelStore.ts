@@ -63,6 +63,12 @@ interface BrowsePanelState {
   clearSpotifySelection: () => void;
 }
 
+/** Shape of the persisted (partial) state stored in localStorage. */
+type PersistedBrowsePanelState = Pick<
+  BrowsePanelState,
+  'isOpen' | 'activeTab' | 'width' | 'recsExpanded' | 'recsHeight' | 'lastfmUsername' | 'lastfmSource' | 'lastfmPeriod'
+>;
+
 export const useBrowsePanelStore = create<BrowsePanelState>()(
   persist(
     (set) => ({
@@ -141,6 +147,12 @@ export const useBrowsePanelStore = create<BrowsePanelState>()(
     }),
     {
       name: 'browse-panel-storage',
+      version: 1,
+      migrate: (persistedState) => {
+        // Version 0 → 1: no structural changes; return persisted values as-is.
+        // Zustand fills in any missing fields from the store initializer defaults.
+        return persistedState as PersistedBrowsePanelState;
+      },
       partialize: (state) => ({
         isOpen: state.isOpen,
         activeTab: state.activeTab,

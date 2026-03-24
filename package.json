@@ -9,7 +9,7 @@
     "build": "next build",
     "start": "next start --hostname 0.0.0.0",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "node scripts/clean-next-types.js && tsc --noEmit",
     "format": "prettier --write .",
     "test": "vitest --run",
     "test:coverage": "vitest --run --coverage",
