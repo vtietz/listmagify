@@ -16,6 +16,8 @@ services:
       - CHOKIDAR_USEPOLLING=1
       - WATCHPACK_POLLING=true
       - PORT=${PORT:-3000}
+      - PLAYWRIGHT_BROWSERS_PATH=/usr/src/app/.cache/ms-playwright
+      - PLAYWRIGHT_HTML_OPEN=never
       # Fix HMR WebSocket connection in Docker - tell Next.js the external hostname
       - HOSTNAME=0.0.0.0
       # Disable strict SSL for local development (fixes proxy/VPN certificate issues)
@@ -74,6 +76,8 @@ services:
       - CHOKIDAR_USEPOLLING=1
       - WATCHPACK_POLLING=true
       - HOSTNAME=0.0.0.0
+      - PLAYWRIGHT_BROWSERS_PATH=/usr/src/app/.cache/ms-playwright
+      - PLAYWRIGHT_HTML_OPEN=never
     volumes:
       - ..:/usr/src/app:cached
       - ../node_modules:/usr/src/app/node_modules:cached
@@ -129,12 +133,17 @@ services:
       - BASE_URL=http://web-test:3100
       - CI=true
       - PLAYWRIGHT_ARGS=
+      - PLAYWRIGHT_BROWSERS_PATH=/work/.cache/ms-playwright
+      - PLAYWRIGHT_HTML_OPEN=never
     volumes:
       - ..:/work:cached
       - ../node_modules:/work/node_modules:cached  # Use bind mount for node_modules
     command: >
       sh -c "
         rm -rf test-results .playwright-artifacts-* &&
+        if ! ls /work/.cache/ms-playwright/chromium-* >/dev/null 2>&1; then
+          pnpm exec playwright install chromium;
+        fi &&
         pnpm exec playwright test $$PLAYWRIGHT_ARGS
       "
     depends_on:

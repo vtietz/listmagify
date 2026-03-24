@@ -46,7 +46,16 @@ const eslintConfig = [
     },
   },
   {
-    ignores: ['node_modules/**', '.next/**', '.next-e2e/**', 'playwright-report/**', 'coverage/**'],
+    ignores: [
+      'node_modules/**',
+      '.next/**',
+      '.next-e2e/**',
+      '.cache/**',
+      'playwright-report/**',
+      'test-results/**',
+      '.playwright-artifacts-*/**',
+      'coverage/**',
+    ],
   },
 ];
 

@@ -125,7 +125,8 @@ export async function GET() {
   try {
     if (process.env.E2E_MODE === '1') {
       const cookieStore = await cookies();
-      const rawCookie = cookieStore.get(E2E_AUTH_COOKIE_NAME)?.value;
+      const rawCookieValue = cookieStore.get(E2E_AUTH_COOKIE_NAME)?.value;
+      const rawCookie = rawCookieValue ? decodeURIComponent(rawCookieValue) : undefined;
       return NextResponse.json(toE2ESummaryFromCookie(rawCookie));
     }
 

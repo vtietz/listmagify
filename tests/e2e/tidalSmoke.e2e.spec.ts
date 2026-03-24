@@ -1,7 +1,8 @@
 import { test, expect, type Page } from '@playwright/test';
 
 async function loginTidal(page: Page) {
-  await page.request.get('/api/test/login?provider=tidal');
+  const response = await page.goto('/api/test/login?provider=tidal');
+  expect(response?.ok()).toBeTruthy();
 }
 
 async function gotoTidalPlaylistAndWaitForTracks(page: Page, playlistId = 'test-playlist-1') {
