@@ -67,9 +67,11 @@ export function useRedirectToPlaylistsIfNeeded({
   useEffect(() => {
     const hasLayoutParam = searchParams.has('layout');
     const hasNoPanels = !root || panelCount === 0;
+    const provider = searchParams.get('provider');
+    const providerQuery = provider === 'spotify' || provider === 'tidal' ? `?provider=${provider}` : '';
 
     if (authenticated && !loading && !hasLayoutParam && hasNoPanels) {
-      router.replace('/playlists');
+      router.replace(`/playlists${providerQuery}`);
     }
   }, [authenticated, loading, root, panelCount, router, searchParams]);
 }

@@ -111,6 +111,7 @@ export function PlaylistsToolbar({
         currentProviderId={providerId}
         providers={availableProviders}
         statusMap={statusMap}
+        hideWhenSingleConnected={true}
         onProviderChange={onProviderChange}
         data-testid="playlists-provider-status-dropdown"
       />

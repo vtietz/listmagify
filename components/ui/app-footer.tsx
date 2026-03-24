@@ -8,45 +8,30 @@ import { Github, MessageSquarePlus } from "lucide-react";
 import { FeedbackDialog } from "@/components/feedback";
 
 /**
- * Application footer with Spotify attribution and legal links.
- * Shows Spotify logo and attribution on the left, legal links on the right.
- * Use on all pages displaying Spotify content.
+ * Application footer with compact provider attribution and legal links.
+ * Shows provider logo on the left, legal links on the right.
  */
 export function AppFooter({ showSpotifyAttribution = true }: { showSpotifyAttribution?: boolean }) {
   return (
     <div className={`flex items-center gap-4 text-muted-foreground ${showSpotifyAttribution ? 'justify-between' : 'justify-end'}`}>
-      {/* Spotify Attribution - Left side */}
-      {/* Per Spotify guidelines: full logo min 70px width, icon min 21px. Using logo. */}
       {showSpotifyAttribution ? (
-        <div className="flex items-center gap-2">
-        {/* SVG logos from public folder - unoptimized since SVG doesn't benefit from raster optimization */}
-        <Image
-          src="/spotify/Primary_Logo_White_RGB.svg"
-          alt="Spotify"
-          width={70}
-          height={21}
-          className="hidden dark:block"
-          unoptimized
-        />
-        <Image
-          src="/spotify/Primary_Logo_Black_RGB.svg"
-          alt="Spotify"
-          width={70}
-          height={21}
-          className="dark:hidden"
-          unoptimized
-        />
-        <span className="text-[10px]">
-          Content provided by{" "}
-          <Link
-            href="https://www.spotify.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:text-foreground transition-colors"
-          >
-            Spotify
-          </Link>
-        </span>
+        <div className="flex items-center">
+          <Image
+            src="/spotify/Spotify_Primary_Logo_RGB_White.png"
+            alt="Spotify"
+            width={56}
+            height={17}
+            className="hidden dark:block"
+            unoptimized
+          />
+          <Image
+            src="/spotify/Spotify_Primary_Logo_RGB_Black.png"
+            alt="Spotify"
+            width={56}
+            height={17}
+            className="dark:hidden"
+            unoptimized
+          />
         </div>
       ) : (
         <div className="h-5" />

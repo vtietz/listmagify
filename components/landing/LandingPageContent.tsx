@@ -57,6 +57,22 @@ interface LandingPageContentProps {
 
 type ProviderStatusMap = Record<MusicProviderId, 'connected' | 'disconnected'>;
 
+function getConnectedProviderIds(
+  providers: MusicProviderId[],
+  statusMap: ProviderStatusMap,
+): MusicProviderId[] {
+  return providers.filter((provider) => statusMap[provider] === 'connected');
+}
+
+function appendProviderToPath(path: string, providerId: MusicProviderId): string {
+  const [rawPath, rawQuery] = path.split('?');
+  const pathname = rawPath ?? path;
+  const params = new URLSearchParams(rawQuery ?? '');
+  params.set('provider', providerId);
+  const query = params.toString();
+  return query.length > 0 ? `${pathname}?${query}` : pathname;
+}
+
 function getProviderLabel(provider: MusicProviderId): string {
   return provider === 'spotify' ? 'Spotify' : 'TIDAL';
 }
@@ -291,13 +307,15 @@ export function LandingPageContent({
 
   // Smart redirect for authenticated users clicking "Get Started"
   const handleGetStarted = () => {
+    const connectedProviderIds = getConnectedProviderIds(availableProviders, providerStatusMap);
+    const preferredProvider = connectedProviderIds.length > 0 ? connectedProviderIds[0] : null;
     // Check if user has panels configured (has used split editor before)
     const hasPanelsConfigured = panels.length > 0 && panels.some(p => p.playlistId);
     
     if (hasPanelsConfigured) {
-      router.push('/split-editor');
+      router.push(preferredProvider ? appendProviderToPath('/split-editor', preferredProvider) : '/split-editor');
     } else {
-      router.push('/playlists');
+      router.push(preferredProvider ? appendProviderToPath('/playlists', preferredProvider) : '/playlists');
     }
   };
 

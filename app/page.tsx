@@ -17,6 +17,33 @@ type SessionLike = {
   musicProviderTokens?: Record<string, { accessToken?: string }>;
 };
 
+function appendProviderToPath(path: string, providerId: MusicProviderId): string {
+  const [rawPath, rawQuery] = path.split('?');
+  const pathname = rawPath ?? path;
+  const params = new URLSearchParams(rawQuery ?? '');
+  params.set('provider', providerId);
+  const query = params.toString();
+  return query.length > 0 ? `${pathname}?${query}` : pathname;
+}
+
+function resolvePreferredProviderFromSession(sessionLike: SessionLike | null): MusicProviderId | undefined {
+  if (!sessionLike?.musicProviderTokens) {
+    return undefined;
+  }
+
+  const tidalAccessToken = sessionLike.musicProviderTokens.tidal?.accessToken;
+  if (tidalAccessToken) {
+    return 'tidal';
+  }
+
+  const spotifyAccessToken = sessionLike.musicProviderTokens.spotify?.accessToken;
+  if (spotifyAccessToken) {
+    return 'spotify';
+  }
+
+  return undefined;
+}
+
 function resolveReturnTo(next: string | undefined): string {
   return next && next.startsWith("/") ? next : "/split-editor";
 }
@@ -82,10 +109,12 @@ export default async function Home({ searchParams }: Props) {
   const hasValidSession = Boolean(session && !sessionError && (hasPrimaryAccessToken || hasProviderAccessToken));
   const isAuthenticated = Boolean(hasValidSession);
   const returnTo = resolveReturnTo(next);
+  const preferredProvider = resolvePreferredProviderFromSession(typedSession);
+  const returnToWithProvider = preferredProvider ? appendProviderToPath(returnTo, preferredProvider) : returnTo;
   const forceLanding = landing === "1";
 
   if (hasValidSession && !forceLanding) {
-    redirect(returnTo);
+    redirect(returnToWithProvider);
   }
 
   const message = resolveHomeMessage(reason, sessionError);
@@ -116,7 +145,7 @@ export default async function Home({ searchParams }: Props) {
         isAuthenticated={isAuthenticated}
         showMessage={showMessage}
         message={message}
-        returnTo={returnTo}
+        returnTo={returnToWithProvider}
         oauthError={error}
         oauthProvider={oauthProvider}
         isAccessRequestEnabled={isAccessRequestEnabled}

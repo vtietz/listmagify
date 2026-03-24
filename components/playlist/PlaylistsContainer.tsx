@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { Playlist } from '@/lib/music-provider/types';
 import type { MusicProviderId } from '@/lib/music-provider/types';
@@ -8,6 +8,7 @@ import { PlaylistsToolbar } from "@/components/playlist/PlaylistsToolbar";
 import { PlaylistsGrid } from "@/components/playlist/PlaylistsGrid";
 import { InlineSignInCard } from '@/components/auth/InlineSignInCard';
 import { useProviderAuth } from '@/hooks/auth/useAuth';
+import { useAuthSummary } from '@/hooks/auth/useAuth';
 import { useEnsureValidToken } from '@/hooks/auth/useEnsureValidToken';
 
 function parseProviderFromQuery(value: string | null | undefined): MusicProviderId {
@@ -38,15 +39,35 @@ export function PlaylistsContainer({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const authSummary = useAuthSummary();
 
   const providerFromQuery = searchParams?.get('provider') ?? null;
-  let activeProviderId: MusicProviderId = providerId;
-  try {
-    const parsed = parseProviderFromQuery(providerFromQuery);
-    activeProviderId = availableProviders.includes(parsed) ? parsed : providerId;
-  } catch {
-    activeProviderId = providerId;
-  }
+  const queryProviderId = useMemo(() => {
+    try {
+      const parsed = parseProviderFromQuery(providerFromQuery);
+      return availableProviders.includes(parsed) ? parsed : null;
+    } catch {
+      return null;
+    }
+  }, [availableProviders, providerFromQuery]);
+
+  const connectedProviders = useMemo(() => {
+    return availableProviders.filter((candidate) => authSummary[candidate].code === 'ok');
+  }, [authSummary, availableProviders]);
+
+  const activeProviderId: MusicProviderId = useMemo(() => {
+    const preferred = queryProviderId ?? providerId;
+
+    if (connectedProviders.length === 0) {
+      return preferred;
+    }
+
+    if (connectedProviders.includes(preferred)) {
+      return preferred;
+    }
+
+    return connectedProviders[0]!;
+  }, [connectedProviders, providerId, queryProviderId]);
 
   const providerAuth = useProviderAuth(activeProviderId);
 
@@ -75,6 +96,17 @@ export function PlaylistsContainer({
     const query = params.toString();
     router.push(query.length > 0 ? `${pathname}?${query}` : pathname);
   }, [activeProviderId, pathname, router, searchParams]);
+
+  useEffect(() => {
+    if (providerFromQuery === activeProviderId) {
+      return;
+    }
+
+    const params = new URLSearchParams(searchParams?.toString() ?? '');
+    params.set('provider', activeProviderId);
+    const query = params.toString();
+    router.replace(query.length > 0 ? `${pathname}?${query}` : pathname);
+  }, [activeProviderId, pathname, providerFromQuery, router, searchParams]);
 
   const handleRefreshComplete = useCallback(() => {
     setIsRefreshing(false);

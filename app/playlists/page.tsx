@@ -1,10 +1,35 @@
 import { getCurrentUserPlaylists } from "@/lib/spotify/fetchers";
 import { PlaylistsContainer } from "@/components/playlist/PlaylistsContainer";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth/auth";
 import { parseMusicProviderId } from '@/lib/music-provider';
 import { getEnabledMusicProviders, getFallbackMusicProviderId } from '@/lib/music-provider/enabledProviders';
 import { ProviderApiError } from '@/lib/music-provider/types';
+import type { MusicProviderId } from '@/lib/music-provider/types';
 
 export const dynamic = "force-dynamic";
+
+type SessionLike = {
+  musicProviderTokens?: Partial<Record<MusicProviderId, { accessToken?: string }>>;
+};
+
+function resolvePreferredProviderFromSession(
+  sessionLike: SessionLike | null,
+  availableProviders: MusicProviderId[],
+  fallbackProvider: MusicProviderId,
+): MusicProviderId {
+  const tidalAccessToken = sessionLike?.musicProviderTokens?.tidal?.accessToken;
+  if (tidalAccessToken && availableProviders.includes('tidal')) {
+    return 'tidal';
+  }
+
+  const spotifyAccessToken = sessionLike?.musicProviderTokens?.spotify?.accessToken;
+  if (spotifyAccessToken && availableProviders.includes('spotify')) {
+    return 'spotify';
+  }
+
+  return fallbackProvider;
+}
 
 function isPlaylistAuthFailure(error: unknown): boolean {
   if (error instanceof ProviderApiError) {
@@ -40,8 +65,10 @@ export default async function PlaylistsPage({
 }) {
   const availableProviders = getEnabledMusicProviders();
   const fallbackProvider = getFallbackMusicProviderId();
+  const session = await getServerSession(authOptions);
+  const typedSession = session as SessionLike | null;
   const resolvedSearchParams = await searchParams;
-  let providerId: 'spotify' | 'tidal' = fallbackProvider;
+  let providerId: MusicProviderId = resolvePreferredProviderFromSession(typedSession, availableProviders, fallbackProvider);
 
   try {
     const parsed = parseMusicProviderId(resolvedSearchParams?.provider);

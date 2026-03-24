@@ -19,6 +19,8 @@ const nextConfig = {
       { protocol: 'https', hostname: 'mosaic.scdn.co' },
       // Spotify thumbnail CDN
       { protocol: 'https', hostname: 't.scdn.co' },
+      // TIDAL image CDN
+      { protocol: 'https', hostname: 'resources.tidal.com' },
     ],
   },
 } as const;

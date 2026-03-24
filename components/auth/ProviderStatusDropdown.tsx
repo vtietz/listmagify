@@ -23,6 +23,7 @@ interface ProviderStatusDropdownProps {
   currentProviderId: ProviderId;
   providers: ProviderId[];
   statusMap: Record<ProviderId, ProviderConnectionStatus>;
+  hideWhenSingleConnected?: boolean;
   playingProviderInPanel?: ProviderId | null;
   onProviderChange: (providerId: ProviderId) => void;
   onProviderLogout?: (providerId: ProviderId) => Promise<void> | void;
@@ -205,6 +206,7 @@ export function ProviderStatusDropdown({
   currentProviderId,
   providers,
   statusMap,
+  hideWhenSingleConnected = false,
   playingProviderInPanel = null,
   onProviderChange,
   onProviderLogout,
@@ -215,9 +217,14 @@ export function ProviderStatusDropdown({
   const isPanelContext = context === 'panel';
   const isSingleProvider = providers.length <= 1;
   const connectedProviders = providers.filter((providerId) => (statusMap[providerId] ?? 'disconnected') === 'connected');
+  const isSingleConnectedProvider = connectedProviders.length <= 1;
 
   // Single provider: nothing to switch — hide entirely
   if (isSingleProvider) {
+    return null;
+  }
+
+  if (hideWhenSingleConnected && isSingleConnectedProvider) {
     return null;
   }
 

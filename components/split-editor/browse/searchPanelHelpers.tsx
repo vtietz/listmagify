@@ -162,6 +162,7 @@ export function SearchInputBar({
             currentProviderId={providerId}
             providers={availableProviders}
             statusMap={statusMap}
+            hideWhenSingleConnected={true}
             onProviderChange={onProviderChange}
             data-testid="browse-provider-status-dropdown"
           />
