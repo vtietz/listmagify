@@ -5,6 +5,7 @@ import { PlaylistsContainer } from '@/components/playlist/PlaylistsContainer';
 vi.mock('next/navigation', () => ({
   useRouter: () => ({
     push: vi.fn(),
+    replace: vi.fn(),
   }),
   usePathname: () => '/playlists',
   useSearchParams: () => new URLSearchParams('provider=spotify'),
@@ -12,6 +13,7 @@ vi.mock('next/navigation', () => ({
 
 vi.mock('@/hooks/auth/useAuth', () => ({
   useProviderAuth: vi.fn(),
+  useAuthSummary: vi.fn(),
 }));
 
 vi.mock('@/hooks/auth/useEnsureValidToken', () => ({
@@ -32,7 +34,7 @@ vi.mock('@/components/auth/InlineSignInCard', () => ({
   ),
 }));
 
-import { useProviderAuth } from '@/hooks/auth/useAuth';
+import { useAuthSummary, useProviderAuth } from '@/hooks/auth/useAuth';
 import { useEnsureValidToken } from '@/hooks/auth/useEnsureValidToken';
 
 describe('PlaylistsContainer auth behavior', () => {
@@ -41,6 +43,11 @@ describe('PlaylistsContainer auth behavior', () => {
   });
 
   it('calls useEnsureValidToken with provider id and enabled=true for expired provider', () => {
+    vi.mocked(useAuthSummary).mockReturnValue({
+      spotify: { provider: 'spotify', code: 'expired', canAttemptRefresh: true, updatedAt: Date.now() },
+      tidal: { provider: 'tidal', code: 'unauthenticated', canAttemptRefresh: false, updatedAt: Date.now() },
+      anyAuthenticated: false,
+    });
     vi.mocked(useProviderAuth).mockReturnValue({
       provider: 'spotify',
       code: 'expired',
@@ -63,6 +70,11 @@ describe('PlaylistsContainer auth behavior', () => {
   });
 
   it('renders playlists grid when provider auth is ok', () => {
+    vi.mocked(useAuthSummary).mockReturnValue({
+      spotify: { provider: 'spotify', code: 'ok', canAttemptRefresh: true, updatedAt: Date.now() },
+      tidal: { provider: 'tidal', code: 'unauthenticated', canAttemptRefresh: false, updatedAt: Date.now() },
+      anyAuthenticated: true,
+    });
     vi.mocked(useProviderAuth).mockReturnValue({
       provider: 'spotify',
       code: 'ok',

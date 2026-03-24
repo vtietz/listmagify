@@ -365,18 +365,16 @@ export function PanelToolbarContent({
     <div ref={toolbarRef} className="flex items-center gap-1 border-b border-border bg-card relative z-50">
       <div className="flex flex-1 min-w-0 basis-0 items-center gap-1">
         <div className="flex-1 min-w-0 basis-0 flex items-center gap-2">
-          <div className="shrink-0">
-            <ProviderStatusDropdown
-              context="panel"
-              currentProviderId={providerId}
-              providers={availableProviders}
-              statusMap={statusMap}
-              hideWhenSingleConnected={true}
-              playingProviderInPanel={isPlayingPanel ? providerId : null}
-              onProviderChange={onProviderChange}
-              data-testid="panel-provider-status-dropdown"
-            />
-          </div>
+          <ProviderStatusDropdown
+            context="panel"
+            currentProviderId={providerId}
+            providers={availableProviders}
+            statusMap={statusMap}
+            hideWhenSingleConnected={true}
+            playingProviderInPanel={isPlayingPanel ? providerId : null}
+            onProviderChange={onProviderChange}
+            data-testid="panel-provider-status-dropdown"
+          />
           <div className="flex-1 min-w-0">
             <PlaylistSelector
               providerId={providerId}
