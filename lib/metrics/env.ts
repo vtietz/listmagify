@@ -38,10 +38,10 @@ export function getMetricsConfig(): MetricsConfig {
 }
 
 /**
- * Check if a Spotify user ID is in the stats allowlist.
+ * Check if a provider user ID is in the stats allowlist.
  */
-export function isUserAllowedForStats(spotifyUserId: string | undefined | null): boolean {
-  if (!spotifyUserId) return false;
+export function isUserAllowedForStats(userId: string | undefined | null): boolean {
+  if (!userId) return false;
   const config = getMetricsConfig();
-  return config.allowedUserIds.includes(spotifyUserId);
+  return config.allowedUserIds.includes(userId);
 }

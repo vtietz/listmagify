@@ -341,6 +341,8 @@ Users need to:
 
 When Listmagify is running in Spotify development mode (limited users), the landing page can show a "Request Access" button that sends an email to the admin with approval instructions.
 
+Note: Access Requests currently apply to Spotify only. TIDAL does not require this development-mode allowlist flow.
+
 To enable email delivery, configure SMTP and `CONTACT_EMAIL` in your `.env`.
 
 This feature is disabled by default. To enable it (UI + endpoint), set `ACCESS_REQUEST_ENABLED=true`.
@@ -366,7 +368,7 @@ Listmagify includes privacy-first usage analytics, disabled by default. When ena
 # .env
 STATS_ENABLED=true
 STATS_SALT=your-random-secret-salt
-STATS_ALLOWED_USER_IDS=your-spotify-user-id
+STATS_ALLOWED_USER_IDS=your-provider-user-id
 ```
 
 | Variable | Description | Default |
@@ -374,7 +376,7 @@ STATS_ALLOWED_USER_IDS=your-spotify-user-id
 | `STATS_ENABLED` | Enable/disable metrics | `false` |
 | `STATS_DB_PATH` | SQLite database path | `development: /tmp/listmagify-metrics.db`<br>`production: ./data/metrics.db` |
 | `STATS_SALT` | Salt for hashing user IDs | `default-salt-change-me` |
-| `STATS_ALLOWED_USER_IDS` | Comma-separated Spotify IDs for /stats access | (none) |
+| `STATS_ALLOWED_USER_IDS` | Comma-separated provider user IDs (Spotify or TIDAL) for /stats access | (none) |
 
 ## Legal Pages (Imprint & Privacy)
 

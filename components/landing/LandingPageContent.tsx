@@ -95,7 +95,7 @@ function ProviderAuthButton({
           callbackUrl={returnTo}
           providerId={provider}
           label={provider === 'spotify' ? 'Sign in with Spotify' : 'Sign in with TIDAL'}
-          className="rounded-none border-0 px-5 py-3 text-sm font-medium"
+          className="rounded-none border-0 px-5 py-3 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
         />
       )}
 
@@ -103,7 +103,11 @@ function ProviderAuthButton({
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            className="inline-flex items-center justify-center border-l border-border px-3 text-muted-foreground hover:bg-accent"
+            className={`inline-flex items-center justify-center border-l px-3 ${
+              isConnected
+                ? 'border-border text-foreground hover:bg-accent'
+                : 'border-primary/70 bg-primary text-primary-foreground hover:bg-primary/90'
+            }`}
             aria-label={`${providerLabel} actions`}
           >
             <ChevronDown className="h-4 w-4" />

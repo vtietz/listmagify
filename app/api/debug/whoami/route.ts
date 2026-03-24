@@ -1,5 +1,5 @@
 /**
- * Debug endpoint to show the current user's Spotify ID.
+ * Debug endpoint to show the current user's provider identity fields.
  * Use this to find the correct ID for STATS_ALLOWED_USER_IDS.
  * 
  * GET /api/debug/whoami
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
 
   // Show all relevant IDs from the token
   return NextResponse.json({
-    message: 'Use one of these IDs for STATS_ALLOWED_USER_IDS',
+    message: 'Use one of these provider IDs for STATS_ALLOWED_USER_IDS',
     sub: (token as any).sub,
     providerAccountId: (token as any).providerAccountId,
     email: (token as any).email,
