@@ -44,7 +44,7 @@ describe("PlaylistCard", () => {
     name: "Road Trip Mix",
     description: "A cool playlist",
     ownerName: "DJ Test",
-    image: { url: "https://example.com/cover.jpg", width: 300, height: 300 },
+    image: { url: "https://i.scdn.co/image/test-cover", width: 300, height: 300 },
     tracksTotal: 12,
     isPublic: true,
   };

@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 import type { Track } from '@/lib/music-provider/types';
 import { MarqueeText } from '@/components/ui/marquee-text';
 import { useHydratedAutoScrollText } from '@/hooks/useAutoScrollTextStore';
+import { ArtworkImage } from '@/components/shared/ArtworkImage';
 
 interface TrackInfoProps {
   track: {
@@ -82,11 +83,13 @@ function TrackAlbumImage({
   }
 
   return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
+    // Artwork is 56×56px (Tailwind h-14 w-14)
+    <ArtworkImage
       src={albumImage}
       alt={albumName ?? 'Album art'}
-      className="h-14 w-14 rounded object-contain bg-black/10 shadow shrink-0 hover:opacity-80 transition-opacity"
+      width={56}
+      height={56}
+      className="rounded object-contain bg-black/10 shadow shrink-0 hover:opacity-80 transition-opacity"
     />
   );
 }

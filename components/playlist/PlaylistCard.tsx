@@ -14,6 +14,7 @@ import { usePlayerStore } from "@/hooks/usePlayerStore";
 import { Button } from "@/components/ui/button";
 import { PlaylistDialog } from "@/components/playlist/PlaylistDialog";
 import { useUpdatePlaylist } from "@/lib/spotify/playlistMutations";
+import { ArtworkImage } from "@/components/shared/ArtworkImage";
 
 type PlaylistCardProps = {
   playlist: Playlist;
@@ -65,12 +66,13 @@ function PlaylistArtwork({
 }) {
   if (cover) {
     return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
+      // Parent container must have position:relative for fill to work
+      <ArtworkImage
         src={cover}
         alt={playlistName}
-        className="w-full h-full object-contain bg-black/20 transition-transform group-hover:scale-[1.02]"
-        loading="lazy"
+        fill
+        className="object-contain bg-black/20 transition-transform group-hover:scale-[1.02]"
+        sizes="(max-width: 640px) 50vw, (max-width: 1024px) 25vw, 200px"
       />
     );
   }
@@ -194,7 +196,7 @@ export function PlaylistCard({ playlist, providerId, className }: PlaylistCardPr
         )}
       >
         {/* Artwork container - per Spotify guidelines: no overlays, rounded corners (4px small, 8px large) */}
-        <div className="aspect-square w-full bg-muted overflow-hidden rounded-t-lg">
+        <div className="relative aspect-square w-full bg-muted overflow-hidden rounded-t-lg">
           <PlaylistArtwork
             cover={cover}
             playlistName={playlist.name}

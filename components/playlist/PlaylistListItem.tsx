@@ -13,6 +13,7 @@ import { usePlayerStore } from "@/hooks/usePlayerStore";
 import { Button } from "@/components/ui/button";
 import { PlaylistDialog } from "@/components/playlist/PlaylistDialog";
 import { useUpdatePlaylist } from "@/lib/spotify/playlistMutations";
+import { ArtworkImage } from "@/components/shared/ArtworkImage";
 
 type PlaylistListItemProps = {
   playlist: Playlist;
@@ -53,12 +54,13 @@ function PlaylistListCover({
 }) {
   if (cover) {
     return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
+      // Parent container must have position:relative for fill to work
+      <ArtworkImage
         src={cover}
         alt={playlistName}
-        className="w-full h-full object-cover"
-        loading="lazy"
+        fill
+        className="object-cover"
+        sizes="40px"
       />
     );
   }
@@ -178,7 +180,7 @@ export function PlaylistListItem({ playlist, providerId, className }: PlaylistLi
         )}
       >
         {/* Small cover image */}
-        <div className="w-10 h-10 flex-shrink-0 rounded overflow-hidden bg-muted">
+        <div className="relative w-10 h-10 flex-shrink-0 rounded overflow-hidden bg-muted">
           <PlaylistListCover cover={cover} playlistName={playlist.name} isLiked={isLiked} />
         </div>
         

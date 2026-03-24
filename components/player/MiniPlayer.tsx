@@ -40,6 +40,7 @@ import { toast } from '@/lib/ui/toast';
 import { MarqueeText } from '@/components/ui/marquee-text';
 import { useHydratedAutoScrollText } from '@/hooks/useAutoScrollTextStore';
 import type { PlaybackTrack } from '@/lib/music-provider/types';
+import { ArtworkImage } from '@/components/shared/ArtworkImage';
 
 function MiniPlayerControls({
   isLoading,
@@ -163,12 +164,14 @@ function MiniPlayerTrackInfo({
   return (
     <>
       {track.albumImage && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
+        // Artwork is 32×32px (Tailwind h-8 w-8)
+        <ArtworkImage
           src={track.albumImage}
           alt={track.albumName ?? 'Album art'}
+          width={32}
+          height={32}
           className={cn(
-            'h-8 w-8 rounded object-contain bg-black/10 shrink-0',
+            'rounded object-contain bg-black/10 shrink-0',
             onTrackClick && 'cursor-pointer hover:opacity-80 transition-opacity'
           )}
           onClick={onTrackClick}
