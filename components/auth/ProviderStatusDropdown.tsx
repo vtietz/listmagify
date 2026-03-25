@@ -218,6 +218,7 @@ export function ProviderStatusDropdown({
   const isSingleProvider = providers.length <= 1;
   const connectedProviders = providers.filter((providerId) => (statusMap[providerId] ?? 'disconnected') === 'connected');
   const isSingleConnectedProvider = connectedProviders.length <= 1;
+  const isSingleConnectedInHeader = !isPanelContext && connectedProviders.length <= 1;
 
   // Single provider: nothing to switch — hide entirely
   if (isSingleProvider) {
@@ -237,7 +238,9 @@ export function ProviderStatusDropdown({
           className={cn(
             isPanelContext
               ? 'h-7 w-7 p-0 border-0 shadow-none hover:bg-muted/50 ml-1'
-              : 'h-9 gap-1.5 px-2 min-w-[88px] justify-between',
+              : isSingleConnectedInHeader
+                ? 'h-9 gap-1.5 px-2'
+                : 'h-9 gap-1.5 px-2 min-w-[88px] justify-between',
           )}
           data-testid={dataTestId}
           aria-label={isPanelContext ? `${getProviderLabel(currentProviderId)} provider` : 'Connected providers'}
