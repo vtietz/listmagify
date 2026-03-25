@@ -3,6 +3,7 @@
 import { signIn } from "next-auth/react";
 import { useState } from "react";
 import { useByokCredentials } from "@/hooks/useByokCredentials";
+import { cn } from '@/lib/utils';
 import type { MusicProviderId } from '@/lib/music-provider/types';
 
 type Props = {
@@ -106,10 +107,10 @@ export function SignInButton({
     <button
       onClick={handleSignIn}
       disabled={isLoading}
-      className={
-        className ??
-        "inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
-      }
+      className={cn(
+        "inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50",
+        className,
+      )}
       aria-label={effectiveLabel}
       type="button"
     >
