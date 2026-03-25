@@ -127,14 +127,6 @@ export function getTrackGridStyle(
   return { gridTemplateColumns: columns.join(' ') };
 }
 
-// Legacy exports for compatibility
-export const TRACK_GRID_STYLE = {
-  gridTemplateColumns: '20px 20px 20px 28px minmax(80px, 2fr) minmax(60px, 1fr) 36px 36px 44px',
-};
-export const TRACK_GRID_STYLE_WITH_ALBUM = {
-  gridTemplateColumns: '20px 20px 20px 28px minmax(80px, 2fr) minmax(60px, 1fr) minmax(60px, 1fr) 36px 36px 44px',
-};
-
 interface PrefixIconColumn {
   key: string;
   title: string;

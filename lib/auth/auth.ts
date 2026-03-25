@@ -38,70 +38,10 @@ function toMusicProviderId(value: unknown): MusicProviderId | null {
   return null;
 }
 
-function resolveLegacyProviderId(
-  token: AuthJwtToken,
-  fromToken: ProviderTokenStore,
-  accountProviderId: MusicProviderId | null,
-): MusicProviderId | null {
-  if (accountProviderId) {
-    return accountProviderId;
-  }
-
-  if (Object.keys(fromToken).length > 0) {
-    return null;
-  }
-
-  if (token.isByok || token.byok) {
-    return 'spotify';
-  }
-
-  return FALLBACK_PROVIDER_ID;
-}
-
-function hasLegacyTokenFields(token: AuthJwtToken): boolean {
-  return (
-    typeof token.accessToken === 'string'
-    || typeof token.refreshToken === 'string'
-    || typeof token.accessTokenExpires === 'number'
-  );
-}
-
-function mergeLegacyProviderToken(token: AuthJwtToken, previousProviderToken: ProviderJwtToken): ProviderJwtToken {
+function getProviderTokens(token: AuthJwtToken, _accountProviderId: MusicProviderId | null = null): ProviderTokenStore {
   return {
-    ...previousProviderToken,
-    ...(typeof token.accessToken === 'string' ? { accessToken: token.accessToken } : {}),
-    ...(typeof token.refreshToken === 'string' ? { refreshToken: token.refreshToken } : {}),
-    ...(typeof token.accessTokenExpires === 'number' ? { accessTokenExpires: token.accessTokenExpires } : {}),
-    ...(token.isByok ? { isByok: true } : {}),
-    ...(token.byok ? { byok: token.byok } : {}),
+    ...(token.musicProviderTokens ?? {}),
   };
-}
-
-function getProviderTokens(token: AuthJwtToken, accountProviderId: MusicProviderId | null = null): ProviderTokenStore {
-  const fromToken = token.musicProviderTokens ?? {};
-  const hasLegacyToken = hasLegacyTokenFields(token);
-
-  const providerTokens: ProviderTokenStore = {
-    ...fromToken,
-  };
-
-  if (!hasLegacyToken) {
-    return providerTokens;
-  }
-
-  const legacyProviderId = resolveLegacyProviderId(token, fromToken, accountProviderId);
-  if (!legacyProviderId) {
-    return providerTokens;
-  }
-
-  const previousProviderToken = providerTokens[legacyProviderId] ?? {};
-  const mergedProviderToken = mergeLegacyProviderToken(token, previousProviderToken);
-
-  if (Object.keys(mergedProviderToken).length > 0) {
-    providerTokens[legacyProviderId] = mergedProviderToken;
-  }
-
-  return providerTokens;
 }
 
 function resolveSessionProviderId(providerTokens: ProviderTokenStore): MusicProviderId | null {
