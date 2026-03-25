@@ -29,22 +29,21 @@ export interface AuthStats {
   }>;
 }
 
-export function getAuthStats(range: ProviderScopedRange): AuthStats {
-  const db = getDb();
-  if (!db) {
-    return {
-      loginSuccesses: 0,
-      loginFailures: 0,
-      byokLogins: 0,
-      regularLogins: 0,
-      successRate: 0,
-      dailyStats: [],
-      providerBreakdown: [],
-      recentFailures: [],
-    };
-  }
+function emptyAuthStats(): AuthStats {
+  return {
+    loginSuccesses: 0,
+    loginFailures: 0,
+    byokLogins: 0,
+    regularLogins: 0,
+    successRate: 0,
+    dailyStats: [],
+    providerBreakdown: [],
+    recentFailures: [],
+  };
+}
 
-  const overallResult = queryOne<{
+function getOverallAuthResult(range: ProviderScopedRange) {
+  return queryOne<{
     successes: number | null;
     failures: number | null;
     byokSuccesses: number | null;
@@ -59,15 +58,10 @@ export function getAuthStats(range: ProviderScopedRange): AuthStats {
       AND event IN ('login_success', 'login_failure')`,
     [range.from, range.to, range.provider ?? null, range.provider ?? null]
   );
+}
 
-  const successes = overallResult?.successes ?? 0;
-  const failures = overallResult?.failures ?? 0;
-  const byokLogins = overallResult?.byokSuccesses ?? 0;
-  const regularLogins = successes - byokLogins;
-  const total = successes + failures;
-  const successRate = total > 0 ? successes / total : 0;
-
-  const dailyStats = queryAll<{
+function getDailyAuthStats(range: ProviderScopedRange) {
+  return queryAll<{
     date: string;
     successes: number;
     failures: number;
@@ -90,8 +84,10 @@ export function getAuthStats(range: ProviderScopedRange): AuthStats {
     ORDER BY date(ts)`,
     [range.from, range.to, range.provider ?? null, range.provider ?? null]
   );
+}
 
-  const providerBreakdown = queryAll<{
+function getProviderBreakdown(range: ProviderScopedRange) {
+  return queryAll<{
     provider: MusicProviderId;
     successes: number;
     failures: number;
@@ -111,8 +107,10 @@ export function getAuthStats(range: ProviderScopedRange): AuthStats {
     ORDER BY provider`,
     [range.from, range.to, range.provider ?? null, range.provider ?? null]
   );
+}
 
-  const recentFailures = queryAll<{
+function getRecentFailures(range: ProviderScopedRange) {
+  return queryAll<{
     ts: string;
     errorCode: string | null;
     provider: MusicProviderId | null;
@@ -129,6 +127,26 @@ export function getAuthStats(range: ProviderScopedRange): AuthStats {
     LIMIT 20`,
     [range.from, range.to, range.provider ?? null, range.provider ?? null]
   );
+}
+
+export function getAuthStats(range: ProviderScopedRange): AuthStats {
+  const db = getDb();
+  if (!db) {
+    return emptyAuthStats();
+  }
+
+  const overallResult = getOverallAuthResult(range);
+
+  const successes = overallResult?.successes ?? 0;
+  const failures = overallResult?.failures ?? 0;
+  const byokLogins = overallResult?.byokSuccesses ?? 0;
+  const regularLogins = successes - byokLogins;
+  const total = successes + failures;
+  const successRate = total > 0 ? successes / total : 0;
+
+  const dailyStats = getDailyAuthStats(range);
+  const providerBreakdown = getProviderBreakdown(range);
+  const recentFailures = getRecentFailures(range);
 
   return {
     loginSuccesses: successes,

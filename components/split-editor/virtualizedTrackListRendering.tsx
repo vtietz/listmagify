@@ -185,7 +185,32 @@ interface RenderVirtualizedTrackRowParams {
   pendingById: Map<string, { status: 'matching' | 'unresolved' | 'matched' | 'cancelled'; message?: string }>;
 }
 
-export function renderVirtualizedTrackRow(params: RenderVirtualizedTrackRowParams): ReactElement | null {
+type VirtualizedRowModel = {
+  track: Track;
+  index: number;
+  trackUri: string;
+  trackPosition: number;
+  selectionId: string;
+  pendingState: { status: 'matching' | 'unresolved' | 'matched' | 'cancelled'; message?: string } | undefined;
+  isPendingRow: boolean;
+  isRowDuplicate: boolean;
+  rowOptionalProps: TrackRowOptionalProps;
+};
+
+function getRowContainerStyle(virtualRow: VirtualItem) {
+  return {
+    position: 'absolute' as const,
+    top: 0,
+    left: 0,
+    width: '100%',
+    height: `${virtualRow.size}px`,
+    transform: `translateY(${virtualRow.start}px)`,
+    contain: 'layout style paint' as const,
+    contentVisibility: 'auto' as const,
+  };
+}
+
+function buildVirtualizedRowModel(params: RenderVirtualizedTrackRowParams): VirtualizedRowModel | null {
   const track = params.filteredTracks[params.virtualRow.index];
   if (!track) {
     return null;
@@ -194,9 +219,7 @@ export function renderVirtualizedTrackRow(params: RenderVirtualizedTrackRowParam
   const index = params.virtualRow.index;
   const pendingId = resolvePendingId(track);
   const pendingState = pendingId ? params.pendingById.get(pendingId) : undefined;
-  const isPendingRow = Boolean(
-    pendingState && (pendingState.status === 'matching' || pendingState.status === 'unresolved')
-  );
+  const isPendingRow = Boolean(pendingState && (pendingState.status === 'matching' || pendingState.status === 'unresolved'));
   const selectionId = params.selectionKey(track, index);
   const trackPosition = track.position ?? index;
   const trackUri = track.uri;
@@ -213,63 +236,156 @@ export function renderVirtualizedTrackRow(params: RenderVirtualizedTrackRowParam
     : undefined;
   const rowOptionalProps = buildTrackRowOptionalProps(rowReorderActions, rowContextTrackActions);
 
+  return {
+    track,
+    index,
+    trackUri,
+    trackPosition,
+    selectionId,
+    pendingState,
+    isPendingRow,
+    isRowDuplicate,
+    rowOptionalProps,
+  };
+}
+
+function buildTrackRowHandlers(
+  isPendingRow: boolean,
+  handleTrackSelect: RenderVirtualizedTrackRowParams['handleTrackSelect'],
+  handleTrackClick: RenderVirtualizedTrackRowParams['handleTrackClick'],
+) {
+  if (isPendingRow) {
+    return {
+      onSelect: () => {},
+      onClick: () => {},
+    };
+  }
+
+  return {
+    onSelect: handleTrackSelect,
+    onClick: handleTrackClick,
+  };
+}
+
+function isRowLocked(canDrag: boolean, isPendingRow: boolean): boolean {
+  return !canDrag || isPendingRow;
+}
+
+function isDragSourceSelected(
+  isDragSource: boolean | undefined,
+  selection: Set<string>,
+  selectionId: string,
+): boolean {
+  return Boolean(isDragSource && selection.has(selectionId));
+}
+
+function resolveMarkerProps(
+  allowMarkerToggle: boolean,
+  activeMarkerIndices: Set<number>,
+  trackPosition: number,
+): { hasInsertionMarker: boolean; hasInsertionMarkerAfter: boolean } {
+  return {
+    hasInsertionMarker: allowMarkerToggle && activeMarkerIndices.has(trackPosition),
+    hasInsertionMarkerAfter: allowMarkerToggle && activeMarkerIndices.has(trackPosition + 1),
+  };
+}
+
+function resolveSoftDuplicate(
+  isSoftDuplicate: ((trackUri: string) => boolean) | undefined,
+  trackUri: string,
+): boolean {
+  if (!isSoftDuplicate) {
+    return false;
+  }
+
+  return isSoftDuplicate(trackUri);
+}
+
+function resolvePendingStatus(
+  pendingState: VirtualizedRowModel['pendingState'],
+): 'matching' | 'unresolved' | undefined {
+  if (pendingState?.status === 'unresolved') {
+    return 'unresolved';
+  }
+
+  if (pendingState?.status === 'matching') {
+    return 'matching';
+  }
+
+  return undefined;
+}
+
+function buildTrackRowInnerProps(
+  params: RenderVirtualizedTrackRowParams,
+  rowModel: VirtualizedRowModel,
+  onSelect: RenderVirtualizedTrackRowParams['handleTrackSelect'] | (() => void),
+  onClick: RenderVirtualizedTrackRowParams['handleTrackClick'] | (() => void),
+): React.ComponentProps<typeof TrackRowInner> {
+  const markerProps = resolveMarkerProps(params.allowMarkerToggle, params.activeMarkerIndices, rowModel.trackPosition);
+
+  return {
+    ctx: params.sharedCtx,
+    track: rowModel.track,
+    index: rowModel.index,
+    selectionKey: rowModel.selectionId,
+    isSelected: params.selection.has(rowModel.selectionId),
+    isEditable: params.isEditable,
+    locked: isRowLocked(params.canDrag, rowModel.isPendingRow),
+    panelId: params.panelId,
+    playlistId: params.playlistId,
+    dndMode: params.dndMode,
+    isDragSourceSelected: isDragSourceSelected(params.isDragSource, params.selection, rowModel.selectionId),
+    onSelect,
+    onClick,
+    isMultiSelect: params.selection.size > 1,
+    selectedCount: params.selection.size,
+    isPlaying: resolveTrackIdState(rowModel.track, params.isTrackPlaying),
+    isPlaybackLoading: params.isTrackLoading(rowModel.trackUri),
+    onPlay: params.playTrack,
+    onPause: params.pausePlayback,
+    isPlayingFromThisPanel: params.isPlayingFromThisPanel,
+    showLikedColumn: true,
+    showReleaseYearColumn: params.showReleaseYearColumn,
+    showPopularityColumn: params.showPopularityColumn,
+    isLiked: resolveTrackIdState(rowModel.track, params.isLiked),
+    onToggleLiked: params.handleToggleLiked,
+    hasInsertionMarker: markerProps.hasInsertionMarker,
+    hasInsertionMarkerAfter: markerProps.hasInsertionMarkerAfter,
+    allowInsertionMarkerToggle: params.allowMarkerToggle,
+    isDuplicate: rowModel.isRowDuplicate,
+    isSoftDuplicate: resolveSoftDuplicate(params.isSoftDuplicate, rowModel.trackUri),
+    isOtherInstanceSelected: params.isOtherInstanceSelected(rowModel.trackUri),
+    compareColor: params.getCompareColorForTrack(rowModel.trackUri),
+    isCollaborative: params.hasMultipleContributors,
+    getProfile: params.profileGetter,
+    cumulativeDurationMs: params.cumulativeDurations[rowModel.index] || 0,
+    crossesHourBoundary: params.hourBoundaries.has(rowModel.index),
+    hourNumber: params.hourBoundaries.get(rowModel.index) || 0,
+    markerActions: params.panelMarkerActions,
+    pendingStatus: resolvePendingStatus(rowModel.pendingState),
+    pendingMessage: rowModel.pendingState?.message,
+    ...rowModel.rowOptionalProps,
+  };
+}
+
+export function renderVirtualizedTrackRow(params: RenderVirtualizedTrackRowParams): ReactElement | null {
+  const rowModel = buildVirtualizedRowModel(params);
+  if (!rowModel) {
+    return null;
+  }
+  const { onSelect, onClick } = buildTrackRowHandlers(
+    rowModel.isPendingRow,
+    params.handleTrackSelect,
+    params.handleTrackClick,
+  );
+  const trackRowInnerProps = buildTrackRowInnerProps(params, rowModel, onSelect, onClick);
+
   return (
     <div
-      key={`${params.panelId}-${selectionId}`}
-      style={{
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        width: '100%',
-        height: `${params.virtualRow.size}px`,
-        transform: `translateY(${params.virtualRow.start}px)`,
-        contain: 'layout style paint',
-        contentVisibility: 'auto',
-      }}
+      key={`${params.panelId}-${rowModel.selectionId}`}
+      style={getRowContainerStyle(params.virtualRow)}
     >
-      <TrackRowInner
-        ctx={params.sharedCtx}
-        track={track}
-        index={index}
-        selectionKey={selectionId}
-        isSelected={params.selection.has(selectionId)}
-        isEditable={params.isEditable}
-        locked={!params.canDrag || isPendingRow}
-        panelId={params.panelId}
-        playlistId={params.playlistId}
-        dndMode={params.dndMode}
-        isDragSourceSelected={Boolean(params.isDragSource && params.selection.has(selectionId))}
-        onSelect={isPendingRow ? () => {} : params.handleTrackSelect}
-        onClick={isPendingRow ? () => {} : params.handleTrackClick}
-        isMultiSelect={params.selection.size > 1}
-        selectedCount={params.selection.size}
-        isPlaying={resolveTrackIdState(track, params.isTrackPlaying)}
-        isPlaybackLoading={params.isTrackLoading(trackUri)}
-        onPlay={params.playTrack}
-        onPause={params.pausePlayback}
-        isPlayingFromThisPanel={params.isPlayingFromThisPanel}
-        showLikedColumn
-        showReleaseYearColumn={params.showReleaseYearColumn}
-        showPopularityColumn={params.showPopularityColumn}
-        isLiked={resolveTrackIdState(track, params.isLiked)}
-        onToggleLiked={params.handleToggleLiked}
-        hasInsertionMarker={params.allowMarkerToggle && params.activeMarkerIndices.has(trackPosition)}
-        hasInsertionMarkerAfter={params.allowMarkerToggle && params.activeMarkerIndices.has(trackPosition + 1)}
-        allowInsertionMarkerToggle={params.allowMarkerToggle}
-        isDuplicate={isRowDuplicate}
-        isSoftDuplicate={params.isSoftDuplicate ? params.isSoftDuplicate(trackUri) : false}
-        isOtherInstanceSelected={params.isOtherInstanceSelected(trackUri)}
-        compareColor={params.getCompareColorForTrack(trackUri)}
-        isCollaborative={params.hasMultipleContributors}
-        getProfile={params.profileGetter}
-        cumulativeDurationMs={params.cumulativeDurations[index] || 0}
-        crossesHourBoundary={params.hourBoundaries.has(index)}
-        hourNumber={params.hourBoundaries.get(index) || 0}
-        markerActions={params.panelMarkerActions}
-        pendingStatus={pendingState?.status === 'unresolved' ? 'unresolved' : pendingState?.status === 'matching' ? 'matching' : undefined}
-        pendingMessage={pendingState?.message}
-        {...rowOptionalProps}
-      />
+      <TrackRowInner {...trackRowInnerProps} />
     </div>
   );
 }

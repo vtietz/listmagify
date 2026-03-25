@@ -122,6 +122,133 @@ function ProviderBadge({ provider, count }: { provider: 'spotify' | 'tidal'; cou
   );
 }
 
+function AuthenticationStatsKpis({ stats }: { stats: AuthStats }) {
+  return (
+    <div className="grid grid-cols-3 gap-4">
+      <div className="text-center p-4 bg-green-500/10 rounded-lg">
+        <div className="text-2xl font-bold text-green-500">
+          {stats.loginSuccesses}
+        </div>
+        <div className="text-xs text-muted-foreground mt-1">Successful Logins</div>
+        {(stats.byokLogins > 0 || stats.regularLogins > 0) && (
+          <div className="text-xs text-muted-foreground mt-2 space-y-0.5">
+            <div className="flex items-center justify-center gap-1.5">
+              <div className="w-2 h-2 rounded-full bg-purple-500"></div>
+              <span>{stats.byokLogins} BYOK</span>
+            </div>
+            <div className="flex items-center justify-center gap-1.5">
+              <div className="w-2 h-2 rounded-full bg-green-500"></div>
+              <span>{stats.regularLogins} Regular</span>
+            </div>
+          </div>
+        )}
+        {stats.providerBreakdown.length > 0 && (
+          <div className="mt-2 flex items-center justify-center gap-1">
+            {stats.providerBreakdown.map((row: AuthStats['providerBreakdown'][number]) => (
+              <ProviderBadge key={row.provider} provider={row.provider} count={row.successes} />
+            ))}
+          </div>
+        )}
+      </div>
+      <div className="text-center p-4 bg-red-500/10 rounded-lg">
+        <div className="text-2xl font-bold text-red-500">
+          {stats.loginFailures}
+        </div>
+        <div className="text-xs text-muted-foreground mt-1">Failed Attempts</div>
+      </div>
+      <div className="text-center p-4 bg-blue-500/10 rounded-lg">
+        <div className="text-2xl font-bold text-blue-500">
+          {(stats.successRate * 100).toFixed(1)}%
+        </div>
+        <div className="text-xs text-muted-foreground mt-1">Success Rate</div>
+      </div>
+    </div>
+  );
+}
+
+function AuthenticationStatsChart({ stats, maxValue }: { stats: AuthStats; maxValue: number }) {
+  if (stats.dailyStats.length === 0) {
+    return null;
+  }
+
+  return (
+    <div>
+      <div className="text-sm font-medium mb-3">Daily Authentication Activity</div>
+      <div className="flex items-end gap-1 h-32">
+        {stats.dailyStats.map((d: DailyAuthStat) => (
+          <DailyAuthBar key={d.date} day={d} maxValue={maxValue} />
+        ))}
+      </div>
+      <div className="flex items-center gap-4 mt-2 text-xs">
+        <div className="flex items-center gap-1">
+          <div className="w-3 h-3 bg-green-500 rounded" />
+          <span className="text-muted-foreground">Spotify</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-3 h-3 bg-cyan-500 rounded" />
+          <span className="text-muted-foreground">TIDAL</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-3 h-3 bg-red-500 rounded" />
+          <span className="text-muted-foreground">Failures</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AuthenticationFailures({ stats }: { stats: AuthStats }) {
+  if (stats.recentFailures.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="border-t pt-4">
+      <div className="text-sm font-medium mb-3">Recent Failed Attempts</div>
+      <div className="space-y-2 max-h-48 overflow-y-auto">
+        {stats.recentFailures.map((failure: AuthStats['recentFailures'][number], idx: number) => (
+          <div
+            key={idx}
+            className="flex items-start gap-3 p-2 bg-red-500/5 rounded text-sm"
+          >
+            <AlertCircle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <div className="text-xs text-muted-foreground">
+                {new Date(failure.ts).toLocaleString()}
+              </div>
+              {failure.errorCode && (
+                <div className="font-mono text-xs truncate mt-0.5" title={failure.errorCode}>
+                  {failure.errorCode}
+                </div>
+              )}
+              {failure.provider && (
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground mt-0.5">
+                  {failure.provider}
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AuthenticationStatsContent({ stats, maxValue }: { stats: AuthStats; maxValue: number }) {
+  return (
+    <div className="space-y-6">
+      <AuthenticationStatsKpis stats={stats} />
+      <AuthenticationStatsChart stats={stats} maxValue={maxValue} />
+      <AuthenticationFailures stats={stats} />
+      {stats.loginFailures === 0 && stats.loginSuccesses === 0 && (
+        <div className="text-center py-4 text-muted-foreground text-sm">
+          No authentication events in this period
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function AuthenticationStatsCard({ dateRange, provider = 'all' }: AuthenticationStatsCardProps) {
   const dateRangeKey = `${dateRange.from}_${dateRange.to}`;
   const providerParam = provider === 'all' ? '' : `&provider=${provider}`;
@@ -162,109 +289,7 @@ export function AuthenticationStatsCard({ dateRange, provider = 'all' }: Authent
             No authentication data available
           </div>
         ) : (
-          <div className="space-y-6">
-            <div className="grid grid-cols-3 gap-4">
-              <div className="text-center p-4 bg-green-500/10 rounded-lg">
-                <div className="text-2xl font-bold text-green-500">
-                  {stats.loginSuccesses}
-                </div>
-                <div className="text-xs text-muted-foreground mt-1">Successful Logins</div>
-                {(stats.byokLogins > 0 || stats.regularLogins > 0) && (
-                  <div className="text-xs text-muted-foreground mt-2 space-y-0.5">
-                    <div className="flex items-center justify-center gap-1.5">
-                      <div className="w-2 h-2 rounded-full bg-purple-500"></div>
-                      <span>{stats.byokLogins} BYOK</span>
-                    </div>
-                    <div className="flex items-center justify-center gap-1.5">
-                      <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                      <span>{stats.regularLogins} Regular</span>
-                    </div>
-                  </div>
-                )}
-                {stats.providerBreakdown.length > 0 && (
-                  <div className="mt-2 flex items-center justify-center gap-1">
-                    {stats.providerBreakdown.map((row: AuthStats['providerBreakdown'][number]) => (
-                      <ProviderBadge key={row.provider} provider={row.provider} count={row.successes} />
-                    ))}
-                  </div>
-                )}
-              </div>
-              <div className="text-center p-4 bg-red-500/10 rounded-lg">
-                <div className="text-2xl font-bold text-red-500">
-                  {stats.loginFailures}
-                </div>
-                <div className="text-xs text-muted-foreground mt-1">Failed Attempts</div>
-              </div>
-              <div className="text-center p-4 bg-blue-500/10 rounded-lg">
-                <div className="text-2xl font-bold text-blue-500">
-                  {(stats.successRate * 100).toFixed(1)}%
-                </div>
-                <div className="text-xs text-muted-foreground mt-1">Success Rate</div>
-              </div>
-            </div>
-
-            {stats.dailyStats.length > 0 && (
-              <div>
-                <div className="text-sm font-medium mb-3">Daily Authentication Activity</div>
-                <div className="flex items-end gap-1 h-32">
-                  {stats.dailyStats.map((d: DailyAuthStat) => (
-                    <DailyAuthBar key={d.date} day={d} maxValue={maxValue} />
-                  ))}
-                </div>
-                <div className="flex items-center gap-4 mt-2 text-xs">
-                  <div className="flex items-center gap-1">
-                    <div className="w-3 h-3 bg-green-500 rounded" />
-                    <span className="text-muted-foreground">Spotify</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <div className="w-3 h-3 bg-cyan-500 rounded" />
-                    <span className="text-muted-foreground">TIDAL</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <div className="w-3 h-3 bg-red-500 rounded" />
-                    <span className="text-muted-foreground">Failures</span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {stats.recentFailures.length > 0 && (
-              <div className="border-t pt-4">
-                <div className="text-sm font-medium mb-3">Recent Failed Attempts</div>
-                <div className="space-y-2 max-h-48 overflow-y-auto">
-                  {stats.recentFailures.map((failure: AuthStats['recentFailures'][number], idx: number) => (
-                    <div 
-                      key={idx} 
-                      className="flex items-start gap-3 p-2 bg-red-500/5 rounded text-sm"
-                    >
-                      <AlertCircle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs text-muted-foreground">
-                          {new Date(failure.ts).toLocaleString()}
-                        </div>
-                        {failure.errorCode && (
-                          <div className="font-mono text-xs truncate mt-0.5" title={failure.errorCode}>
-                            {failure.errorCode}
-                          </div>
-                        )}
-                        {failure.provider && (
-                          <div className="text-[10px] uppercase tracking-wide text-muted-foreground mt-0.5">
-                            {failure.provider}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {stats.loginFailures === 0 && stats.loginSuccesses === 0 && (
-              <div className="text-center py-4 text-muted-foreground text-sm">
-                No authentication events in this period
-              </div>
-            )}
-          </div>
+          <AuthenticationStatsContent stats={stats} maxValue={maxValue} />
         )}
       </CardContent>
     </Card>

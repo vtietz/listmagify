@@ -341,6 +341,93 @@ function handleErrorResponse(response: Response, data: any, requestPath: string,
   throw apiError;
 }
 
+type ApiResponseHandlingOptions = {
+  perPanelInlineLoginEnabled: boolean;
+  resolvedUrl: string;
+  providerId: 'spotify' | 'tidal';
+  requestPath: string;
+  shouldOpenErrorDialog: boolean;
+};
+
+function maybeHandleProviderAuthError(
+  response: Response,
+  data: any,
+  options: ApiResponseHandlingOptions,
+): void {
+  const { perPanelInlineLoginEnabled, resolvedUrl, providerId } = options;
+  if (!perPanelInlineLoginEnabled || !resolvedUrl.startsWith('/api/')) {
+    return;
+  }
+
+  const providerAuthError = mapResponseToProviderAuthError(response, data, providerId);
+  if (!providerAuthError) {
+    return;
+  }
+
+  publishProviderAuthError(providerAuthError);
+  throw providerAuthError;
+}
+
+function maybeHandleUnauthorized(
+  response: Response,
+  data: any,
+  perPanelInlineLoginEnabled: boolean,
+): void {
+  if (!perPanelInlineLoginEnabled && (response.status === 401 || data.error === 'token_expired')) {
+    handleUnauthorizedResponse(data);
+  }
+}
+
+function maybeHandleRateLimit(
+  response: Response,
+  data: any,
+  requestPath: string,
+  shouldOpenErrorDialog: boolean,
+): void {
+  if (response.status === 429) {
+    handleRateLimitResponse(response, data, requestPath, shouldOpenErrorDialog);
+  }
+}
+
+function handleApiResponse<T>(
+  response: Response,
+  data: any,
+  options: ApiResponseHandlingOptions,
+): T {
+  maybeHandleProviderAuthError(response, data, options);
+  maybeHandleUnauthorized(response, data, options.perPanelInlineLoginEnabled);
+  maybeHandleRateLimit(response, data, options.requestPath, options.shouldOpenErrorDialog);
+
+  if (!response.ok) {
+    handleErrorResponse(response, data, options.requestPath, options.shouldOpenErrorDialog);
+  }
+
+  return data as T;
+}
+
+function handleApiFetchCatch(
+  error: unknown,
+  perPanelInlineLoginEnabled: boolean,
+  url: string,
+): never {
+  if (isKnownApiError(error)) {
+    throw error;
+  }
+
+  if (perPanelInlineLoginEnabled && url.startsWith('/api/')) {
+    const providerId = getCurrentProviderId();
+    const networkAuthError = new ProviderAuthError(
+      providerId,
+      'network',
+      error instanceof Error ? error.message : 'Network request failed',
+    );
+    publishProviderAuthError(networkAuthError);
+    throw networkAuthError;
+  }
+
+  throw toNetworkApiError(error);
+}
+
 export async function apiFetch<T = any>(
   url: string,
   options: FetchOptions = {}
@@ -358,46 +445,19 @@ export async function apiFetch<T = any>(
     const response = await fetch(resolvedUrl, { ...options, headers });
     const data = await parseJsonSafely(response);
 
-    if (perPanelInlineLoginEnabled && resolvedUrl.startsWith('/api/')) {
-      const providerAuthError = mapResponseToProviderAuthError(response, data, providerId);
-      if (providerAuthError) {
-        publishProviderAuthError(providerAuthError);
-        throw providerAuthError;
-      }
-    }
-
-    if (!perPanelInlineLoginEnabled && (response.status === 401 || data.error === "token_expired")) {
-      handleUnauthorizedResponse(data);
-    }
-
     // split()[0] is always defined at runtime; ?? needed for noUncheckedIndexedAccess
     const requestPath = url.split("?")[0] ?? url;
     const shouldOpenErrorDialog = process.env.NEXT_PUBLIC_E2E_MODE !== '1';
 
-    if (response.status === 429) {
-      handleRateLimitResponse(response, data, requestPath, shouldOpenErrorDialog);
-    }
-
-    if (!response.ok) {
-      handleErrorResponse(response, data, requestPath, shouldOpenErrorDialog);
-    }
-
-    return data as T;
+    return handleApiResponse<T>(response, data, {
+      perPanelInlineLoginEnabled,
+      resolvedUrl,
+      providerId,
+      requestPath,
+      shouldOpenErrorDialog,
+    });
   } catch (error) {
-    if (isKnownApiError(error)) throw error;
-
-    if (perPanelInlineLoginEnabled && url.startsWith('/api/')) {
-      const providerId = getCurrentProviderId();
-      const networkAuthError = new ProviderAuthError(
-        providerId,
-        'network',
-        error instanceof Error ? error.message : 'Network request failed',
-      );
-      publishProviderAuthError(networkAuthError);
-      throw networkAuthError;
-    }
-
-    throw toNetworkApiError(error);
+    handleApiFetchCatch(error, perPanelInlineLoginEnabled, url);
   }
 }
 

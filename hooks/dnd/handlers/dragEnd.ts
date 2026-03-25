@@ -275,6 +275,67 @@ function preparePlaylistDropExecutionContext(
   };
 }
 
+function handleBrowseTrackSourceDrop(
+  sourceData: TrackSourceData,
+  targetData: DragTargetData,
+  finalDropPosition: number | null,
+  ctx: DragEndContext,
+): void {
+  const targetPanelId = targetData.panelId!;
+  const targetPlaylistId = targetData.playlistId!;
+  const targetPanel = ctx.panels.find((panel) => panel.id === targetPanelId);
+  const targetProviderId = targetPanel
+    ? resolvePanelProviderId(targetPanel, targetPlaylistId)
+    : (inferProviderIdFromPlaylistId(targetPlaylistId) ?? 'spotify');
+
+  handleBrowsePanelCopyDrop(
+    sourceData,
+    targetData,
+    sourceData.track,
+    targetPlaylistId,
+    targetProviderId,
+    ctx.panels,
+    targetPanel,
+    finalDropPosition,
+    (input) => ctx.mutations.addTracks.mutate(input),
+    ctx.enqueuePendingFromBrowseDrop
+  );
+}
+
+function handleCrossProviderPlaylistDrop(
+  sourceData: TrackSourceData,
+  dragTracks: Track[],
+  targetPlaylistId: string,
+  targetIndex: number,
+  sourceProviderId: MusicProviderId,
+  targetProviderId: MusicProviderId,
+  enqueuePendingFromBrowseDrop: DragEndContext['enqueuePendingFromBrowseDrop'],
+): boolean {
+  if (!enqueuePendingFromBrowseDrop) {
+    toast.error('Cross-provider drop is currently unavailable');
+    return true;
+  }
+
+  const payloads = resolveCrossProviderPayloads(sourceData, dragTracks, sourceProviderId);
+  if (payloads.length === 0) {
+    toast.error('No tracks available for cross-provider drop');
+    return true;
+  }
+
+  const handled = enqueuePendingFromBrowseDrop({
+    targetPlaylistId,
+    targetProviderId,
+    insertPosition: targetIndex,
+    payloads,
+  });
+
+  if (!handled) {
+    toast.error('Cross-provider drop could not be queued');
+  }
+
+  return true;
+}
+
 function handlePlaylistTrackDrop(
   sourceData: TrackSourceData,
   targetData: DragTargetData,
@@ -284,25 +345,7 @@ function handlePlaylistTrackDrop(
   ctx: DragEndContext
 ): void {
   if (isBrowseSourceDrop(sourceData, targetData)) {
-    const targetPanelId = targetData.panelId!;
-    const targetPlaylistId = targetData.playlistId!;
-    const targetPanel = ctx.panels.find((panel) => panel.id === targetPanelId);
-    const targetProviderId = targetPanel
-      ? resolvePanelProviderId(targetPanel, targetPlaylistId)
-      : (inferProviderIdFromPlaylistId(targetPlaylistId) ?? 'spotify');
-
-    handleBrowsePanelCopyDrop(
-      sourceData,
-      targetData,
-      sourceData.track,
-      targetPlaylistId,
-      targetProviderId,
-      ctx.panels,
-      targetPanel,
-      finalDropPosition,
-      (input) => ctx.mutations.addTracks.mutate(input),
-      ctx.enqueuePendingFromBrowseDrop
-    );
+    handleBrowseTrackSourceDrop(sourceData, targetData, finalDropPosition, ctx);
     return;
   }
 
@@ -351,33 +394,15 @@ function handlePlaylistTrackDrop(
   }
 
   if (executionContext.sourceProviderId !== executionContext.targetProviderId) {
-    if (!ctx.enqueuePendingFromBrowseDrop) {
-      toast.error('Cross-provider drop is currently unavailable');
-      return;
-    }
-
-    const payloads = resolveCrossProviderPayloads(
+    handleCrossProviderPlaylistDrop(
       sourceData,
       dragTracks,
-      executionContext.sourceProviderId,
-    );
-
-    if (payloads.length === 0) {
-      toast.error('No tracks available for cross-provider drop');
-      return;
-    }
-
-    const handled = ctx.enqueuePendingFromBrowseDrop({
       targetPlaylistId,
-      targetProviderId: executionContext.targetProviderId,
-      insertPosition: targetIndex,
-      payloads,
-    });
-
-    if (!handled) {
-      toast.error('Cross-provider drop could not be queued');
-    }
-
+      targetIndex,
+      executionContext.sourceProviderId,
+      executionContext.targetProviderId,
+      ctx.enqueuePendingFromBrowseDrop,
+    );
     return;
   }
 

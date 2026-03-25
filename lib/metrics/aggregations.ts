@@ -55,6 +55,130 @@ export interface SessionSummary {
   avgDurationMs: number;
 }
 
+function getEmptyOverviewKPIs(): OverviewKPIs {
+  return {
+    activeUsers: 0,
+    totalEvents: 0,
+    tracksAdded: 0,
+    tracksRemoved: 0,
+    avgApiDurationMs: 0,
+    errorRate: 0,
+    totalSessions: 0,
+    avgSessionDurationMs: 0,
+  };
+}
+
+function getOverviewEventsResult(range: ProviderScopedRange): Record<string, number | null> {
+  return queryOne<Record<string, number | null>>(
+    `SELECT 
+      (SELECT COUNT(DISTINCT user_hash) 
+       FROM events 
+       WHERE date(ts) BETWEEN ? AND ? 
+         AND event != 'login_failure'
+         AND (? IS NULL OR provider = ?)
+         AND user_hash IN (
+           SELECT user_hash 
+           FROM events 
+           WHERE date(ts) BETWEEN ? AND ? 
+             AND event != 'login_failure'
+             AND (? IS NULL OR provider = ?)
+           GROUP BY user_hash 
+           HAVING COUNT(*) > 1
+         )
+      ) as activeUsers,
+      COUNT(*) as totalEvents,
+      SUM(CASE WHEN event = 'track_add' THEN COALESCE(count, 1) ELSE 0 END) as tracksAdded,
+      SUM(CASE WHEN event = 'track_remove' THEN COALESCE(count, 1) ELSE 0 END) as tracksRemoved,
+      AVG(CASE WHEN event IN ('api_call', 'api_error') THEN duration_ms END) as avgApiDurationMs,
+      SUM(CASE WHEN event = 'api_error' THEN 1 ELSE 0 END) * 1.0 / 
+        NULLIF(SUM(CASE WHEN event IN ('api_call', 'api_error') THEN 1 ELSE 0 END), 0) as errorRate
+    FROM events
+    WHERE date(ts) BETWEEN ? AND ?
+      AND (? IS NULL OR provider = ?)
+      AND event != 'login_failure'`,
+    [
+      range.from,
+      range.to,
+      range.provider ?? null,
+      range.provider ?? null,
+      range.from,
+      range.to,
+      range.provider ?? null,
+      range.provider ?? null,
+      range.from,
+      range.to,
+      range.provider ?? null,
+      range.provider ?? null,
+    ]
+  ) ?? {};
+}
+
+function getOverviewSessionsResult(range: ProviderScopedRange): Record<string, number | null> {
+  return queryOne<Record<string, number | null>>(
+    `SELECT 
+      COUNT(*) as totalSessions,
+      AVG(
+        CASE WHEN ended_at IS NOT NULL 
+        THEN (julianday(ended_at) - julianday(started_at)) * 24 * 60 * 60 * 1000
+        END
+      ) as avgSessionDurationMs
+    FROM sessions
+    WHERE date(started_at) BETWEEN ? AND ?`,
+    [range.from, range.to]
+  ) ?? {};
+}
+
+function getAuthByProvider(range: ProviderScopedRange): Record<MusicProviderId, { successes: number; failures: number }> {
+  const authByProviderRows = queryAll<{
+    provider: MusicProviderId;
+    successes: number;
+    failures: number;
+  }>(
+    `SELECT
+      provider,
+      SUM(CASE WHEN event = 'login_success' THEN 1 ELSE 0 END) as successes,
+      SUM(CASE WHEN event = 'login_failure' THEN 1 ELSE 0 END) as failures
+    FROM events
+    WHERE date(ts) BETWEEN ? AND ?
+      AND event IN ('login_success', 'login_failure')
+      AND provider IN ('spotify', 'tidal')
+    GROUP BY provider`,
+    [range.from, range.to]
+  );
+
+  const authByProvider = {
+    spotify: { successes: 0, failures: 0 },
+    tidal: { successes: 0, failures: 0 },
+  } satisfies Record<MusicProviderId, { successes: number; failures: number }>;
+
+  for (const row of authByProviderRows) {
+    authByProvider[row.provider] = {
+      successes: row.successes,
+      failures: row.failures,
+    };
+  }
+
+  return authByProvider;
+}
+
+function buildOverviewKPIs(
+  eventsResult: Record<string, number | null>,
+  sessionsResult: Record<string, number | null>,
+  authByProvider: Record<MusicProviderId, { successes: number; failures: number }>,
+): OverviewKPIs {
+  return {
+    activeUsers: eventsResult.activeUsers ?? 0,
+    totalEvents: eventsResult.totalEvents ?? 0,
+    tracksAdded: eventsResult.tracksAdded ?? 0,
+    tracksRemoved: eventsResult.tracksRemoved ?? 0,
+    avgApiDurationMs: Math.round(eventsResult.avgApiDurationMs ?? 0),
+    errorRate: eventsResult.errorRate ?? 0,
+    totalSessions: sessionsResult.totalSessions ?? 0,
+    avgSessionDurationMs: Math.round(sessionsResult.avgSessionDurationMs ?? 0),
+    authByProvider,
+  };
+}
+
 /**
  * Get event counts grouped by day and event type.
  */
@@ -99,117 +223,14 @@ export function getDailySummaries(range: DateRange): DailyEventSummary[] {
 export function getOverviewKPIs(range: ProviderScopedRange): OverviewKPIs {
   const db = getDb();
   if (!db) {
-    return {
-      activeUsers: 0,
-      totalEvents: 0,
-      tracksAdded: 0,
-      tracksRemoved: 0,
-      avgApiDurationMs: 0,
-      errorRate: 0,
-      totalSessions: 0,
-      avgSessionDurationMs: 0,
-    };
+    return getEmptyOverviewKPIs();
   }
 
-  // Events stats
-  // Note: Active users are those with MORE than 1 event (to exclude users who just logged in)
-  const eventsResult = queryOne<Record<string, number | null>>(
-    `SELECT 
-      (SELECT COUNT(DISTINCT user_hash) 
-       FROM events 
-       WHERE date(ts) BETWEEN ? AND ? 
-         AND event != 'login_failure'
-         AND (? IS NULL OR provider = ?)
-         AND user_hash IN (
-           SELECT user_hash 
-           FROM events 
-           WHERE date(ts) BETWEEN ? AND ? 
-             AND event != 'login_failure'
-             AND (? IS NULL OR provider = ?)
-           GROUP BY user_hash 
-           HAVING COUNT(*) > 1
-         )
-      ) as activeUsers,
-      COUNT(*) as totalEvents,
-      SUM(CASE WHEN event = 'track_add' THEN COALESCE(count, 1) ELSE 0 END) as tracksAdded,
-      SUM(CASE WHEN event = 'track_remove' THEN COALESCE(count, 1) ELSE 0 END) as tracksRemoved,
-      AVG(CASE WHEN event IN ('api_call', 'api_error') THEN duration_ms END) as avgApiDurationMs,
-      SUM(CASE WHEN event = 'api_error' THEN 1 ELSE 0 END) * 1.0 / 
-        NULLIF(SUM(CASE WHEN event IN ('api_call', 'api_error') THEN 1 ELSE 0 END), 0) as errorRate
-    FROM events
-    WHERE date(ts) BETWEEN ? AND ?
-      AND (? IS NULL OR provider = ?)
-      AND event != 'login_failure'`,
-    [
-      range.from,
-      range.to,
-      range.provider ?? null,
-      range.provider ?? null,
-      range.from,
-      range.to,
-      range.provider ?? null,
-      range.provider ?? null,
-      range.from,
-      range.to,
-      range.provider ?? null,
-      range.provider ?? null,
-    ]
-  ) ?? {};
+  const eventsResult = getOverviewEventsResult(range);
+  const sessionsResult = getOverviewSessionsResult(range);
+  const authByProvider = getAuthByProvider(range);
 
-  // Sessions stats
-  const sessionsResult = queryOne<Record<string, number | null>>(
-    `SELECT 
-      COUNT(*) as totalSessions,
-      AVG(
-        CASE WHEN ended_at IS NOT NULL 
-        THEN (julianday(ended_at) - julianday(started_at)) * 24 * 60 * 60 * 1000
-        END
-      ) as avgSessionDurationMs
-    FROM sessions
-    WHERE date(started_at) BETWEEN ? AND ?`,
-    [range.from, range.to]
-  ) ?? {};
-
-  const authByProviderRows = queryAll<{
-    provider: MusicProviderId;
-    successes: number;
-    failures: number;
-  }>(
-    `SELECT
-      provider,
-      SUM(CASE WHEN event = 'login_success' THEN 1 ELSE 0 END) as successes,
-      SUM(CASE WHEN event = 'login_failure' THEN 1 ELSE 0 END) as failures
-    FROM events
-    WHERE date(ts) BETWEEN ? AND ?
-      AND event IN ('login_success', 'login_failure')
-      AND provider IN ('spotify', 'tidal')
-    GROUP BY provider`,
-    [range.from, range.to]
-  );
-
-  const authByProvider = {
-    spotify: { successes: 0, failures: 0 },
-    tidal: { successes: 0, failures: 0 },
-  } satisfies Record<MusicProviderId, { successes: number; failures: number }>;
-
-  for (const row of authByProviderRows) {
-    authByProvider[row.provider] = {
-      successes: row.successes,
-      failures: row.failures,
-    };
-  }
-
-  return {
-    activeUsers: eventsResult.activeUsers ?? 0,
-    totalEvents: eventsResult.totalEvents ?? 0,
-    tracksAdded: eventsResult.tracksAdded ?? 0,
-    tracksRemoved: eventsResult.tracksRemoved ?? 0,
-    avgApiDurationMs: Math.round(eventsResult.avgApiDurationMs ?? 0),
-    errorRate: eventsResult.errorRate ?? 0,
-    totalSessions: sessionsResult.totalSessions ?? 0,
-    avgSessionDurationMs: Math.round(sessionsResult.avgSessionDurationMs ?? 0),
-    authByProvider,
-  };
+  return buildOverviewKPIs(eventsResult, sessionsResult, authByProvider);
 }
 
 /**

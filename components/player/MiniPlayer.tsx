@@ -434,6 +434,14 @@ interface MiniPlayerProps {
   onTrackClick?: ((trackId: string) => void) | undefined;
 }
 
+function shouldRenderMiniPlayer(
+  isVisible: boolean,
+  track: PlaybackTrack | null | undefined,
+  providerId: ReturnType<typeof useMusicProviderId>,
+): track is PlaybackTrack {
+  return Boolean(isVisible && track && providerId === 'spotify');
+}
+
 export function MiniPlayer({ isVisible, onHide, onTrackClick }: MiniPlayerProps) {
   const providerId = useMusicProviderId();
   const {
@@ -478,7 +486,7 @@ export function MiniPlayer({ isVisible, onHide, onTrackClick }: MiniPlayerProps)
   const trackClickHandler = getTrackClickHandler(track, onTrackClick);
 
   // Don't render if not visible or no track
-  if (!isVisible || !track || providerId !== 'spotify') {
+  if (!shouldRenderMiniPlayer(isVisible, track, providerId)) {
     return null;
   }
 

@@ -58,12 +58,28 @@ function resolveLegacyProviderId(
   return FALLBACK_PROVIDER_ID;
 }
 
+function hasLegacyTokenFields(token: AuthJwtToken): boolean {
+  return (
+    typeof token.accessToken === 'string'
+    || typeof token.refreshToken === 'string'
+    || typeof token.accessTokenExpires === 'number'
+  );
+}
+
+function mergeLegacyProviderToken(token: AuthJwtToken, previousProviderToken: ProviderJwtToken): ProviderJwtToken {
+  return {
+    ...previousProviderToken,
+    ...(typeof token.accessToken === 'string' ? { accessToken: token.accessToken } : {}),
+    ...(typeof token.refreshToken === 'string' ? { refreshToken: token.refreshToken } : {}),
+    ...(typeof token.accessTokenExpires === 'number' ? { accessTokenExpires: token.accessTokenExpires } : {}),
+    ...(token.isByok ? { isByok: true } : {}),
+    ...(token.byok ? { byok: token.byok } : {}),
+  };
+}
+
 function getProviderTokens(token: AuthJwtToken, accountProviderId: MusicProviderId | null = null): ProviderTokenStore {
   const fromToken = token.musicProviderTokens ?? {};
-  const hasLegacyToken =
-    typeof token.accessToken === 'string' ||
-    typeof token.refreshToken === 'string' ||
-    typeof token.accessTokenExpires === 'number';
+  const hasLegacyToken = hasLegacyTokenFields(token);
 
   const providerTokens: ProviderTokenStore = {
     ...fromToken,
@@ -79,14 +95,7 @@ function getProviderTokens(token: AuthJwtToken, accountProviderId: MusicProvider
   }
 
   const previousProviderToken = providerTokens[legacyProviderId] ?? {};
-  const mergedProviderToken: ProviderJwtToken = {
-    ...previousProviderToken,
-    ...(typeof token.accessToken === 'string' ? { accessToken: token.accessToken } : {}),
-    ...(typeof token.refreshToken === 'string' ? { refreshToken: token.refreshToken } : {}),
-    ...(typeof token.accessTokenExpires === 'number' ? { accessTokenExpires: token.accessTokenExpires } : {}),
-    ...(token.isByok ? { isByok: true } : {}),
-    ...(token.byok ? { byok: token.byok } : {}),
-  };
+  const mergedProviderToken = mergeLegacyProviderToken(token, previousProviderToken);
 
   if (Object.keys(mergedProviderToken).length > 0) {
     providerTokens[legacyProviderId] = mergedProviderToken;

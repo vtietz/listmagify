@@ -111,6 +111,80 @@ function toProviderAuthErrorFromPayload(payload: ProviderAuthErrorPayload): Prov
   );
 }
 
+function mapServerAuthError(
+  error: unknown,
+  providerHint: ProviderId,
+): ProviderAuthError | null {
+  if (!(error instanceof ServerAuthError)) {
+    return null;
+  }
+
+  return new ProviderAuthError(
+    providerHint,
+    mapServerAuthReasonToCode(error.reason),
+    error.message,
+  );
+}
+
+function mapProviderApiError(error: unknown): ProviderAuthError | null {
+  if (!(error instanceof ProviderApiError)) {
+    return null;
+  }
+
+  if (error.status === 403 && isPremiumRequiredMessage(`${error.message} ${error.details ?? ''}`)) {
+    return null;
+  }
+
+  const mappedCode = mapProviderApiStatusToCode(error.status);
+  if (!mappedCode) {
+    return null;
+  }
+
+  const authCode = error.status === 401 && (error.details === 'token_expired' || error.details === 'refresh_failed')
+    ? 'expired'
+    : mappedCode;
+
+  const retryAfterMs = authCode === 'rate_limited'
+    ? parseRetryAfterMsFromDetails(error.details)
+    : undefined;
+
+  return new ProviderAuthError(
+    error.provider,
+    authCode,
+    error.message,
+    retryAfterMs,
+  );
+}
+
+function mapAppRouteToProviderAuthError(
+  error: unknown,
+  providerHint: ProviderId,
+): ProviderAuthError | null {
+  if (!isAppRouteError(error)) {
+    return null;
+  }
+
+  if (error.status === 403 && isPremiumRequiredMessage(`${error.message} ${error.detail ?? ''}`)) {
+    return null;
+  }
+
+  const mappedCode = mapProviderApiStatusToCode(error.status);
+  if (!mappedCode) {
+    return null;
+  }
+
+  const message = error.detail ?? error.message;
+  return new ProviderAuthError(providerHint, mappedCode, message);
+}
+
+function mapProviderPayloadError(error: unknown): ProviderAuthError | null {
+  if (!isProviderAuthErrorPayload(error)) {
+    return null;
+  }
+
+  return toProviderAuthErrorFromPayload(error);
+}
+
 /**
  * Map arbitrary API-layer errors to unified provider auth errors when possible.
  */
@@ -122,59 +196,12 @@ export function mapApiErrorToProviderAuthError(
     return error;
   }
 
-  if (error instanceof ServerAuthError) {
-    return new ProviderAuthError(
-      providerHint,
-      mapServerAuthReasonToCode(error.reason),
-      error.message,
-    );
-  }
-
-  if (error instanceof ProviderApiError) {
-    if (error.status === 403 && isPremiumRequiredMessage(`${error.message} ${error.details ?? ''}`)) {
-      return null;
-    }
-
-    const mappedCode = mapProviderApiStatusToCode(error.status);
-    if (!mappedCode) {
-      return null;
-    }
-
-    const authCode = error.status === 401 && (error.details === 'token_expired' || error.details === 'refresh_failed')
-      ? 'expired'
-      : mappedCode;
-
-    const retryAfterMs = authCode === 'rate_limited'
-      ? parseRetryAfterMsFromDetails(error.details)
-      : undefined;
-
-    return new ProviderAuthError(
-      error.provider,
-      authCode,
-      error.message,
-      retryAfterMs,
-    );
-  }
-
-  if (isAppRouteError(error)) {
-    if (error.status === 403 && isPremiumRequiredMessage(`${error.message} ${error.detail ?? ''}`)) {
-      return null;
-    }
-
-    const mappedCode = mapProviderApiStatusToCode(error.status);
-    if (!mappedCode) {
-      return null;
-    }
-
-    const message = error.detail ?? error.message;
-    return new ProviderAuthError(providerHint, mappedCode, message);
-  }
-
-  if (isProviderAuthErrorPayload(error)) {
-    return toProviderAuthErrorFromPayload(error);
-  }
-
-  return null;
+  return (
+    mapServerAuthError(error, providerHint)
+    ?? mapProviderApiError(error)
+    ?? mapAppRouteToProviderAuthError(error, providerHint)
+    ?? mapProviderPayloadError(error)
+  );
 }
 
 export function toProviderAuthErrorPayload(error: ProviderAuthError): ProviderAuthErrorPayload {

@@ -62,6 +62,39 @@ export interface TrackGridOptions {
   showPopularityColumn?: boolean;
 }
 
+function getOptionalPrefixColumns(
+  showPlayColumn: boolean,
+  showAddToMarkedColumn: boolean,
+  showContributorColumn: boolean,
+  options?: Pick<TrackGridOptions, 'showMatchStatusColumn' | 'showCustomAddColumn' | 'showDragHandle'>,
+): string[] {
+  const optionalColumns: Array<[boolean, string]> = [
+    [Boolean(options?.showDragHandle), '44px'],
+    [Boolean(options?.showMatchStatusColumn), '20px'],
+    [Boolean(options?.showCustomAddColumn), '20px'],
+    [showContributorColumn, '20px'],
+    [showPlayColumn, '20px'],
+    [showAddToMarkedColumn, '20px'],
+  ];
+
+  return optionalColumns.filter(([isVisible]) => isVisible).map(([, width]) => width);
+}
+
+function getOptionalSuffixColumns(
+  options?: Pick<TrackGridOptions, 'showScrobbleDateColumn' | 'showCumulativeTime' | 'showReleaseYearColumn' | 'showPopularityColumn'>,
+): string[] {
+  const dateColumn = options?.showScrobbleDateColumn ? '90px' : '36px';
+  const showReleaseYearColumn = options?.showReleaseYearColumn !== false;
+  const showPopularityColumn = options?.showPopularityColumn !== false;
+
+  return [
+    ...(showReleaseYearColumn ? [dateColumn] : []),
+    ...(showPopularityColumn ? ['36px'] : []),
+    '44px',
+    ...(options?.showCumulativeTime === false ? [] : ['52px']),
+  ];
+}
+
 /**
  * Generates dynamic grid template columns based on which columns are visible.
  * 
@@ -78,31 +111,17 @@ export function getTrackGridStyle(
   options?: Pick<TrackGridOptions, 'showMatchStatusColumn' | 'showCustomAddColumn' | 'showScrobbleDateColumn' | 'showCumulativeTime' | 'showDragHandle' | 'showReleaseYearColumn' | 'showPopularityColumn'>,
   _isMobile: boolean = false // Unused - always use same layout
 ) {
-  const optionalColumns: Array<[boolean, string]> = [
-    [Boolean(options?.showDragHandle), '44px'],
-    [Boolean(options?.showMatchStatusColumn), '20px'],
-    [Boolean(options?.showCustomAddColumn), '20px'],
-    [showContributorColumn, '20px'],
-    [showPlayColumn, '20px'],
-    [showAddToMarkedColumn, '20px'],
-  ];
-
-  const dateColumn = options?.showScrobbleDateColumn ? '90px' : '36px';
-  const showReleaseYearColumn = options?.showReleaseYearColumn !== false;
-  const showPopularityColumn = options?.showPopularityColumn !== false;
-  const cumulativeColumn = options?.showCumulativeTime === false ? [] : ['52px'];
+  const prefixColumns = getOptionalPrefixColumns(showPlayColumn, showAddToMarkedColumn, showContributorColumn, options);
+  const suffixColumns = getOptionalSuffixColumns(options);
 
   const columns = [
-    ...optionalColumns.filter(([isVisible]) => isVisible).map(([, width]) => width),
+    ...prefixColumns,
     '20px',
     '28px',
     'minmax(100px, 3fr)',
     'minmax(60px, 1.5fr)',
     'minmax(60px, 1fr)',
-    ...(showReleaseYearColumn ? [dateColumn] : []),
-    ...(showPopularityColumn ? ['36px'] : []),
-    '44px',
-    ...cumulativeColumn,
+    ...suffixColumns,
   ];
 
   return { gridTemplateColumns: columns.join(' ') };
@@ -279,6 +298,130 @@ function CumulativeTimeHeader({ showCumulativeTime, iconClass }: { showCumulativ
   );
 }
 
+type TableHeaderContentProps = {
+  iconClass: string;
+  isCompact: boolean;
+  sortKey: SortKey;
+  sortDirection: SortDirection;
+  onSort: (key: SortKey) => void;
+  showLikedColumn: boolean;
+  showReleaseYearColumn: boolean;
+  showPopularityColumn: boolean;
+  showCumulativeTime: boolean;
+  prefixIconColumns: PrefixIconColumn[];
+  gridStyle: { gridTemplateColumns: string };
+};
+
+function TableHeaderContent({
+  iconClass,
+  isCompact,
+  sortKey,
+  sortDirection,
+  onSort,
+  showLikedColumn,
+  showReleaseYearColumn,
+  showPopularityColumn,
+  showCumulativeTime,
+  prefixIconColumns,
+  gridStyle,
+}: TableHeaderContentProps) {
+  return (
+    <div
+      data-table-header="true"
+      className={`sticky top-0 z-20 border-b border-border bg-card backdrop-blur-sm text-muted-foreground ${TRACK_GRID_CLASSES} ${isCompact ? 'h-8 ' + TRACK_GRID_CLASSES_COMPACT : 'h-10 ' + TRACK_GRID_CLASSES_NORMAL}`}
+      style={gridStyle}
+    >
+      {prefixIconColumns.map((column) => (
+        <HeaderIconCell key={column.key} icon={column.icon} title={column.title} iconClass={iconClass} />
+      ))}
+
+      <LikedStatusHeader showLikedColumn={showLikedColumn} iconClass={iconClass} />
+
+      <div>
+        <SortableLabelButton
+          label="#"
+          keyName="position"
+          sortKey={sortKey}
+          sortDirection={sortDirection}
+          onSort={onSort}
+          isCompact={isCompact}
+        />
+      </div>
+
+      <div>
+        <SortableLabelButton
+          label="Title"
+          keyName="name"
+          sortKey={sortKey}
+          sortDirection={sortDirection}
+          onSort={onSort}
+          isCompact={isCompact}
+        />
+      </div>
+
+      <div>
+        <SortableLabelButton
+          label="Artist"
+          keyName="artist"
+          sortKey={sortKey}
+          sortDirection={sortDirection}
+          onSort={onSort}
+          isCompact={isCompact}
+        />
+      </div>
+
+      <div>
+        <SortableLabelButton
+          label="Album"
+          keyName="album"
+          sortKey={sortKey}
+          sortDirection={sortDirection}
+          onSort={onSort}
+          isCompact={isCompact}
+        />
+      </div>
+
+      {showReleaseYearColumn && (
+        <SortableIconButton
+          icon={Calendar}
+          keyName="year"
+          sortKey={sortKey}
+          sortDirection={sortDirection}
+          onSort={onSort}
+          isCompact={isCompact}
+          title="Release Year"
+        />
+      )}
+
+      {showPopularityColumn && (
+        <SortableIconButton
+          icon={TrendingUp}
+          keyName="popularity"
+          sortKey={sortKey}
+          sortDirection={sortDirection}
+          onSort={onSort}
+          isCompact={isCompact}
+          title="Popularity"
+        />
+      )}
+
+      <div className="text-right">
+        <SortableLabelButton
+          label="Time"
+          keyName="duration"
+          sortKey={sortKey}
+          sortDirection={sortDirection}
+          onSort={onSort}
+          isCompact={isCompact}
+          align="right"
+        />
+      </div>
+
+      <CumulativeTimeHeader showCumulativeTime={showCumulativeTime} iconClass={iconClass} />
+    </div>
+  );
+}
+
 export function TableHeader({ 
   isEditable: _isEditable, 
   sortKey, 
@@ -330,107 +473,19 @@ export function TableHeader({
     }
   );
 
-  // Same layout for all devices
   return (
-    <div 
-      data-table-header="true" 
-      className={`sticky top-0 z-20 border-b border-border bg-card backdrop-blur-sm text-muted-foreground ${TRACK_GRID_CLASSES} ${isCompact ? 'h-8 ' + TRACK_GRID_CLASSES_COMPACT : 'h-10 ' + TRACK_GRID_CLASSES_NORMAL}`}
-      style={gridStyle}
-    >
-      {prefixIconColumns.map((column) => (
-        <HeaderIconCell key={column.key} icon={column.icon} title={column.title} iconClass={iconClass} />
-      ))}
-
-      <LikedStatusHeader showLikedColumn={showLikedColumn} iconClass={iconClass} />
-
-      {/* Position */}
-      <div>
-        <SortableLabelButton
-          label="#"
-          keyName="position"
-          sortKey={sortKey}
-          sortDirection={sortDirection}
-          onSort={onSort}
-          isCompact={isCompact}
-        />
-      </div>
-
-      {/* Title */}
-      <div>
-        <SortableLabelButton
-          label="Title"
-          keyName="name"
-          sortKey={sortKey}
-          sortDirection={sortDirection}
-          onSort={onSort}
-          isCompact={isCompact}
-        />
-      </div>
-
-      {/* Artist */}
-      <div>
-        <SortableLabelButton
-          label="Artist"
-          keyName="artist"
-          sortKey={sortKey}
-          sortDirection={sortDirection}
-          onSort={onSort}
-          isCompact={isCompact}
-        />
-      </div>
-
-      {/* Album */}
-      <div>
-        <SortableLabelButton
-          label="Album"
-          keyName="album"
-          sortKey={sortKey}
-          sortDirection={sortDirection}
-          onSort={onSort}
-          isCompact={isCompact}
-        />
-      </div>
-
-      {/* Year - sortable by release date */}
-      {showReleaseYearColumn && (
-        <SortableIconButton
-          icon={Calendar}
-          keyName="year"
-          sortKey={sortKey}
-          sortDirection={sortDirection}
-          onSort={onSort}
-          isCompact={isCompact}
-          title="Release Year"
-        />
-      )}
-
-      {/* Popularity */}
-      {showPopularityColumn && (
-        <SortableIconButton
-          icon={TrendingUp}
-          keyName="popularity"
-          sortKey={sortKey}
-          sortDirection={sortDirection}
-          onSort={onSort}
-          isCompact={isCompact}
-          title="Popularity"
-        />
-      )}
-
-      {/* Duration - right aligned */}
-      <div className="text-right">
-        <SortableLabelButton
-          label="Time"
-          keyName="duration"
-          sortKey={sortKey}
-          sortDirection={sortDirection}
-          onSort={onSort}
-          isCompact={isCompact}
-          align="right"
-        />
-      </div>
-
-      <CumulativeTimeHeader showCumulativeTime={showCumulativeTime} iconClass={iconClass} />
-    </div>
+    <TableHeaderContent
+      iconClass={iconClass}
+      isCompact={isCompact}
+      sortKey={sortKey}
+      sortDirection={sortDirection}
+      onSort={onSort}
+      showLikedColumn={showLikedColumn}
+      showReleaseYearColumn={showReleaseYearColumn}
+      showPopularityColumn={showPopularityColumn}
+      showCumulativeTime={showCumulativeTime}
+      prefixIconColumns={prefixIconColumns}
+      gridStyle={gridStyle}
+    />
   );
 }

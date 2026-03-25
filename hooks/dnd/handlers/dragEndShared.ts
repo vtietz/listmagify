@@ -159,6 +159,48 @@ export async function handlePlayerDrop(
   }
 }
 
+function resolveBrowseDropSourceProviderId(
+  payloads: TrackPayload[],
+  sourceData: Record<string, unknown>,
+  panels: PanelConfig[],
+): MusicProviderId | undefined {
+  const sourcePanelId = typeof sourceData.panelId === 'string' ? sourceData.panelId : null;
+  const sourcePanel = sourcePanelId
+    ? panels.find((panel) => panel.id === sourcePanelId)
+    : undefined;
+
+  return payloads[0]?.sourceProvider ?? (sourcePanel ? resolvePanelProviderId(sourcePanel) : undefined);
+}
+
+function maybeEnqueueCrossProviderBrowseDrop(params: {
+  enqueuePendingFromBrowseDrop: ((params: {
+    targetPlaylistId: string;
+    targetProviderId: MusicProviderId;
+    insertPosition: number;
+    payloads: TrackPayload[];
+  }) => boolean) | undefined;
+  payloads: TrackPayload[];
+  sourceProviderId: MusicProviderId | undefined;
+  targetProviderId: MusicProviderId;
+  targetPlaylistId: string;
+  targetIndex: number;
+}): boolean {
+  if (!params.enqueuePendingFromBrowseDrop || params.payloads.length === 0 || !params.sourceProviderId) {
+    return false;
+  }
+
+  if (params.sourceProviderId === params.targetProviderId) {
+    return false;
+  }
+
+  return params.enqueuePendingFromBrowseDrop({
+    targetPlaylistId: params.targetPlaylistId,
+    targetProviderId: params.targetProviderId,
+    insertPosition: params.targetIndex,
+    payloads: params.payloads,
+  });
+}
+
 export function handleBrowsePanelCopyDrop(
   sourceData: Record<string, unknown>,
   targetData: Record<string, unknown>,
@@ -183,29 +225,18 @@ export function handleBrowsePanelCopyDrop(
 
   const targetIndex = finalDropPosition ?? (targetData.position as number ?? 0);
   const payloads = getBrowsePanelDragPayloads(sourceData, sourceTrack);
-  const sourcePanelId = typeof sourceData.panelId === 'string' ? sourceData.panelId : null;
-  const sourcePanel = sourcePanelId
-    ? panels.find((panel) => panel.id === sourcePanelId)
-    : undefined;
-  const sourceProviderId = payloads[0]?.sourceProvider
-    ?? (sourcePanel ? resolvePanelProviderId(sourcePanel) : undefined);
+  const sourceProviderId = resolveBrowseDropSourceProviderId(payloads, sourceData, panels);
 
-  if (
-    enqueuePendingFromBrowseDrop
-    && payloads.length > 0
-    && sourceProviderId
-    && sourceProviderId !== targetProviderId
-  ) {
-    const handled = enqueuePendingFromBrowseDrop({
-      targetPlaylistId,
-      targetProviderId,
-      insertPosition: targetIndex,
-      payloads,
-    });
-
-    if (handled) {
-      return true;
-    }
+  const pendingHandled = maybeEnqueueCrossProviderBrowseDrop({
+    enqueuePendingFromBrowseDrop,
+    payloads,
+    sourceProviderId,
+    targetProviderId,
+    targetPlaylistId,
+    targetIndex,
+  });
+  if (pendingHandled) {
+    return true;
   }
 
   const trackUris = getBrowsePanelDragUris(sourceData, sourceTrack);

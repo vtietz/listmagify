@@ -45,6 +45,144 @@ interface SearchPanelProps {
   providerId?: MusicProviderId;
 }
 
+type SearchPanelBodyProps = {
+  effectiveProviderId: MusicProviderId;
+  effectiveSearchFilter: 'all' | 'tracks' | 'artists' | 'albums';
+  isLoading: boolean;
+  isError: boolean;
+  debouncedQuery: string;
+  sortedTracks: Track[];
+  shouldShowContextMenu: boolean;
+  contextMenu: ReturnType<typeof useContextMenuStore.getState>;
+  closeContextMenu: () => void;
+  sortableIds: string[];
+  scrollRef: React.RefObject<HTMLDivElement | null>;
+  sortKey: ReturnType<typeof useSearchSortState>['sortKey'];
+  sortDirection: ReturnType<typeof useSearchSortState>['sortDirection'];
+  handleSort: ReturnType<typeof useSearchSortState>['handleSort'];
+  virtualizer: ReturnType<typeof useVirtualizer<HTMLDivElement, Element>>;
+  spotifySelection: number[];
+  getSelectedTracks: () => Track[];
+  isLiked: (trackId: string) => boolean;
+  handleToggleLiked: (trackId: string, currentlyLiked: boolean) => void;
+  isTrackPlaying: (trackId: string) => boolean;
+  isTrackLoading: (trackUri: string) => boolean;
+  playTrack: (trackUri: string) => void;
+  pausePlayback: () => void;
+  getCompareColorForTrack: (trackUri: string) => string;
+  handleSelect: (_selectionKey: string, index: number, event: React.MouseEvent) => void;
+  handleClick: (_selectionKey: string, index: number) => void;
+  isFetchingNextPage: boolean;
+  isActive: boolean;
+};
+
+function SearchPanelBody(props: SearchPanelBodyProps) {
+  if (props.effectiveSearchFilter === 'artists') {
+    return (
+      <AlbumResultsBoundary
+        type="artists"
+        debouncedQuery={props.debouncedQuery}
+        providerId={props.effectiveProviderId}
+        isActive={props.isActive}
+      />
+    );
+  }
+
+  if (props.effectiveSearchFilter === 'albums') {
+    return (
+      <AlbumResultsBoundary
+        type="albums"
+        debouncedQuery={props.debouncedQuery}
+        providerId={props.effectiveProviderId}
+        isActive={props.isActive}
+      />
+    );
+  }
+
+  return (
+    <>
+      <SearchResultsState
+        isLoading={props.isLoading}
+        isError={props.isError}
+        debouncedQuery={props.debouncedQuery}
+        hasTracks={props.sortedTracks.length > 0}
+      >
+        <SearchTracksVirtualList
+          panelId={SEARCH_PANEL_ID}
+          sortableIds={props.sortableIds}
+          scrollRef={props.scrollRef}
+          sortKey={props.sortKey}
+          sortDirection={props.sortDirection}
+          onSort={props.handleSort}
+          virtualizer={props.virtualizer}
+          sortedTracks={props.sortedTracks}
+          spotifySelection={props.spotifySelection}
+          getSelectedTracks={props.getSelectedTracks}
+          isLiked={props.isLiked}
+          onToggleLiked={props.handleToggleLiked}
+          isTrackPlaying={props.isTrackPlaying}
+          isTrackLoading={props.isTrackLoading}
+          playTrack={props.playTrack}
+          pausePlayback={props.pausePlayback}
+          getCompareColorForTrack={props.getCompareColorForTrack}
+          onSelect={props.handleSelect}
+          onClick={props.handleClick}
+          isFetchingNextPage={props.isFetchingNextPage}
+          providerId={props.effectiveProviderId}
+        />
+      </SearchResultsState>
+
+      <SearchPanelContextMenu
+        shouldShow={props.shouldShowContextMenu}
+        contextMenu={props.contextMenu}
+        onClose={props.closeContextMenu}
+      />
+    </>
+  );
+}
+
+function AlbumResultsBoundary({
+  type,
+  debouncedQuery,
+  providerId,
+  isActive,
+}: {
+  type: 'artists' | 'albums';
+  debouncedQuery: string;
+  providerId: MusicProviderId;
+  isActive: boolean;
+}) {
+  if (type === 'artists') {
+    return <ArtistResultsList debouncedQuery={debouncedQuery} providerId={providerId} isActive={isActive} />;
+  }
+
+  return <AlbumResultsList debouncedQuery={debouncedQuery} providerId={providerId} isActive={isActive} />;
+}
+
+function useSpotifyTracksOnlyFilter(
+  effectiveProviderId: MusicProviderId,
+  searchFilter: 'all' | 'tracks' | 'artists' | 'albums',
+  setSearchFilter: (filter: 'all' | 'tracks' | 'artists' | 'albums') => void,
+) {
+  useEffect(() => {
+    if (effectiveProviderId === 'spotify' && searchFilter !== 'tracks') {
+      setSearchFilter('tracks');
+    }
+  }, [effectiveProviderId, searchFilter, setSearchFilter]);
+}
+
+function resolveTrackSearchEnabled(params: {
+  isActive: boolean;
+  effectiveSearchFilter: 'all' | 'tracks' | 'artists' | 'albums';
+  drillDown: unknown;
+  debouncedQuery: string;
+}): boolean {
+  return params.isActive
+    && (params.effectiveSearchFilter === 'tracks' || params.effectiveSearchFilter === 'all')
+    && !params.drillDown
+    && params.debouncedQuery.trim().length > 0;
+}
+
 export function SearchPanel({ isActive = true, inputRef: externalInputRef, providerId }: SearchPanelProps) {
   const {
     searchQuery,
@@ -63,17 +201,12 @@ export function SearchPanel({ isActive = true, inputRef: externalInputRef, provi
   const effectiveSearchFilter = effectiveProviderId === 'spotify' ? 'tracks' : searchFilter;
   const { isLiked, toggleLiked } = useSavedTracksIndex();
   const isCompact = useHydratedCompactMode();
-
-  useEffect(() => {
-    if (effectiveProviderId === 'spotify' && searchFilter !== 'tracks') {
-      setSearchFilter('tracks');
-    }
-  }, [effectiveProviderId, searchFilter, setSearchFilter]);
+  useSpotifyTracksOnlyFilter(effectiveProviderId, searchFilter, setSearchFilter);
 
   const isCompareEnabled = useCompareModeStore((state) => state.isEnabled);
   const compareDistribution = useCompareModeStore((state) => state.distribution);
   const getCompareColorForTrack = useCallback((trackUri: string) => {
-    return getTrackCompareColor(trackUri, compareDistribution, isCompareEnabled);
+    return getTrackCompareColor(trackUri, compareDistribution, isCompareEnabled) ?? '';
   }, [compareDistribution, isCompareEnabled]);
 
   const allPlaylists = useInsertionPointsStore((state) => state.playlists);
@@ -96,10 +229,12 @@ export function SearchPanel({ isActive = true, inputRef: externalInputRef, provi
 
   useFocusWhenActive(isActive, inputRef);
 
-  const isTrackSearchEnabled = isActive
-    && (effectiveSearchFilter === 'tracks' || effectiveSearchFilter === 'all')
-    && !drillDown
-    && debouncedQuery.trim().length > 0;
+  const isTrackSearchEnabled = resolveTrackSearchEnabled({
+    isActive,
+    effectiveSearchFilter,
+    drillDown,
+    debouncedQuery,
+  });
 
   const {
     data,
@@ -250,58 +385,36 @@ export function SearchPanel({ isActive = true, inputRef: externalInputRef, provi
       ) : null}
 
       <div className="flex-1 min-h-0 overflow-hidden">
-        {effectiveSearchFilter === 'tracks' || effectiveSearchFilter === 'all' ? (
-          <>
-            <SearchResultsState
-              isLoading={isLoading}
-              isError={isError}
-              debouncedQuery={debouncedQuery}
-              hasTracks={sortedTracks.length > 0}
-            >
-              <SearchTracksVirtualList
-                panelId={SEARCH_PANEL_ID}
-                sortableIds={sortableIds}
-                scrollRef={scrollRef}
-                sortKey={sortKey}
-                sortDirection={sortDirection}
-                onSort={handleSort}
-                virtualizer={virtualizer}
-                sortedTracks={sortedTracks}
-                spotifySelection={spotifySelection}
-                getSelectedTracks={getSelectedTracks}
-                isLiked={isLiked}
-                onToggleLiked={handleToggleLiked}
-                isTrackPlaying={isTrackPlaying}
-                isTrackLoading={isTrackLoading}
-                playTrack={playTrack}
-                pausePlayback={pausePlayback}
-                getCompareColorForTrack={getCompareColorForTrack}
-                onSelect={handleSelect}
-                onClick={handleClick}
-                isFetchingNextPage={isFetchingNextPage}
-                providerId={effectiveProviderId}
-              />
-            </SearchResultsState>
-
-            <SearchPanelContextMenu
-              shouldShow={shouldShowContextMenu}
-              contextMenu={contextMenu}
-              onClose={closeContextMenu}
-            />
-          </>
-        ) : effectiveSearchFilter === 'artists' ? (
-          <ArtistResultsList
-            debouncedQuery={debouncedQuery}
-            providerId={effectiveProviderId}
-            isActive={isActive}
-          />
-        ) : (
-          <AlbumResultsList
-            debouncedQuery={debouncedQuery}
-            providerId={effectiveProviderId}
-            isActive={isActive}
-          />
-        )}
+        <SearchPanelBody
+          effectiveProviderId={effectiveProviderId}
+          effectiveSearchFilter={effectiveSearchFilter}
+          isLoading={isLoading}
+          isError={isError}
+          debouncedQuery={debouncedQuery}
+          sortedTracks={sortedTracks}
+          shouldShowContextMenu={shouldShowContextMenu}
+          contextMenu={contextMenu}
+          closeContextMenu={closeContextMenu}
+          sortableIds={sortableIds}
+          scrollRef={scrollRef}
+          sortKey={sortKey}
+          sortDirection={sortDirection}
+          handleSort={handleSort}
+          virtualizer={virtualizer}
+          spotifySelection={spotifySelection}
+          getSelectedTracks={getSelectedTracks}
+          isLiked={isLiked}
+          handleToggleLiked={handleToggleLiked}
+          isTrackPlaying={isTrackPlaying}
+          isTrackLoading={isTrackLoading}
+          playTrack={playTrack}
+          pausePlayback={pausePlayback}
+          getCompareColorForTrack={getCompareColorForTrack}
+          handleSelect={handleSelect}
+          handleClick={handleClick}
+          isFetchingNextPage={isFetchingNextPage}
+          isActive={isActive}
+        />
       </div>
     </div>
   );

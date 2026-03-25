@@ -17,6 +17,12 @@ type SessionLike = {
   musicProviderTokens?: Record<string, { accessToken?: string }>;
 };
 
+type HomeSessionState = {
+  sessionError: string | undefined;
+  hasValidSession: boolean;
+  isAuthenticated: boolean;
+};
+
 function appendProviderToPath(path: string, providerId: MusicProviderId): string {
   const [rawPath, rawQuery] = path.split('?');
   const pathname = rawPath ?? path;
@@ -89,6 +95,26 @@ function resolveOAuthProviderFromCallbackUrl(callbackUrl: string | undefined): M
   }
 }
 
+function hasProviderAccessToken(sessionLike: SessionLike | null): boolean {
+  if (!sessionLike?.musicProviderTokens) {
+    return false;
+  }
+
+  return Object.values(sessionLike.musicProviderTokens).some((providerToken) => Boolean(providerToken?.accessToken));
+}
+
+function deriveHomeSessionState(sessionLike: SessionLike | null, session: unknown): HomeSessionState {
+  const sessionError = sessionLike?.error;
+  const hasPrimaryAccessToken = Boolean(sessionLike?.accessToken);
+  const hasValidSession = Boolean(session && !sessionError && (hasPrimaryAccessToken || hasProviderAccessToken(sessionLike)));
+
+  return {
+    sessionError,
+    hasValidSession,
+    isAuthenticated: hasValidSession,
+  };
+}
+
 /**
  * Root page - Landing page for unauthenticated users.
  * Authenticated users with valid tokens are redirected to the app destination.
@@ -100,14 +126,7 @@ export default async function Home({ searchParams }: Props) {
   const oauthProvider = resolveOAuthProviderFromCallbackUrl(callbackUrl);
 
   const typedSession = session as SessionLike | null;
-  const sessionError = typedSession?.error;
-  const hasPrimaryAccessToken = Boolean(typedSession?.accessToken);
-  const hasProviderAccessToken = Boolean(
-    typedSession?.musicProviderTokens
-      && Object.values(typedSession.musicProviderTokens).some((providerToken) => Boolean(providerToken?.accessToken))
-  );
-  const hasValidSession = Boolean(session && !sessionError && (hasPrimaryAccessToken || hasProviderAccessToken));
-  const isAuthenticated = Boolean(hasValidSession);
+  const { sessionError, hasValidSession, isAuthenticated } = deriveHomeSessionState(typedSession, session);
   const returnTo = resolveReturnTo(next);
   const preferredProvider = resolvePreferredProviderFromSession(typedSession);
   const returnToWithProvider = preferredProvider ? appendProviderToPath(returnTo, preferredProvider) : returnTo;
