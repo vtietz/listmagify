@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createTidalTransport } from '@/lib/music-provider/tidalTransport';
+import { createTidalTransport } from '@/lib/music-provider/tidal/transport';
 
 function makeResponse(status: number, body: unknown = {}) {
   return new Response(JSON.stringify(body), {
@@ -8,7 +8,7 @@ function makeResponse(status: number, body: unknown = {}) {
   });
 }
 
-describe('tidalTransport', () => {
+describe('tidal transport module', () => {
   it('retries once on 401 for session-based requests', async () => {
     const fetchImpl = vi
       .fn<typeof fetch>()

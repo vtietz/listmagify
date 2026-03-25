@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createSpotifyProvider } from '@/lib/music-provider/spotifyProvider';
+import { createSpotifyProvider } from '@/lib/music-provider/spotify/provider';
 
 function makeResponse(status: number, body: unknown = {}) {
   return new Response(JSON.stringify(body), {
@@ -8,7 +8,7 @@ function makeResponse(status: number, body: unknown = {}) {
   });
 }
 
-describe('spotifyProvider', () => {
+describe('spotify provider module', () => {
   it('blocks real Spotify base URL in E2E mode', async () => {
     const originalE2EMode = process.env.E2E_MODE;
     process.env.E2E_MODE = '1';

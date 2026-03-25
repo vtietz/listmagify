@@ -29,181 +29,37 @@ import {
   dedupeTrackIds,
   readJsonApiErrorDetails,
   fromTrackUri,
+  toTrackUri,
+  type JsonApiDocument,
+  type JsonApiIdentifier,
+  type JsonApiResource,
+} from '@/lib/music-provider/tidal/jsonApi';
+import {
   mapPlaylistResource,
   mapTrackListDocument,
   mapArtistListDocument,
   mapAlbumListDocument,
   mapUserResource,
-  toTrackUri,
-  type JsonApiDocument,
-  type JsonApiIdentifier,
-  type JsonApiResource,
-} from '@/lib/music-provider/tidalProviderHelpers';
-import { createTidalTransport, type TidalProviderDependencies } from '@/lib/music-provider/tidalTransport';
-
-const DEFAULT_PROVIDER_ID = 'tidal';
-const PLAYLIST_RELATIONSHIP_MAX_BATCH_SIZE = 20;
-const NATIVE_REORDER_FALLBACK_STATUSES = new Set([404, 405, 501]);
-
-function isNativeReorderEnabled(): boolean {
-  return process.env.TIDAL_NATIVE_REORDER === '1';
-}
-
-function isTidalReorderDebugEnabled(): boolean {
-  return process.env.DEBUG_TIDAL_REORDER === '1';
-}
-
-function unsupported(operation: string): never {
-  throw new ProviderApiError(`${operation} is not supported for TIDAL`, 501, DEFAULT_PROVIDER_ID);
-}
-
-function makeSnapshotId(): string {
-  return `tidal-${Date.now()}`;
-}
-
-function redactId(value: string): string {
-  if (value.length <= 8) {
-    return value;
-  }
-
-  return `${value.slice(0, 4)}…${value.slice(-4)}`;
-}
-
-function logReorderDebug(message: string, data: Record<string, unknown>): void {
-  if (!isTidalReorderDebugEnabled()) {
-    return;
-  }
-
-  console.debug(`[tidal-reorder] ${message}`, data);
-}
-
-
-function throwProviderError(response: Response, details: string, operation: string): never {
-  const normalizedDetails = details.trim() || response.statusText || 'Unknown provider error';
-  throw new ProviderApiError(
-    `${operation} failed: ${response.status} ${response.statusText}`,
-    response.status,
-    DEFAULT_PROVIDER_ID,
-    normalizedDetails,
-  );
-}
-
-function toRelationArray(data: unknown): JsonApiIdentifier[] {
-  if (!data) {
-    return [];
-  }
-
-  return Array.isArray(data) ? data : [data as JsonApiIdentifier];
-}
-
-const USER_COLLECTION_TRACKS_PATH = '/userCollectionTracks/me/relationships/items?include=items,items.artists,items.albums';
-const MAX_USER_COLLECTION_PAGES = 500;
-
-type SessionTransport = Pick<ReturnType<typeof createTidalTransport>, 'executeWithSession'>;
-
-async function fetchUserCollectionTrackPage(
-  transport: SessionTransport,
-  path: string,
-): Promise<JsonApiDocument<JsonApiIdentifier[]>> {
-  const response = await transport.executeWithSession(path, { method: 'GET' }, undefined);
-  if (!response.ok) {
-    throwProviderError(response, await readJsonApiErrorDetails(response), 'containsTracks');
-  }
-
-  return response.json() as Promise<JsonApiDocument<JsonApiIdentifier[]>>;
-}
-
-function collectMatchingTrackIds(
-  identifiers: JsonApiIdentifier[],
-  targetIds: ReadonlySet<string>,
-  foundIds: Set<string>,
-): void {
-  for (const identifier of identifiers) {
-    if (identifier.type !== 'tracks') {
-      continue;
-    }
-
-    if (targetIds.has(identifier.id)) {
-      foundIds.add(identifier.id);
-    }
-  }
-}
-
-async function findTracksInUserCollection(
-  transport: SessionTransport,
-  targetTrackIds: string[],
-): Promise<Set<string>> {
-  const targetIdSet = new Set(targetTrackIds);
-  const foundIds = new Set<string>();
-  let nextCursor: string | null = null;
-
-  for (let page = 0; page < MAX_USER_COLLECTION_PAGES; page += 1) {
-    const path = nextCursor ?? USER_COLLECTION_TRACKS_PATH;
-    const raw = await fetchUserCollectionTrackPage(transport, path);
-    const identifiers = Array.isArray(raw.data) ? raw.data : [];
-    collectMatchingTrackIds(identifiers, targetIdSet, foundIds);
-
-    const nextLink = raw.links?.next ?? null;
-    if (foundIds.size === targetTrackIds.length || !nextLink) {
-      break;
-    }
-
-    nextCursor = nextLink;
-  }
-
-  return foundIds;
-}
-
-function mapContainsTracksResult(inputIds: string[], foundIds: ReadonlySet<string>): boolean[] {
-  return inputIds.map((id) => foundIds.has(fromTrackUri(id)));
-}
+} from '@/lib/music-provider/tidal/mappers';
+import { createTidalTransport, type TidalProviderDependencies } from '@/lib/music-provider/tidal/transport';
+import {
+  DEFAULT_PROVIDER_ID,
+  NATIVE_REORDER_FALLBACK_STATUSES,
+  appendPlaylistTracks,
+  deletePlaylistTrackItems,
+  findTracksInUserCollection,
+  isNativeReorderEnabled,
+  logReorderDebug,
+  makeSnapshotId,
+  mapContainsTracksResult,
+  redactId,
+  throwProviderError,
+  toRelationArray,
+  unsupported,
+} from '@/lib/music-provider/tidal/providerInternals';
 
 export function createTidalProvider(dependencies: TidalProviderDependencies = {}): MusicProvider {
   const transport = createTidalTransport(dependencies);
-
-  async function appendPlaylistTracks(playlistId: string, trackIds: string[]): Promise<void> {
-    const path = `/playlists/${encodeURIComponent(playlistId)}/relationships/items`;
-
-    for (let i = 0; i < trackIds.length; i += PLAYLIST_RELATIONSHIP_MAX_BATCH_SIZE) {
-      const batch = trackIds.slice(i, i + PLAYLIST_RELATIONSHIP_MAX_BATCH_SIZE);
-      const response = await transport.executeWithSession(
-        path,
-        {
-          method: 'POST',
-          body: JSON.stringify({ data: batch.map((trackId) => ({ id: trackId, type: 'tracks' })) }),
-        },
-        undefined,
-      );
-
-      if (!response.ok) {
-        throwProviderError(response, await readJsonApiErrorDetails(response), 'appendPlaylistTracks');
-      }
-    }
-  }
-
-  async function deletePlaylistTrackItems(
-    playlistId: string,
-    items: Array<{ id: string; type: 'tracks'; meta: { itemId: string } }>,
-    operation: string,
-  ): Promise<void> {
-    if (items.length === 0) {
-      return;
-    }
-
-    const path = `/playlists/${encodeURIComponent(playlistId)}/relationships/items`;
-    for (let i = 0; i < items.length; i += PLAYLIST_RELATIONSHIP_MAX_BATCH_SIZE) {
-      const batch = items.slice(i, i + PLAYLIST_RELATIONSHIP_MAX_BATCH_SIZE);
-      const response = await transport.executeWithSession(
-        path,
-        { method: 'DELETE', body: JSON.stringify({ data: batch }) },
-        undefined,
-      );
-
-      if (!response.ok) {
-        throwProviderError(response, await readJsonApiErrorDetails(response), operation);
-      }
-    }
-  }
 
   return {
     async saveTracks(payload: TrackSavePayload): Promise<void> {
@@ -444,11 +300,11 @@ export function createTidalProvider(dependencies: TidalProviderDependencies = {}
         )
         .map((reference) => ({ id: reference.id, type: 'tracks' as const, meta: { itemId: reference.itemId } }));
 
-      await deletePlaylistTrackItems(playlistId, removable, 'replacePlaylistTracks');
+      await deletePlaylistTrackItems(transport, playlistId, removable, 'replacePlaylistTracks');
 
       const trackIds = trackUris.map(fromTrackUri);
       if (trackIds.length > 0) {
-        await appendPlaylistTracks(playlistId, trackIds);
+        await appendPlaylistTracks(transport, playlistId, trackIds);
       }
 
       return { snapshotId: makeSnapshotId() };
@@ -472,7 +328,7 @@ export function createTidalProvider(dependencies: TidalProviderDependencies = {}
         return { snapshotId: makeSnapshotId() };
       }
 
-      await deletePlaylistTrackItems(playlistId, toRemove, 'removePlaylistTracks');
+      await deletePlaylistTrackItems(transport, playlistId, toRemove, 'removePlaylistTracks');
 
       return { snapshotId: makeSnapshotId() };
     },
@@ -499,7 +355,7 @@ export function createTidalProvider(dependencies: TidalProviderDependencies = {}
         return this.replacePlaylistTracks(payload.playlistId, nextTrackUris);
       }
 
-      await appendPlaylistTracks(payload.playlistId, trackIds);
+      await appendPlaylistTracks(transport, payload.playlistId, trackIds);
       return { snapshotId: makeSnapshotId() };
     },
 

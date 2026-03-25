@@ -17,76 +17,22 @@ import {
   handleSamePanelDrop,
   handleCrossPanelDrop,
 } from '../mutations';
-import { computeAdjustedTargetIndex, getBrowsePanelDragPayloads, getBrowsePanelDragUris } from '../helpers';
+import { computeAdjustedTargetIndex } from '../helpers';
 import {
   determineEffectiveMode,
   shouldAdjustTargetIndex,
   calculateEffectiveTargetIndex,
 } from '../operations';
 import { useBrowsePanelStore } from '../../useBrowsePanelStore';
-import { apiFetch } from '@/lib/api/client';
 import { toast } from '@/lib/ui/toast';
 import { logDebug } from '@/lib/utils/debug';
-import { isPlaylistIdCompatibleWithProvider } from '@/lib/providers/playlistIdCompat';
-
-function inferProviderIdFromPlaylistId(playlistId: string | null | undefined): MusicProviderId | null {
-  if (!playlistId) {
-    return null;
-  }
-
-  if (isPlaylistIdCompatibleWithProvider(playlistId, 'tidal')) {
-    return 'tidal';
-  }
-
-  if (isPlaylistIdCompatibleWithProvider(playlistId, 'spotify')) {
-    return 'spotify';
-  }
-
-  return null;
-}
-
-function resolvePanelProviderId(panel: PanelConfig, playlistId?: string | null): MusicProviderId {
-  const inferredProvider = inferProviderIdFromPlaylistId(playlistId ?? panel.playlistId);
-
-  if (panel.providerId && (!inferredProvider || panel.providerId === inferredProvider)) {
-    return panel.providerId;
-  }
-
-  if (!panel.providerId && inferredProvider) {
-    return inferredProvider;
-  }
-
-  if (inferredProvider) {
-    return inferredProvider;
-  }
-
-  return panel.providerId ?? 'spotify';
-}
-
-function parseReleaseYear(releaseDate: string | null | undefined): number | undefined {
-  if (!releaseDate) {
-    return undefined;
-  }
-
-  const parsedYear = Number.parseInt(releaseDate.slice(0, 4), 10);
-  return Number.isFinite(parsedYear) ? parsedYear : undefined;
-}
-
-function buildPayloadFromTrack(track: Track, sourceProvider: MusicProviderId): TrackPayload {
-  const artists = track.artists ?? [];
-  return {
-    title: track.name,
-    artists,
-    normalizedArtists: artists.map((artist) => artist.trim().toLowerCase()),
-    album: track.album?.name ?? null,
-    durationSec: Math.max(0, Math.round((track.durationMs ?? 0) / 1000)),
-    sourceProvider,
-    sourceProviderId: track.id ?? undefined,
-    sourceProviderUri: track.uri || undefined,
-    coverUrl: track.album?.image?.url,
-    year: parseReleaseYear(track.album?.releaseDate),
-  };
-}
+import {
+  handleBrowsePanelCopyDrop,
+  handlePlayerDrop,
+  inferProviderIdFromPlaylistId,
+  resolveCrossProviderPayloads,
+  resolvePanelProviderId,
+} from './dragEndShared';
 
 /**
  * Context required for drag end handling
@@ -252,22 +198,6 @@ function resolveDragTracks(
   };
 }
 
-function resolveCrossProviderPayloads(
-  sourceData: TrackSourceData,
-  dragTracks: Track[],
-  sourceProvider: MusicProviderId,
-): TrackPayload[] {
-  if (sourceData.selectedTrackPayloads && sourceData.selectedTrackPayloads.length > 0) {
-    return sourceData.selectedTrackPayloads;
-  }
-
-  if (sourceData.trackPayload) {
-    return [sourceData.trackPayload];
-  }
-
-  return dragTracks.map((track) => buildPayloadFromTrack(track, sourceProvider));
-}
-
 function resolveSourceAndTargetPanels(
   panels: PanelConfig[],
   sourcePanelId: string,
@@ -368,10 +298,9 @@ function handlePlaylistTrackDrop(
       targetPlaylistId,
       targetProviderId,
       ctx.panels,
-      targetPanelId,
       targetPanel,
       finalDropPosition,
-      ctx.mutations.addTracks,
+      (input) => ctx.mutations.addTracks.mutate(input),
       ctx.enqueuePendingFromBrowseDrop
     );
     return;
@@ -489,108 +418,6 @@ function handlePlaylistTrackDrop(
     executionContext.sourcePanel,
     dropContext
   );
-}
-
-/**
- * Handle drop onto player (play tracks)
- */
-async function handlePlayerDrop(
-  sourceData: Record<string, unknown>,
-  sourceTrack: Track
-): Promise<void> {
-  const trackUris = getBrowsePanelDragUris(sourceData, sourceTrack);
-
-  if (trackUris.length > 0) {
-    try {
-      await apiFetch<{ success?: boolean }>('/api/player/control', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'play',
-          uris: trackUris,
-        }),
-      });
-
-      const message = trackUris.length > 1
-        ? `Playing ${trackUris.length} tracks`
-        : `Playing "${sourceTrack?.name ?? 'tracks'}"`;
-      toast.success(message);
-    } catch (error) {
-      console.error('[DND] Failed to play track:', error);
-    }
-  }
-}
-
-/**
- * Handle browse panel drop (Search, Recommendations)
- */
-function handleBrowsePanelCopyDrop(
-  sourceData: Record<string, unknown>,
-  targetData: Record<string, unknown>,
-  sourceTrack: Track,
-  targetPlaylistId: string,
-  targetProviderId: MusicProviderId,
-  panels: PanelConfig[],
-  _targetPanelId: string, // Used for logging only
-  targetPanel: PanelConfig | undefined,
-  finalDropPosition: number | null,
-  addTracks: DragEndContext['mutations']['addTracks'],
-  enqueuePendingFromBrowseDrop: DragEndContext['enqueuePendingFromBrowseDrop']
-): boolean {
-  if (!targetPanel?.isEditable) {
-    toast.error('Target playlist is not editable');
-    return false;
-  }
-
-  const targetIndex = finalDropPosition ?? (targetData.position as number ?? 0);
-  const payloads = getBrowsePanelDragPayloads(sourceData, sourceTrack);
-  const sourcePanelId = typeof sourceData.panelId === 'string' ? sourceData.panelId : null;
-  const sourcePanel = sourcePanelId
-    ? panels.find((panel) => panel.id === sourcePanelId)
-    : undefined;
-  const sourceProviderId = payloads[0]?.sourceProvider
-    ?? (sourcePanel ? resolvePanelProviderId(sourcePanel) : undefined);
-
-  if (
-    enqueuePendingFromBrowseDrop
-    && payloads.length > 0
-    && sourceProviderId
-    && sourceProviderId !== targetProviderId
-  ) {
-    const handled = enqueuePendingFromBrowseDrop({
-      targetPlaylistId,
-      targetProviderId,
-      insertPosition: targetIndex,
-      payloads,
-    });
-
-    if (handled) {
-      return true;
-    }
-  }
-
-  const trackUris = getBrowsePanelDragUris(sourceData, sourceTrack);
-
-  if (trackUris.length === 0) {
-    console.error('[DND] No track URIs to add');
-    return false;
-  }
-
-  console.debug('[DND] Adding tracks from search/player to playlist:', {
-    playlistId: targetPlaylistId,
-    trackUris,
-    trackCount: trackUris.length,
-    targetIndex
-  });
-
-  addTracks.mutate({
-    providerId: targetProviderId,
-    playlistId: targetPlaylistId,
-    trackUris,
-    position: targetIndex,
-  });
-
-  return true;
 }
 
 /**

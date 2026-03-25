@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createTidalProvider } from '@/lib/music-provider/tidalProvider';
+import { createTidalProvider } from '@/lib/music-provider/tidal/provider';
 import { ProviderApiError } from '@/lib/music-provider/types';
 
 type ItemRef = {
@@ -26,7 +26,7 @@ function createPlaylistItemsPage(references: ItemRef[]) {
   };
 }
 
-describe('tidalProvider reorderTracks', () => {
+describe('tidal provider reorder', () => {
   const previousNativeFlag = process.env.TIDAL_NATIVE_REORDER;
 
   afterEach(() => {

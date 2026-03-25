@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { Loader2, Disc3 } from 'lucide-react';
 import { apiFetch } from '@/lib/api/client';
@@ -81,7 +82,14 @@ function AlbumRow({ album, onClick }: { album: SearchAlbumResult; onClick: () =>
     >
       <div className="h-9 w-9 rounded bg-muted flex items-center justify-center shrink-0 overflow-hidden">
         {album.image ? (
-          <img src={album.image.url} alt="" className="h-full w-full object-cover" />
+          <Image
+            src={album.image.url}
+            alt=""
+            width={36}
+            height={36}
+            className="h-full w-full object-cover"
+            unoptimized
+          />
         ) : (
           <Disc3 className="h-4 w-4 text-muted-foreground" />
         )}

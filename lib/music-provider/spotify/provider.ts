@@ -1,7 +1,3 @@
-import { getManagedSession } from '@/lib/auth/tokenManager';
-import { ServerAuthError } from '@/lib/auth/requireAuth';
-import { withRateLimitRetry } from '@/lib/spotify/rateLimit';
-import type { AuthenticatedSession } from '@/lib/auth/requireAuth';
 import {
   ProviderApiError,
   type AddTracksPayload,
@@ -23,229 +19,37 @@ import {
   type TrackSearchResult,
   type ArtistSearchResult,
   type AlbumSearchResult,
-  type SearchArtistResult,
-  type SearchAlbumResult,
-  type Image,
   type UpdatePlaylistPayload,
 } from '@/lib/music-provider/types';
 import { mapDevice, mapPlaybackState } from '@/lib/spotify/playerTypes';
 import { mapPlaylist, mapPlaylistItemToTrack, pageFromSpotify } from '@/lib/spotify/types';
-
-type SpotifyProviderDependencies = {
-  fetchImpl?: typeof fetch;
-  getSession?: () => Promise<AuthenticatedSession>;
-};
-
-const DEFAULT_BASE = 'https://api.spotify.com/v1';
-const DEFAULT_PROVIDER_ID = 'spotify';
-const REAL_SPOTIFY_HOSTS = new Set(['api.spotify.com', 'accounts.spotify.com']);
-
-function getEffectiveBaseUrl(): string {
-  if (process.env.E2E_MODE === '1') {
-    return process.env.SPOTIFY_BASE_URL ?? 'http://spotify-mock:8080/v1';
-  }
-
-  return DEFAULT_BASE;
-}
-
-function getSafeRequestPath(path: string): string {
-  try {
-    if (path.startsWith('http')) {
-      return new URL(path).pathname;
-    }
-
-    return path.split('?')[0] ?? path;
-  } catch {
-    return path.split('?')[0] ?? path;
-  }
-}
-
-function buildUrl(path: string, baseUrl?: string): string {
-  const resolvedUrl = path.startsWith('http')
-    ? path
-    : `${baseUrl ?? getEffectiveBaseUrl()}${path}`;
-
-  if (process.env.E2E_MODE === '1') {
-    try {
-      const hostname = new URL(resolvedUrl).hostname;
-      if (REAL_SPOTIFY_HOSTS.has(hostname)) {
-        throw new Error(`[spotify] Real Spotify host is blocked in E2E mode: ${resolvedUrl}`);
-      }
-    } catch (error) {
-      if (error instanceof Error && error.message.includes('blocked in E2E mode')) {
-        throw error;
-      }
-    }
-  }
-
-  return resolvedUrl;
-}
-
-function buildHeaders(token: string, initHeaders?: HeadersInit): Headers {
-  const headers = new Headers(initHeaders ?? {});
-  headers.set('Authorization', `Bearer ${token}`);
-  if (!headers.has('Content-Type')) {
-    headers.set('Content-Type', 'application/json');
-  }
-
-  return headers;
-}
-
-async function executeWithSession(
-  path: string,
-  init: RequestInit | undefined,
-  opts: ProviderClientOptions | undefined,
-  deps: Required<SpotifyProviderDependencies>
-): Promise<Response> {
-  const url = buildUrl(path, opts?.baseUrl);
-  const safePath = getSafeRequestPath(path);
-
-  const runAttempt = async (): Promise<Response> => {
-    let session: AuthenticatedSession;
-    try {
-      session = await deps.getSession();
-    } catch (error) {
-      if (error instanceof ServerAuthError) {
-        throw new ProviderApiError('Authentication required', 401, DEFAULT_PROVIDER_ID, error.reason);
-      }
-
-      throw error;
-    }
-
-    const headers = buildHeaders(session.accessToken, init?.headers);
-
-    return withRateLimitRetry(
-      () =>
-        deps.fetchImpl(url, {
-          ...init,
-          headers,
-        }),
-      opts?.backoff,
-      safePath
-    );
-  };
-
-  const first = await runAttempt();
-  if (first.status !== 401) {
-    return first;
-  }
-
-  // Retry once after reacquiring session/token; handles short-lived race windows.
-  return runAttempt();
-}
-
-async function executeWithAccessToken(
-  accessToken: string,
-  path: string,
-  init?: RequestInit,
-  opts?: ProviderClientOptions,
-  fetchImpl: typeof fetch = fetch
-): Promise<Response> {
-  const url = buildUrl(path, opts?.baseUrl);
-  const safePath = getSafeRequestPath(path);
-  const headers = buildHeaders(accessToken, init?.headers);
-
-  return withRateLimitRetry(
-    () =>
-      fetchImpl(url, {
-        ...init,
-        headers,
-      }),
-    opts?.backoff,
-    safePath
-  );
-}
-
-async function readErrorText(response: Response): Promise<string> {
-  return response.text().catch(() => '');
-}
-
-function throwProviderError(response: Response, details: string, operation: string): never {
-  throw new ProviderApiError(
-    `${operation} failed: ${response.status} ${response.statusText}`,
-    response.status,
-    DEFAULT_PROVIDER_ID,
-    details
-  );
-}
-
-function buildTracksPath(playlistId: string, limit: number, nextCursor?: string | null): string {
-  const fields = 'items(track(id,uri,name,artists(name),duration_ms,album(id,name,images,release_date,release_date_precision),popularity),added_at,added_by(id,display_name)),next,total,snapshot_id';
-  if (!nextCursor) {
-    return `/playlists/${encodeURIComponent(playlistId)}/tracks?limit=${limit}&fields=${encodeURIComponent(fields)}`;
-  }
-
-  try {
-    const url = new URL(nextCursor);
-    const offset = url.searchParams.get('offset') || '0';
-    const parsedLimit = url.searchParams.get('limit') || String(limit);
-    return `/playlists/${encodeURIComponent(playlistId)}/tracks?offset=${offset}&limit=${parsedLimit}&fields=${encodeURIComponent(fields)}`;
-  } catch {
-    return nextCursor.includes('fields=') ? nextCursor : `${nextCursor}&fields=${encodeURIComponent(fields)}`;
-  }
-}
-
-function mapCurrentUser(raw: any): CurrentUserResult {
-  return {
-    id: String(raw?.id ?? ''),
-    displayName: typeof raw?.display_name === 'string' ? raw.display_name : null,
-    ...(typeof raw?.email === 'string' ? { email: raw.email } : {}),
-  };
-}
-
-function mapPublicUser(raw: any, fallbackId: string): PublicUserProfileResult {
-  return {
-    id: typeof raw?.id === 'string' && raw.id.length > 0 ? raw.id : fallbackId,
-    displayName: typeof raw?.display_name === 'string' ? raw.display_name : null,
-    imageUrl: typeof raw?.images?.[0]?.url === 'string' ? raw.images[0].url : null,
-    ...(typeof raw?.email === 'string' ? { email: raw.email } : {}),
-  };
-}
-
-async function requireSnapshotId(response: Response, operation: string): Promise<{ snapshotId: string }> {
-  const result = await response.json();
-  const snapshotId = result?.snapshot_id;
-  if (!snapshotId || typeof snapshotId !== 'string') {
-    throw new ProviderApiError(`${operation} failed: missing snapshot_id`, 500, DEFAULT_PROVIDER_ID);
-  }
-
-  return { snapshotId };
-}
-
-function extractOffsetFromCursor(nextCursor?: string | null): number {
-  if (!nextCursor) {
-    return 0;
-  }
-
-  try {
-    const url = new URL(nextCursor);
-    return parseInt(url.searchParams.get('offset') || '0', 10);
-  } catch {
-    return 0;
-  }
-}
-
-function mapPlaylistTracksPage(raw: any, nextCursor?: string | null): PlaylistTracksPageResult<Track> {
-  const rawItems = Array.isArray(raw?.items) ? raw.items : [];
-  const baseOffset = extractOffsetFromCursor(nextCursor);
-  return {
-    tracks: rawItems.map((item: any, index: number) => ({
-      ...mapPlaylistItemToTrack(item),
-      position: baseOffset + index,
-    })),
-    snapshotId: raw?.snapshot_id ?? null,
-    total: typeof raw?.total === 'number' ? raw.total : rawItems.length,
-    nextCursor: raw?.next ?? null,
-  };
-}
+import {
+  DEFAULT_PROVIDER_ID,
+  executeWithAccessToken,
+  executeWithSession,
+  readErrorText,
+  resolveSpotifyDependencies,
+  throwProviderError,
+  type SpotifyProviderDependencies,
+} from '@/lib/music-provider/spotify/http';
+import {
+  buildTracksPath,
+  mapCurrentUser,
+  mapPlaylistTracksPage,
+  mapPublicUser,
+  requireSnapshotId,
+} from '@/lib/music-provider/spotify/mappers';
+import {
+  mapAlbumTracks,
+  mapSearchAlbums,
+  mapSearchArtists,
+  mapSearchTracks,
+} from '@/lib/music-provider/spotify/searchMappers';
 
 export function createSpotifyProvider(
   dependencies: SpotifyProviderDependencies = {}
 ): MusicProvider {
-  const deps: Required<SpotifyProviderDependencies> = {
-    fetchImpl: dependencies.fetchImpl ?? fetch,
-    getSession: dependencies.getSession ?? (() => getManagedSession('spotify')),
-  };
+  const deps = resolveSpotifyDependencies(dependencies);
 
   return {
     async saveTracks(payload: TrackSavePayload): Promise<void> {
@@ -322,12 +126,7 @@ export function createSpotifyProvider(
       }
 
       const raw = await response.json();
-      const rawTracks = Array.isArray(raw?.tracks?.items) ? raw.tracks.items : [];
-      const tracks = rawTracks.map((item: any) => mapPlaylistItemToTrack({ track: item }));
-      const total = typeof raw?.tracks?.total === 'number' ? raw.tracks.total : 0;
-      const nextOffset = boundedOffset + tracks.length < total ? boundedOffset + tracks.length : null;
-
-      return { tracks, total, nextOffset };
+      return mapSearchTracks(raw, boundedOffset);
     },
 
     async searchArtists(query: string, limit = 50, offset = 0): Promise<ArtistSearchResult> {
@@ -341,23 +140,7 @@ export function createSpotifyProvider(
       }
 
       const raw = await response.json();
-      const rawArtists = Array.isArray(raw?.artists?.items) ? raw.artists.items : [];
-      const artists: SearchArtistResult[] = rawArtists.map((item: any) => {
-        const images = Array.isArray(item?.images) ? item.images : [];
-        const image: Image | null =
-          images.length > 0 && typeof images[0]?.url === 'string'
-            ? { url: images[0].url, width: images[0].width ?? null, height: images[0].height ?? null }
-            : null;
-        return {
-          id: String(item?.id ?? ''),
-          name: String(item?.name ?? ''),
-          image,
-        };
-      });
-      const total = typeof raw?.artists?.total === 'number' ? raw.artists.total : 0;
-      const nextOffset = boundedOffset + artists.length < total ? boundedOffset + artists.length : null;
-
-      return { artists, total, nextOffset };
+      return mapSearchArtists(raw, boundedOffset);
     },
 
     async searchAlbums(query: string, limit = 50, offset = 0): Promise<AlbumSearchResult> {
@@ -371,27 +154,7 @@ export function createSpotifyProvider(
       }
 
       const raw = await response.json();
-      const rawAlbums = Array.isArray(raw?.albums?.items) ? raw.albums.items : [];
-      const albums: SearchAlbumResult[] = rawAlbums.map((item: any) => {
-        const images = Array.isArray(item?.images) ? item.images : [];
-        const image: Image | null =
-          images.length > 0 && typeof images[0]?.url === 'string'
-            ? { url: images[0].url, width: images[0].width ?? null, height: images[0].height ?? null }
-            : null;
-        const artists = Array.isArray(item?.artists) ? item.artists : [];
-        const artistName = typeof artists[0]?.name === 'string' ? artists[0].name : '';
-        return {
-          id: String(item?.id ?? ''),
-          name: String(item?.name ?? ''),
-          artistName,
-          image,
-          releaseDate: typeof item?.release_date === 'string' ? item.release_date : null,
-        };
-      });
-      const total = typeof raw?.albums?.total === 'number' ? raw.albums.total : 0;
-      const nextOffset = boundedOffset + albums.length < total ? boundedOffset + albums.length : null;
-
-      return { albums, total, nextOffset };
+      return mapSearchAlbums(raw, boundedOffset);
     },
 
     async getArtistTopTracks(artistId: string): Promise<Track[]> {
@@ -416,22 +179,7 @@ export function createSpotifyProvider(
       }
 
       const raw = await response.json();
-      const albumInfo = {
-        id: typeof raw?.id === 'string' ? raw.id : null,
-        name: typeof raw?.name === 'string' ? raw.name : null,
-        image: Array.isArray(raw?.images) && raw.images.length > 0 && typeof raw.images[0]?.url === 'string'
-          ? { url: raw.images[0].url, width: raw.images[0].width ?? null, height: raw.images[0].height ?? null }
-          : null,
-        releaseDate: typeof raw?.release_date === 'string' ? raw.release_date : null,
-      };
-      const rawTracks = Array.isArray(raw?.tracks?.items) ? raw.tracks.items : [];
-      return rawTracks.map((item: any) => {
-        const track = mapPlaylistItemToTrack({ track: item });
-        return {
-          ...track,
-          album: albumInfo,
-        };
-      });
+      return mapAlbumTracks(raw);
     },
 
     async getCurrentUser(): Promise<CurrentUserResult> {

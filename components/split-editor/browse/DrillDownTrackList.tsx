@@ -1,6 +1,7 @@
 'use client';
 'use no memo';
 
+import Image from 'next/image';
 import { useRef, useCallback, useMemo, useDeferredValue } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useVirtualizer } from '@tanstack/react-virtual';
@@ -125,7 +126,14 @@ export function DrillDownTrackList({ drillDown, providerId }: DrillDownTrackList
         </Button>
         <div className="h-7 w-7 rounded bg-muted flex items-center justify-center shrink-0 overflow-hidden">
           {drillDown.image ? (
-            <img src={drillDown.image.url} alt="" className="h-full w-full object-cover" />
+            <Image
+              src={drillDown.image.url}
+              alt=""
+              width={28}
+              height={28}
+              className="h-full w-full object-cover"
+              unoptimized
+            />
           ) : (
             <Icon className="h-3.5 w-3.5 text-muted-foreground" />
           )}

@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { Loader2, Music } from 'lucide-react';
 import { apiFetch } from '@/lib/api/client';
@@ -79,7 +80,14 @@ function ArtistRow({ artist, onClick }: { artist: SearchArtistResult; onClick: (
     >
       <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center shrink-0 overflow-hidden">
         {artist.image ? (
-          <img src={artist.image.url} alt="" className="h-full w-full object-cover" />
+          <Image
+            src={artist.image.url}
+            alt=""
+            width={36}
+            height={36}
+            className="h-full w-full object-cover"
+            unoptimized
+          />
         ) : (
           <Music className="h-4 w-4 text-muted-foreground" />
         )}

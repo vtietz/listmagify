@@ -1,20 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import {
-  applyReorder,
   buildIncludedIndex,
   dedupeTrackIds,
-  extractPlaylistItemReferences,
   fromTrackUri,
-  mapPlaylistResource,
-  mapTrackListDocument,
-  mapUserResource,
   toTrackUri,
   type JsonApiDocument,
   type JsonApiIdentifier,
   type JsonApiResource,
-} from '@/lib/music-provider/tidalProviderHelpers';
+} from '@/lib/music-provider/tidal/jsonApi';
+import {
+  applyReorder,
+  extractPlaylistItemReferences,
+  mapPlaylistResource,
+  mapTrackListDocument,
+  mapUserResource,
+} from '@/lib/music-provider/tidal/mappers';
 
-describe('tidalProviderHelpers', () => {
+describe('tidal jsonApi and mappers', () => {
   it('maps user resource with full name and fallback username', () => {
     const withName = mapUserResource({
       id: 'u1',

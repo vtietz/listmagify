@@ -1,7 +1,7 @@
 import type { MusicProvider } from '@/lib/music-provider/types';
 import type { MusicProviderId } from '@/lib/music-provider/types';
-import { createSpotifyProvider } from '@/lib/music-provider/spotifyProvider';
-import { createTidalProvider } from '@/lib/music-provider/tidalProvider';
+import { createSpotifyProvider } from '@/lib/music-provider/spotify/provider';
+import { createTidalProvider } from '@/lib/music-provider/tidal/provider';
 import { isMusicProviderEnabled } from '@/lib/music-provider/enabledProviders';
 
 const providers = new Map<MusicProviderId, MusicProvider>();

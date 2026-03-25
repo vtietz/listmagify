@@ -6,12 +6,12 @@ import { ProviderApiError, type ProviderClientOptions } from '@/lib/music-provid
 import { createAPIClient } from '@tidal-music/api';
 import { randomUUID } from 'node:crypto';
 import {
-  extractPlaylistItemReferences,
   JSON_API_CONTENT_TYPE,
   type JsonApiDocument,
   type JsonApiIdentifier,
   type PlaylistItemReference,
-} from '@/lib/music-provider/tidalProviderHelpers';
+} from '@/lib/music-provider/tidal/jsonApi';
+import { extractPlaylistItemReferences } from '@/lib/music-provider/tidal/mappers';
 
 const DEFAULT_BASE = 'https://openapi.tidal.com/v2';
 const REAL_TIDAL_HOSTS = new Set(['openapi.tidal.com', 'auth.tidal.com', 'login.tidal.com']);
