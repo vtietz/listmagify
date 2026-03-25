@@ -21,6 +21,8 @@ const nextConfig = {
       { protocol: 'https', hostname: 't.scdn.co' },
       // TIDAL image CDN
       { protocol: 'https', hostname: 'resources.tidal.com' },
+      // E2E mock playlist artwork host
+      { protocol: 'https', hostname: 'via.placeholder.com' },
     ],
   },
 } as const;

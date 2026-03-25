@@ -20,6 +20,7 @@ import { useHydratedAutoScrollPlay } from '@/hooks/useAutoScrollPlayStore';
 import { useAutoScrollPlayback } from '@/hooks/useAutoScrollPlayback';
 import { useDndStateStore } from '@/hooks/dnd';
 import { useProviderPanelGuardState } from '@/components/auth/ProviderPanelGuard';
+import { OverlaySignInCTA } from '@/components/auth/OverlaySignInCTA';
 import { PanelToolbar } from './PanelToolbar';
 import { TableHeader } from '../TableHeader';
 import { VirtualizedTrackListContainer } from '../VirtualizedTrackListContainer';
@@ -243,6 +244,8 @@ function PlaylistPanelBody({
   hasActiveMarkers,
   activePlayPosition,
   isInteractionBlocked,
+  guardProvider,
+  guardReason,
 }: {
   panelId: string;
   state: PlaylistPanelViewState;
@@ -256,6 +259,8 @@ function PlaylistPanelBody({
   hasActiveMarkers: boolean;
   activePlayPosition: number;
   isInteractionBlocked: boolean;
+  guardProvider: 'spotify' | 'tidal';
+  guardReason: 'unauthenticated' | 'expired' | null;
 }) {
   return (
     <div
@@ -263,10 +268,13 @@ function PlaylistPanelBody({
       data-editable={state.isEditable}
       data-auth-blocked={isInteractionBlocked ? 'true' : 'false'}
       aria-disabled={isInteractionBlocked}
-      className={getPlaylistPanelClassName({ isPlayingPanel, isActiveDropTarget })}
+      className={cn(getPlaylistPanelClassName({ isPlayingPanel, isActiveDropTarget }), 'relative')}
       onMouseEnter={() => state.setIsMouseOver(true)}
       onMouseLeave={() => state.setIsMouseOver(false)}
     >
+      {isInteractionBlocked && guardReason && (
+        <OverlaySignInCTA providerId={guardProvider} reason={guardReason} />
+      )}
       <div className="flex min-h-0 flex-1 flex-col">
         <PanelToolbar
           panelId={panelId}
@@ -367,6 +375,8 @@ export function PlaylistPanel({
   onUnregisterVirtualizer,
 }: PlaylistPanelProps) {
   const {
+    provider,
+    reason,
     isOverlayActive: isInteractionBlocked,
   } = useProviderPanelGuardState();
   const isActiveDropTarget = useDndStateStore((s) => s.activePanelId === panelId);
@@ -464,6 +474,8 @@ export function PlaylistPanel({
       hasActiveMarkers={hasActiveMarkers}
       activePlayPosition={activePlayPosition}
       isInteractionBlocked={isInteractionBlocked}
+      guardProvider={provider}
+      guardReason={reason}
     />
   );
 }

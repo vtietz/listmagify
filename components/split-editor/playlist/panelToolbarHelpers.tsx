@@ -370,7 +370,7 @@ export function PanelToolbarContent({
             currentProviderId={providerId}
             providers={availableProviders}
             statusMap={statusMap}
-            hideWhenSingleConnected={true}
+            hideWhenSingleConnected={false}
             playingProviderInPanel={isPlayingPanel ? providerId : null}
             onProviderChange={onProviderChange}
             data-testid="panel-provider-status-dropdown"

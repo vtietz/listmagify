@@ -1,7 +1,6 @@
 'use client';
 
 import { createContext, type PropsWithChildren, useContext, useMemo } from 'react';
-import { OverlaySignInCTA } from '@/components/auth/OverlaySignInCTA';
 import { useProviderAuth } from '@/hooks/auth/useAuth';
 import { useEnsureValidToken } from '@/hooks/auth/useEnsureValidToken';
 import type { ProviderId } from '@/lib/providers/types';
@@ -76,9 +75,6 @@ export function ProviderPanelGuard({ provider, fillHeight = true, children }: Pr
         <div className={fillHeight ? 'h-full w-full' : 'w-full'}>
           {children}
         </div>
-        {isOverlayActive && reason && (
-          <OverlaySignInCTA providerId={provider} reason={reason} />
-        )}
       </div>
     </ProviderPanelGuardContext.Provider>
   );

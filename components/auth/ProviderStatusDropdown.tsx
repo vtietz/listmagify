@@ -163,12 +163,62 @@ function getTriggerClassName(context: 'header' | 'panel', isSingleConnectedInHea
   return 'h-9 gap-1.5 px-2 min-w-[88px] justify-between';
 }
 
+function getTriggerVariant(context: 'header' | 'panel'): 'ghost' | 'outline' {
+  return context === 'panel' ? 'ghost' : 'outline';
+}
+
+function getTriggerSize(context: 'header' | 'panel'): 'icon' | 'sm' {
+  return context === 'panel' ? 'icon' : 'sm';
+}
+
 function getTriggerAriaLabel(context: 'header' | 'panel', currentProviderId: ProviderId): string {
   return context === 'panel' ? `${getProviderLabel(currentProviderId)} provider` : 'Connected providers';
 }
 
 function getDropdownAlign(context: 'header' | 'panel'): 'start' | 'end' {
   return context === 'header' ? 'end' : 'start';
+}
+
+function TriggerContent({
+  context,
+  currentProviderId,
+  providers,
+  statusMap,
+  currentProviderStatus,
+  showCurrentPlayingIndicator,
+  dataTestId,
+}: {
+  context: 'header' | 'panel';
+  currentProviderId: ProviderId;
+  providers: ProviderId[];
+  statusMap: Record<ProviderId, ProviderConnectionStatus>;
+  currentProviderStatus: ProviderConnectionStatus;
+  showCurrentPlayingIndicator: boolean;
+  dataTestId: string | undefined;
+}) {
+  if (context === 'panel') {
+    return (
+      <span className="inline-flex items-center gap-1">
+        <ProviderGlyph providerId={currentProviderId} />
+        <ProviderStatusIcon
+          status={currentProviderStatus}
+          showPlaying={showCurrentPlayingIndicator}
+          dataTestId={`${dataTestId ?? 'provider-status-dropdown'}-current-status`}
+        />
+      </span>
+    );
+  }
+
+  return (
+    <>
+      <HeaderConnectedProvidersIndicator
+        providers={providers}
+        statusMap={statusMap}
+        {...(dataTestId ? { dataTestId } : {})}
+      />
+      <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+    </>
+  );
 }
 
 function handleProviderValueChange({
@@ -317,13 +367,16 @@ export function ProviderStatusDropdown({
   const connectedProviders = providers.filter((providerId) => (statusMap[providerId] ?? 'disconnected') === 'connected');
   const isSingleConnectedProvider = connectedProviders.length <= 1;
   const isSingleConnectedInHeader = context === 'header' && connectedProviders.length <= 1;
+  const shouldHideDropdown = isSingleProvider || (hideWhenSingleConnected && isSingleConnectedProvider);
+  const currentProviderStatus = statusMap[currentProviderId] ?? 'disconnected';
+  const showCurrentPlayingIndicator = isPlayingProviderInPanel(
+    context,
+    currentProviderId,
+    playingProviderInPanel,
+    currentProviderStatus,
+  );
 
-  // Single provider: nothing to switch — hide entirely
-  if (isSingleProvider) {
-    return null;
-  }
-
-  if (hideWhenSingleConnected && isSingleConnectedProvider) {
+  if (shouldHideDropdown) {
     return null;
   }
 
@@ -331,24 +384,21 @@ export function ProviderStatusDropdown({
     <DropdownMenu open={open} onOpenChange={setOpen} modal={false}>
       <DropdownMenuTrigger asChild>
         <Button
-          variant={context === 'panel' ? 'ghost' : 'outline'}
-          size={context === 'panel' ? 'icon' : 'sm'}
+          variant={getTriggerVariant(context)}
+          size={getTriggerSize(context)}
           className={getTriggerClassName(context, isSingleConnectedInHeader)}
           data-testid={dataTestId}
           aria-label={getTriggerAriaLabel(context, currentProviderId)}
         >
-          {context === 'panel' ? (
-            <ProviderGlyph providerId={currentProviderId} />
-          ) : (
-            <>
-              <HeaderConnectedProvidersIndicator
-                providers={providers}
-                statusMap={statusMap}
-                {...(dataTestId ? { dataTestId } : {})}
-              />
-              <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
-            </>
-          )}
+          <TriggerContent
+            context={context}
+            currentProviderId={currentProviderId}
+            providers={providers}
+            statusMap={statusMap}
+            currentProviderStatus={currentProviderStatus}
+            showCurrentPlayingIndicator={showCurrentPlayingIndicator}
+            dataTestId={dataTestId}
+          />
         </Button>
       </DropdownMenuTrigger>
 
