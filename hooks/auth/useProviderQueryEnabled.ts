@@ -12,5 +12,9 @@ import type { MusicProviderId } from '@/lib/music-provider/types';
  */
 export function useProviderQueryEnabled(providerId: MusicProviderId): boolean {
   const authState = useProviderAuth(providerId);
+  if (process.env.NEXT_PUBLIC_E2E_MODE === '1') {
+    return true;
+  }
+
   return authState.code === 'ok';
 }

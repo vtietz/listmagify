@@ -200,11 +200,13 @@ function TriggerContent({
     return (
       <span className="inline-flex items-center gap-1">
         <ProviderGlyph providerId={currentProviderId} />
-        <ProviderStatusIcon
-          status={currentProviderStatus}
-          showPlaying={showCurrentPlayingIndicator}
-          dataTestId={`${dataTestId ?? 'provider-status-dropdown'}-current-status`}
-        />
+        {showCurrentPlayingIndicator ? (
+          <ProviderStatusIcon
+            status={currentProviderStatus}
+            showPlaying={showCurrentPlayingIndicator}
+            dataTestId={`${dataTestId ?? 'provider-status-dropdown'}-current-status`}
+          />
+        ) : null}
       </span>
     );
   }
@@ -272,6 +274,7 @@ function ProviderOptionsGroup({
         const status = statusMap[providerId] ?? 'disconnected';
         const isSelected = providerId === currentProviderId;
         const showPlaying = isPlayingProviderInPanel(context, providerId, playingProviderInPanel, status);
+        const showStatusIcon = context === 'header' || showPlaying;
 
         return (
           <DropdownMenuRadioItem
@@ -288,11 +291,13 @@ function ProviderOptionsGroup({
           >
             <ProviderGlyph providerId={providerId} />
             <span className="flex-1 text-sm">{getProviderLabel(providerId)}</span>
-            <ProviderStatusIcon
-              status={status}
-              showPlaying={showPlaying}
-              dataTestId={`${dataTestId ?? 'provider-status-dropdown'}-${providerId}-status`}
-            />
+            {showStatusIcon ? (
+              <ProviderStatusIcon
+                status={status}
+                showPlaying={showPlaying}
+                dataTestId={`${dataTestId ?? 'provider-status-dropdown'}-${providerId}-status`}
+              />
+            ) : null}
           </DropdownMenuRadioItem>
         );
       })}
