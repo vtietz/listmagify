@@ -68,7 +68,7 @@ Key modules and contracts
     - `{ authError: true, provider: ProviderId, code: ProviderAuthCode, message, retryAfterMs? }`
     - Implemented in handlers using helpers in [lib/api/errorHandler.ts](lib/api/errorHandler.ts)
   - Spotify-specific mapping delegates to unified handler from [lib/api/spotifyErrorHandler.ts](lib/api/spotifyErrorHandler.ts)
-  - Tidal transport maps HTTP responses to ProviderAuthError in [lib/music-provider/tidalTransport.ts](lib/music-provider/tidalTransport.ts)
+  - Tidal transport maps HTTP responses to ProviderAuthError in [lib/music-provider/tidal/transport.ts](lib/music-provider/tidal/transport.ts)
 
 - Client error handling
   - Centralize response error normalization in [lib/api/client.ts](lib/api/client.ts) by transforming provider responses or thrown errors into ProviderAuthError when applicable, then push state to ProviderAuthRegistry.
@@ -138,7 +138,7 @@ Client responsibilities
 Login flows and redirects
 - CTA builds a redirect URL encoded with the panel context (path and panel identifiers) so that on provider callback, the app restores the original view.
 - Spotify: reuse existing flow in [lib/auth/auth.ts](lib/auth/auth.ts) and routes under app/api/auth/spotify/* if present.
-- Tidal: reuse existing BYOK or OAuth flow as implemented in [lib/music-provider/tidalProvider.ts](lib/music-provider/tidalProvider.ts) and [lib/music-provider/tidalTransport.ts](lib/music-provider/tidalTransport.ts).
+- Tidal: reuse existing BYOK or OAuth flow as implemented in [lib/music-provider/tidal/provider.ts](lib/music-provider/tidal/provider.ts) and [lib/music-provider/tidal/transport.ts](lib/music-provider/tidal/transport.ts).
 
 Observability
 - Extend [lib/auth/authLogging.ts](lib/auth/authLogging.ts) with new events
@@ -156,7 +156,7 @@ Migration plan
 Testing strategy
 - Unit tests
   - ProviderAuthRegistry state transitions and listeners.
-  - Error mapping from Spotify and Tidal transports to ProviderAuthError in [lib/api/errorHandler.ts](lib/api/errorHandler.ts) and [lib/music-provider/tidalTransport.ts](lib/music-provider/tidalTransport.ts).
+  - Error mapping from Spotify and Tidal transports to ProviderAuthError in [lib/api/errorHandler.ts](lib/api/errorHandler.ts) and [lib/music-provider/tidal/transport.ts](lib/music-provider/tidal/transport.ts).
   - Hooks behavior for useEnsureValidToken and useProviderAuth.
 - Component tests
   - ProviderPanelGuard renders InlineSignInCard when state is unauth or expired.
@@ -179,4 +179,4 @@ Risks and mitigations
 - Risk: inconsistent server error shapes → Mitigation: introduce shared helpers and tests in app/api/*.
 
 Next steps
-- Execute the todo list tracked in the task system. See items referencing files such as [lib/auth/auth.ts](lib/auth/auth.ts), [lib/api/errorHandler.ts](lib/api/errorHandler.ts), [lib/music-provider/tidalTransport.ts](lib/music-provider/tidalTransport.ts), [components/shell/AppShell.tsx](components/shell/AppShell.tsx), [components/player/SpotifyPlayer.tsx](components/player/SpotifyPlayer.tsx).
+- Execute the todo list tracked in the task system. See items referencing files such as [lib/auth/auth.ts](lib/auth/auth.ts), [lib/api/errorHandler.ts](lib/api/errorHandler.ts), [lib/music-provider/tidal/transport.ts](lib/music-provider/tidal/transport.ts), [components/shell/AppShell.tsx](components/shell/AppShell.tsx), [components/player/SpotifyPlayer.tsx](components/player/SpotifyPlayer.tsx).

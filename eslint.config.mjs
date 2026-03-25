@@ -40,12 +40,6 @@ const eslintConfig = [
     },
   },
   {
-    files: ['lib/music-provider/spotifyProvider.ts'],
-    rules: {
-      'max-lines': 'off',
-    },
-  },
-  {
     ignores: [
       'node_modules/**',
       '.next/**',

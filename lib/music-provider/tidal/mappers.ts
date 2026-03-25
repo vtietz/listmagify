@@ -320,6 +320,51 @@ export function mapArtistListDocument(
   return { artists, total: artists.length };
 }
 
+function resolveAlbumName(attributes: Record<string, unknown>, fallbackId: string): string {
+  if (typeof attributes.title === 'string') {
+    return attributes.title;
+  }
+
+  if (typeof attributes.name === 'string') {
+    return attributes.name;
+  }
+
+  return fallbackId;
+}
+
+function resolveFirstArtistName(
+  resource: JsonApiResource,
+  includedIndex: Map<string, JsonApiResource>,
+): string {
+  const artistIdentifiers = toIdentifierArray(resource.relationships?.artists);
+  const firstArtistIdentifier = artistIdentifiers[0];
+  if (!firstArtistIdentifier) {
+    return '';
+  }
+
+  const firstArtist = includedIndex.get(`artists:${firstArtistIdentifier.id}`);
+  const artistName = firstArtist?.attributes?.name;
+
+  return typeof artistName === 'string' ? artistName : '';
+}
+
+function mapAlbumSearchResult(
+  identifier: JsonApiIdentifier,
+  resource: JsonApiResource,
+  includedIndex: Map<string, JsonApiResource>,
+): SearchAlbumResult {
+  const attributes = resource.attributes ?? {};
+  const coverResource = getFirstRelationshipResource(resource, 'coverArt', includedIndex);
+
+  return {
+    id: String(resource.id ?? identifier.id ?? ''),
+    name: resolveAlbumName(attributes, String(resource.id ?? '')),
+    artistName: resolveFirstArtistName(resource, includedIndex),
+    image: mapImageFromFile(getPrimaryFile(coverResource)),
+    releaseDate: typeof attributes.releaseDate === 'string' ? attributes.releaseDate : null,
+  };
+}
+
 export function mapAlbumListDocument(
   rawDocument: JsonApiDocument<JsonApiIdentifier[]>,
 ): { albums: SearchAlbumResult[]; total: number } {
@@ -338,18 +383,7 @@ export function mapAlbumListDocument(
       continue;
     }
 
-    const attributes = resource.attributes ?? {};
-    const coverResource = getFirstRelationshipResource(resource, 'coverArt', includedIndex);
-    const artistIdentifiers = toIdentifierArray(resource.relationships?.artists);
-    const firstArtist = artistIdentifiers[0] ? includedIndex.get(`artists:${artistIdentifiers[0].id}`) : null;
-
-    albums.push({
-      id: String(resource.id ?? identifier.id ?? ''),
-      name: typeof attributes.title === 'string' ? attributes.title : (typeof attributes.name === 'string' ? attributes.name : String(resource.id ?? '')),
-      artistName: typeof firstArtist?.attributes?.name === 'string' ? firstArtist.attributes.name : '',
-      image: mapImageFromFile(getPrimaryFile(coverResource)),
-      releaseDate: typeof attributes.releaseDate === 'string' ? attributes.releaseDate : null,
-    });
+    albums.push(mapAlbumSearchResult(identifier, resource, includedIndex));
   }
 
   return { albums, total: albums.length };

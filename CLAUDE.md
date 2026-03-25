@@ -40,8 +40,8 @@ Next.js 16 (App Router), React 19, TypeScript (strict), TanStack Query + Virtual
 Provider-neutral interface (`MusicProvider`) with implementations for Spotify and TIDAL. Providers are singletons via `getMusicProvider(providerId)`, feature-flagged by `MUSIC_PROVIDERS` env var.
 
 - `types.ts` — Provider contract and domain types (`Track`, `Playlist`, `PlaybackState`, etc.)
-- `spotifyProvider.ts` — Spotify Web API v1 adapter
-- `tidalProvider.ts` — TIDAL OpenAPI v2 adapter
+- `spotify/provider.ts` — Spotify provider implementation
+- `tidal/provider.ts` — TIDAL provider implementation
 - `index.ts` — Provider resolver entry point
 
 Routes depend on the provider boundary; they must not embed provider-specific auth/transport details.

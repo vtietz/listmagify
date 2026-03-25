@@ -198,7 +198,8 @@ Recommended E2E flow:
 Spotify API and token handling are now split into explicit layers to reduce route complexity:
 
 - `lib/auth/tokenManager.ts`: session/token lifecycle policy (refresh window, single-flight session reacquire)
-- `lib/music-provider/spotifyProvider.ts`: Spotify transport adapter (auth headers, rate-limit retry, one retry on 401)
+- `lib/music-provider/spotify/http.ts`: Spotify transport adapter (auth headers, rate-limit retry, one retry on 401)
+- `lib/music-provider/spotify/provider.ts`: Spotify provider implementation and orchestration
 - `lib/music-provider/types.ts`: provider contract boundary for future multi-provider support
 - `lib/music-provider/index.ts`: provider resolver entry point used by route handlers and services
 
