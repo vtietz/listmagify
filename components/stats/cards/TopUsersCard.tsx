@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import Image from 'next/image';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Users, ChevronLeft, ChevronRight, ArrowUpDown, ArrowDown, ArrowUp } from 'lucide-react';
@@ -15,6 +16,45 @@ type SortDirection = 'asc' | 'desc';
 interface TopUsersCardProps {
   dateRange: { from: string; to: string };
   provider?: StatsProviderFilter;
+}
+
+function ProviderIndicator({ provider }: { provider: TopUser['provider'] }) {
+  if (!provider) {
+    return null;
+  }
+
+  const isSpotify = provider === 'spotify';
+
+  return (
+    <span className="inline-flex items-center justify-center rounded-md border px-1 py-0.5" title={`Provider: ${provider}`}>
+      {isSpotify ? (
+        <>
+          <Image
+            src="/spotify/Spotify_Primary_Logo_RGB_Black.png"
+            alt="Spotify"
+            width={12}
+            height={12}
+            className="dark:hidden"
+          />
+          <Image
+            src="/spotify/Spotify_Primary_Logo_RGB_White.png"
+            alt="Spotify"
+            width={12}
+            height={12}
+            className="hidden dark:block"
+          />
+        </>
+      ) : (
+        <Image
+          src="/tidal/Tidal_(service)_logo_only.svg"
+          alt="TIDAL"
+          width={12}
+          height={12}
+          className="dark:invert"
+        />
+      )}
+    </span>
+  );
 }
 
 function formatUserDate(value: string | null): string {
@@ -171,8 +211,9 @@ function TopUsersRow({
       title={title}
     >
       <div className="col-span-1 text-muted-foreground">{page * pageSize + index + 1}</div>
-      <div className="col-span-3 font-mono text-xs truncate" title={user.userHash}>
-        {user.userHash.slice(0, 12)}...
+      <div className="col-span-3 flex items-center gap-1.5 min-w-0" title={user.userHash}>
+        <span className="font-mono text-xs truncate">{user.userHash.slice(0, 12)}...</span>
+        <ProviderIndicator provider={user.provider} />
       </div>
       <div className="col-span-2 text-right font-medium">{user.eventCount}</div>
       <div className="col-span-1 text-right" title={`BYOK: ${user.byokLogins}, Standard: ${user.regularLogins}`}>
@@ -303,6 +344,7 @@ function TopUsersDetailsDialog({
       tracksRemoved={selectedUser.tracksRemoved}
       lastActive={selectedUser.lastActive}
       firstLoginAt={selectedUser.firstLoginAt}
+      provider={selectedUser.provider ?? null}
       open={true}
       onOpenChange={(open) => !open && clearSelection()}
     />

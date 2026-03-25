@@ -151,6 +151,105 @@ function isPlayingProviderInPanel(
   return context === 'panel' && status === 'connected' && playingProviderInPanel === providerId;
 }
 
+function getTriggerClassName(context: 'header' | 'panel', isSingleConnectedInHeader: boolean): string {
+  if (context === 'panel') {
+    return 'h-7 w-7 p-0 border-0 shadow-none hover:bg-muted/50 ml-1';
+  }
+
+  if (isSingleConnectedInHeader) {
+    return 'h-9 gap-1.5 px-2';
+  }
+
+  return 'h-9 gap-1.5 px-2 min-w-[88px] justify-between';
+}
+
+function getTriggerAriaLabel(context: 'header' | 'panel', currentProviderId: ProviderId): string {
+  return context === 'panel' ? `${getProviderLabel(currentProviderId)} provider` : 'Connected providers';
+}
+
+function getDropdownAlign(context: 'header' | 'panel'): 'start' | 'end' {
+  return context === 'header' ? 'end' : 'start';
+}
+
+function handleProviderValueChange({
+  value,
+  currentProviderId,
+  onProviderChange,
+  setOpen,
+}: {
+  value: string;
+  currentProviderId: ProviderId;
+  onProviderChange: (providerId: ProviderId) => void;
+  setOpen: (open: boolean) => void;
+}): void {
+  if (!isProviderId(value)) {
+    return;
+  }
+
+  if (value !== currentProviderId) {
+    setOpen(false);
+    onProviderChange(value);
+  }
+}
+
+function ProviderOptionsGroup({
+  context,
+  currentProviderId,
+  providers,
+  statusMap,
+  playingProviderInPanel,
+  onProviderChange,
+  setOpen,
+  dataTestId,
+}: {
+  context: 'header' | 'panel';
+  currentProviderId: ProviderId;
+  providers: ProviderId[];
+  statusMap: Record<ProviderId, ProviderConnectionStatus>;
+  playingProviderInPanel: ProviderId | null;
+  onProviderChange: (providerId: ProviderId) => void;
+  setOpen: (open: boolean) => void;
+  dataTestId: string | undefined;
+}) {
+  return (
+    <DropdownMenuRadioGroup
+      value={currentProviderId}
+      onValueChange={(value) => {
+        handleProviderValueChange({ value, currentProviderId, onProviderChange, setOpen });
+      }}
+    >
+      {providers.map((providerId) => {
+        const status = statusMap[providerId] ?? 'disconnected';
+        const isSelected = providerId === currentProviderId;
+        const showPlaying = isPlayingProviderInPanel(context, providerId, playingProviderInPanel, status);
+
+        return (
+          <DropdownMenuRadioItem
+            key={providerId}
+            value={providerId}
+            data-testid={`${dataTestId ?? 'provider-status-dropdown'}-${providerId}`}
+            onPointerDown={(event) => {
+              event.stopPropagation();
+            }}
+            onClick={(event) => {
+              event.stopPropagation();
+            }}
+            className={cn('gap-2 pl-2', isSelected && 'bg-accent/60')}
+          >
+            <ProviderGlyph providerId={providerId} />
+            <span className="flex-1 text-sm">{getProviderLabel(providerId)}</span>
+            <ProviderStatusIcon
+              status={status}
+              showPlaying={showPlaying}
+              dataTestId={`${dataTestId ?? 'provider-status-dropdown'}-${providerId}-status`}
+            />
+          </DropdownMenuRadioItem>
+        );
+      })}
+    </DropdownMenuRadioGroup>
+  );
+}
+
 function HeaderProviderLogoutItems({
   context,
   connectedProviders,
@@ -214,11 +313,10 @@ export function ProviderStatusDropdown({
 }: ProviderStatusDropdownProps) {
   const [open, setOpen] = useState(false);
   const [loggingOutProviderId, setLoggingOutProviderId] = useState<ProviderId | null>(null);
-  const isPanelContext = context === 'panel';
   const isSingleProvider = providers.length <= 1;
   const connectedProviders = providers.filter((providerId) => (statusMap[providerId] ?? 'disconnected') === 'connected');
   const isSingleConnectedProvider = connectedProviders.length <= 1;
-  const isSingleConnectedInHeader = !isPanelContext && connectedProviders.length <= 1;
+  const isSingleConnectedInHeader = context === 'header' && connectedProviders.length <= 1;
 
   // Single provider: nothing to switch — hide entirely
   if (isSingleProvider) {
@@ -233,19 +331,13 @@ export function ProviderStatusDropdown({
     <DropdownMenu open={open} onOpenChange={setOpen} modal={false}>
       <DropdownMenuTrigger asChild>
         <Button
-          variant={isPanelContext ? 'ghost' : 'outline'}
-          size={isPanelContext ? 'icon' : 'sm'}
-          className={cn(
-            isPanelContext
-              ? 'h-7 w-7 p-0 border-0 shadow-none hover:bg-muted/50 ml-1'
-              : isSingleConnectedInHeader
-                ? 'h-9 gap-1.5 px-2'
-                : 'h-9 gap-1.5 px-2 min-w-[88px] justify-between',
-          )}
+          variant={context === 'panel' ? 'ghost' : 'outline'}
+          size={context === 'panel' ? 'icon' : 'sm'}
+          className={getTriggerClassName(context, isSingleConnectedInHeader)}
           data-testid={dataTestId}
-          aria-label={isPanelContext ? `${getProviderLabel(currentProviderId)} provider` : 'Connected providers'}
+          aria-label={getTriggerAriaLabel(context, currentProviderId)}
         >
-          {isPanelContext ? (
+          {context === 'panel' ? (
             <ProviderGlyph providerId={currentProviderId} />
           ) : (
             <>
@@ -261,51 +353,19 @@ export function ProviderStatusDropdown({
       </DropdownMenuTrigger>
 
       <DropdownMenuContent
-        align={context === 'header' ? 'end' : 'start'}
+        align={getDropdownAlign(context)}
         className="w-52"
       >
-        <DropdownMenuRadioGroup
-          value={currentProviderId}
-          onValueChange={(value) => {
-            if (!isProviderId(value)) {
-              return;
-            }
-
-            if (value !== currentProviderId) {
-              setOpen(false);
-              onProviderChange(value);
-            }
-          }}
-        >
-          {providers.map((providerId) => {
-            const status = statusMap[providerId] ?? 'disconnected';
-            const isSelected = providerId === currentProviderId;
-            const showPlaying = isPlayingProviderInPanel(context, providerId, playingProviderInPanel, status);
-
-            return (
-              <DropdownMenuRadioItem
-                key={providerId}
-                value={providerId}
-                data-testid={`${dataTestId ?? 'provider-status-dropdown'}-${providerId}`}
-                onPointerDown={(event) => {
-                  event.stopPropagation();
-                }}
-                onClick={(event) => {
-                  event.stopPropagation();
-                }}
-                className={cn('gap-2 pl-2', isSelected && 'bg-accent/60')}
-              >
-                <ProviderGlyph providerId={providerId} />
-                <span className="flex-1 text-sm">{getProviderLabel(providerId)}</span>
-                <ProviderStatusIcon
-                  status={status}
-                  showPlaying={showPlaying}
-                  dataTestId={`${dataTestId ?? 'provider-status-dropdown'}-${providerId}-status`}
-                />
-              </DropdownMenuRadioItem>
-            );
-          })}
-        </DropdownMenuRadioGroup>
+        <ProviderOptionsGroup
+          context={context}
+          currentProviderId={currentProviderId}
+          providers={providers}
+          statusMap={statusMap}
+          playingProviderInPanel={playingProviderInPanel}
+          onProviderChange={onProviderChange}
+          setOpen={setOpen}
+          dataTestId={dataTestId}
+        />
 
         <HeaderProviderLogoutItems
           context={context}

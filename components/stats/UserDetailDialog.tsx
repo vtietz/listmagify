@@ -1,6 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
+import Image from 'next/image';
 import {
   Dialog,
   DialogContent,
@@ -20,6 +21,7 @@ interface UserDetailDialogProps {
   tracksRemoved: number;
   lastActive: string;
   firstLoginAt: string | null;
+  provider?: 'spotify' | 'tidal' | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -219,6 +221,55 @@ function UserHashRow({
   );
 }
 
+function ProviderRow({ provider }: { provider: 'spotify' | 'tidal' | null | undefined }) {
+  if (!provider) {
+    return null;
+  }
+
+  const isSpotify = provider === 'spotify';
+
+  return (
+    <div className="flex items-start gap-3">
+      <Activity className="h-4 w-4 text-muted-foreground mt-0.5" />
+      <div className="flex-1 min-w-0">
+        <div className="text-xs text-muted-foreground mb-0.5">Provider</div>
+        <span className="inline-flex items-center justify-center rounded-md border px-2 py-1">
+          {isSpotify ? (
+            <>
+              <Image
+                src="/spotify/Spotify_Primary_Logo_RGB_Black.png"
+                alt="Spotify"
+                width={14}
+                height={14}
+                className="dark:hidden"
+              />
+              <Image
+                src="/spotify/Spotify_Primary_Logo_RGB_White.png"
+                alt="Spotify"
+                width={14}
+                height={14}
+                className="hidden dark:block"
+              />
+              <span className="ml-1 text-[10px] uppercase tracking-wide text-muted-foreground">Spotify</span>
+            </>
+          ) : (
+            <>
+              <Image
+                src="/tidal/Tidal_(service)_logo_only.svg"
+                alt="TIDAL"
+                width={14}
+                height={14}
+                className="dark:invert"
+              />
+              <span className="ml-1 text-[10px] uppercase tracking-wide text-muted-foreground">TIDAL</span>
+            </>
+          )}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function ProfileSection({
   isLoading,
   displayName,
@@ -226,6 +277,7 @@ function ProfileSection({
   spotifyUrl,
   email,
   userHash,
+  provider,
   copiedField,
   onCopy,
 }: {
@@ -235,6 +287,7 @@ function ProfileSection({
   spotifyUrl: string | undefined;
   email: string | null | undefined;
   userHash: string;
+  provider: 'spotify' | 'tidal' | null | undefined;
   copiedField: string | null;
   onCopy: (text: string, fieldName: string) => void;
 }) {
@@ -246,6 +299,7 @@ function ProfileSection({
     <>
       <DisplayNameRow displayName={displayName} copiedField={copiedField} onCopy={onCopy} />
       <UserIdRow userId={userId} copiedField={copiedField} onCopy={onCopy} />
+      <ProviderRow provider={provider} />
       <SpotifyProfileRow spotifyUrl={spotifyUrl} />
       <EmailRow email={email} copiedField={copiedField} onCopy={onCopy} />
       <UserHashRow userHash={userHash} copiedField={copiedField} onCopy={onCopy} />
@@ -324,6 +378,7 @@ export function UserDetailDialog({
   tracksRemoved,
   lastActive,
   firstLoginAt,
+  provider,
   open,
   onOpenChange,
 }: UserDetailDialogProps) {
@@ -383,6 +438,7 @@ export function UserDetailDialog({
               spotifyUrl={spotifyUrl}
               email={profile?.email}
               userHash={userHash}
+              provider={provider}
               copiedField={copiedField}
               onCopy={(text, fieldName) => {
                 void copyToClipboard(text, fieldName);
