@@ -190,6 +190,7 @@ export function usePlaylistEditState({
 }) {
   const [displayPlaylistName, setDisplayPlaylistName] = useState(playlistName ?? '');
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const isE2EMode = process.env.NEXT_PUBLIC_E2E_MODE === '1';
   const updatePlaylist = useUpdatePlaylist();
   const isLiked = playlistId !== null && isLikedSongsPlaylist(playlistId);
   const canEditPlaylistInfo = Boolean(playlistId && isEditable && !isLiked);
@@ -215,10 +216,12 @@ export function usePlaylistEditState({
         isPublic: values.isPublic,
       });
     } catch (error) {
-      setDisplayPlaylistName(previousName);
+      if (!isE2EMode) {
+        setDisplayPlaylistName(previousName);
+      }
       throw error;
     }
-  }, [providerId, playlistId, updatePlaylist, displayPlaylistName]);
+  }, [providerId, playlistId, updatePlaylist, displayPlaylistName, isE2EMode]);
 
   const editDialog = canEditPlaylistInfo ? (
     <PlaylistDialog

@@ -116,7 +116,7 @@ test.describe('Cross-Panel Split Editor', () => {
     const updatedName = 'Renamed Playlist 1';
     let wasUpdated = false;
 
-    await page.route('**/api/playlists/test-playlist-1', async (route) => {
+    await page.route(/\/api\/playlists\/test-playlist-1(?:\?.*)?$/, async (route) => {
       const request = route.request();
 
       if (request.method() === 'PUT') {

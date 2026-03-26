@@ -1,7 +1,6 @@
 /**
  * PlaylistPanel component with virtualized track list, search, and DnD support.
  * Each panel can load a playlist independently and sync with other panels showing the same playlist.
- *
  * Refactored to use VirtualizedTrackListContainer for cleaner separation of concerns.
  * UI state subcomponents (Loading, Error, Empty, ConfirmDialog) are extracted into panel/.
  */
@@ -49,7 +48,6 @@ interface PlaylistPanelProps {
     | undefined;
   onUnregisterVirtualizer: ((panelId: string) => void) | undefined;
 }
-
 type PlaylistPanelState = ReturnType<typeof usePlaylistPanelState>;
 type PlaylistPanelViewState = Omit<PlaylistPanelState, 'scrollRef' | 'scrollDroppableRef' | 'virtualizerRef'>;
 
@@ -86,6 +84,81 @@ function getActivePlayPosition({
 
   const activeTrackIndex = filteredTracks.findIndex((track) => track.id === playbackState.track?.id);
   return filteredTracks[activeTrackIndex]?.position ?? activeTrackIndex;
+}
+
+function hasPlayingTrackInPanel({
+  filteredTracks,
+  isTrackPlaying,
+}: {
+  filteredTracks: Track[];
+  isTrackPlaying: (trackId: string | null) => boolean;
+}): boolean {
+  return filteredTracks.some((track) => isTrackPlaying(track.id));
+}
+function matchesCurrentTrackId(playbackState: ReturnType<typeof usePlayerStore.getState>['playbackState'], filteredTracks: Track[]): boolean {
+  const currentlyPlayingTrackId = playbackState?.track?.id;
+  return Boolean(currentlyPlayingTrackId && filteredTracks.some((track) => track.id === currentlyPlayingTrackId));
+}
+function matchesCurrentContextTrack(playbackContext: ReturnType<typeof usePlayerStore.getState>['playbackContext'], filteredTracks: Track[]): boolean {
+  const currentContextTrackUri = getCurrentContextTrackUri(playbackContext);
+  return Boolean(currentContextTrackUri && filteredTracks.some((track) => track.uri === currentContextTrackUri));
+}
+
+function matchesPlaybackStateContextPlaylist(
+  playbackState: ReturnType<typeof usePlayerStore.getState>['playbackState'],
+  playlistId: string | null | undefined,
+): boolean {
+  if (!playlistId) {
+    return false;
+  }
+
+  return playbackState?.context?.uri === `spotify:playlist:${playlistId}`;
+}
+
+function getCurrentContextTrackUri(playbackContext: ReturnType<typeof usePlayerStore.getState>['playbackContext']): string | undefined {
+  if (!playbackContext) {
+    return undefined;
+  }
+
+  return playbackContext.trackUris[playbackContext.currentIndex];
+}
+
+function resolvePlayingPanelState({
+  panelId,
+  playlistId,
+  playbackContext,
+  playbackState,
+  filteredTracks,
+  isTrackPlaying,
+}: {
+  panelId: string;
+  playlistId: string | null | undefined;
+  playbackContext: ReturnType<typeof usePlayerStore.getState>['playbackContext'];
+  playbackState: ReturnType<typeof usePlayerStore.getState>['playbackState'];
+  filteredTracks: Track[];
+  isTrackPlaying: (trackId: string | null) => boolean;
+}): boolean {
+  if (playbackContext?.sourceId === panelId) {
+    return true;
+  }
+
+  if (playlistId && playbackContext?.playlistId === playlistId) {
+    return true;
+  }
+
+  if (matchesPlaybackStateContextPlaylist(playbackState, playlistId)) {
+    return true;
+  }
+
+  if (playbackState?.isPlaying && hasPlayingTrackInPanel({ filteredTracks, isTrackPlaying })) {
+    return true;
+  }
+
+  if (matchesCurrentTrackId(playbackState, filteredTracks)) {
+    return true;
+  }
+
+  return matchesCurrentContextTrack(playbackContext, filteredTracks);
 }
 
 function buildTrackListOptionalProps({
@@ -267,7 +340,6 @@ function PlaylistPanelBody({
       data-testid="playlist-panel"
       data-editable={state.isEditable}
       data-auth-blocked={isInteractionBlocked ? 'true' : 'false'}
-      aria-disabled={isInteractionBlocked}
       className={cn(getPlaylistPanelClassName({ isPlayingPanel, isActiveDropTarget }), 'relative')}
       onMouseEnter={() => state.setIsMouseOver(true)}
       onMouseLeave={() => state.setIsMouseOver(false)}
@@ -388,7 +460,14 @@ export function PlaylistPanel({
   // Check if this panel is the active playback source
   const playbackContext = usePlayerStore((s) => s.playbackContext);
   const playbackState = usePlayerStore((s) => s.playbackState);
-  const isPlayingPanel = playbackContext?.sourceId === panelId;
+  const isPlayingPanel = resolvePlayingPanelState({
+    panelId,
+    playlistId: state.playlistId,
+    playbackContext,
+    playbackState,
+    filteredTracks: state.filteredTracks,
+    isTrackPlaying: state.isTrackPlaying,
+  });
   const activePlayPosition = getActivePlayPosition({
     isPlayingPanel,
     playbackState,

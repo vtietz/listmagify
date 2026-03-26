@@ -187,16 +187,23 @@ export const useSplitGridStore = create<SplitGridState>()(
           }
 
           const rememberedPlaylists = rememberCurrentProviderPlaylist(panel);
-          const rawRememberedPlaylistId = rememberedPlaylists[providerId] ?? null;
+          const rawRememberedPlaylistId = rememberedPlaylists[providerId]
+            ?? (isPlaylistIdCompatibleWithProvider(panel.playlistId, providerId) ? panel.playlistId : null);
           const playlistId = isPlaylistIdCompatibleWithProvider(rawRememberedPlaylistId, providerId)
             ? rawRememberedPlaylistId
             : null;
+          const nextRememberedPlaylists = playlistId
+            ? {
+                ...rememberedPlaylists,
+                [providerId]: playlistId,
+              }
+            : rememberedPlaylists;
 
           return {
             ...panel,
             providerId,
             playlistId,
-            lastPlaylistByProvider: rememberedPlaylists,
+            lastPlaylistByProvider: nextRememberedPlaylists,
             isEditable: false,
             searchQuery: '',
             selection: new Set(),

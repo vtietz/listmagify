@@ -18,6 +18,7 @@ import {
   createPanelNode,
   generateGroupId,
 } from './useSplitGridStore';
+import { isPlaylistIdCompatibleWithProvider } from '@/lib/providers/playlistIdCompat';
 
 // ============================================================================
 // URL Layout Spec Types (compact schema for URL encoding)
@@ -248,6 +249,13 @@ function parsePanel(str: string, start: number): ParseResult | null {
   const flagResult = readFlags(str, playlistResult.endIndex);
   const panel = createPanelConfig(playlistResult.playlistId || null);
   applyPanelFlags(panel, flagResult.flags);
+
+  if (panel.playlistId && isPlaylistIdCompatibleWithProvider(panel.playlistId, panel.providerId)) {
+    panel.lastPlaylistByProvider = {
+      ...panel.lastPlaylistByProvider,
+      [panel.providerId]: panel.playlistId,
+    };
+  }
   
   return {
     node: createPanelNode(panel),

@@ -161,7 +161,10 @@ export function SearchInputBar({
           currentProviderId={providerId}
           providers={availableProviders}
           statusMap={statusMap}
-          hideWhenSingleConnected={true}
+          hideWhenSingleConnected={false}
+          triggerRole="combobox"
+          triggerAriaLabel="Search provider"
+          showProviderLabelInPanelTrigger={true}
           onProviderChange={onProviderChange}
           data-testid="browse-provider-status-dropdown"
         />

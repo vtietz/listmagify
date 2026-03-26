@@ -25,6 +25,9 @@ interface ProviderStatusDropdownProps {
   statusMap: Record<ProviderId, ProviderConnectionStatus>;
   hideWhenSingleConnected?: boolean;
   playingProviderInPanel?: ProviderId | null;
+  triggerAriaLabel?: string;
+  triggerRole?: 'button' | 'combobox';
+  showProviderLabelInPanelTrigger?: boolean;
   onProviderChange: (providerId: ProviderId) => void;
   onProviderLogout?: (providerId: ProviderId) => Promise<void> | void;
   'data-testid'?: string;
@@ -146,9 +149,8 @@ function isPlayingProviderInPanel(
   context: 'header' | 'panel',
   providerId: ProviderId,
   playingProviderInPanel: ProviderId | null | undefined,
-  status: ProviderConnectionStatus,
 ): boolean {
-  return context === 'panel' && status === 'connected' && playingProviderInPanel === providerId;
+  return context === 'panel' && playingProviderInPanel === providerId;
 }
 
 function getTriggerClassName(context: 'header' | 'panel', isSingleConnectedInHeader: boolean): string {
@@ -186,6 +188,7 @@ function TriggerContent({
   statusMap,
   currentProviderStatus,
   showCurrentPlayingIndicator,
+  showProviderLabelInPanelTrigger,
   dataTestId,
 }: {
   context: 'header' | 'panel';
@@ -194,19 +197,19 @@ function TriggerContent({
   statusMap: Record<ProviderId, ProviderConnectionStatus>;
   currentProviderStatus: ProviderConnectionStatus;
   showCurrentPlayingIndicator: boolean;
+  showProviderLabelInPanelTrigger: boolean;
   dataTestId: string | undefined;
 }) {
   if (context === 'panel') {
     return (
       <span className="inline-flex items-center gap-1">
         <ProviderGlyph providerId={currentProviderId} />
-        {showCurrentPlayingIndicator ? (
-          <ProviderStatusIcon
-            status={currentProviderStatus}
-            showPlaying={showCurrentPlayingIndicator}
-            dataTestId={`${dataTestId ?? 'provider-status-dropdown'}-current-status`}
-          />
-        ) : null}
+        {showProviderLabelInPanelTrigger ? <span className="text-sm">{getProviderLabel(currentProviderId)}</span> : null}
+        <ProviderStatusIcon
+          status={currentProviderStatus}
+          showPlaying={showCurrentPlayingIndicator}
+          dataTestId={`${dataTestId ?? 'provider-status-dropdown'}-current-status`}
+        />
       </span>
     );
   }
@@ -273,7 +276,7 @@ function ProviderOptionsGroup({
       {providers.map((providerId) => {
         const status = statusMap[providerId] ?? 'disconnected';
         const isSelected = providerId === currentProviderId;
-        const showPlaying = isPlayingProviderInPanel(context, providerId, playingProviderInPanel, status);
+        const showPlaying = isPlayingProviderInPanel(context, providerId, playingProviderInPanel);
         const showStatusIcon = context === 'header' || showPlaying;
 
         return (
@@ -362,6 +365,9 @@ export function ProviderStatusDropdown({
   statusMap,
   hideWhenSingleConnected = false,
   playingProviderInPanel = null,
+  triggerAriaLabel,
+  triggerRole = 'button',
+  showProviderLabelInPanelTrigger = false,
   onProviderChange,
   onProviderLogout,
   'data-testid': dataTestId,
@@ -378,7 +384,6 @@ export function ProviderStatusDropdown({
     context,
     currentProviderId,
     playingProviderInPanel,
-    currentProviderStatus,
   );
 
   if (shouldHideDropdown) {
@@ -393,7 +398,8 @@ export function ProviderStatusDropdown({
           size={getTriggerSize(context)}
           className={getTriggerClassName(context, isSingleConnectedInHeader)}
           data-testid={dataTestId}
-          aria-label={getTriggerAriaLabel(context, currentProviderId)}
+          role={triggerRole}
+          aria-label={triggerAriaLabel ?? getTriggerAriaLabel(context, currentProviderId)}
         >
           <TriggerContent
             context={context}
@@ -402,6 +408,7 @@ export function ProviderStatusDropdown({
             statusMap={statusMap}
             currentProviderStatus={currentProviderStatus}
             showCurrentPlayingIndicator={showCurrentPlayingIndicator}
+            showProviderLabelInPanelTrigger={showProviderLabelInPanelTrigger}
             dataTestId={dataTestId}
           />
         </Button>

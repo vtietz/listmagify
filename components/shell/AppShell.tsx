@@ -187,7 +187,13 @@ function Header({ title: _title }: { title: string }) {
   const { isCompact, toggle: toggleCompact } = useCompactModeStore();
   const { isEnabled: isAutoScrollText, toggle: toggleAutoScrollText } = useAutoScrollTextStore();
   const { isEnabled: isCompareEnabled, toggle: toggleCompare } = useCompareModeStore();
-  const { isOpen: isBrowseOpen, open: openBrowse, close: closeBrowse, setProviderId: setBrowseProviderId } = useBrowsePanelStore();
+  const {
+    isOpen: isBrowseOpen,
+    open: openBrowse,
+    close: closeBrowse,
+    setProviderId: setBrowseProviderId,
+    setActiveTab: setBrowseActiveTab,
+  } = useBrowsePanelStore();
   const { isPlayerVisible, togglePlayerVisible } = usePlayerStore();
   const clearAllMarkers = useInsertionPointsStore((s) => s.clearAll);
   const playlists = useInsertionPointsStore((s) => s.playlists);
@@ -224,8 +230,17 @@ function Header({ title: _title }: { title: string }) {
     const browseProviderId = focusedPanel?.providerId ?? fallbackPanel?.providerId ?? 'spotify';
 
     setBrowseProviderId(browseProviderId);
+    setBrowseActiveTab('browse');
     openBrowse();
-  }, [isBrowseOpen, closeBrowse, focusedPanelId, panels, setBrowseProviderId, openBrowse]);
+  }, [
+    isBrowseOpen,
+    closeBrowse,
+    focusedPanelId,
+    panels,
+    setBrowseProviderId,
+    setBrowseActiveTab,
+    openBrowse,
+  ]);
   
   // Pages that support player and compare mode
   const supportsPlayerAndCompare = isSplitEditorActive || isPlaylistsActive;
