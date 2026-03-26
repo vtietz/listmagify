@@ -217,11 +217,17 @@ export function useTrackRowHandlers({
       e.stopPropagation();
       e.preventDefault();
       const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      const menuWidth = 220;
+      const gap = 6;
+      const spaceRight = window.innerWidth - rect.right;
+      const x = spaceRight >= menuWidth + gap
+        ? rect.right + gap
+        : rect.left - menuWidth - gap;
       const showMulti = isSelected && isMultiSelect && selectedCount > 1;
 
       openContextMenu({
         track,
-        position: { x: rect.right, y: rect.top },
+        position: { x, y: rect.top },
         isMultiSelect: showMulti,
         selectedCount: showMulti ? selectedCount : 1,
         isEditable,

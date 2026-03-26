@@ -13,22 +13,18 @@ export function useContextMenuPosition(position?: { x: number; y: number }) {
     if (!position || !mounted) return null;
 
     const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
     const padding = 8;
 
-    // Estimate menu dimensions (actual width ~200px, height varies)
+    // Estimate width for initial horizontal clamping.
     const menuWidth = 220;
-    const menuHeight = 450; // Conservative estimate for full menu
 
     let left = position.x;
     if (left + menuWidth > viewportWidth - padding) {
       left = Math.max(padding, viewportWidth - menuWidth - padding);
     }
 
-    let top = position.y;
-    if (top + menuHeight > viewportHeight - padding) {
-      top = Math.max(padding, viewportHeight - menuHeight - padding);
-    }
+    // Keep top near trigger; final vertical clamping is done after measuring actual menu height.
+    const top = Math.max(padding, position.y);
 
     return { left, top };
   }, [position, mounted]);

@@ -28,6 +28,8 @@ export function TrackContextMenu({
 }: TrackContextMenuProps) {
   const { isPhone } = useDeviceType();
   const { mounted, menuPosition } = useContextMenuPosition(position);
+  const menuRef = React.useRef<HTMLDivElement | null>(null);
+  const [measuredTop, setMeasuredTop] = React.useState<number | null>(null);
 
   // Title format: "Track Name - Artist" or "Track Name - Artist +N" for multi-select
   const artistsText = track.artists.join(', ');
@@ -57,6 +59,21 @@ export function TrackContextMenu({
     isEditable,
   };
 
+  React.useLayoutEffect(() => {
+    if (!isOpen || !menuPosition || !menuRef.current) {
+      setMeasuredTop(null);
+      return;
+    }
+
+    const padding = 8;
+    const viewportHeight = window.innerHeight;
+    const menuHeight = menuRef.current.getBoundingClientRect().height;
+    const maxTop = Math.max(padding, viewportHeight - menuHeight - padding);
+    const nextTop = Math.min(menuPosition.top, maxTop);
+
+    setMeasuredTop(nextTop);
+  }, [isOpen, menuPosition]);
+
   // Phone: Use BottomSheet
   if (isPhone) {
     return (
@@ -85,13 +102,14 @@ export function TrackContextMenu({
         />
       )}
       <div
+        ref={menuRef}
         className={cn(
           'fixed z-[9999] bg-popover border border-border rounded-md shadow-lg min-w-[180px]',
           isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
         )}
         style={{
           left: menuPosition.left,
-          top: menuPosition.top,
+          top: measuredTop ?? menuPosition.top,
           maxHeight: 'calc(100vh - 16px)',
           overflowY: 'auto',
         }}

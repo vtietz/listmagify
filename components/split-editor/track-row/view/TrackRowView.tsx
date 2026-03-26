@@ -419,7 +419,11 @@ export function TrackRowView({
         isCompact={isCompact}
         track={track}
         isAutoScrollEnabled={isAutoScrollEnabled}
-        statusIndicator={PendingStatusIndicator({ pendingStatus, pendingMessage, isCompact })}
+        statusIndicator={
+          showStandardAddColumn
+            ? null
+            : PendingStatusIndicator({ pendingStatus, pendingMessage, isCompact })
+        }
         moreButton={TitleMoreButton({
           showHandle,
           isCompact,
