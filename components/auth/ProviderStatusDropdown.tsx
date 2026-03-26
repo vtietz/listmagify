@@ -205,11 +205,13 @@ function TriggerContent({
       <span className="inline-flex items-center gap-1">
         <ProviderGlyph providerId={currentProviderId} />
         {showProviderLabelInPanelTrigger ? <span className="text-sm">{getProviderLabel(currentProviderId)}</span> : null}
-        <ProviderStatusIcon
-          status={currentProviderStatus}
-          showPlaying={showCurrentPlayingIndicator}
-          dataTestId={`${dataTestId ?? 'provider-status-dropdown'}-current-status`}
-        />
+        {showCurrentPlayingIndicator ? (
+          <ProviderStatusIcon
+            status={currentProviderStatus}
+            showPlaying={showCurrentPlayingIndicator}
+            dataTestId={`${dataTestId ?? 'provider-status-dropdown'}-current-status`}
+          />
+        ) : null}
       </span>
     );
   }
