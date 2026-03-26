@@ -118,30 +118,40 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
     }
 
     const existingUris = new Set(tracks.map((track) => track.uri));
-    const syntheticPending: Track[] = activePending
+    const syntheticPending: Array<{ track: Track; position: number }> = activePending
       .filter((pending) => !existingUris.has(toPendingTrackUri(pending.tempId)))
-      .map((pending): Track => ({
-        id: null,
-        uri: toPendingTrackUri(pending.tempId),
-        name: pending.sourceMeta.title,
-        artists: pending.sourceMeta.artists,
-        durationMs: Math.max(0, pending.sourceMeta.durationSec * 1000),
+      .map((pending) => ({
         position: pending.position,
-        album: pending.sourceMeta.album
-          ? {
-              name: pending.sourceMeta.album,
-              image: pending.sourceMeta.coverUrl ? { url: pending.sourceMeta.coverUrl } : null,
-              releaseDate: pending.sourceMeta.year ? String(pending.sourceMeta.year) : null,
-              releaseDatePrecision: pending.sourceMeta.year ? 'year' : null,
-            }
-          : null,
-      }));
+        track: {
+          id: null,
+          uri: toPendingTrackUri(pending.tempId),
+          name: pending.sourceMeta.title,
+          artists: pending.sourceMeta.artists,
+          durationMs: Math.max(0, pending.sourceMeta.durationSec * 1000),
+          position: pending.position,
+          album: pending.sourceMeta.album
+            ? {
+                name: pending.sourceMeta.album,
+                image: pending.sourceMeta.coverUrl ? { url: pending.sourceMeta.coverUrl } : null,
+                releaseDate: pending.sourceMeta.year ? String(pending.sourceMeta.year) : null,
+                releaseDatePrecision: pending.sourceMeta.year ? ('year' as const) : null,
+              }
+            : null,
+        },
+      }))
+      .sort((a, b) => a.position - b.position);
 
     if (syntheticPending.length === 0) {
       return tracks;
     }
 
-    return [...tracks, ...syntheticPending];
+    const merged = [...tracks];
+    for (const pending of syntheticPending) {
+      const insertAt = Math.max(0, Math.min(pending.position, merged.length));
+      merged.splice(insertAt, 0, pending.track);
+    }
+
+    return merged;
   }, [playlistId, pendingForPlaylist, tracks]);
 
   // --- Metadata and permissions ---
