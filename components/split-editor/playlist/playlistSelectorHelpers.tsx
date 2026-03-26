@@ -37,7 +37,11 @@ export function usePlaylistPollIntervalMs() {
     : undefined;
 }
 
-export function usePlaylistInfiniteData(pollIntervalMs: number | undefined, providerId: MusicProviderId) {
+export function usePlaylistInfiniteData(
+  pollIntervalMs: number | undefined,
+  providerId: MusicProviderId,
+  enabled: boolean = true,
+) {
   const {
     data,
     isLoading,
@@ -57,16 +61,17 @@ export function usePlaylistInfiniteData(pollIntervalMs: number | undefined, prov
     initialPageParam: null as string | null,
     staleTime: 60_000,
     refetchInterval: pollIntervalMs,
+    enabled,
   });
 
   useEffect(() => {
     if (hasNextPage && !isFetchingNextPage) {
       void fetchNextPage();
     }
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+  }, [enabled, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const allPlaylists = useMemo(() => {
-    if (!data?.pages) {
+    if (!enabled || !data?.pages) {
       return [];
     }
 
@@ -80,7 +85,7 @@ export function usePlaylistInfiniteData(pollIntervalMs: number | undefined, prov
       seen.add(playlist.id);
       return true;
     });
-  }, [data]);
+  }, [enabled, data]);
 
   return {
     allPlaylists,
@@ -107,17 +112,25 @@ export function useFilteredPlaylists(allPlaylists: Playlist[], query: string) {
   }, [allPlaylists, query]);
 }
 
-export function useShowLikedSongs(query: string, providerId: MusicProviderId) {
+export function useShowLikedSongs(
+  query: string,
+  providerId: MusicProviderId,
+  enabled: boolean = true,
+) {
   const likedPlaylistMetadata = getLikedPlaylistMetadata(providerId);
 
   return useMemo(() => {
+    if (!enabled) {
+      return false;
+    }
+
     const normalizedQuery = query.trim();
 
     return !normalizedQuery
       || matchesAllWords(likedPlaylistMetadata.name, normalizedQuery)
       || matchesAllWords('liked', normalizedQuery)
       || matchesAllWords('saved', normalizedQuery);
-  }, [query, likedPlaylistMetadata]);
+  }, [enabled, query, likedPlaylistMetadata]);
 }
 
 export function getSelectedPlaylistLabel({

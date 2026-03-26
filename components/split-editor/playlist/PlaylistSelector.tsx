@@ -25,9 +25,16 @@ interface PlaylistSelectorProps {
   selectedPlaylistId: string | null;
   selectedPlaylistName?: string;
   onSelectPlaylist: (playlistId: string) => void;
+  disabled?: boolean;
 }
 
-export function PlaylistSelector({ providerId, selectedPlaylistId, selectedPlaylistName, onSelectPlaylist }: PlaylistSelectorProps) {
+export function PlaylistSelector({
+  providerId,
+  selectedPlaylistId,
+  selectedPlaylistName,
+  onSelectPlaylist,
+  disabled = false,
+}: PlaylistSelectorProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
@@ -35,10 +42,10 @@ export function PlaylistSelector({ providerId, selectedPlaylistId, selectedPlayl
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const dropdownRef = useRef<HTMLDivElement | null>(null);
   const pollIntervalMs = usePlaylistPollIntervalMs();
-  const { allPlaylists, isLoading, isFetchingNextPage, refetch } = usePlaylistInfiniteData(pollIntervalMs, providerId);
+  const { allPlaylists, isLoading, isFetchingNextPage, refetch } = usePlaylistInfiniteData(pollIntervalMs, providerId, !disabled);
   const dropdownPosition = useDropdownPositionOnOpen(open, buttonRef);
   const filtered = useFilteredPlaylists(allPlaylists, query);
-  const showLikedSongs = useShowLikedSongs(query, providerId);
+  const showLikedSongs = useShowLikedSongs(query, providerId, !disabled);
 
   const selected = useMemo(
     () => allPlaylists.find((p: Playlist) => p.id === selectedPlaylistId) || null,
@@ -76,6 +83,12 @@ export function PlaylistSelector({ providerId, selectedPlaylistId, selectedPlayl
       showLikedSongs,
     }));
   }, [open, selectedPlaylistId, filtered, showLikedSongs]);
+
+  useEffect(() => {
+    if (disabled) {
+      setOpen(false);
+    }
+  }, [disabled]);
 
   useEffect(() => {
     if (!open || !dropdownRef.current) return;
@@ -124,6 +137,8 @@ export function PlaylistSelector({ providerId, selectedPlaylistId, selectedPlayl
         variant="outline"
         role="combobox"
         aria-expanded={open}
+        aria-disabled={disabled}
+        disabled={disabled}
         className="w-full justify-between"
         onClick={handleToggle}
         title="Select playlist"

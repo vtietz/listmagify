@@ -6,6 +6,7 @@
 
 'use client';
 
+import { OverlaySignInCTA } from '@/components/auth/OverlaySignInCTA';
 import { PanelToolbar } from '../playlist/PanelToolbar';
 import type { MusicProviderId } from '@/lib/music-provider/types';
 
@@ -26,6 +27,12 @@ interface EmptyPanelProps {
   onSplitVertical: () => void;
   /** Handler to switch provider */
   onProviderChange: (providerId: MusicProviderId) => void;
+  /** Whether provider interaction is blocked due to auth */
+  isInteractionBlocked?: boolean;
+  /** Guard provider for sign-in CTA */
+  guardProvider?: MusicProviderId;
+  /** Guard reason for sign-in CTA */
+  guardReason?: 'unauthenticated' | 'expired' | null;
 }
 
 export function EmptyPanel({
@@ -37,9 +44,15 @@ export function EmptyPanel({
   onSplitHorizontal,
   onSplitVertical,
   onProviderChange,
+  isInteractionBlocked = false,
+  guardProvider,
+  guardReason = null,
 }: EmptyPanelProps) {
   return (
-    <div className="flex flex-col h-full border border-border rounded-lg overflow-hidden bg-card">
+    <div className="relative flex flex-col h-full border border-border rounded-lg overflow-hidden bg-card">
+      {isInteractionBlocked && guardProvider && guardReason && (
+        <OverlaySignInCTA providerId={guardProvider} reason={guardReason} />
+      )}
       <PanelToolbar
         panelId={panelId}
         providerId={providerId}

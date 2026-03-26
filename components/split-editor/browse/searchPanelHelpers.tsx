@@ -164,7 +164,6 @@ export function SearchInputBar({
           hideWhenSingleConnected={false}
           triggerRole="combobox"
           triggerAriaLabel="Search provider"
-          showProviderLabelInPanelTrigger={true}
           onProviderChange={onProviderChange}
           data-testid="browse-provider-status-dropdown"
         />

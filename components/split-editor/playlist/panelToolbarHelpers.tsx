@@ -363,6 +363,7 @@ export function PanelToolbarContent({
     spotify: authSummary.spotify.code === 'ok' ? 'connected' : 'disconnected',
     tidal: authSummary.tidal.code === 'ok' ? 'connected' : 'disconnected',
   } satisfies Record<MusicProviderId, 'connected' | 'disconnected'>), [authSummary.spotify.code, authSummary.tidal.code]);
+  const isProviderConnected = statusMap[providerId] === 'connected';
 
   return (
     <div ref={toolbarRef} className="flex items-center gap-1 border-b border-border bg-card relative z-50">
@@ -384,6 +385,7 @@ export function PanelToolbarContent({
               selectedPlaylistId={playlistId}
               selectedPlaylistName={displayPlaylistName}
               onSelectPlaylist={onLoadPlaylist}
+              disabled={!isProviderConnected}
             />
           </div>
         </div>

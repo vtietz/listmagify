@@ -505,6 +505,9 @@ export function PlaylistPanel({
         onSplitHorizontal={state.handleSplitHorizontal}
         onSplitVertical={state.handleSplitVertical}
         onProviderChange={state.handleProviderChange}
+        isInteractionBlocked={isInteractionBlocked}
+        guardProvider={provider}
+        guardReason={reason}
       />
     );
   }
