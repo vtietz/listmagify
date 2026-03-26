@@ -2,7 +2,7 @@ import type * as React from 'react';
 import type { Track } from '@/lib/music-provider/types';
 import type { MusicProviderId, SearchFilterType } from '@/lib/music-provider/types';
 import { type MobileOverlay } from '../mobile/MobileBottomNav';
-import { useContextMenuStore } from '@/hooks/useContextMenuStore';
+import { useContextMenuStore } from '@features/split-editor/stores/useContextMenuStore';
 import {
   type ReorderActions,
   type MarkerActions,

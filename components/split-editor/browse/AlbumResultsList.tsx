@@ -4,7 +4,7 @@ import Image from 'next/image';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { Loader2, Disc3 } from 'lucide-react';
 import { apiFetch } from '@/lib/api/client';
-import { useBrowsePanelStore } from '@/hooks/useBrowsePanelStore';
+import { useBrowsePanelStore } from '@features/split-editor/browse/hooks/useBrowsePanelStore';
 import type { SearchAlbumResult, AlbumSearchResult, MusicProviderId } from '@/lib/music-provider/types';
 
 interface AlbumResultsListProps {

@@ -14,8 +14,8 @@
 
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useBrowsePanelStore, type BrowseTab } from '@/hooks/useBrowsePanelStore';
-import { useSplitGridStore } from '@/hooks/useSplitGridStore';
+import { useBrowsePanelStore, type BrowseTab } from '@features/split-editor/browse/hooks/useBrowsePanelStore';
+import { useSplitGridStore } from '@features/split-editor/stores/useSplitGridStore';
 import { parseSelectionKey } from '@/lib/dnd/selection';
 import { cn } from '@/lib/utils';
 import { SearchPanel } from './SearchPanel';

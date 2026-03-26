@@ -2,13 +2,13 @@
 
 import { useCallback } from 'react';
 
-import { useCompactModeStore } from '@/hooks/useCompactModeStore';
-import { useAutoScrollTextStore } from '@/hooks/useAutoScrollTextStore';
-import { useBrowsePanelStore } from '@/hooks/useBrowsePanelStore';
-import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
-import { useContextMenuStore } from '@/hooks/useContextMenuStore';
-import { useDeviceType } from '@/hooks/useDeviceType';
-import { useDndStateStore } from '@/hooks/dnd';
+import { useCompactModeStore } from '@features/split-editor/stores/useCompactModeStore';
+import { useAutoScrollTextStore } from '@features/split-editor/hooks/useAutoScrollTextStore';
+import { useBrowsePanelStore } from '@features/split-editor/browse/hooks/useBrowsePanelStore';
+import { useInsertionPointsStore } from '@features/split-editor/playlist/hooks/useInsertionPointsStore';
+import { useContextMenuStore } from '@features/split-editor/stores/useContextMenuStore';
+import { useDeviceType } from '@shared/hooks/useDeviceType';
+import { useDndStateStore } from '@features/dnd';
 import { useMobileOverlayStore } from '../mobile/MobileBottomNav';
 import { useDragHandle } from '../mobile/DragHandle';
 import { TrackRowInner } from './TrackRowInner';

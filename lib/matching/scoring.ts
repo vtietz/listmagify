@@ -1,5 +1,5 @@
 import type { Track } from '@/lib/music-provider/types';
-import type { TrackPayload } from '@/hooks/dnd/types';
+import type { TrackPayload } from '@features/dnd/model/types';
 import { DEFAULT_MATCH_THRESHOLDS } from './config';
 
 export interface ScoredCandidate {

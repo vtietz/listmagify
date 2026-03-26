@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { ChevronsUpDown, Heart } from 'lucide-react';
-import { isLikedSongsPlaylist } from '@/hooks/useLikedVirtualPlaylist';
+import { isLikedSongsPlaylist } from '@features/playlists/hooks/useLikedVirtualPlaylist';
 import type { Playlist } from '@/lib/music-provider/types';
 import type { MusicProviderId } from '@/lib/music-provider/types';
 

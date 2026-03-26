@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Key, Eye, EyeOff, ExternalLink, AlertTriangle, Trash2, Copy, Check } from 'lucide-react';
-import { useByokDialogController } from '@/hooks/dialogs/useByokDialogController';
+import { useByokDialogController } from '@features/auth/hooks/useByokDialogController';
 import type { ReactNode } from 'react';
 
 interface ByokDialogProps {

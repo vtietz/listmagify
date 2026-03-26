@@ -3,7 +3,7 @@
  */
 
 import { Circle, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
-import type { MatchStatus } from '@/hooks/useLastfmMatchCache';
+import type { MatchStatus } from '@features/split-editor/browse/hooks/useLastfmMatchCache';
 
 interface MatchStatusIndicatorProps {
   status: MatchStatus;

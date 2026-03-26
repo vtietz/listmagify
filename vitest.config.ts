@@ -11,8 +11,15 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     testTimeout: 15000,
-    include: ['tests/unit/**/*.{test,spec}.{ts,tsx}'],
-    exclude: ['tests/e2e/**'],
+    include: [
+      'tests/unit/**/*.{test,spec}.{ts,tsx}',
+      'features/**/*.{test,spec}.{ts,tsx}',
+      'shared/**/*.{test,spec}.{ts,tsx}',
+      'widgets/**/*.{test,spec}.{ts,tsx}',
+      'lib/**/*.{test,spec}.{ts,tsx}',
+      'components/**/*.{test,spec}.{ts,tsx}',
+    ],
+    exclude: ['tests/e2e/**', 'node_modules/**', '.next/**'],
     setupFiles: ['tests/setup/vitest.setup.ts'],
   },
   esbuild: {
@@ -21,6 +28,9 @@ export default defineConfig({
   },
   resolve: {
     alias: [
+      { find: /^@features\//, replacement: `${root}features/` },
+      { find: /^@shared\//, replacement: `${root}shared/` },
+      { find: /^@widgets\//, replacement: `${root}widgets/` },
       // Support both "@/..." and "@" prefix forms
       { find: /^@\//, replacement: root },
       { find: '@', replacement: root },

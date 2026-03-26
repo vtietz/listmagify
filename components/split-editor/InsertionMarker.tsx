@@ -7,8 +7,8 @@
 'use client';
 
 import { Plus, X } from 'lucide-react';
-import { useCompactModeStore } from '@/hooks/useCompactModeStore';
-import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
+import { useCompactModeStore } from '@features/split-editor/stores/useCompactModeStore';
+import { useInsertionPointsStore } from '@features/split-editor/playlist/hooks/useInsertionPointsStore';
 import { cn } from '@/lib/utils';
 
 interface InsertionMarkerProps {

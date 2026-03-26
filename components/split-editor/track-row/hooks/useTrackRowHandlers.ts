@@ -1,10 +1,10 @@
 import { useCallback } from 'react';
 import type * as React from 'react';
-import { useLongPress } from '@/hooks/useLongPress';
+import { useLongPress } from '@shared/hooks/useLongPress';
 import type { MarkerActions, PendingActions, ReorderActions, TrackActions } from '../../TrackContextMenu';
 import type { Track, MusicProviderId, SearchFilterType } from '@/lib/music-provider/types';
 import type { MobileOverlay } from '../../mobile/MobileBottomNav';
-import { useContextMenuStore } from '@/hooks/useContextMenuStore';
+import { useContextMenuStore } from '@features/split-editor/stores/useContextMenuStore';
 
 interface UseTrackRowHandlersInput {
   track: Track;

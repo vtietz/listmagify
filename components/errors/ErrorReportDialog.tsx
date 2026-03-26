@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useErrorStore } from "@/lib/errors/store";
 import type { AppError } from "@/lib/errors/types";
-import { useErrorReportForm } from "@/hooks/dialogs/useErrorReportForm";
+import { useErrorReportForm } from "@shared/hooks/useErrorReportForm";
 import { AlertTriangle, CheckCircle, ClipboardCopy, Clock, Loader2, Send, X } from "lucide-react";
 
 /**

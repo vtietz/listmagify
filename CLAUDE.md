@@ -32,8 +32,22 @@ All development runs inside Docker. Never run `pnpm`, `node`, or `npm` directly 
 ### Tech Stack
 Next.js 16 (App Router), React 19, TypeScript (strict), TanStack Query + Virtual, Zustand, dnd-kit, NextAuth.js, Tailwind CSS + shadcn/ui, Vitest + Playwright.
 
-### Path Alias
-`@/*` maps to the project root (e.g., `@/lib/utils` → `./lib/utils`).
+### Path Aliases
+- `@/*` maps to the project root (e.g., `@/lib/utils` → `./lib/utils`)
+- `@features/*` maps to `./features/*` (e.g., `@features/dnd`)
+- `@shared/*` maps to `./shared/*` (e.g., `@shared/hooks/useDeviceType`)
+- `@widgets/*` maps to `./widgets/*` (e.g., `@widgets/shell`)
+
+### Feature-Sliced Architecture
+
+Code is organized into layers with enforced import boundaries (see `docs/code-organization.md`):
+- `features/` — Feature modules: `dnd/`, `split-editor/`, `player/`, `auth/`, `playlists/`
+- `shared/` — Generic reusable hooks and UI (no domain knowledge)
+- `widgets/` — App-level compositions (shell, layout)
+- `lib/` — Domain services, providers, repositories, API clients
+- `components/` — UI components (being migrated into features)
+
+Import direction: `shared → features → widgets` (each layer imports from below, never above). Enforced by ESLint `no-restricted-imports` rules.
 
 ### Music Provider Abstraction (`lib/music-provider/`)
 
@@ -54,22 +68,24 @@ Multi-provider auth via NextAuth with per-provider tokens stored in JWT under `m
 - `lib/providers/authRegistry.ts` — Client-side per-provider auth state (uses `useSyncExternalStore`, not Zustand)
 - `app/api/_shared/guard.ts` — `requireAuth()` guard for route handlers
 
-### Split-Editor (core feature)
+### Split-Editor (`features/split-editor/`)
 
 Tree-based panel layout using immutable `SplitNode` (union of `PanelNode | GroupNode`):
-- `hooks/splitGrid/tree.ts` — Pure tree operations (split, remove, update, flatten)
-- `hooks/useSplitGridStore.ts` — Zustand store for layout state (persisted to localStorage)
+- `features/split-editor/model/tree.ts` — Pure tree operations (split, remove, update, flatten)
+- `features/split-editor/stores/useSplitGridStore.ts` — Zustand store for layout state (persisted to localStorage)
+- `features/split-editor/playlist/hooks/` — Panel hooks (data source, mutations, selection, sorting, duplicates)
+- `features/split-editor/browse/hooks/` — Browse panel hooks (search, lastfm, matching config)
 - `components/split-editor/` — Panel rendering, track lists, layout
 
 Each panel has its own `PanelConfig` with `providerId`, `playlistId`, selection, sort, search state.
 
 ### State Management
 
-- **Zustand stores** (`hooks/use*Store.ts`): Client-side UI state — split grid, player, compare mode, DnD, panel focus, compact mode, insertion points
+- **Zustand stores** (`features/*/stores/`): Client-side UI state — split grid, player, compare mode, DnD, panel focus, compact mode, insertion points
 - **TanStack Query**: Server state — playlists, tracks, search results
 - **Composable hooks**: `usePlaylistPanelState()` orchestrates 14+ smaller hooks for panel data, permissions, selection, filtering, mutations
 
-### Drag-and-Drop (`hooks/dnd/`)
+### Drag-and-Drop (`features/dnd/`)
 
 `useDndOrchestrator()` coordinates DnD with handlers in `handlers/dragStart.ts`, `dragOver.ts`, `dragEnd.ts`. Drop intent varies: move, copy, or reorder.
 

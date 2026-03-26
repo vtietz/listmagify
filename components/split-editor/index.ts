@@ -35,7 +35,7 @@ export {
   InsertionToggleButton, 
   ContributorAvatar,
 } from './TrackRowActions';
-export { TableHeader, TRACK_GRID_CLASSES, TRACK_GRID_CLASSES_NORMAL, TRACK_GRID_CLASSES_COMPACT, getTrackGridStyle } from './TableHeader';
+export { TableHeader, TRACK_GRID_CLASSES, TRACK_GRID_CLASSES_NORMAL, TRACK_GRID_CLASSES_COMPACT, getTrackGridStyle } from '@features/split-editor/playlist/ui/TableHeader';
 export { VirtualizedTrackListContainer } from './VirtualizedTrackListContainer';
 
 // Browse panel components
@@ -45,7 +45,7 @@ export { RecommendationsPanel } from './browse/RecommendationsPanel';
 export { LastfmBrowseTab, LASTFM_PANEL_ID } from './browse/LastfmBrowseTab';
 
 // Marker and indicator components
-export { DropIndicator } from './DropIndicator';
+export { DropIndicator } from '@features/dnd/ui/DropIndicator';
 export { InsertionMarkersOverlay, InsertionMarker } from './InsertionMarker';
 export { MatchStatusIndicator } from './browse/MatchStatusIndicator';
 

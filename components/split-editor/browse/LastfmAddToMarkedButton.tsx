@@ -11,13 +11,13 @@
 import { Plus, Loader2 } from 'lucide-react';
 import { useState, useCallback } from 'react';
 import { cn } from '@/lib/utils';
-import { useCompactModeStore } from '@/hooks/useCompactModeStore';
+import { useCompactModeStore } from '@features/split-editor/stores/useCompactModeStore';
 import {
   useInsertionPointsStore,
   computeInsertionPositions,
   type InsertionPoint,
-} from '@/hooks/useInsertionPointsStore';
-import { useLastfmMatch, type CachedMatch } from '@/hooks/useLastfmMatchCache';
+} from '@features/split-editor/playlist/hooks/useInsertionPointsStore';
+import { useLastfmMatch, type CachedMatch } from '@features/split-editor/browse/hooks/useLastfmMatchCache';
 import { useAddTracks } from '@/lib/spotify/playlistMutations';
 import { toast } from '@/lib/ui/toast';
 import type { ImportedTrackDTO } from '@/lib/importers/types';

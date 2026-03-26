@@ -4,7 +4,7 @@ import * as React from 'react';
 import { createPortal } from 'react-dom';
 
 import { cn } from '@/lib/utils';
-import { useDeviceType } from '@/hooks/useDeviceType';
+import { useDeviceType } from '@shared/hooks/useDeviceType';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 
 import type { TrackContextMenuProps } from './types';

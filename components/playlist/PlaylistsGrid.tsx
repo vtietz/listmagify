@@ -6,10 +6,10 @@ import type { MusicProviderId } from '@/lib/music-provider/types';
 import { PlaylistCard } from "@/components/playlist/PlaylistCard";
 import { PlaylistListItem } from "@/components/playlist/PlaylistListItem";
 import { apiFetch, ApiError } from "@/lib/api/client";
-import { useAutoLoadPaginated } from "@/hooks/useAutoLoadPaginated";
-import { getLikedPlaylistMetadata } from "@/hooks/useLikedVirtualPlaylist";
-import { useLikedSongsTotal } from "@/hooks/useSavedTracksIndex";
-import { useCompactModeStore } from "@/hooks/useCompactModeStore";
+import { useAutoLoadPaginated } from "@shared/hooks/useAutoLoadPaginated";
+import { getLikedPlaylistMetadata } from "@features/playlists/hooks/useLikedVirtualPlaylist";
+import { useLikedSongsTotal } from "@features/playlists/hooks/useSavedTracksIndex";
+import { useCompactModeStore } from "@features/split-editor/stores/useCompactModeStore";
 import { matchesAllWords } from "@/lib/utils";
 
 export interface PlaylistsGridProps {

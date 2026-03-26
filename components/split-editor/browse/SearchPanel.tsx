@@ -4,14 +4,14 @@
 import { useEffect, useRef, useCallback, useMemo, useDeferredValue } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { useBrowsePanelStore } from '@/hooks/useBrowsePanelStore';
-import { useHydratedCompactMode } from '@/hooks/useCompactModeStore';
-import { useCompareModeStore, getTrackCompareColor } from '@/hooks/useCompareModeStore';
-import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
-import { useContextMenuStore } from '@/hooks/useContextMenuStore';
-import { useSavedTracksIndex } from '@/hooks/useSavedTracksIndex';
-import { useTrackPlayback } from '@/hooks/useTrackPlayback';
-import { usePlaylistSort } from '@/hooks/usePlaylistSort';
+import { useBrowsePanelStore } from '@features/split-editor/browse/hooks/useBrowsePanelStore';
+import { useHydratedCompactMode } from '@features/split-editor/stores/useCompactModeStore';
+import { useCompareModeStore, getTrackCompareColor } from '@features/split-editor/stores/useCompareModeStore';
+import { useInsertionPointsStore } from '@features/split-editor/playlist/hooks/useInsertionPointsStore';
+import { useContextMenuStore } from '@features/split-editor/stores/useContextMenuStore';
+import { useSavedTracksIndex } from '@features/playlists/hooks/useSavedTracksIndex';
+import { useTrackPlayback } from '@features/player/hooks/useTrackPlayback';
+import { usePlaylistSort } from '@features/split-editor/playlist/hooks/usePlaylistSort';
 import { apiFetch } from '@/lib/api/client';
 import {
   SearchInputBar,
@@ -22,14 +22,14 @@ import {
   useFocusWhenActive,
   useSearchSortState,
   useLoadNextSearchPageOnScroll,
-} from './searchPanelHelpers';
+} from '@features/split-editor/browse/ui/searchPanelHelpers';
 import { SearchFilterToggle } from './SearchFilterToggle';
 import { ArtistResultsList } from './ArtistResultsList';
 import { AlbumResultsList } from './AlbumResultsList';
 import { DrillDownTrackList } from './DrillDownTrackList';
 import { TRACK_ROW_HEIGHT, TRACK_ROW_HEIGHT_COMPACT, VIRTUALIZATION_OVERSCAN } from '../constants';
 import { makeCompositeId } from '@/lib/dnd/id';
-import type { TrackPayload } from '@/hooks/dnd/types';
+import type { TrackPayload } from '@features/dnd/model/types';
 import type { Track, MusicProviderId } from '@/lib/music-provider/types';
 
 export const SEARCH_PANEL_ID = 'search-panel';

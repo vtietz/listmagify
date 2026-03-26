@@ -8,7 +8,7 @@ import { Check, Heart } from 'lucide-react';
 import { apiFetch } from '@/lib/api/client';
 import { userPlaylistsByProvider } from '@/lib/api/queryKeys';
 import { cn, matchesAllWords } from '@/lib/utils';
-import { LIKED_SONGS_PLAYLIST_ID, getLikedPlaylistMetadata, isLikedSongsPlaylist } from '@/hooks/useLikedVirtualPlaylist';
+import { LIKED_SONGS_PLAYLIST_ID, getLikedPlaylistMetadata, isLikedSongsPlaylist } from '@features/playlists/hooks/useLikedVirtualPlaylist';
 import type { Playlist } from '@/lib/music-provider/types';
 import type { MusicProviderId } from '@/lib/music-provider/types';
 

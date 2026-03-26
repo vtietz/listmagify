@@ -6,15 +6,15 @@ import { Heart, Pencil, Play } from "lucide-react";
 import type { Playlist  } from '@/lib/music-provider/types';
 import type { MusicProviderId } from '@/lib/music-provider/types';
 import { cn } from "@/lib/utils";
-import { isLikedSongsPlaylist } from "@/hooks/useLikedVirtualPlaylist";
-import { useCompactModeStore } from "@/hooks/useCompactModeStore";
-import { useSessionUser } from "@/hooks/useSessionUser";
-import { useSpotifyPlayer } from "@/hooks/useSpotifyPlayer";
-import { usePlayerStore } from "@/hooks/usePlayerStore";
+import { isLikedSongsPlaylist } from "@features/playlists/hooks/useLikedVirtualPlaylist";
+import { useCompactModeStore } from "@features/split-editor/stores/useCompactModeStore";
+import { useSessionUser } from "@features/auth/hooks/useSessionUser";
+import { useSpotifyPlayer } from "@features/player/hooks/useSpotifyPlayer";
+import { usePlayerStore } from "@features/player/hooks/usePlayerStore";
 import { Button } from "@/components/ui/button";
 import { PlaylistDialog } from "@/components/playlist/PlaylistDialog";
 import { useUpdatePlaylist } from "@/lib/spotify/playlistMutations";
-import { ArtworkImage } from "@/components/shared/ArtworkImage";
+import { ArtworkImage } from "@shared/ui/ArtworkImage";
 
 type PlaylistCardProps = {
   playlist: Playlist;

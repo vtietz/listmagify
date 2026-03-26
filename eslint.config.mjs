@@ -51,6 +51,47 @@ const eslintConfig = [
       'coverage/**',
     ],
   },
+
+  // ── Feature-sliced architecture boundary enforcement ──────────────────
+  // Uses file-scoped no-restricted-imports blocks so each layer's
+  // constraints are isolated and don't conflict with each other.
+
+  // shared/ cannot import from features/ or widgets/
+  {
+    files: ['shared/**/*.ts', 'shared/**/*.tsx'],
+    rules: {
+      'no-restricted-imports': ['error', {
+        patterns: [
+          { group: ['@/features/*', '../features/*', '*/features/*'], message: 'shared/ cannot import from features/' },
+          { group: ['@/widgets/*', '../widgets/*', '*/widgets/*'], message: 'shared/ cannot import from widgets/' },
+        ],
+      }],
+    },
+  },
+
+  // features/ should not import from widgets/
+  {
+    files: ['features/**/*.ts', 'features/**/*.tsx'],
+    rules: {
+      'no-restricted-imports': ['warn', {
+        patterns: [
+          { group: ['@/widgets/*', '../widgets/*', '*/widgets/*'], message: 'features/ should not import from widgets/' },
+        ],
+      }],
+    },
+  },
+
+  // Discourage importing from the legacy hooks/ root — prefer feature-sliced paths
+  {
+    files: ['**/*.ts', '**/*.tsx'],
+    rules: {
+      'no-restricted-imports': ['warn', {
+        patterns: [
+          { group: ['@/hooks/*'], message: 'Use @/features/*, @/shared/*, or @/widgets/* instead of @/hooks/*' },
+        ],
+      }],
+    },
+  },
 ];
 
 export default eslintConfig;

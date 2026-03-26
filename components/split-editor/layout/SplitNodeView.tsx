@@ -1,13 +1,13 @@
 'use client';
 
-import type { SplitNode } from '@/hooks/useSplitGridStore';
+import type { SplitNode } from '@features/split-editor/stores/useSplitGridStore';
 import { PlaylistPanel } from '../playlist/PlaylistPanel';
 import { ProviderPanelGuard } from '@/components/auth/ProviderPanelGuard';
 import type { Track } from '@/lib/music-provider/types';
 import type { Virtualizer } from '@tanstack/react-virtual';
 import type { Layout } from 'react-resizable-panels';
-import { useDeviceType } from '@/hooks/useDeviceType';
-import { usePanelFocusStore, getFocusedPanelSize, getUnfocusedPanelSize } from '@/hooks/usePanelFocusStore';
+import { useDeviceType } from '@shared/hooks/useDeviceType';
+import { usePanelFocusStore, getFocusedPanelSize, getUnfocusedPanelSize } from '@features/split-editor/browse/hooks/usePanelFocusStore';
 import { Panel, Group as PanelGroup, Separator as PanelResizeHandle, useDefaultLayout } from 'react-resizable-panels';
 import { cn } from '@/lib/utils';
 import { Fragment } from 'react';

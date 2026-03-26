@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { getTrackGridStyle } from '../../TableHeader';
+import { getTrackGridStyle } from '@features/split-editor/playlist/ui/TableHeader';
 import type { Track, MusicProviderId } from '@/lib/music-provider/types';
 
 interface UseTrackRowComputedInput {

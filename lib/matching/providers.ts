@@ -1,6 +1,6 @@
 import { apiFetch } from '@/lib/api/client';
 import type { MusicProviderId, Track } from '@/lib/music-provider/types';
-import type { TrackPayload } from '@/hooks/dnd/types';
+import type { TrackPayload } from '@features/dnd/model/types';
 import { pickTopCandidates } from './scoring';
 
 export interface MatchCandidate {

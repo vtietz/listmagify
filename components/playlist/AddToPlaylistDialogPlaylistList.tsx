@@ -5,7 +5,7 @@ import { Separator } from '@/components/ui/separator';
 import { PlayingIndicator } from '@/components/ui/playing-indicator';
 import { cn } from '@/lib/utils';
 import type { Playlist } from '@/lib/music-provider/types';
-import { ArtworkImage } from '@/components/shared/ArtworkImage';
+import { ArtworkImage } from '@shared/ui/ArtworkImage';
 
 type PlaylistListItem = Playlist | { kind: 'separator' };
 

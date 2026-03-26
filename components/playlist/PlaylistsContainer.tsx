@@ -7,9 +7,9 @@ import type { MusicProviderId } from '@/lib/music-provider/types';
 import { PlaylistsToolbar } from "@/components/playlist/PlaylistsToolbar";
 import { PlaylistsGrid } from "@/components/playlist/PlaylistsGrid";
 import { InlineSignInCard } from '@/components/auth/InlineSignInCard';
-import { useProviderAuth } from '@/hooks/auth/useAuth';
-import { useAuthSummary } from '@/hooks/auth/useAuth';
-import { useEnsureValidToken } from '@/hooks/auth/useEnsureValidToken';
+import { useProviderAuth } from '@features/auth/hooks/useAuth';
+import { useAuthSummary } from '@features/auth/hooks/useAuth';
+import { useEnsureValidToken } from '@features/auth/hooks/useEnsureValidToken';
 
 function parseProviderFromQuery(value: string | null | undefined): MusicProviderId {
   if (value === 'spotify' || value === 'tidal') {

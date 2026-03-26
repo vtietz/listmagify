@@ -22,10 +22,10 @@ import {
   useInsertionPointsStore,
   computeInsertionPositions,
   type InsertionPoint,
-} from '@/hooks/useInsertionPointsStore';
-import { useSplitGridStore } from '@/hooks/useSplitGridStore';
-import { usePendingActions } from '@/hooks/pending/usePendingActions';
-import type { TrackPayload } from '@/hooks/dnd/types';
+} from '@features/split-editor/playlist/hooks/useInsertionPointsStore';
+import { useSplitGridStore } from '@features/split-editor/stores/useSplitGridStore';
+import { usePendingActions } from '@features/split-editor/hooks/usePendingActions';
+import type { TrackPayload } from '@features/dnd/model/types';
 import type { MusicProviderId } from '@/lib/music-provider/types';
 import { useAddTracks } from '@/lib/spotify/playlistMutations';
 import { isPlaylistIdCompatibleWithProvider } from '@/lib/providers/playlistIdCompat';

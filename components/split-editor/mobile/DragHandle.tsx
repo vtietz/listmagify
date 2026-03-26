@@ -14,7 +14,7 @@ import * as React from 'react';
 import { useCallback } from 'react';
 import { GripVertical } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useDeviceType } from '@/hooks/useDeviceType';
+import { useDeviceType } from '@shared/hooks/useDeviceType';
 import type { SyntheticListenerMap } from '@dnd-kit/core/dist/hooks/utilities';
 
 interface DragHandleProps {

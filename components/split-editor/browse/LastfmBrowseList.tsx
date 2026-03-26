@@ -11,14 +11,14 @@ import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { Loader2, Radio } from 'lucide-react';
 import { TrackRow } from '../TrackRow';
 import { TrackContextMenu } from '../TrackContextMenu';
-import { TableHeader } from '../TableHeader';
+import { TableHeader } from '@features/split-editor/playlist/ui/TableHeader';
 import { LastfmAddToMarkedButton } from './LastfmAddToMarkedButton';
 import { MatchStatusIndicator } from './MatchStatusIndicator';
 import { TRACK_ROW_HEIGHT, TRACK_ROW_HEIGHT_COMPACT, VIRTUALIZATION_OVERSCAN } from '../constants';
 import { makeCompositeId } from '@/lib/dnd/id';
-import { makeMatchKeyFromDTO } from '@/hooks/useLastfmMatchCache';
+import { makeMatchKeyFromDTO } from '@features/split-editor/browse/hooks/useLastfmMatchCache';
 import { LASTFM_PANEL_ID } from './LastfmBrowseTab';
-import type { LastfmTrack, IndexedTrackDTO } from '@/hooks/useLastfmTracks';
+import type { LastfmTrack, IndexedTrackDTO } from '@features/split-editor/browse/hooks/useLastfmTracks';
 import type { Track } from '@/lib/music-provider/types';
 
 interface LastfmBrowseListProps {

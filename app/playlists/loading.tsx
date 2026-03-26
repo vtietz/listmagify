@@ -1,7 +1,7 @@
 "use client";
 
 import { Skeleton } from "@/components/ui/skeleton";
-import { useCompactModeStore } from "@/hooks/useCompactModeStore";
+import { useCompactModeStore } from "@features/split-editor/stores/useCompactModeStore";
 
 export default function PlaylistsLoading() {
   const { isCompact } = useCompactModeStore();

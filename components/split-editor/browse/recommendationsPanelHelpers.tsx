@@ -3,9 +3,9 @@
 import { useMemo, useCallback, useState, useRef, useEffect } from 'react';
 import type React from 'react';
 import { Sparkles, Loader2, ChevronDown, Search } from 'lucide-react';
-import { useDismissRecommendation } from '@/hooks/useRecommendations';
-import { useSavedTracksIndex } from '@/hooks/useSavedTracksIndex';
-import { useContextMenuStore } from '@/hooks/useContextMenuStore';
+import { useDismissRecommendation } from '@features/playlists/hooks/useRecommendations';
+import { useSavedTracksIndex } from '@features/playlists/hooks/useSavedTracksIndex';
+import { useContextMenuStore } from '@features/split-editor/stores/useContextMenuStore';
 import { EmptyStateCollapsed, EmptyStateExpanded, CollapsedPanel } from './RecommendationsPanelStates';
 import { TrackContextMenu } from '../TrackContextMenu';
 import { TRACK_ROW_HEIGHT, TRACK_ROW_HEIGHT_COMPACT } from '../constants';

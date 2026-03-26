@@ -16,16 +16,16 @@
 import { useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { DndContext } from '@dnd-kit/core';
-import { useSplitGridStore } from '@/hooks/useSplitGridStore';
-import type { PanelConfig } from '@/hooks/useSplitGridStore';
-import { useBrowsePanelStore } from '@/hooks/useBrowsePanelStore';
-import { useDndOrchestrator } from '@/hooks/useDndOrchestrator';
-import { useSplitUrlSync } from '@/hooks/useSplitUrlSync';
-import { useSessionUser } from '@/hooks/useSessionUser';
-import { useDeviceType, getOrientationClasses } from '@/hooks/useDeviceType';
-import { usePanelFocusStore } from '@/hooks/usePanelFocusStore';
-import { usePlayerStore } from '@/hooks/usePlayerStore';
-import { useSmallViewportHeight } from '@/hooks/useSmallViewportHeight';
+import { useSplitGridStore } from '@features/split-editor/stores/useSplitGridStore';
+import type { PanelConfig } from '@features/split-editor/stores/useSplitGridStore';
+import { useBrowsePanelStore } from '@features/split-editor/browse/hooks/useBrowsePanelStore';
+import { useDndOrchestrator } from '@features/dnd/useDndOrchestrator';
+import { useSplitUrlSync } from '@features/split-editor/hooks/useSplitUrlSync';
+import { useSessionUser } from '@features/auth/hooks/useSessionUser';
+import { useDeviceType, getOrientationClasses } from '@shared/hooks/useDeviceType';
+import { usePanelFocusStore } from '@features/split-editor/browse/hooks/usePanelFocusStore';
+import { usePlayerStore } from '@features/player/hooks/usePlayerStore';
+import { useSmallViewportHeight } from '@shared/hooks/useSmallViewportHeight';
 import { SplitNodeView } from './SplitNodeView';
 import { BrowsePanel } from '../browse/BrowsePanel';
 import { SearchPanel } from '../browse/SearchPanel';
@@ -33,7 +33,8 @@ import { RecommendationsPanel } from '../browse/RecommendationsPanel';
 import { useMobileOverlayStore, MobileBottomNav } from '../mobile/MobileBottomNav';
 import type { MobileOverlay } from '../mobile/MobileBottomNav';
 import { DndDragOverlay } from '../DndDragOverlay';
-import { SpotifyPlayer, MiniPlayer } from '@/components/player';
+import { SpotifyPlayer } from '@features/player/ui/SpotifyPlayer';
+import { MiniPlayer } from '@features/player/ui/MiniPlayer';
 import { cn, isPerPanelInlineLoginEnabled } from '@/lib/utils';
 import {
   LoadingState,
@@ -112,7 +113,7 @@ function renderMobileOverlaySection({
   activeOverlay: MobileOverlay;
   hasPanel2: boolean;
   panels: PanelConfig[];
-  root: import('@/hooks/useSplitGridStore').SplitNode;
+  root: import('@features/split-editor/stores/useSplitGridStore').SplitNode;
   registerVirtualizer: ReturnType<typeof useDndOrchestrator>['registerVirtualizer'];
   unregisterVirtualizer: ReturnType<typeof useDndOrchestrator>['unregisterVirtualizer'];
 }) {
@@ -208,7 +209,7 @@ function SplitGridContent({
   orientation: string;
   isPhone: boolean;
   showMobileOverlay: boolean;
-  root: import('@/hooks/useSplitGridStore').SplitNode;
+  root: import('@features/split-editor/stores/useSplitGridStore').SplitNode;
   registerVirtualizer: ReturnType<typeof useDndOrchestrator>['registerVirtualizer'];
   unregisterVirtualizer: ReturnType<typeof useDndOrchestrator>['unregisterVirtualizer'];
   isBrowsePanelOpen: boolean;
@@ -347,7 +348,7 @@ function MobileOverlayContent({
   activeOverlay: MobileOverlay;
   hasPanel2: boolean;
   panels: PanelConfig[];
-  root: import('@/hooks/useSplitGridStore').SplitNode;
+  root: import('@features/split-editor/stores/useSplitGridStore').SplitNode;
   registerVirtualizer: Parameters<typeof SplitNodeView>[0]['onRegisterVirtualizer'];
   unregisterVirtualizer: Parameters<typeof SplitNodeView>[0]['onUnregisterVirtualizer'];
 }) {

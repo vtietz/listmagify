@@ -2,7 +2,7 @@
 
 import { signIn } from "next-auth/react";
 import { useState } from "react";
-import { useByokCredentials } from "@/hooks/useByokCredentials";
+import { useByokCredentials } from "@features/auth/hooks/useByokCredentials";
 import { cn } from '@/lib/utils';
 import type { MusicProviderId } from '@/lib/music-provider/types';
 

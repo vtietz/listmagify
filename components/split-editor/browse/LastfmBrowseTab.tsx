@@ -15,16 +15,16 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { useBrowsePanelStore } from '@/hooks/useBrowsePanelStore';
-import { useHydratedCompactMode } from '@/hooks/useCompactModeStore';
-import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
-import { useContextMenuStore } from '@/hooks/useContextMenuStore';
-import { useLastfmMatch, makeMatchKeyFromDTO } from '@/hooks/useLastfmMatchCache';
-import { lastfmToTrack, type IndexedTrackDTO } from '@/hooks/useLastfmTracks';
-import { useSavedTracksIndex } from '@/hooks/useSavedTracksIndex';
-import { useTrackPlayback } from '@/hooks/useTrackPlayback';
-import { useCompareModeStore, getTrackCompareColor } from '@/hooks/useCompareModeStore';
-import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { useBrowsePanelStore } from '@features/split-editor/browse/hooks/useBrowsePanelStore';
+import { useHydratedCompactMode } from '@features/split-editor/stores/useCompactModeStore';
+import { useInsertionPointsStore } from '@features/split-editor/playlist/hooks/useInsertionPointsStore';
+import { useContextMenuStore } from '@features/split-editor/stores/useContextMenuStore';
+import { useLastfmMatch, makeMatchKeyFromDTO } from '@features/split-editor/browse/hooks/useLastfmMatchCache';
+import { lastfmToTrack, type IndexedTrackDTO } from '@features/split-editor/browse/hooks/useLastfmTracks';
+import { useSavedTracksIndex } from '@features/playlists/hooks/useSavedTracksIndex';
+import { useTrackPlayback } from '@features/player/hooks/useTrackPlayback';
+import { useCompareModeStore, getTrackCompareColor } from '@features/split-editor/stores/useCompareModeStore';
+import { useDebouncedValue } from '@shared/hooks/useDebouncedValue';
 import { apiFetch } from '@/lib/api/client';
 import { makeCompositeId } from '@/lib/dnd/id';
 import { toast } from '@/lib/ui/toast';

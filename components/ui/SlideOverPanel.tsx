@@ -8,8 +8,8 @@
 import * as React from 'react';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useDeviceType } from '@/hooks/useDeviceType';
-import { useSlideOverController } from '@/hooks/ui/useSlideOverController';
+import { useDeviceType } from '@shared/hooks/useDeviceType';
+import { useSlideOverController } from '@shared/hooks/useSlideOverController';
 
 interface SlideOverPanelProps {
   /** Whether the panel is open */

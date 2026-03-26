@@ -8,7 +8,7 @@
 import * as React from 'react';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useBottomSheetController } from '@/hooks/ui/useBottomSheetController';
+import { useBottomSheetController } from '@shared/hooks/useBottomSheetController';
 
 interface BottomSheetProps {
   /** Whether the bottom sheet is open */

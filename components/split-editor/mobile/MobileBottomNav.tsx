@@ -18,8 +18,8 @@ import {
   LayoutPanelTop,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useDeviceType } from '@/hooks/useDeviceType';
-import type { PanelConfig } from '@/hooks/useSplitGridStore';
+import { useDeviceType } from '@shared/hooks/useDeviceType';
+import type { PanelConfig } from '@features/split-editor/stores/useSplitGridStore';
 
 export type MobileOverlay = 'none' | 'panel2' | 'search' | 'lastfm' | 'recs' | 'player';
 

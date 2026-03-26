@@ -1,0 +1,184 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
+import { ProviderPanelGuard, useProviderPanelGuardState } from '@/components/auth/ProviderPanelGuard';
+import { AnyAuthGuard } from '@/components/auth/AnyAuthGuard';
+import { useProviderAuth, useAuthRegistryHydrated, useAuthSummary } from '@features/auth/hooks/useAuth';
+import { useEnsureValidToken } from '@features/auth/hooks/useEnsureValidToken';
+import { isPerPanelInlineLoginEnabled } from '@/lib/utils';
+
+vi.mock('next/navigation', () => ({
+  usePathname: () => '/split-editor',
+  useSearchParams: () => new URLSearchParams('provider=spotify'),
+}));
+
+vi.mock('@/components/auth/SignInButton', () => ({
+  SignInButton: ({ label }: { label?: string }) => <button>{label ?? 'Sign in'}</button>,
+}));
+
+vi.mock('@features/auth/hooks/useAuth', () => ({
+  useProviderAuth: vi.fn(),
+  useAuthSummary: vi.fn(),
+  useAuthRegistryHydrated: vi.fn(),
+}));
+
+vi.mock('@features/auth/hooks/useEnsureValidToken', () => ({
+  useEnsureValidToken: vi.fn(),
+}));
+
+vi.mock('@/lib/utils', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/utils')>('@/lib/utils');
+  return {
+    ...actual,
+    isPerPanelInlineLoginEnabled: vi.fn(),
+  };
+});
+
+describe('Auth guards', () => {
+  function GuardStateProbe() {
+    const state = useProviderPanelGuardState();
+
+    return (
+      <div
+        data-testid="guard-state"
+        data-provider={state.provider}
+        data-overlay-active={state.isOverlayActive ? 'true' : 'false'}
+        data-reason={state.reason ?? 'none'}
+      />
+    );
+  }
+
+  beforeEach(() => {
+    vi.mocked(isPerPanelInlineLoginEnabled).mockReturnValue(true);
+    vi.mocked(useEnsureValidToken).mockReturnValue({ ensuring: false });
+    vi.mocked(useProviderAuth).mockReturnValue({
+      provider: 'spotify',
+      code: 'ok',
+      canAttemptRefresh: true,
+      updatedAt: 1,
+    });
+    vi.mocked(useAuthRegistryHydrated).mockReturnValue(true);
+    vi.mocked(useAuthSummary).mockReturnValue({
+      spotify: {
+        provider: 'spotify',
+        code: 'ok',
+        canAttemptRefresh: true,
+        updatedAt: 1,
+      },
+      tidal: {
+        provider: 'tidal',
+        code: 'unauthenticated',
+        canAttemptRefresh: false,
+        updatedAt: 1,
+      },
+      anyAuthenticated: true,
+    });
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ availableProviders: ['spotify', 'tidal'] }),
+    }));
+  });
+
+  it('ProviderPanelGuard renders children when provider auth is ok', () => {
+    render(
+      <ProviderPanelGuard provider="spotify">
+        <div>panel-content</div>
+      </ProviderPanelGuard>,
+    );
+
+    expect(screen.getByText('panel-content')).toBeInTheDocument();
+  });
+
+  it('ProviderPanelGuard uses full-height wrapper by default', () => {
+    render(
+      <ProviderPanelGuard provider="spotify">
+        <div>panel-content</div>
+      </ProviderPanelGuard>,
+    );
+
+    const panelContent = screen.getByText('panel-content');
+    const innerWrapper = panelContent.parentElement;
+    const outerWrapper = innerWrapper?.parentElement;
+
+    expect(innerWrapper).not.toBeNull();
+    expect(outerWrapper).not.toBeNull();
+    expect(innerWrapper).toHaveClass('h-full');
+    expect(innerWrapper).toHaveClass('w-full');
+    expect(outerWrapper).toHaveClass('relative');
+    expect(outerWrapper).toHaveClass('h-full');
+    expect(outerWrapper).toHaveClass('w-full');
+  });
+
+  it('ProviderPanelGuard supports non-full-height wrapper when fillHeight is false', () => {
+    render(
+      <ProviderPanelGuard provider="spotify" fillHeight={false}>
+        <div>panel-content</div>
+      </ProviderPanelGuard>,
+    );
+
+    const panelContent = screen.getByText('panel-content');
+    const innerWrapper = panelContent.parentElement;
+    const outerWrapper = innerWrapper?.parentElement;
+
+    expect(innerWrapper).not.toBeNull();
+    expect(outerWrapper).not.toBeNull();
+    expect(innerWrapper).toHaveClass('w-full');
+    expect(innerWrapper).not.toHaveClass('h-full');
+    expect(outerWrapper).toHaveClass('relative');
+    expect(outerWrapper).toHaveClass('w-full');
+    expect(outerWrapper).not.toHaveClass('h-full');
+  });
+
+  it('ProviderPanelGuard exposes active overlay guard state for expired provider while keeping panel content mounted', () => {
+    vi.mocked(useProviderAuth).mockReturnValue({
+      provider: 'spotify',
+      code: 'expired',
+      canAttemptRefresh: true,
+      updatedAt: 2,
+    });
+
+    render(
+      <ProviderPanelGuard provider="spotify">
+        <div>panel-content</div>
+        <GuardStateProbe />
+      </ProviderPanelGuard>,
+    );
+
+    const guardState = screen.getByTestId('guard-state');
+    expect(guardState).toHaveAttribute('data-provider', 'spotify');
+    expect(guardState).toHaveAttribute('data-overlay-active', 'true');
+    expect(guardState).toHaveAttribute('data-reason', 'expired');
+    const panelContent = screen.getByText('panel-content');
+    expect(panelContent).toBeInTheDocument();
+    expect(panelContent.closest('[aria-hidden="true"]')).toBeNull();
+  });
+
+  it('AnyAuthGuard renders global fallback when no provider is authenticated', async () => {
+    vi.mocked(useAuthSummary).mockReturnValue({
+      spotify: {
+        provider: 'spotify',
+        code: 'unauthenticated',
+        canAttemptRefresh: false,
+        updatedAt: 1,
+      },
+      tidal: {
+        provider: 'tidal',
+        code: 'unauthenticated',
+        canAttemptRefresh: false,
+        updatedAt: 1,
+      },
+      anyAuthenticated: false,
+    });
+
+    render(
+      <AnyAuthGuard>
+        <div>app-content</div>
+      </AnyAuthGuard>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Session expired')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('app-content')).not.toBeInTheDocument();
+  });
+});

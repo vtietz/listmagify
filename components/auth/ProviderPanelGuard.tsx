@@ -1,8 +1,8 @@
 'use client';
 
 import { createContext, type PropsWithChildren, useContext, useMemo } from 'react';
-import { useProviderAuth } from '@/hooks/auth/useAuth';
-import { useEnsureValidToken } from '@/hooks/auth/useEnsureValidToken';
+import { useProviderAuth } from '@features/auth/hooks/useAuth';
+import { useEnsureValidToken } from '@features/auth/hooks/useEnsureValidToken';
 import type { ProviderId } from '@/lib/providers/types';
 import { isPerPanelInlineLoginEnabled } from '@/lib/utils';
 

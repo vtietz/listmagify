@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils';
-import { TRACK_GRID_CLASSES, TRACK_GRID_CLASSES_COMPACT, TRACK_GRID_CLASSES_NORMAL } from '../TableHeader';
+import { TRACK_GRID_CLASSES, TRACK_GRID_CLASSES_COMPACT, TRACK_GRID_CLASSES_NORMAL } from '@features/split-editor/playlist/ui/TableHeader';
 
 interface BuildRowClassNamesInput {
   compareColor: string | undefined;

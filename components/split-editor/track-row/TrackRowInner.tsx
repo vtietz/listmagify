@@ -3,8 +3,8 @@
 import React, { memo } from 'react';
 import type { DraggableAttributes } from '@dnd-kit/core';
 import type { SyntheticListenerMap } from '@dnd-kit/core/dist/hooks/utilities';
-import { useInsertionMarkerToggle } from '@/hooks/useInsertionMarkerToggle';
-import { useRowSortable } from '@/hooks/useRowSortable';
+import { useInsertionMarkerToggle } from '@features/split-editor/playlist/hooks/useInsertionMarkerToggle';
+import { useRowSortable } from '@features/dnd/useRowSortable';
 import { buildRowClassNames } from './style';
 import { useTrackRowComputed } from './hooks/useTrackRowComputed';
 import { useContextMenuActions } from './hooks/useContextMenuActions';

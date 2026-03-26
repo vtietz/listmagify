@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, type PropsWithChildren } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { SignInButton } from '@/components/auth/SignInButton';
-import { useAuthRegistryHydrated, useAuthSummary } from '@/hooks/auth/useAuth';
+import { useAuthRegistryHydrated, useAuthSummary } from '@features/auth/hooks/useAuth';
 import { isPerPanelInlineLoginEnabled } from '@/lib/utils';
 import type { ProviderId } from '@/lib/providers/types';
 

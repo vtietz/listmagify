@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { CheckCircle, Loader2 } from 'lucide-react';
 import { ByokDialog } from '@/components/landing/ByokDialog';
-import { useByokCredentials } from '@/hooks/useByokCredentials';
+import { useByokCredentials } from '@features/auth/hooks/useByokCredentials';
 
 /**
  * Button component for managing BYOK credentials.

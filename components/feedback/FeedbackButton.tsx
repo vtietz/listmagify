@@ -2,7 +2,7 @@
 
 import { MessageSquarePlus } from 'lucide-react';
 import { FeedbackDialog } from './FeedbackDialog';
-import { useDeviceType } from '@/hooks/useDeviceType';
+import { useDeviceType } from '@shared/hooks/useDeviceType';
 
 /**
  * Floating feedback button that appears in the bottom-right corner.

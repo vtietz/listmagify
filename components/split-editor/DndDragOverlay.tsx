@@ -14,7 +14,7 @@
 
 import { DragOverlay } from '@dnd-kit/core';
 import type { Track } from '@/lib/music-provider/types';
-import { useHydratedCompactMode } from '@/hooks/useCompactModeStore';
+import { useHydratedCompactMode } from '@features/split-editor/stores/useCompactModeStore';
 import { cn } from '@/lib/utils';
 import { formatDuration } from '@/lib/utils/format';
 import {
@@ -22,7 +22,7 @@ import {
   TRACK_GRID_CLASSES_COMPACT,
   TRACK_GRID_CLASSES_NORMAL,
   getTrackGridStyle,
-} from './TableHeader';
+} from '@features/split-editor/playlist/ui/TableHeader';
 
 interface DndDragOverlayProps {
   /** All tracks being dragged (up to 3 will be rendered) */

@@ -7,7 +7,7 @@ import { useState, useEffect, useCallback } from "react";
 import { PlaylistDialog } from "@/components/playlist/PlaylistDialog";
 import { useCreatePlaylist } from "@/lib/spotify/playlistMutations";
 import { ProviderStatusDropdown } from '@/components/auth/ProviderStatusDropdown';
-import { useAuthSummary } from '@/hooks/auth/useAuth';
+import { useAuthSummary } from '@features/auth/hooks/useAuth';
 import type { Playlist } from '@/lib/music-provider/types';
 import type { MusicProviderId } from '@/lib/music-provider/types';
 

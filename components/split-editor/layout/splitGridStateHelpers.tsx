@@ -4,8 +4,8 @@ import { useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { LogIn, Loader2 } from 'lucide-react';
 import { BrowsePanel } from '../browse/BrowsePanel';
-import type { PanelConfig, SplitNode } from '@/hooks/useSplitGridStore';
-import { TABLET_PERFORMANCE_WARNING_THRESHOLD } from '@/hooks/useDeviceType';
+import type { PanelConfig, SplitNode } from '@features/split-editor/stores/useSplitGridStore';
+import { TABLET_PERFORMANCE_WARNING_THRESHOLD } from '@shared/hooks/useDeviceType';
 import { SignInButton } from '@/components/auth/SignInButton';
 import { toast } from '@/lib/ui/toast';
 

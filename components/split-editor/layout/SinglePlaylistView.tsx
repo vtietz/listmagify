@@ -10,7 +10,7 @@
 
 import { useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { useSplitGridStore } from '@/hooks/useSplitGridStore';
+import { useSplitGridStore } from '@features/split-editor/stores/useSplitGridStore';
 import { SplitGrid } from './SplitGrid';
 
 interface SinglePlaylistViewProps {

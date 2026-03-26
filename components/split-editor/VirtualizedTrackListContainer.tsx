@@ -7,7 +7,7 @@
 
 import { useCallback, useMemo } from 'react';
 import type { VirtualItem } from '@tanstack/react-virtual';
-import { DropIndicator } from './DropIndicator';
+import { DropIndicator } from '@features/dnd/ui/DropIndicator';
 import { InsertionMarkersOverlay } from './InsertionMarker';
 import { TrackContextMenu, type ReorderActions, type TrackActions } from './TrackContextMenu';
 import type { MarkerActions } from './context-menu/types';
@@ -18,16 +18,16 @@ import {
   shouldRenderContextMenu,
   shouldRenderInsertionMarkers,
 } from './virtualizedTrackListRendering';
-import { useContextMenuStore } from '@/hooks/useContextMenuStore';
-import { useCompactModeStore } from '@/hooks/useCompactModeStore';
-import { useAutoScrollTextStore } from '@/hooks/useAutoScrollTextStore';
-import { useBrowsePanelStore } from '@/hooks/useBrowsePanelStore';
-import { useInsertionPointsStore } from '@/hooks/useInsertionPointsStore';
-import { useDeviceType } from '@/hooks/useDeviceType';
+import { useContextMenuStore } from '@features/split-editor/stores/useContextMenuStore';
+import { useCompactModeStore } from '@features/split-editor/stores/useCompactModeStore';
+import { useAutoScrollTextStore } from '@features/split-editor/hooks/useAutoScrollTextStore';
+import { useBrowsePanelStore } from '@features/split-editor/browse/hooks/useBrowsePanelStore';
+import { useInsertionPointsStore } from '@features/split-editor/playlist/hooks/useInsertionPointsStore';
+import { useDeviceType } from '@shared/hooks/useDeviceType';
 import { useMobileOverlayStore } from './mobile/MobileBottomNav';
-import { useDndStateStore } from '@/hooks/dnd/state';
-import { usePendingStateStore } from '@/hooks/pending/state';
-import { usePendingActions } from '@/hooks/pending/usePendingActions';
+import { useDndStateStore } from '@features/dnd/model/state';
+import { usePendingStateStore } from '@features/split-editor/hooks/state';
+import { usePendingActions } from '@features/split-editor/hooks/usePendingActions';
 import type { MatchCandidate } from '@/lib/matching/providers';
 import type { Track, MusicProviderId } from '@/lib/music-provider/types';
 

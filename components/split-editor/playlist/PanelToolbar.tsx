@@ -2,8 +2,8 @@
 
 import { useRef } from 'react';
 import { usePathname } from 'next/navigation';
-import { useDeviceType } from '@/hooks/useDeviceType';
-import { useAutoScrollPlayStore, useHydratedAutoScrollPlay } from '@/hooks/useAutoScrollPlayStore';
+import { useDeviceType } from '@shared/hooks/useDeviceType';
+import { useAutoScrollPlayStore, useHydratedAutoScrollPlay } from '@features/split-editor/hooks/useAutoScrollPlayStore';
 import {
   type PanelToolbarProps,
   type ResolvedPanelToolbarProps,
@@ -14,9 +14,9 @@ import {
   useUltraCompactHeader,
   PanelToolbarContent,
   resolvePanelToolbarProps,
-} from './panelToolbarHelpers';
+} from '@features/split-editor/playlist/ui/panelToolbarHelpers';
 
-export type { PanelToolbarProps } from './panelToolbarHelpers';
+export type { PanelToolbarProps } from '@features/split-editor/playlist/ui/panelToolbarHelpers';
 
 function PanelToolbarInner({
   panelId: _panelId,

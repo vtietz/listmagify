@@ -4,7 +4,7 @@ import { TrackRowInner } from './track-row';
 import type { PendingActions, ReorderActions, TrackActions } from './TrackContextMenu';
 import type { MarkerActions } from './context-menu/types';
 import type { TrackRowSharedContext } from './track-row/types';
-import { getPendingIdFromUri } from '@/hooks/pending/state';
+import { getPendingIdFromUri } from '@features/split-editor/hooks/state';
 import type { Track } from '@/lib/music-provider/types';
 import type { MatchCandidate } from '@/lib/matching/providers';
 

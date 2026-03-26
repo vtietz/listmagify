@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { useSplitGridStore } from '@/hooks/useSplitGridStore';
+import { useSplitGridStore } from '@features/split-editor/stores/useSplitGridStore';
 import Image from 'next/image';
 import { SignInButton } from '@/components/auth/SignInButton';
 import { AccessRequestDialog } from '@/components/landing/AccessRequestDialog';
@@ -23,8 +23,8 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useByokCredentials } from '@/hooks/useByokCredentials';
-import { useAuthSummary } from '@/hooks/auth/useAuth';
+import { useByokCredentials } from '@features/auth/hooks/useByokCredentials';
+import { useAuthSummary } from '@features/auth/hooks/useAuth';
 import { syncProviderAuthStatusWithRetry } from '@/lib/providers/syncProviderAuth';
 import type { MusicProviderId } from '@/lib/music-provider/types';
 import {

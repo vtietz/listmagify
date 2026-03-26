@@ -3,13 +3,13 @@
 import { useMemo, useCallback, useRef } from 'react';
 import type React from 'react';
 import { X } from 'lucide-react';
-import { useSeedRecommendations } from '@/hooks/useRecommendations';
-import { useSavedTracksIndex } from '@/hooks/useSavedTracksIndex';
-import { useTrackPlayback } from '@/hooks/useTrackPlayback';
-import { useHydratedCompactMode } from '@/hooks/useCompactModeStore';
-import { useDeviceType } from '@/hooks/useDeviceType';
-import { useCompareModeStore, getTrackCompareColor } from '@/hooks/useCompareModeStore';
-import { useContextMenuStore } from '@/hooks/useContextMenuStore';
+import { useSeedRecommendations } from '@features/playlists/hooks/useRecommendations';
+import { useSavedTracksIndex } from '@features/playlists/hooks/useSavedTracksIndex';
+import { useTrackPlayback } from '@features/player/hooks/useTrackPlayback';
+import { useHydratedCompactMode } from '@features/split-editor/stores/useCompactModeStore';
+import { useDeviceType } from '@shared/hooks/useDeviceType';
+import { useCompareModeStore, getTrackCompareColor } from '@features/split-editor/stores/useCompareModeStore';
+import { useContextMenuStore } from '@features/split-editor/stores/useContextMenuStore';
 import {
   type RecommendationItem,
   RecommendationsExpandedPanel,

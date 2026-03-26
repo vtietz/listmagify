@@ -19,4 +19,4 @@ export type {
   PendingResolveOption,
 } from './context-menu/types';
 
-export { useTrackContextMenu } from '@/hooks/useTrackContextMenu';
+export { useTrackContextMenu } from '@features/split-editor/hooks/useTrackContextMenu';

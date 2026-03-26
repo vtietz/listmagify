@@ -12,12 +12,12 @@ import {
   useInsertionPointsStore,
   computeInsertionPositions,
   type InsertionPoint,
-} from '@/hooks/useInsertionPointsStore';
-import { useSplitGridStore, flattenPanels } from '@/hooks/useSplitGridStore';
-import { usePendingActions } from '@/hooks/pending/usePendingActions';
+} from '@features/split-editor/playlist/hooks/useInsertionPointsStore';
+import { useSplitGridStore, flattenPanels } from '@features/split-editor/stores/useSplitGridStore';
+import { usePendingActions } from '@features/split-editor/hooks/usePendingActions';
 import { useAddTracks, useReorderTracks } from '@/lib/spotify/playlistMutations';
-import { useCompactModeStore } from '@/hooks/useCompactModeStore';
-import { usePlaylistTrackCheck, type DuplicateCheckResult } from '@/hooks/usePlaylistTrackCheck';
+import { useCompactModeStore } from '@features/split-editor/stores/useCompactModeStore';
+import { usePlaylistTrackCheck, type DuplicateCheckResult } from '@features/playlists/hooks/usePlaylistTrackCheck';
 import { isPlaylistIdCompatibleWithProvider } from '@/lib/providers/playlistIdCompat';
 import { AddToPlaylistDialog } from '@/components/playlist/AddToPlaylistDialog';
 import { cn } from '@/lib/utils';
@@ -35,7 +35,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { toast } from '@/lib/ui/toast';
 import type { MusicProviderId } from '@/lib/music-provider/types';
-import type { TrackPayload } from '@/hooks/dnd/types';
+import type { TrackPayload } from '@features/dnd/model/types';
 
 interface AddToMarkedButtonProps {
   /** Track URI to add */
