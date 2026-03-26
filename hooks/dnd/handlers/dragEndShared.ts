@@ -24,21 +24,12 @@ export function inferProviderIdFromPlaylistId(playlistId: string | null | undefi
 }
 
 export function resolvePanelProviderId(panel: PanelConfig, playlistId?: string | null): MusicProviderId {
-  const inferredProvider = inferProviderIdFromPlaylistId(playlistId ?? panel.playlistId);
-
-  if (panel.providerId && (!inferredProvider || panel.providerId === inferredProvider)) {
+  if (panel.providerId) {
     return panel.providerId;
   }
 
-  if (!panel.providerId && inferredProvider) {
-    return inferredProvider;
-  }
-
-  if (inferredProvider) {
-    return inferredProvider;
-  }
-
-  return panel.providerId ?? 'spotify';
+  const inferredProvider = inferProviderIdFromPlaylistId(playlistId ?? panel.playlistId);
+  return inferredProvider ?? 'spotify';
 }
 
 function parseReleaseYear(releaseDate: string | null | undefined): number | undefined {

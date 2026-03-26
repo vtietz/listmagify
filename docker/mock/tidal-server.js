@@ -11,7 +11,7 @@ const app = express();
 const PORT = 8081;
 const BASE = '/v2';
 
-app.use(express.json());
+app.use(express.json({ type: ['application/json', 'application/vnd.api+json', 'application/*+json'] }));
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Headers', 'Authorization, Content-Type, Idempotency-Key');

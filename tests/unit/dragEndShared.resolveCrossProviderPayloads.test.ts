@@ -1,7 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import type { Track } from '@/lib/music-provider/types';
 import type { TrackPayload } from '@/hooks/dnd/types';
-import { resolveCrossProviderPayloads } from '@/hooks/dnd/handlers/dragEndShared';
+import type { PanelConfig } from '@/hooks/dnd/types';
+import { resolveCrossProviderPayloads, resolvePanelProviderId } from '@/hooks/dnd/handlers/dragEndShared';
+
+function createPanel(overrides: Partial<PanelConfig>): PanelConfig {
+  return {
+    id: 'panel-default',
+    playlistId: null,
+    isEditable: true,
+    ...overrides,
+  };
+}
 
 function createTrack(id: string, uri: string, name: string): Track {
   return {
@@ -85,5 +95,33 @@ describe('resolveCrossProviderPayloads', () => {
     );
 
     expect(result).toEqual([payload]);
+  });
+});
+
+describe('resolvePanelProviderId', () => {
+  it('prefers explicit panel provider for ambiguous test playlist ids', () => {
+    const spotifyPanel = createPanel({
+      id: 'panel-spotify',
+      providerId: 'spotify',
+      playlistId: 'test-playlist-1',
+    });
+
+    const tidalPanel = createPanel({
+      id: 'panel-tidal',
+      providerId: 'tidal',
+      playlistId: 'test-playlist-2',
+    });
+
+    expect(resolvePanelProviderId(spotifyPanel, spotifyPanel.playlistId)).toBe('spotify');
+    expect(resolvePanelProviderId(tidalPanel, tidalPanel.playlistId)).toBe('tidal');
+  });
+
+  it('falls back to inferred provider when panel provider is missing', () => {
+    const panel = createPanel({
+      id: 'panel-fallback',
+      playlistId: '123e4567-e89b-12d3-a456-426614174000',
+    });
+
+    expect(resolvePanelProviderId(panel, panel.playlistId)).toBe('tidal');
   });
 });

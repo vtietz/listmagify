@@ -72,6 +72,10 @@ interface UseLikedVirtualPlaylistResult {
   dataUpdatedAt: number;
 }
 
+interface UseLikedVirtualPlaylistOptions {
+  enabled?: boolean;
+}
+
 /**
  * Query key for liked virtual playlist
  */
@@ -88,7 +92,11 @@ export const likedPlaylistKey = (providerId: MusicProviderId) => ['liked-virtual
  * const { allTracks, isLoading, hasLoadedAll } = useLikedVirtualPlaylist();
  * ```
  */
-export function useLikedVirtualPlaylist(providerId: MusicProviderId = 'spotify'): UseLikedVirtualPlaylistResult {
+export function useLikedVirtualPlaylist(
+  providerId: MusicProviderId = 'spotify',
+  options?: UseLikedVirtualPlaylistOptions,
+): UseLikedVirtualPlaylistResult {
+  const { enabled = true } = options ?? {};
   const addToLikedSet = useSavedTracksStore((state) => state.addToLikedSet);
   const setTotal = useSavedTracksStore((state) => state.setTotal);
 
@@ -124,6 +132,7 @@ export function useLikedVirtualPlaylist(providerId: MusicProviderId = 'spotify')
     },
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage: LikedTracksPage) => lastPage.nextCursor,
+    enabled,
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 10 * 60 * 1000, // 10 minutes
   });
@@ -157,11 +166,11 @@ export function useLikedVirtualPlaylist(providerId: MusicProviderId = 'spotify')
 
   // Trigger auto-fetch when current page finishes
   useMemo(() => {
-    if (hasNextPage && !isFetchingNextPage && !isLoading) {
+    if (enabled && hasNextPage && !isFetchingNextPage && !isLoading) {
       // Use setTimeout to avoid calling during render
       setTimeout(autoFetchNextPage, 100);
     }
-  }, [hasNextPage, isFetchingNextPage, isLoading, autoFetchNextPage]);
+  }, [enabled, hasNextPage, isFetchingNextPage, isLoading, autoFetchNextPage]);
 
   return {
     allTracks,

@@ -142,22 +142,15 @@ function shouldAutoPrefetch(
   return pageCount === 1 && hasNextPage && !isFetchingNextPage;
 }
 
-function flattenUniqueTracks(pages: PlaylistTracksPage[] | undefined): Track[] {
+function flattenTracksWithGlobalPositions(pages: PlaylistTracksPage[] | undefined): Track[] {
   if (!pages) {
     return [];
   }
 
   const tracks: Track[] = [];
-  const seenKeys = new Set<string>();
 
   for (const page of pages) {
     for (const track of page.tracks) {
-      const key = `${track.uri}::${track.position}`;
-      if (seenKeys.has(key)) {
-        continue;
-      }
-
-      seenKeys.add(key);
       tracks.push({
         ...track,
         position: tracks.length,
@@ -322,7 +315,7 @@ export function usePlaylistTracksInfinite({
   const pages = data?.pages;
   const allTracks = useMemo(() => {
     void dataUpdatedAt;
-    return flattenUniqueTracks(pages);
+    return flattenTracksWithGlobalPositions(pages);
   }, [pages, dataUpdatedAt]);
 
   // Get latest snapshot ID from most recent page

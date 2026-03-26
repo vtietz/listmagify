@@ -4,6 +4,7 @@ import { getMusicProviderHintFromRequest, resolveMusicProviderFromRequest } from
 import { ProviderApiError } from '@/lib/music-provider/types';
 import { logTrackAdd } from '@/lib/metrics/api-helpers';
 import type { MusicProvider } from '@/lib/music-provider/types';
+import type { MusicProviderId } from '@/lib/music-provider/types';
 import { mapApiErrorToProviderAuthError, toProviderAuthErrorResponse } from '@/lib/api/errorHandler';
 
 const TRACK_ADD_BATCH_SIZE = 100;
@@ -14,6 +15,55 @@ type AddTracksInput = {
   position?: number;
   snapshotId?: string;
 };
+
+function formatUriTail(uri: string): string {
+  const last = uri.split(':').pop() ?? uri;
+  return last.length > 12 ? `${last.slice(0, 4)}…${last.slice(-4)}` : last;
+}
+
+function getUriWindow(uris: string[], position: number, count = 6): string[] {
+  const start = Math.max(0, position - 2);
+  const end = Math.min(uris.length, start + count);
+  return uris.slice(start, end).map(formatUriTail);
+}
+
+async function logProviderAddTrace(params: {
+  provider: MusicProvider;
+  providerId: MusicProviderId;
+  playlistId: string;
+  position: number | undefined;
+  trackUris: string[];
+  phase: 'before' | 'after';
+  snapshotId?: string;
+}): Promise<void> {
+  if (params.providerId !== 'tidal') {
+    return;
+  }
+
+  try {
+    const allUris = await params.provider.getPlaylistTrackUris(params.playlistId);
+    const position = params.position ?? allUris.length;
+
+    console.debug('[api/playlists/tracks/add][trace]', {
+      phase: params.phase,
+      providerId: params.providerId,
+      playlistId: params.playlistId,
+      requestPosition: params.position ?? null,
+      requestCount: params.trackUris.length,
+      requestSample: params.trackUris.slice(0, 5).map(formatUriTail),
+      playlistCount: allUris.length,
+      aroundInsertWindow: getUriWindow(allUris, position),
+      ...(params.snapshotId ? { snapshotId: params.snapshotId } : {}),
+    });
+  } catch (error) {
+    console.warn('[api/playlists/tracks/add][trace] failed to inspect playlist state', {
+      providerId: params.providerId,
+      playlistId: params.playlistId,
+      phase: params.phase,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
 
 async function parseAddTracksInput(
   request: NextRequest,
@@ -73,15 +123,36 @@ function mapTrackAddResponseError(
 
 async function addTrackBatches(
   provider: MusicProvider,
+  providerId: MusicProviderId,
   input: AddTracksInput
 ): Promise<string | NextResponse> {
   try {
+    await logProviderAddTrace({
+      provider,
+      providerId,
+      playlistId: input.playlistId,
+      position: input.position,
+      trackUris: input.trackUris,
+      phase: 'before',
+    });
+
     const result = await provider.addTracks({
       playlistId: input.playlistId,
       trackUris: input.trackUris,
       ...(typeof input.position === 'number' ? { position: input.position } : {}),
       ...(typeof input.snapshotId === 'string' ? { snapshotId: input.snapshotId } : {}),
     });
+
+    await logProviderAddTrace({
+      provider,
+      providerId,
+      playlistId: input.playlistId,
+      position: input.position,
+      trackUris: input.trackUris,
+      phase: 'after',
+      snapshotId: result.snapshotId,
+    });
+
     return result.snapshotId;
   } catch (error) {
     if (error instanceof ProviderApiError) {
@@ -132,8 +203,8 @@ export async function POST(
       return input;
     }
 
-    const { provider } = resolveMusicProviderFromRequest(request);
-    const snapshotId = await addTrackBatches(provider, input);
+    const { providerId, provider } = resolveMusicProviderFromRequest(request);
+    const snapshotId = await addTrackBatches(provider, providerId, input);
     if (snapshotId instanceof NextResponse) {
       return snapshotId;
     }

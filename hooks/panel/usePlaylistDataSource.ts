@@ -7,7 +7,7 @@
 import { useEffect, useRef } from 'react';
 import { usePlaylistTracksInfinite } from '@/hooks/usePlaylistTracksInfinite';
 import { useLikedVirtualPlaylist, isLikedSongsPlaylist, LIKED_SONGS_METADATA } from '@/hooks/useLikedVirtualPlaylist';
-import { useSavedTracksIndex, usePrefetchSavedTracks } from '@/hooks/useSavedTracksIndex';
+import { useSavedTracksIndex } from '@/hooks/useSavedTracksIndex';
 import { useCapturePlaylist } from '@/hooks/useRecommendations';
 import { useProviderQueryEnabled } from '@/hooks/auth/useProviderQueryEnabled';
 import type { MusicProviderId } from '@/lib/music-provider/types';
@@ -20,7 +20,9 @@ export function usePlaylistDataSource(
   const isLikedPlaylist = isLikedSongsPlaylist(playlistId);
 
   // Liked songs data source
-  const likedPlaylistData = useLikedVirtualPlaylist(providerId);
+  const likedPlaylistData = useLikedVirtualPlaylist(providerId, {
+    enabled: isLikedPlaylist && isProviderReady,
+  });
 
   // Regular playlist data source — disabled when the provider is not authenticated
   const regularPlaylistData = usePlaylistTracksInfinite({
@@ -62,7 +64,6 @@ export function usePlaylistDataSource(
       };
 
   // Saved tracks index for liked status
-  usePrefetchSavedTracks(isProviderReady, providerId);
   const { isLiked, toggleLiked, ensureCoverage } = useSavedTracksIndex(providerId);
 
   // Ensure saved tracks coverage when tracks load

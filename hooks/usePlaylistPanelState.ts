@@ -7,7 +7,7 @@
 
 'use no memo';
 
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   usePanelStoreBindings,
@@ -31,6 +31,11 @@ import {
   flushAllPanelScrollPositions,
   usePlaylistMutations,
 } from './panel';
+import { toPendingTrackUri, usePendingStateStore } from '@/hooks/pending/state';
+import type { PendingTrack } from '@/hooks/pending/state';
+import type { Track } from '@/lib/music-provider/types';
+
+const EMPTY_PENDING_TRACKS: PendingTrack[] = [];
 
 interface UsePlaylistPanelStateProps {
   panelId: string;
@@ -91,6 +96,54 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
     toggleLiked,
   } = dataSource;
 
+  const pendingForPlaylist = usePendingStateStore(
+    (state) => (playlistId ? state.byPlaylist[playlistId]?.pending : undefined),
+  );
+
+  const tracksWithPending = useMemo(() => {
+    const pendingRows = pendingForPlaylist ?? EMPTY_PENDING_TRACKS;
+
+    if (!playlistId || pendingRows.length === 0) {
+      return tracks;
+    }
+
+    const activePending = pendingRows.filter(
+      (pending) =>
+        !pending.hidden
+        && (pending.status === 'matching' || pending.status === 'unresolved'),
+    );
+
+    if (activePending.length === 0) {
+      return tracks;
+    }
+
+    const existingUris = new Set(tracks.map((track) => track.uri));
+    const syntheticPending: Track[] = activePending
+      .filter((pending) => !existingUris.has(toPendingTrackUri(pending.tempId)))
+      .map((pending): Track => ({
+        id: null,
+        uri: toPendingTrackUri(pending.tempId),
+        name: pending.sourceMeta.title,
+        artists: pending.sourceMeta.artists,
+        durationMs: Math.max(0, pending.sourceMeta.durationSec * 1000),
+        position: pending.position,
+        album: pending.sourceMeta.album
+          ? {
+              name: pending.sourceMeta.album,
+              image: pending.sourceMeta.coverUrl ? { url: pending.sourceMeta.coverUrl } : null,
+              releaseDate: pending.sourceMeta.year ? String(pending.sourceMeta.year) : null,
+              releaseDatePrecision: pending.sourceMeta.year ? 'year' : null,
+            }
+          : null,
+      }));
+
+    if (syntheticPending.length === 0) {
+      return tracks;
+    }
+
+    return [...tracks, ...syntheticPending];
+  }, [playlistId, pendingForPlaylist, tracks]);
+
   // --- Metadata and permissions ---
   const metaPermissions = usePlaylistMetaPermissions(playlistId, providerId);
   const {
@@ -142,7 +195,7 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
 
   // --- Filtering and sorting ---
   const { sortedTracks, filteredTracks, isSorted } = useFilteringAndSorting(
-    tracks,
+    tracksWithPending,
     sortKey,
     sortDirection,
     searchQuery

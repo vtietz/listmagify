@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { MusicProviderId } from '@/lib/music-provider/types';
 import type { Track } from '@/lib/music-provider/types';
@@ -28,6 +28,15 @@ interface EnqueuePendingParams {
 
 export function usePendingActions() {
   const queryClient = useQueryClient();
+  const matchedInsertQueueRef = useRef<Map<string, Promise<void>>>(new Map());
+  const matchedInsertBufferRef = useRef<Map<string, Array<{
+    pendingId: string;
+    targetProviderId: MusicProviderId;
+    targetPlaylistId: string;
+    position: number;
+    candidate: MatchCandidate;
+  }>>>(new Map());
+  const matchedInsertTimerRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const addTracks = useAddTracks();
   const addPending = usePendingStateStore((state) => state.addPending);
   const markMatched = usePendingStateStore((state) => state.markMatched);
@@ -106,6 +115,90 @@ export function usePendingActions() {
     });
   }, [queryClient]);
 
+  const processMatchedInsertBatch = useCallback(async (batch: Array<{
+    pendingId: string;
+    targetProviderId: MusicProviderId;
+    targetPlaylistId: string;
+    position: number;
+    candidate: MatchCandidate;
+  }>) => {
+    const activeBatch = batch.filter((entry) => findPendingById(entry.pendingId));
+    if (activeBatch.length === 0) {
+      return;
+    }
+
+    const sorted = [...activeBatch].sort((a, b) => a.position - b.position);
+    const first = sorted[0];
+    if (!first) {
+      return;
+    }
+
+    try {
+      await addTracks.mutateAsync({
+        providerId: first.targetProviderId,
+        playlistId: first.targetPlaylistId,
+        trackUris: sorted.map((entry) => entry.candidate.trackUri),
+        position: first.position,
+      });
+
+      sorted.forEach((entry) => {
+        if (!findPendingById(entry.pendingId)) {
+          return;
+        }
+
+        markMatched(entry.pendingId);
+        removePending(entry.pendingId);
+      });
+    } catch {
+      sorted.forEach((entry) => {
+        if (!findPendingById(entry.pendingId)) {
+          return;
+        }
+
+        markUnresolved(entry.pendingId, 'Failed to add matched track', entry.candidate);
+      });
+    }
+  }, [addTracks, findPendingById, markMatched, markUnresolved, removePending]);
+
+  const enqueueMatchedInsert = useCallback((entry: {
+    pendingId: string;
+    targetProviderId: MusicProviderId;
+    targetPlaylistId: string;
+    position: number;
+    candidate: MatchCandidate;
+  }) => {
+    const queueKey = `${entry.targetProviderId}:${entry.targetPlaylistId}`;
+    const currentBatch = matchedInsertBufferRef.current.get(queueKey) ?? [];
+    matchedInsertBufferRef.current.set(queueKey, [...currentBatch, entry]);
+
+    const existingTimer = matchedInsertTimerRef.current.get(queueKey);
+    if (existingTimer) {
+      clearTimeout(existingTimer);
+    }
+
+    const timer = setTimeout(() => {
+      matchedInsertTimerRef.current.delete(queueKey);
+      const buffered = matchedInsertBufferRef.current.get(queueKey) ?? [];
+      matchedInsertBufferRef.current.delete(queueKey);
+
+      const previous = matchedInsertQueueRef.current.get(queueKey) ?? Promise.resolve();
+      const next = previous
+        .catch(() => undefined)
+        .then(async () => {
+          await processMatchedInsertBatch(buffered);
+        })
+        .finally(() => {
+          if (matchedInsertQueueRef.current.get(queueKey) === next) {
+            matchedInsertQueueRef.current.delete(queueKey);
+          }
+        });
+
+      matchedInsertQueueRef.current.set(queueKey, next);
+    }, 75);
+
+    matchedInsertTimerRef.current.set(queueKey, timer);
+  }, [processMatchedInsertBatch]);
+
   const enqueuePendingFromBrowseDrop = useCallback((params: EnqueuePendingParams): boolean => {
     if (params.payloads.length === 0) {
       return false;
@@ -141,26 +234,12 @@ export function usePendingActions() {
             return;
           }
 
-          addTracks.mutate({
-            providerId: params.targetProviderId,
-            playlistId: params.targetPlaylistId,
-            trackUris: [candidate.trackUri],
+          enqueueMatchedInsert({
+            pendingId: pendingTrack.tempId,
+            targetProviderId: params.targetProviderId,
+            targetPlaylistId: params.targetPlaylistId,
             position: pendingTrack.position,
-          }, {
-            onSuccess: () => {
-              markMatched(pendingTrack.tempId);
-              // Don't remove the synthetic track from cache manually.
-              // The addTracks mutation triggers invalidateQueries which refetches
-              // server data — that refetch atomically replaces the cache,
-              // swapping the pending placeholder for the real track without layout shift.
-              removePending(pendingTrack.tempId);
-            },
-            onError: () => {
-              if (!findPendingById(pendingTrack.tempId)) {
-                return;
-              }
-              markUnresolved(pendingTrack.tempId, 'Failed to add matched track', candidate);
-            },
+            candidate,
           });
         },
         onNeedsManualCheck: (candidate, candidates) => {
@@ -192,12 +271,10 @@ export function usePendingActions() {
     return true;
   }, [
     addPending,
-    addTracks,
-    markMatched,
     markUnresolved,
-    removePending,
     upsertPendingTrackInCache,
     findPendingById,
+    enqueueMatchedInsert,
   ]);
 
   const cancelPendingById = useCallback((pendingId: string) => {

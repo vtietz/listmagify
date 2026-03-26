@@ -36,35 +36,36 @@ export function useAddTracks() {
     },
     onMutate: async (params: AddTracksParams) => {
       const providerId = params.providerId ?? 'spotify';
-      // Cancel outgoing refetches
-      await queryClient.cancelQueries({
-        queryKey: playlistTracksByProvider(params.playlistId, providerId),
-      });
+      // Cancel outgoing refetches for both query types to prevent stale reads
+      await Promise.all([
+        queryClient.cancelQueries({
+          queryKey: playlistTracksByProvider(params.playlistId, providerId),
+        }),
+        queryClient.cancelQueries({
+          queryKey: playlistTracksInfiniteByProvider(params.playlistId, providerId),
+        }),
+      ]);
 
       // Snapshot current data
       const previousData = queryClient.getQueryData<PlaylistTracksData>(
         playlistTracksByProvider(params.playlistId, providerId)
       );
 
-      // Optimistically update - we don't have full track data here, so we'll wait for refetch
-      // Just emit the event so other panels know to refresh
-
       return { previousData };
     },
-    onSuccess: (_data: MutationResponse, params: AddTracksParams) => {
+    onSuccess: async (_data: MutationResponse, params: AddTracksParams) => {
       const providerId = params.providerId ?? 'spotify';
-      // Invalidate the infinite query to refetch with the new tracks
-      // We can't do optimistic updates for add because we only have URIs, not full Track objects
-      queryClient.invalidateQueries({ 
+      // Await refetch so the cache is guaranteed fresh before subsequent reads
+      await queryClient.refetchQueries({ 
         queryKey: playlistTracksInfiniteByProvider(params.playlistId, providerId),
       });
 
-      // Also invalidate legacy query if it exists
+      // Also refetch legacy query if it exists
       const currentData = queryClient.getQueryData<PlaylistTracksData>(
         playlistTracksByProvider(params.playlistId, providerId)
       );
       if (currentData) {
-        queryClient.invalidateQueries({ 
+        await queryClient.refetchQueries({ 
           queryKey: playlistTracksByProvider(params.playlistId, providerId),
         });
       }
@@ -75,8 +76,6 @@ export function useAddTracks() {
         providerId,
         cause: 'add',
       });
-
-      // Success - no toast needed
     },
     onError: (
       error: Error, 

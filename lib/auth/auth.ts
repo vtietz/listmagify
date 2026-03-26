@@ -319,6 +319,15 @@ async function refreshProviderTokenIfNeeded(
     return;
   }
 
+  if (!providerToken.refreshToken) {
+    providerTokens[providerId] = {
+      ...providerToken,
+      error: TOKEN_REFRESH_ERROR,
+    };
+    providerErrors[providerId] = TOKEN_REFRESH_ERROR;
+    return;
+  }
+
   try {
     console.debug(`[auth] ${providerId} token expiring soon or expired, refreshing...`);
     const refreshedToken = await refreshProviderAccessToken(providerId, providerToken);

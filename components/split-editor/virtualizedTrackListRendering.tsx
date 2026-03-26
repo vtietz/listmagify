@@ -463,7 +463,7 @@ export function renderVirtualizedTrackRow(params: RenderVirtualizedTrackRowParam
 
   return (
     <div
-      key={`${params.panelId}-${rowModel.selectionId}`}
+      key={`${params.panelId}-${params.virtualRow.key}`}
       style={getRowContainerStyle(params.virtualRow)}
     >
       <TrackRowInner {...trackRowInnerProps} />

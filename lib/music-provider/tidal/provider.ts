@@ -350,8 +350,29 @@ export function createTidalProvider(dependencies: TidalProviderDependencies = {}
       if (typeof payload.position === 'number') {
         const existingTrackUris = await this.getPlaylistTrackUris(payload.playlistId);
         const boundedPosition = Math.max(0, Math.min(payload.position, existingTrackUris.length));
+
+        console.debug('[tidal/provider.addTracks][trace]', {
+          playlistId: payload.playlistId,
+          requestPosition: payload.position,
+          boundedPosition,
+          existingCount: existingTrackUris.length,
+          addCount: payload.trackUris.length,
+        });
+
         const nextTrackUris = [...existingTrackUris];
         nextTrackUris.splice(boundedPosition, 0, ...payload.trackUris);
+
+        console.debug('[tidal/provider.addTracks][trace]', {
+          playlistId: payload.playlistId,
+          resultingCount: nextTrackUris.length,
+          resultingWindow: nextTrackUris
+            .slice(Math.max(0, boundedPosition - 2), Math.min(nextTrackUris.length, boundedPosition + payload.trackUris.length + 2))
+            .map((uri) => {
+              const tail = uri.split(':').pop() ?? uri;
+              return tail.length > 12 ? `${tail.slice(0, 4)}…${tail.slice(-4)}` : tail;
+            }),
+        });
+
         return this.replacePlaylistTracks(payload.playlistId, nextTrackUris);
       }
 
