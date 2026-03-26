@@ -29,6 +29,7 @@ import { AlbumResultsList } from './AlbumResultsList';
 import { DrillDownTrackList } from './DrillDownTrackList';
 import { TRACK_ROW_HEIGHT, TRACK_ROW_HEIGHT_COMPACT, VIRTUALIZATION_OVERSCAN } from '../constants';
 import { makeCompositeId } from '@/lib/dnd/id';
+import type { TrackPayload } from '@/hooks/dnd/types';
 import type { Track, MusicProviderId } from '@/lib/music-provider/types';
 
 export const SEARCH_PANEL_ID = 'search-panel';
@@ -181,6 +182,22 @@ function resolveTrackSearchEnabled(params: {
     && (params.effectiveSearchFilter === 'tracks' || params.effectiveSearchFilter === 'all')
     && !params.drillDown
     && params.debouncedQuery.trim().length > 0;
+}
+
+function buildTrackPayload(track: Track, sourceProvider: MusicProviderId): TrackPayload {
+  const artists = track.artists ?? [];
+
+  return {
+    title: track.name,
+    artists,
+    normalizedArtists: artists.map((artist) => artist.trim().toLowerCase()),
+    album: track.album?.name ?? null,
+    durationSec: Math.max(0, Math.round((track.durationMs ?? 0) / 1000)),
+    sourceProvider,
+    sourceProviderId: track.id ?? undefined,
+    sourceProviderUri: track.uri,
+    coverUrl: track.album?.image?.url,
+  };
 }
 
 export function SearchPanel({ isActive = true, inputRef: externalInputRef, providerId }: SearchPanelProps) {
@@ -358,6 +375,10 @@ export function SearchPanel({ isActive = true, inputRef: externalInputRef, provi
       .filter((track): track is Track => track !== undefined);
   }, [spotifySelection, sortedTracks]);
 
+  const getSelectedTrackPayloads = useCallback((): TrackPayload[] => {
+    return getSelectedTracks().map((track) => buildTrackPayload(track, effectiveProviderId));
+  }, [getSelectedTracks, effectiveProviderId]);
+
   if (drillDown) {
     return (
       <div className="flex-1 min-h-0 flex flex-col">
@@ -376,6 +397,7 @@ export function SearchPanel({ isActive = true, inputRef: externalInputRef, provi
         hasAnyMarkers={hasAnyMarkers}
         selectedCount={spotifySelection.length}
         getTrackUris={getSelectedTrackUris}
+        getTrackPayloads={getSelectedTrackPayloads}
         providerId={effectiveProviderId}
         onProviderChange={setProviderId}
       />

@@ -7,9 +7,12 @@
 
 import { useState, useCallback, useMemo } from 'react';
 import { useInsertionPointsStore, computeInsertionPositions } from '@/hooks/useInsertionPointsStore';
+import { useSplitGridStore } from '@/hooks/useSplitGridStore';
 import { useAddTracks } from '@/lib/spotify/playlistMutations';
+import { isPlaylistIdCompatibleWithProvider } from '@/lib/providers/playlistIdCompat';
 import { toast } from '@/lib/ui/toast';
 import type { InsertionPoint } from '@/hooks/useInsertionPointsStore';
+import type { MusicProviderId } from '@/lib/music-provider/types';
 
 interface UseAddToMarkersOptions {
   /** Playlist ID to exclude from markers (e.g., the source playlist) */
@@ -31,12 +34,14 @@ async function addTracksAtMarkers({
   playlistId,
   playlistData,
   uris,
+  providerId,
   addTracksMutation,
   shiftAfterMultiInsert,
 }: {
   playlistId: string;
   playlistData: { markers: InsertionPoint[] };
   uris: string[];
+  providerId: MusicProviderId;
   addTracksMutation: ReturnType<typeof useAddTracks>;
   shiftAfterMultiInsert: (playlistId: string) => void;
 }): Promise<number> {
@@ -50,6 +55,7 @@ async function addTracksAtMarkers({
       playlistId,
       trackUris: uris,
       position: position.effectiveIndex,
+      providerId,
     });
   }
 
@@ -58,6 +64,26 @@ async function addTracksAtMarkers({
   }
 
   return playlistData.markers.length;
+}
+
+function inferProviderFromPlaylistId(playlistId: string): MusicProviderId {
+  if (isPlaylistIdCompatibleWithProvider(playlistId, 'tidal')) {
+    return 'tidal';
+  }
+
+  return 'spotify';
+}
+
+function resolveProviderForPlaylist(
+  playlistId: string,
+  panelProviderByPlaylistId: Map<string, MusicProviderId>,
+): MusicProviderId {
+  const mappedProviderId = panelProviderByPlaylistId.get(playlistId);
+  if (mappedProviderId) {
+    return mappedProviderId;
+  }
+
+  return inferProviderFromPlaylistId(playlistId);
 }
 
 function showMarkerAddResultToast(successCount: number, errorCount: number) {
@@ -80,8 +106,20 @@ export function useAddToMarkers(options: UseAddToMarkersOptions = {}): UseAddToM
   const [isAdding, setIsAdding] = useState(false);
   
   const playlists = useInsertionPointsStore((s) => s.playlists);
+  const panels = useSplitGridStore((s) => s.panels);
   const shiftAfterMultiInsert = useInsertionPointsStore((s) => s.shiftAfterMultiInsert);
   const addTracksMutation = useAddTracks();
+  const panelProviderByPlaylistId = useMemo(() => {
+    const map = new Map<string, MusicProviderId>();
+
+    for (const panel of panels) {
+      if (panel.playlistId) {
+        map.set(panel.playlistId, panel.providerId);
+      }
+    }
+
+    return map;
+  }, [panels]);
   
   // Get all playlists with active markers (excluding source playlist)
   const playlistsWithMarkers = useMemo(() => {
@@ -106,10 +144,12 @@ export function useAddToMarkers(options: UseAddToMarkersOptions = {}): UseAddToM
       
       for (const [playlistId, playlistData] of playlistsWithMarkers) {
         try {
+          const providerId = resolveProviderForPlaylist(playlistId, panelProviderByPlaylistId);
           successCount += await addTracksAtMarkers({
             playlistId,
             playlistData,
             uris,
+            providerId,
             addTracksMutation,
             shiftAfterMultiInsert,
           });
@@ -126,7 +166,7 @@ export function useAddToMarkers(options: UseAddToMarkersOptions = {}): UseAddToM
     } finally {
       setIsAdding(false);
     }
-  }, [hasActiveMarkers, playlistsWithMarkers, addTracksMutation, shiftAfterMultiInsert]);
+  }, [hasActiveMarkers, playlistsWithMarkers, panelProviderByPlaylistId, addTracksMutation, shiftAfterMultiInsert]);
   
   return {
     isAdding,

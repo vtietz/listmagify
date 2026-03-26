@@ -16,6 +16,7 @@ import { TrackContextMenu } from '../TrackContextMenu';
 import { TableHeader } from '../TableHeader';
 import { AddSelectedToMarkersButton } from '../playlist/AddSelectedToMarkersButton';
 import { makeCompositeId } from '@/lib/dnd/id';
+import type { TrackPayload } from '@/hooks/dnd/types';
 import type { SortKey, SortDirection } from '@/hooks/usePlaylistSort';
 import type { Track, MusicProviderId } from '@/lib/music-provider/types';
 
@@ -132,6 +133,7 @@ export function SearchInputBar({
   hasAnyMarkers,
   selectedCount,
   getTrackUris,
+  getTrackPayloads,
   providerId,
   onProviderChange,
 }: {
@@ -142,6 +144,7 @@ export function SearchInputBar({
   hasAnyMarkers: boolean;
   selectedCount: number;
   getTrackUris: () => string[];
+  getTrackPayloads: () => TrackPayload[];
   providerId: MusicProviderId;
   onProviderChange: (id: MusicProviderId) => void;
 }) {
@@ -193,6 +196,8 @@ export function SearchInputBar({
           <AddSelectedToMarkersButton
             selectedCount={selectedCount}
             getTrackUris={getTrackUris}
+            getTrackPayloads={getTrackPayloads}
+            sourceProviderId={providerId}
             className="h-9 w-9 shrink-0"
           />
         ) : null}
