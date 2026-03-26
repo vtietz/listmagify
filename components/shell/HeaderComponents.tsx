@@ -56,6 +56,8 @@ export interface MarkerStats {
 interface AdaptiveNavProps {
   /** Whether we're in portrait phone mode (use burger menu) */
   isPhone: boolean;
+  /** Whether links to secured areas should be shown */
+  showSecureLinks?: boolean;
   /** Current pathname for active state */
   pathname: string;
   /** Whether browse panel toggle should be shown */
@@ -225,6 +227,7 @@ export function HeaderProviderStatus() {
 
 export function AdaptiveNav({
   isPhone,
+  showSecureLinks = true,
   pathname,
   supportsBrowse = true,
   hasStatsAccess,
@@ -261,6 +264,7 @@ export function AdaptiveNav({
       label: 'Playlists',
       href: '/playlists',
       isActive: isPlaylistsActive,
+      visible: showSecureLinks,
       group: 'main',
       neverOverflow: true,
     },
@@ -270,6 +274,7 @@ export function AdaptiveNav({
       label: 'Panels',
       href: '/split-editor',
       isActive: isSplitEditorActive,
+      visible: showSecureLinks,
       group: 'main',
       neverOverflow: true,
     },
@@ -279,6 +284,7 @@ export function AdaptiveNav({
       label: 'Admin',
       href: '/admin',
       isActive: isStatsActive,
+      visible: showSecureLinks,
       group: 'main',
     }] : []),
     // Group 2: View controls (Player not shown on phone - handled by bottom nav)
@@ -381,6 +387,7 @@ export function AdaptiveNav({
     }] : []),
   ], [
     isPhone,
+    showSecureLinks,
     supportsBrowse,
     isPlaylistsActive, isSplitEditorActive, isStatsActive, hasStatsAccess,
     isBrowseOpen, toggleBrowse, isPlayerVisible, togglePlayerVisible, supportsPlayer,

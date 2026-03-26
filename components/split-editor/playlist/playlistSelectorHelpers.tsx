@@ -135,7 +135,7 @@ export function getSelectedPlaylistLabel({
     return getLikedPlaylistMetadata(providerId).name;
   }
 
-  return selectedPlaylistName || selected?.name || 'Select a playlist...';
+  return selected?.name || selectedPlaylistName || 'Select a playlist...';
 }
 
 export function useCloseOnOutsideClick({

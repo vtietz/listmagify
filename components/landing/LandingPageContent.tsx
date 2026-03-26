@@ -85,6 +85,7 @@ function ProviderAuthButton({
 }) {
   const isConnected = status === 'connected';
   const providerLabel = getProviderLabel(provider);
+  const hasActionMenu = isConnected || provider === 'spotify';
 
   return (
     <div className="inline-flex rounded-md border border-border overflow-hidden bg-background">
@@ -101,11 +102,12 @@ function ProviderAuthButton({
         <SignInButton
           callbackUrl={returnTo}
           providerId={provider}
-          label={provider === 'spotify' ? 'Sign in with Spotify' : 'Sign in with TIDAL'}
-          className="rounded-none border-0 px-5 py-3 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+          label={`Sign in with ${providerLabel}`}
+          className={`${hasActionMenu ? 'rounded-none' : 'rounded-md'} border-0 px-5 py-3 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors`}
         />
       )}
 
+      {hasActionMenu && (
       <DropdownMenu modal={false}>
         <DropdownMenuTrigger asChild>
           <button
@@ -146,7 +148,7 @@ function ProviderAuthButton({
                 />
               )}
 
-              {provider === 'spotify' ? (
+              {provider === 'spotify' && (
                 <ByokDialog
                   trigger={(
                     <button
@@ -162,20 +164,12 @@ function ProviderAuthButton({
                     </button>
                   )}
                 />
-              ) : (
-                <button
-                  type="button"
-                  disabled
-                  className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-muted-foreground opacity-70"
-                >
-                  <Key className="h-3.5 w-3.5" />
-                  Use Your Own API Key (coming soon)
-                </button>
               )}
             </div>
           )}
         </DropdownMenuContent>
       </DropdownMenu>
+      )}
     </div>
   );
 }

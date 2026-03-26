@@ -1,10 +1,3 @@
-/**
- * PlaylistPanel component with virtualized track list, search, and DnD support.
- * Each panel can load a playlist independently and sync with other panels showing the same playlist.
- * Refactored to use VirtualizedTrackListContainer for cleaner separation of concerns.
- * UI state subcomponents (Loading, Error, Empty, ConfirmDialog) are extracted into panel/.
- */
-
 'use client';
 
 import { useCallback } from 'react';
@@ -58,15 +51,11 @@ function getPlaylistPanelClassName({
   isPlayingPanel: boolean;
   isActiveDropTarget: boolean;
 }) {
-  if (isPlayingPanel) {
-    return 'flex flex-col h-full border-2 rounded-lg overflow-hidden transition-all border-green-500 shadow-[0_0_10px_rgba(34,197,94,0.3)]';
-  }
-
-  if (isActiveDropTarget) {
-    return 'flex flex-col h-full border-2 rounded-lg overflow-hidden transition-all border-primary bg-primary/10';
-  }
-
-  return 'flex flex-col h-full border-2 rounded-lg overflow-hidden transition-all border-border bg-card';
+  return isPlayingPanel
+    ? 'flex flex-col h-full border-2 rounded-lg overflow-hidden transition-all border-green-500 shadow-[0_0_10px_rgba(34,197,94,0.3)]'
+    : isActiveDropTarget
+      ? 'flex flex-col h-full border-2 rounded-lg overflow-hidden transition-all border-primary bg-primary/10'
+      : 'flex flex-col h-full border-2 rounded-lg overflow-hidden transition-all border-border bg-card';
 }
 
 function getActivePlayPosition({
@@ -81,7 +70,6 @@ function getActivePlayPosition({
   if (!isPlayingPanel || !playbackState?.isPlaying || !playbackState.track?.id) {
     return -1;
   }
-
   const activeTrackIndex = filteredTracks.findIndex((track) => track.id === playbackState.track?.id);
   return filteredTracks[activeTrackIndex]?.position ?? activeTrackIndex;
 }
@@ -138,27 +126,14 @@ function resolvePlayingPanelState({
   filteredTracks: Track[];
   isTrackPlaying: (trackId: string | null) => boolean;
 }): boolean {
-  if (playbackContext?.sourceId === panelId) {
-    return true;
-  }
-
-  if (playlistId && playbackContext?.playlistId === playlistId) {
-    return true;
-  }
-
-  if (matchesPlaybackStateContextPlaylist(playbackState, playlistId)) {
-    return true;
-  }
-
-  if (playbackState?.isPlaying && hasPlayingTrackInPanel({ filteredTracks, isTrackPlaying })) {
-    return true;
-  }
-
-  if (matchesCurrentTrackId(playbackState, filteredTracks)) {
-    return true;
-  }
-
-  return matchesCurrentContextTrack(playbackContext, filteredTracks);
+  return Boolean(
+    playbackContext?.sourceId === panelId
+    || (playlistId && playbackContext?.playlistId === playlistId)
+    || matchesPlaybackStateContextPlaylist(playbackState, playlistId)
+    || (playbackState?.isPlaying && hasPlayingTrackInPanel({ filteredTracks, isTrackPlaying }))
+    || matchesCurrentTrackId(playbackState, filteredTracks)
+    || matchesCurrentContextTrack(playbackContext, filteredTracks)
+  );
 }
 
 function buildTrackListOptionalProps({
@@ -456,8 +431,7 @@ export function PlaylistPanel({
   const panelState = usePlaylistPanelState({ panelId, isDragSource });
   const { scrollRef, scrollDroppableRef, virtualizerRef: _virtualizerRef, ...state } = panelState;
   const openContextMenu = useContextMenuStore((s) => s.openMenu);
-  
-  // Check if this panel is the active playback source
+
   const playbackContext = usePlayerStore((s) => s.playbackContext);
   const playbackState = usePlayerStore((s) => s.playbackState);
   const isPlayingPanel = resolvePlayingPanelState({
@@ -473,8 +447,7 @@ export function PlaylistPanel({
     playbackState,
     filteredTracks: state.filteredTracks,
   });
-  
-  // Auto-scroll during playback toggle (user preference)
+
   const autoScrollEnabled = useHydratedAutoScrollPlay();
 
   useAutoScrollPlayback({
@@ -486,16 +459,13 @@ export function PlaylistPanel({
     virtualizer: state.virtualizer,
     playlistId: state.playlistId,
   });
-  
-  // Get togglePoint from insertion points store (for marker actions)
+
   const togglePoint = useInsertionPointsStore((s) => s.togglePoint);
-  
-  // Hook to add tracks to all markers
-  const { hasActiveMarkers, addToMarkers } = useAddToMarkers({ 
-    excludePlaylistId: state.playlistId !== null ? state.playlistId : undefined 
+
+  const { hasActiveMarkers, addToMarkers } = useAddToMarkers({
+    excludePlaylistId: state.playlistId !== null ? state.playlistId : undefined
   });
-  
-  // Handler to add selected tracks to all markers (used in context menu)
+
   const handleAddToAllMarkers = useCallback(() => {
     const uris = state.getSelectedTrackUris();
     if (uris.length > 0) {

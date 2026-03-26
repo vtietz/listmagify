@@ -256,6 +256,7 @@ function Header({ title: _title }: { title: string }) {
           <>
             <AdaptiveNav
               isPhone={isPhone}
+              showSecureLinks={authSummary.anyAuthenticated}
               pathname={pathname}
               hasStatsAccess={hasStatsAccess}
               isBrowseOpen={isBrowseOpen}

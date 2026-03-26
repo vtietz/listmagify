@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
-import { ProviderPanelGuard } from '@/components/auth/ProviderPanelGuard';
+import { ProviderPanelGuard, useProviderPanelGuardState } from '@/components/auth/ProviderPanelGuard';
 import { AnyAuthGuard } from '@/components/auth/AnyAuthGuard';
 import { useProviderAuth, useAuthRegistryHydrated, useAuthSummary } from '@/hooks/auth/useAuth';
 import { useEnsureValidToken } from '@/hooks/auth/useEnsureValidToken';
@@ -34,6 +34,19 @@ vi.mock('@/lib/utils', async () => {
 });
 
 describe('Auth guards', () => {
+  function GuardStateProbe() {
+    const state = useProviderPanelGuardState();
+
+    return (
+      <div
+        data-testid="guard-state"
+        data-provider={state.provider}
+        data-overlay-active={state.isOverlayActive ? 'true' : 'false'}
+        data-reason={state.reason ?? 'none'}
+      />
+    );
+  }
+
   beforeEach(() => {
     vi.mocked(isPerPanelInlineLoginEnabled).mockReturnValue(true);
     vi.mocked(useEnsureValidToken).mockReturnValue({ ensuring: false });
@@ -116,7 +129,7 @@ describe('Auth guards', () => {
     expect(outerWrapper).not.toHaveClass('h-full');
   });
 
-  it('ProviderPanelGuard renders overlay sign-in for expired provider while keeping panel content mounted', () => {
+  it('ProviderPanelGuard exposes active overlay guard state for expired provider while keeping panel content mounted', () => {
     vi.mocked(useProviderAuth).mockReturnValue({
       provider: 'spotify',
       code: 'expired',
@@ -127,11 +140,14 @@ describe('Auth guards', () => {
     render(
       <ProviderPanelGuard provider="spotify">
         <div>panel-content</div>
+        <GuardStateProbe />
       </ProviderPanelGuard>,
     );
 
-    expect(screen.getByText('Spotify sign-in required')).toBeInTheDocument();
-    expect(screen.getByTestId('panel-auth-overlay')).toBeInTheDocument();
+    const guardState = screen.getByTestId('guard-state');
+    expect(guardState).toHaveAttribute('data-provider', 'spotify');
+    expect(guardState).toHaveAttribute('data-overlay-active', 'true');
+    expect(guardState).toHaveAttribute('data-reason', 'expired');
     const panelContent = screen.getByText('panel-content');
     expect(panelContent).toBeInTheDocument();
     expect(panelContent.closest('[aria-hidden="true"]')).toBeNull();
