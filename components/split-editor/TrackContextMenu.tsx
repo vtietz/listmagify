@@ -15,6 +15,8 @@ export type {
   MarkerActions,
   TrackActions,
   RecommendationActions,
+  PendingActions,
+  PendingResolveOption,
 } from './context-menu/types';
 
 export { useTrackContextMenu } from '@/hooks/useTrackContextMenu';

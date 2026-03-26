@@ -24,10 +24,10 @@ import {
   type InsertionPoint,
 } from '@/hooks/useInsertionPointsStore';
 import { useSplitGridStore } from '@/hooks/useSplitGridStore';
+import { usePendingActions } from '@/hooks/pending/usePendingActions';
 import type { TrackPayload } from '@/hooks/dnd/types';
 import type { MusicProviderId } from '@/lib/music-provider/types';
 import { useAddTracks } from '@/lib/spotify/playlistMutations';
-import { getMatchEngine } from '@/lib/matching/matchEngine';
 import { isPlaylistIdCompatibleWithProvider } from '@/lib/providers/playlistIdCompat';
 import { cn } from '@/lib/utils';
 import { toast } from '@/lib/ui/toast';
@@ -60,7 +60,7 @@ function resolveTargetProviderId(
   panelProviderByPlaylistId: Map<string, MusicProviderId>,
 ): MusicProviderId {
   const mappedProviderId = panelProviderByPlaylistId.get(playlistId);
-  if (mappedProviderId) {
+  if (mappedProviderId && isPlaylistIdCompatibleWithProvider(playlistId, mappedProviderId)) {
     return mappedProviderId;
   }
 
@@ -81,42 +81,6 @@ function inferProviderFromTrackUri(trackUri: string | undefined): MusicProviderI
   }
 
   return null;
-}
-
-function createPendingMatchId(prefix: string, index: number): string {
-  return `${prefix}-${index}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-async function resolveCrossProviderUris(params: {
-  payloads: TrackPayload[];
-  targetProvider: MusicProviderId;
-  pendingIdPrefix: string;
-}): Promise<string[]> {
-  const engine = getMatchEngine();
-
-  const matchedUris = await Promise.all(params.payloads.map((payload, index) => {
-    return new Promise<string | null>((resolve) => {
-      engine.enqueue({
-        pendingId: createPendingMatchId(params.pendingIdPrefix, index),
-        payload,
-        targetProvider: params.targetProvider,
-        onMatched: (candidate) => {
-          resolve(candidate.trackUri);
-        },
-        onNeedsManualCheck: () => {
-          resolve(null);
-        },
-        onUnresolved: () => {
-          resolve(null);
-        },
-        onError: () => {
-          resolve(null);
-        },
-      });
-    });
-  }));
-
-  return matchedUris.filter((uri): uri is string => typeof uri === 'string' && uri.length > 0);
 }
 
 function getPlaylistsWithMarkers(
@@ -159,8 +123,14 @@ async function addUrisToMarkersAcrossPlaylists(params: {
   sourceProviderId: MusicProviderId | null;
   trackPayloads: TrackPayload[];
   panelProviderByPlaylistId: Map<string, MusicProviderId>;
+  enqueuePendingFromBrowseDrop: (params: {
+    targetPlaylistId: string;
+    targetProviderId: MusicProviderId;
+    insertPosition: number;
+    payloads: TrackPayload[];
+  }) => boolean;
   addTracksMutation: AddTracksMutationLike;
-  shiftAfterMultiInsert: (playlistId: string) => void;
+  shiftAfterMultiInsert: (playlistId: string, options?: { tracksPerInsert?: number }) => void;
 }): Promise<{ successCount: number; errorCount: number }> {
   let successCount = 0;
   let errorCount = 0;
@@ -172,35 +142,56 @@ async function addUrisToMarkersAcrossPlaylists(params: {
 
     try {
       const targetProviderId = resolveTargetProviderId(playlistId, params.panelProviderByPlaylistId);
-      let urisForTarget = params.uris;
-
-      if (
+      const shouldUsePendingMatchFlow =
         params.trackPayloads.length > 0
         && params.sourceProviderId
-        && params.sourceProviderId !== targetProviderId
-      ) {
-        urisForTarget = await resolveCrossProviderUris({
-          payloads: params.trackPayloads,
-          targetProvider: targetProviderId,
-          pendingIdPrefix: `markers-${playlistId}`,
-        });
-      }
+        && params.sourceProviderId !== targetProviderId;
 
-      if (urisForTarget.length === 0) {
-        errorCount++;
-        continue;
-      }
+      let insertedInPlaylist = 0;
 
-      const insertedInPlaylist = await addUrisToPlaylistMarkers(
-        playlistId,
-        playlistData.markers,
-        urisForTarget,
-        params.addTracksMutation,
-        targetProviderId,
-      );
+      if (shouldUsePendingMatchFlow) {
+        const positions = computeInsertionPositions(playlistData.markers, params.trackPayloads.length);
+        let enqueuedMarkers = 0;
+
+        for (const position of positions) {
+          const enqueued = params.enqueuePendingFromBrowseDrop({
+            targetPlaylistId: playlistId,
+            targetProviderId,
+            insertPosition: position.effectiveIndex,
+            payloads: params.trackPayloads,
+          });
+
+          if (enqueued) {
+            enqueuedMarkers += 1;
+          }
+        }
+
+        if (enqueuedMarkers === 0) {
+          errorCount++;
+          continue;
+        }
+
+        insertedInPlaylist = enqueuedMarkers;
+      } else {
+        if (params.uris.length === 0) {
+          errorCount++;
+          continue;
+        }
+
+        insertedInPlaylist = await addUrisToPlaylistMarkers(
+          playlistId,
+          playlistData.markers,
+          params.uris,
+          params.addTracksMutation,
+          targetProviderId,
+        );
+      }
 
       if (playlistData.markers.length > 1) {
-        params.shiftAfterMultiInsert(playlistId);
+        const tracksPerInsert = shouldUsePendingMatchFlow
+          ? params.trackPayloads.length
+          : params.uris.length;
+        params.shiftAfterMultiInsert(playlistId, { tracksPerInsert });
       }
 
       successCount += insertedInPlaylist;
@@ -268,6 +259,7 @@ export function AddSelectedToMarkersButton({
   const panels = useSplitGridStore((s) => s.panels);
   const shiftAfterMultiInsert = useInsertionPointsStore((s) => s.shiftAfterMultiInsert);
   const addTracksMutation = useAddTracks();
+  const { enqueuePendingFromBrowseDrop } = usePendingActions();
   
   // Get all playlists with active markers (excluding source playlist)
   const playlistsWithMarkers = getPlaylistsWithMarkers(playlists, excludePlaylistId);
@@ -312,6 +304,7 @@ export function AddSelectedToMarkersButton({
         sourceProviderId: resolvedSourceProviderId,
         trackPayloads: payloads,
         panelProviderByPlaylistId,
+        enqueuePendingFromBrowseDrop,
         addTracksMutation,
         shiftAfterMultiInsert,
       });
@@ -330,6 +323,7 @@ export function AddSelectedToMarkersButton({
     sourceProviderId,
     playlistsWithMarkers,
     panelProviderByPlaylistId,
+    enqueuePendingFromBrowseDrop,
     addTracksMutation,
     shiftAfterMultiInsert,
   ]);

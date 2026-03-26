@@ -1,5 +1,5 @@
 import type * as React from 'react';
-import { MoreHorizontal } from 'lucide-react';
+import { MoreHorizontal, X } from 'lucide-react';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import type { SyntheticListenerMap } from '@dnd-kit/core/dist/hooks/utilities';
 import { AddToMarkedButton } from '../../playlist/AddToMarkedButton';
@@ -60,6 +60,7 @@ interface TrackRowViewProps {
   onHeartClick: (e: React.MouseEvent) => void;
   onPlayClick: (e: React.MouseEvent) => void;
   onMoreButtonClick: (e: React.MouseEvent) => void;
+  onRemovePending?: (() => void) | undefined;
   onArtistClick: (e: React.MouseEvent, artistName: string) => void;
   onAlbumClick: (e: React.MouseEvent, albumName: string) => void;
   dragListeners: SyntheticListenerMap | undefined;
@@ -249,13 +250,38 @@ function TitleMoreButton({
   showHandle,
   isCompact,
   onMoreButtonClick,
+  pendingStatus,
+  onRemovePending,
 }: {
   showHandle: boolean;
   isCompact: boolean;
   onMoreButtonClick: (e: React.MouseEvent) => void;
+  pendingStatus?: 'matching' | 'unresolved' | undefined;
+  onRemovePending?: (() => void) | undefined;
 }): React.ReactNode {
   if (showHandle) {
     return undefined;
+  }
+
+  if (pendingStatus === 'matching' && onRemovePending) {
+    return (
+      <button
+        className={cn(
+          'shrink-0 flex items-center justify-center rounded',
+          'opacity-100 bg-muted/80 hover:bg-muted transition-all',
+          isCompact ? 'w-6 h-6' : 'w-7 h-7',
+        )}
+        onClick={(e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          onRemovePending();
+        }}
+        aria-label="Remove pending item"
+        title="Cancel pending operation"
+      >
+        <X className={isCompact ? 'h-3.5 w-3.5' : 'h-4 w-4'} />
+      </button>
+    );
   }
 
   return (
@@ -342,6 +368,7 @@ export function TrackRowView({
   onHeartClick,
   onPlayClick,
   onMoreButtonClick,
+  onRemovePending,
   onArtistClick,
   onAlbumClick,
   dragListeners,
@@ -393,7 +420,13 @@ export function TrackRowView({
         track={track}
         isAutoScrollEnabled={isAutoScrollEnabled}
         statusIndicator={PendingStatusIndicator({ pendingStatus, pendingMessage, isCompact })}
-        moreButton={TitleMoreButton({ showHandle, isCompact, onMoreButtonClick })}
+        moreButton={TitleMoreButton({
+          showHandle,
+          isCompact,
+          onMoreButtonClick,
+          pendingStatus,
+          onRemovePending,
+        })}
       />
 
       <ArtistCell

@@ -75,7 +75,7 @@ async function addTrackToAllMarkers(params: {
   playlistsWithMarkers: PlaylistsWithMarkers;
   trackUri: string;
   addTracksMutation: ReturnType<typeof useAddTracks>;
-  shiftAfterMultiInsert: (playlistId: string) => void;
+  shiftAfterMultiInsert: (playlistId: string, options?: { tracksPerInsert?: number }) => void;
 }): Promise<void> {
   for (const [playlistId, data] of params.playlistsWithMarkers) {
     const positions = computeInsertionPositions(data.markers, 1);
@@ -89,7 +89,7 @@ async function addTrackToAllMarkers(params: {
     }
 
     if (data.markers.length > 1) {
-      params.shiftAfterMultiInsert(playlistId);
+      params.shiftAfterMultiInsert(playlistId, { tracksPerInsert: 1 });
     }
   }
 }

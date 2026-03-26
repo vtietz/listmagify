@@ -48,6 +48,18 @@ export interface RecommendationActions {
   onOpenBrowse?: () => void;
 }
 
+export interface PendingResolveOption {
+  label: string;
+  onResolve: () => void;
+}
+
+export interface PendingActions {
+  resolveOptions?: PendingResolveOption[];
+  onSearchInProvider?: () => void;
+  searchProviderLabel?: string;
+  onCancel?: () => void;
+}
+
 export interface TrackContextMenuProps {
   /** The track this menu is for */
   track: Track;
@@ -65,6 +77,8 @@ export interface TrackContextMenuProps {
   trackActions?: TrackActions;
   /** Recommendation action handlers */
   recActions?: RecommendationActions;
+  /** Pending-track specific actions */
+  pendingActions?: PendingActions;
   /** Whether multiple tracks are selected */
   isMultiSelect?: boolean;
   /** Number of selected tracks */
@@ -81,6 +95,7 @@ export interface MenuContentProps {
   markerActions: MarkerActions | undefined;
   trackActions: TrackActions | undefined;
   recActions: RecommendationActions | undefined;
+  pendingActions: PendingActions | undefined;
   isMultiSelect: boolean;
   selectedCount: number;
   isEditable: boolean;

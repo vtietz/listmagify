@@ -20,7 +20,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useErrorStore } from "@/lib/errors/store";
 import type { AppError } from "@/lib/errors/types";
 import { useErrorReportForm } from "@/hooks/dialogs/useErrorReportForm";
-import { AlertTriangle, Clock, Send, X, CheckCircle, Loader2 } from "lucide-react";
+import { AlertTriangle, CheckCircle, ClipboardCopy, Clock, Loader2, Send, X } from "lucide-react";
 
 /**
  * Format seconds into human-readable time
@@ -89,8 +89,10 @@ export function ErrorReportDialog({ testError }: ErrorReportDialogProps) {
     userDescription,
     setUserDescription,
     isSubmitting,
+    isCopying,
     submitSuccess,
     timeRemaining,
+    handleCopyReport,
     handleSubmitReport,
   } = useErrorReportForm({
     error,
@@ -139,8 +141,10 @@ export function ErrorReportDialog({ testError }: ErrorReportDialogProps) {
           <DialogActions
             submitSuccess={submitSuccess}
             isSubmitting={isSubmitting}
+            isCopying={isCopying}
             reported={error.reported}
             onClose={closeDialog}
+            onCopy={handleCopyReport}
             onSubmit={handleSubmitReport}
           />
         </DialogFooter>
@@ -224,14 +228,18 @@ function ReportDetailsSection({
 function DialogActions({
   submitSuccess,
   isSubmitting,
+  isCopying,
   reported,
   onClose,
+  onCopy,
   onSubmit,
 }: {
   submitSuccess: boolean;
   isSubmitting: boolean;
+  isCopying: boolean;
   reported: boolean;
   onClose: () => void;
+  onCopy: () => Promise<void>;
   onSubmit: () => Promise<void>;
 }) {
   return (
@@ -242,10 +250,17 @@ function DialogActions({
       </Button>
 
       {!submitSuccess ? (
-        <Button onClick={onSubmit} disabled={isSubmitting || reported}>
-          {isSubmitting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
-          {reported ? 'Already Reported' : 'Send Report'}
-        </Button>
+        <>
+          <Button variant="outline" onClick={onCopy} disabled={isSubmitting || isCopying}>
+            {isCopying ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <ClipboardCopy className="h-4 w-4 mr-2" />}
+            Copy report
+          </Button>
+
+          <Button onClick={onSubmit} disabled={isSubmitting || reported}>
+            {isSubmitting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
+            {reported ? 'Already Reported' : 'Send Report'}
+          </Button>
+        </>
       ) : null}
     </>
   );

@@ -8,8 +8,8 @@ export interface MatchEngineTask {
   payload: TrackPayload;
   targetProvider: MusicProviderId;
   onMatched: (candidate: MatchCandidate) => Promise<void> | void;
-  onNeedsManualCheck: (candidate: MatchCandidate) => void;
-  onUnresolved: (reason: string) => void;
+  onNeedsManualCheck: (candidate: MatchCandidate, candidates: MatchCandidate[]) => void;
+  onUnresolved: (reason: string, candidates?: MatchCandidate[]) => void;
   onError: (error: unknown) => void;
 }
 
@@ -55,14 +55,15 @@ class MatchEngine {
 
   private async runTask(task: QueuedTask): Promise<void> {
     try {
-      const candidate = await this.adapter.searchBestMatch(task.payload, task.targetProvider);
+      const candidates = await this.adapter.searchCandidates(task.payload, task.targetProvider, 3);
+      const candidate = candidates[0] ?? null;
 
       if (this.cancelled.has(task.pendingId)) {
         return;
       }
 
       if (!candidate) {
-        task.onUnresolved('No candidate found');
+        task.onUnresolved('No candidate found', candidates);
         return;
       }
 
@@ -72,11 +73,11 @@ class MatchEngine {
       }
 
       if (candidate.score >= MATCH_THRESHOLDS.manual) {
-        task.onNeedsManualCheck(candidate);
+        task.onNeedsManualCheck(candidate, candidates);
         return;
       }
 
-      task.onUnresolved(`Low confidence (${candidate.score.toFixed(2)})`);
+      task.onUnresolved(`Low confidence (${candidate.score.toFixed(2)})`, candidates);
     } catch (error) {
       if (task.attempts < 2) {
         const retryDelayMs = 400 * 2 ** task.attempts;

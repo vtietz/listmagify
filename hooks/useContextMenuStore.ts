@@ -6,6 +6,7 @@
 import { create } from 'zustand';
 import type { Track } from '@/lib/music-provider/types';
 import type { MarkerActions, TrackActions, ReorderActions, RecommendationActions } from '@/components/split-editor/TrackContextMenu';
+import type { PendingActions } from '@/components/split-editor/context-menu/types';
 
 interface ContextMenuState {
   /** Whether the context menu is open */
@@ -30,6 +31,8 @@ interface ContextMenuState {
   reorderActions: ReorderActions | null;
   /** Recommendation actions */
   recActions: RecommendationActions | null;
+  /** Pending-track specific actions */
+  pendingActions: PendingActions | null;
 }
 
 interface ContextMenuActions {
@@ -45,6 +48,7 @@ interface ContextMenuActions {
     trackActions: TrackActions;
     reorderActions?: ReorderActions;
     recActions?: RecommendationActions;
+    pendingActions?: PendingActions;
   }) => void;
   /** Close the context menu */
   closeMenu: () => void;
@@ -62,6 +66,7 @@ const initialState: ContextMenuState = {
   trackActions: null,
   reorderActions: null,
   recActions: null,
+  pendingActions: null,
 };
 
 export const useContextMenuStore = create<ContextMenuState & ContextMenuActions>((set) => ({
@@ -80,6 +85,7 @@ export const useContextMenuStore = create<ContextMenuState & ContextMenuActions>
       trackActions: params.trackActions,
       reorderActions: params.reorderActions ?? null,
       recActions: params.recActions ?? null,
+      pendingActions: params.pendingActions ?? null,
     });
   },
 

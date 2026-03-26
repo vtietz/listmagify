@@ -9,6 +9,7 @@
 import {
   Bookmark,
   BookmarkMinus,
+  Check,
   Copy,
   Disc,
   ExternalLink,
@@ -17,6 +18,7 @@ import {
   Pause,
   Play,
   Plus,
+  Search,
   Sparkles,
   Trash2,
   User,
@@ -24,6 +26,7 @@ import {
 } from 'lucide-react';
 
 import type { TrackActions, ReorderActions, MarkerActions, RecommendationActions } from './types';
+import type { PendingActions } from './types';
 import type { MenuPrimitives } from './MenuPrimitives';
 import { buildReorderItems, hasAnyAction, markerAfterLabel, markerBeforeLabel } from './utils';
 
@@ -277,5 +280,43 @@ export function ClearSelectionSection({
         <Item icon={X} label="Clear selection" onClick={withClose(trackActions.onClearSelection)} />
       </Section>
     </>
+  );
+}
+
+export function PendingResolutionSection({
+  pendingActions,
+  withClose,
+  Section,
+  Item,
+}: {
+  pendingActions: PendingActions;
+  withClose: WithClose;
+  Section: SectionC;
+  Item: ItemC;
+}) {
+  const resolveOptions = pendingActions.resolveOptions ?? [];
+
+  return (
+    <Section title="Resolve match">
+      {resolveOptions.map((option, index) => (
+        <Item
+          key={`${option.label}-${index}`}
+          icon={Check}
+          label={option.label}
+          onClick={withClose(option.onResolve)}
+        />
+      ))}
+      <Item
+        icon={Search}
+        label={pendingActions.searchProviderLabel ?? 'Search on provider'}
+        onClick={withClose(pendingActions.onSearchInProvider)}
+      />
+      <Item
+        icon={X}
+        label="Cancel pending item"
+        onClick={withClose(pendingActions.onCancel)}
+        destructive
+      />
+    </Section>
   );
 }

@@ -1,7 +1,7 @@
 import { apiFetch } from '@/lib/api/client';
 import type { MusicProviderId, Track } from '@/lib/music-provider/types';
 import type { TrackPayload } from '@/hooks/dnd/types';
-import { pickBestCandidate } from './scoring';
+import { pickTopCandidates } from './scoring';
 
 export interface MatchCandidate {
   provider: MusicProviderId;
@@ -14,10 +14,22 @@ export interface MatchCandidate {
     artists: string[];
     album: string | null;
     durationMs: number;
+    releaseYear?: string;
   };
 }
 
+function extractReleaseYear(track: Track): string | undefined {
+  const raw = track.album?.releaseDate;
+  if (!raw) {
+    return undefined;
+  }
+
+  const match = raw.match(/^(\d{4})/);
+  return match?.[1];
+}
+
 export interface ProviderMatchingAdapter {
+  searchCandidates(payload: TrackPayload, targetProvider: MusicProviderId, limit?: number): Promise<MatchCandidate[]>;
   searchBestMatch(payload: TrackPayload, targetProvider: MusicProviderId): Promise<MatchCandidate | null>;
 }
 
@@ -28,37 +40,44 @@ function buildQuery(payload: TrackPayload): string {
 }
 
 class ApiSearchProviderAdapter implements ProviderMatchingAdapter {
-  async searchBestMatch(payload: TrackPayload, targetProvider: MusicProviderId): Promise<MatchCandidate | null> {
+  async searchCandidates(payload: TrackPayload, targetProvider: MusicProviderId, limit = 3): Promise<MatchCandidate[]> {
     const query = buildQuery(payload);
     if (!query) {
-      return null;
+      return [];
     }
 
     const result = await apiFetch<{ tracks: Track[] }>('/api/search/tracks?' + new URLSearchParams({
       provider: targetProvider,
       q: query,
-      limit: '10',
+      limit: String(Math.max(1, Math.min(25, limit * 4))),
       offset: '0',
     }).toString());
 
-    const best = pickBestCandidate(payload, result.tracks ?? []);
-    if (!best) {
-      return null;
-    }
+    const scored = pickTopCandidates(payload, result.tracks ?? [], limit);
 
-    return {
-      provider: targetProvider,
-      trackId: best.track.id,
-      trackUri: best.track.uri,
-      score: best.score,
-      matchedBy: best.matchedBy,
-      previewMetadata: {
-        title: best.track.name,
-        artists: best.track.artists ?? [],
-        album: best.track.album?.name ?? null,
-        durationMs: best.track.durationMs,
-      },
-    };
+    return scored.map((candidate) => {
+      const releaseYear = extractReleaseYear(candidate.track);
+
+      return {
+        provider: targetProvider,
+        trackId: candidate.track.id,
+        trackUri: candidate.track.uri,
+        score: candidate.score,
+        matchedBy: candidate.matchedBy,
+        previewMetadata: {
+          title: candidate.track.name,
+          artists: candidate.track.artists ?? [],
+          album: candidate.track.album?.name ?? null,
+          durationMs: candidate.track.durationMs,
+          ...(releaseYear ? { releaseYear } : {}),
+        },
+      };
+    });
+  }
+
+  async searchBestMatch(payload: TrackPayload, targetProvider: MusicProviderId): Promise<MatchCandidate | null> {
+    const [best] = await this.searchCandidates(payload, targetProvider, 1);
+    return best ?? null;
   }
 }
 

@@ -13,7 +13,20 @@ import type { TrackRowInnerProps } from './types';
 import { RowWrapper } from './view/RowWrapper';
 import { TrackRowView } from './view/TrackRowView';
 
-function buildTitle(locked: boolean, dndMode: 'move' | 'copy'): string {
+function buildTitle(
+  locked: boolean,
+  dndMode: 'move' | 'copy',
+  pendingStatus?: 'matching' | 'unresolved' | undefined,
+  pendingMessage?: string | undefined,
+): string {
+  if (pendingStatus === 'unresolved') {
+    return pendingMessage ?? 'Match unresolved';
+  }
+
+  if (pendingStatus === 'matching') {
+    return pendingMessage ?? 'Matching track…';
+  }
+
   if (locked) return 'Panel is locked - unlock to enable dragging';
   if (dndMode === 'copy') return 'Click and drag to copy (Ctrl to move)';
   return 'Click and drag to move (Ctrl to copy)';
@@ -271,6 +284,8 @@ function TrackRowInnerComponent(props: TrackRowInnerProps) {
     fullMarkerActions,
     fullTrackActions,
     reorderActions,
+    ...(props.pendingActions ? { pendingActions: props.pendingActions } : {}),
+    disableContextMenu: pendingStatus === 'matching',
   });
 
   const className = buildRowClassNames({
@@ -286,7 +301,7 @@ function TrackRowInnerComponent(props: TrackRowInnerProps) {
     dndMode,
   });
 
-  const title = buildTitle(locked, dndMode);
+  const title = buildTitle(locked, dndMode, pendingStatus, pendingMessage);
 
   return (
     <RowWrapper
@@ -350,6 +365,7 @@ function TrackRowInnerComponent(props: TrackRowInnerProps) {
         dragListeners={listeners as SyntheticListenerMap | undefined}
         pendingStatus={pendingStatus}
         pendingMessage={pendingMessage}
+        onRemovePending={props.onRemovePending}
       />
     </RowWrapper>
   );

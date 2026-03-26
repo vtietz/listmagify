@@ -533,6 +533,8 @@ export function useSplitUrlSync(): void {
 
         // Build new URL with updated layout param (for /split-editor)
         const params = new URLSearchParams(window.location.search);
+        // Provider is encoded per-panel in layout (~r-t), so keep split-editor URLs canonical.
+        params.delete('provider');
         params.set('layout', encoded);
         
         // Use shallow routing to avoid page reload

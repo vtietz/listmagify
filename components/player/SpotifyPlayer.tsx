@@ -72,7 +72,7 @@ function useAddToMarkersAction({
   playlistsWithMarkers: ReturnType<typeof useInsertionMarkers>['playlistsWithMarkers'];
   totalMarkers: number;
   addTracksMutation: ReturnType<typeof useAddTracks>;
-  shiftAfterMultiInsert: (playlistId: string, options?: { fromIndex?: number }) => void;
+  shiftAfterMultiInsert: (playlistId: string, options?: { tracksPerInsert?: number }) => void;
 }) {
   return useCallback(async () => {
     if (!track?.uri || isInserting) {

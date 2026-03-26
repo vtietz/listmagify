@@ -12,6 +12,7 @@ import {
   NavigationSection,
   RecommendationsSection,
   ClearSelectionSection,
+  PendingResolutionSection,
 } from './MenuContentSections';
 
 interface MenuContentWithPrimitivesProps extends MenuContentProps {
@@ -32,6 +33,7 @@ export function MenuContent({
   markerActions,
   trackActions,
   recActions,
+  pendingActions,
   isMultiSelect,
   selectedCount,
   isEditable,
@@ -41,6 +43,17 @@ export function MenuContent({
   const { Section, Item, Divider } = primitives;
   const useSelectionWording = isMultiSelect && selectedCount > 1;
   const removeLabel = removeSelectedLabel(selectedCount);
+
+  if (pendingActions) {
+    return (
+      <PendingResolutionSection
+        pendingActions={pendingActions}
+        withClose={withClose}
+        Section={Section}
+        Item={Item}
+      />
+    );
+  }
 
   return (
     <>

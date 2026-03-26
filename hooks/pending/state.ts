@@ -33,6 +33,7 @@ export interface PendingTrack {
   errorMessage?: string | undefined;
   attentionReason?: string | undefined;
   matchedCandidate?: MatchCandidate | undefined;
+  candidateOptions?: MatchCandidate[] | undefined;
   hidden?: { reason?: string | undefined } | undefined;
 }
 
@@ -52,7 +53,7 @@ interface PendingState {
     payloads: TrackPayload[];
   }) => PendingTrack[];
   markMatched: (pendingId: string) => void;
-  markUnresolved: (pendingId: string, reason: string, candidate?: MatchCandidate) => void;
+  markUnresolved: (pendingId: string, reason: string, candidate?: MatchCandidate, candidates?: MatchCandidate[]) => void;
   cancelPending: (pendingId: string) => void;
   removePending: (pendingId: string) => void;
   markHidden: (pendingId: string, reason?: string) => void;
@@ -171,13 +172,18 @@ export const usePendingStateStore = create<PendingState>((set, get) => ({
     })));
   },
 
-  markUnresolved: (pendingId, reason, candidate) => {
+  markUnresolved: (pendingId, reason, candidate, candidates) => {
+    const candidateOptions = (candidates && candidates.length > 0)
+      ? candidates
+      : (candidate ? [candidate] : []);
+
     set((state) => updatePendingItem(state, pendingId, (track) => ({
       ...track,
       status: 'unresolved',
       errorMessage: reason,
       attentionReason: reason,
       matchedCandidate: candidate,
+      candidateOptions,
     })));
   },
 

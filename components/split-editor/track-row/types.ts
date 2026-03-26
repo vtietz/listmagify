@@ -7,6 +7,7 @@ import {
   type ReorderActions,
   type MarkerActions,
   type TrackActions,
+  type PendingActions,
 } from '../TrackContextMenu';
 
 export interface TrackRowProps {
@@ -63,12 +64,14 @@ export interface TrackRowProps {
   selectedTracks?: Track[] | undefined;
   pendingStatus?: 'matching' | 'unresolved' | undefined;
   pendingMessage?: string | undefined;
+  onRemovePending?: (() => void) | undefined;
+  pendingActions?: PendingActions | undefined;
 }
 
 export interface TrackRowSharedContext {
   isCompact: boolean;
   isAutoScrollEnabled: boolean;
-  openBrowsePanel: () => void;
+  openBrowsePanel: (providerId?: MusicProviderId) => void;
   providerId: MusicProviderId;
   setSearchQuery: (q: string) => void;
   setSearchFilter: (filter: SearchFilterType) => void;

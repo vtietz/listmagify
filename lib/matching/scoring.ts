@@ -93,6 +93,17 @@ export function pickBestCandidate(source: TrackPayload, candidates: Track[]): Sc
     .sort((a, b) => b.score - a.score)[0] ?? null;
 }
 
+export function pickTopCandidates(source: TrackPayload, candidates: Track[], limit = 3): ScoredCandidate[] {
+  if (candidates.length === 0 || limit <= 0) {
+    return [];
+  }
+
+  return candidates
+    .map((candidate) => scoreCandidate(source, candidate))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit);
+}
+
 export const MATCH_THRESHOLDS = {
   convert: 0.82,
   manual: 0.72,

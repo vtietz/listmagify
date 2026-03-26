@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { routeErrors } from '@/lib/errors';
 import { fetchTracks } from '@/lib/spotify/catalog';
-import type { MusicProviderId } from '@/lib/music-provider/types';
+import type { MusicProviderId, Track } from '@/lib/music-provider/types';
 import {
   getPlaylistAppendixRecommendations,
   getSeedRecommendations,
@@ -48,10 +48,21 @@ async function attachTrackMetadata(
     return recommendations;
   }
 
-  const tracks = await fetchTracks(
-    recommendations.map((recommendation) => recommendation.trackId),
-    providerId
-  );
+  let tracks: Track[] = [];
+  try {
+    tracks = await fetchTracks(
+      recommendations.map((recommendation) => recommendation.trackId),
+      providerId
+    );
+  } catch (error) {
+    console.warn('[recs] Failed to enrich recommendations with track metadata', {
+      providerId,
+      recommendationCount: recommendations.length,
+      error,
+    });
+    return recommendations;
+  }
+
   const trackMap = new Map(tracks.map((track) => [track.id, track]));
 
   for (const recommendation of recommendations) {

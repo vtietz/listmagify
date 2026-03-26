@@ -21,6 +21,17 @@ function buildEnvironment(): ErrorReportEnvironment {
   };
 }
 
+function buildReport(error: AppError, userDescription: string): ErrorReport {
+  const trimmedDescription = userDescription.trim();
+
+  return {
+    error,
+    ...(trimmedDescription ? { userDescription: trimmedDescription } : {}),
+    environment: buildEnvironment(),
+    appVersion: process.env.NEXT_PUBLIC_APP_VERSION || '1.0.0',
+  };
+}
+
 export function useErrorReportForm({
   error,
   dialogOpen,
@@ -29,6 +40,7 @@ export function useErrorReportForm({
 }: UseErrorReportFormInput) {
   const [userDescription, setUserDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCopying, setIsCopying] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
 
@@ -72,14 +84,7 @@ export function useErrorReportForm({
     setIsSubmitting(true);
 
     try {
-      const trimmedDescription = userDescription.trim();
-
-      const report: ErrorReport = {
-        error,
-        ...(trimmedDescription ? { userDescription: trimmedDescription } : {}),
-        environment: buildEnvironment(),
-        appVersion: process.env.NEXT_PUBLIC_APP_VERSION || '1.0.0',
-      };
+      const report = buildReport(error, userDescription);
 
       const response = await fetch('/api/error-report', {
         method: 'POST',
@@ -107,12 +112,33 @@ export function useErrorReportForm({
     }
   }, [closeDialog, error, isSubmitting, markReported, userDescription]);
 
+  const handleCopyReport = useCallback(async () => {
+    if (!error || isCopying) {
+      return;
+    }
+
+    setIsCopying(true);
+
+    try {
+      const report = buildReport(error, userDescription);
+      await navigator.clipboard.writeText(JSON.stringify(report, null, 2));
+      toast.success('Error report copied to clipboard');
+    } catch (err) {
+      toast.error('Failed to copy report to clipboard');
+      console.error('Error copying report:', err);
+    } finally {
+      setIsCopying(false);
+    }
+  }, [error, isCopying, userDescription]);
+
   return {
     userDescription,
     setUserDescription,
     isSubmitting,
+    isCopying,
     submitSuccess,
     timeRemaining,
+    handleCopyReport,
     handleSubmitReport,
   };
 }

@@ -27,6 +27,8 @@ import { useDeviceType } from '@/hooks/useDeviceType';
 import { useMobileOverlayStore } from './mobile/MobileBottomNav';
 import { useDndStateStore } from '@/hooks/dnd/state';
 import { usePendingStateStore } from '@/hooks/pending/state';
+import { usePendingActions } from '@/hooks/pending/usePendingActions';
+import type { MatchCandidate } from '@/lib/matching/providers';
 import type { Track, MusicProviderId } from '@/lib/music-provider/types';
 
 interface VirtualizedTrackListContainerProps {
@@ -180,34 +182,41 @@ export function VirtualizedTrackListContainer({
   const setMobileOverlay = useMobileOverlayStore((s) => s.setActiveOverlay);
   const isDndActive = useDndStateStore((s) => s.activeId !== null);
   const pendingForPlaylist = usePendingStateStore((s) => s.byPlaylist[playlistId]?.pending);
+  const { cancelPendingById, resolvePendingWithCandidate } = usePendingActions();
   const openContextMenu = useContextMenuStore((s) => s.openMenu);
   const showHandle = hasTouch || !isDesktop;
   const handleOnlyDrag = hasTouch;
 
   const pendingById = useMemo(() => {
-    const map = new Map<string, { status: 'matching' | 'unresolved' | 'matched' | 'cancelled'; message?: string }>();
+    const map = new Map<string, {
+      status: 'matching' | 'unresolved' | 'matched' | 'cancelled';
+      message?: string;
+      candidates?: MatchCandidate[];
+      sourceQuery?: string;
+      targetProvider?: MusicProviderId;
+    }>();
     if (!pendingForPlaylist) return map;
     pendingForPlaylist.forEach((row) => {
       map.set(
         row.tempId,
-        row.errorMessage
-          ? {
-              status: row.status,
-              message: row.errorMessage,
-            }
-          : {
-              status: row.status,
-            },
+        {
+          status: row.status,
+          ...(row.errorMessage ? { message: row.errorMessage } : {}),
+          ...(row.candidateOptions?.length ? { candidates: row.candidateOptions } : {}),
+          sourceQuery: [row.sourceMeta.title, row.sourceMeta.artists.join(' ')].filter(Boolean).join(' ').trim(),
+          targetProvider: row.targetProvider,
+        },
       );
     });
 
     return map;
   }, [pendingForPlaylist]);
 
-  const openBrowsePanelForProvider = useCallback(() => {
+  const openBrowsePanelForProvider = useCallback((nextProviderId?: MusicProviderId) => {
     setBrowseActiveTab('browse');
-    if (providerId) {
-      setProviderId(providerId);
+    const providerForBrowse = nextProviderId ?? providerId;
+    if (providerForBrowse) {
+      setProviderId(providerForBrowse);
     }
     openBrowsePanel();
   }, [setBrowseActiveTab, openBrowsePanel, providerId, setProviderId]);
@@ -262,6 +271,7 @@ export function VirtualizedTrackListContainer({
     reorderActions: contextMenu.reorderActions,
     markerActions: contextMenu.markerActions,
     trackActions: contextMenu.trackActions,
+    pendingActions: contextMenu.pendingActions,
   });
 
   return (
@@ -329,6 +339,8 @@ export function VirtualizedTrackListContainer({
             showPopularityColumn,
             sharedCtx,
             pendingById,
+            cancelPending: cancelPendingById,
+            resolvePending: resolvePendingWithCandidate,
           });
         })}
       </div>

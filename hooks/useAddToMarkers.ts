@@ -43,7 +43,7 @@ async function addTracksAtMarkers({
   uris: string[];
   providerId: MusicProviderId;
   addTracksMutation: ReturnType<typeof useAddTracks>;
-  shiftAfterMultiInsert: (playlistId: string) => void;
+  shiftAfterMultiInsert: (playlistId: string, options?: { tracksPerInsert?: number }) => void;
 }): Promise<number> {
   if (playlistData.markers.length === 0) {
     return 0;
@@ -60,7 +60,7 @@ async function addTracksAtMarkers({
   }
 
   if (playlistData.markers.length > 1) {
-    shiftAfterMultiInsert(playlistId);
+    shiftAfterMultiInsert(playlistId, { tracksPerInsert: uris.length });
   }
 
   return playlistData.markers.length;
@@ -79,7 +79,7 @@ function resolveProviderForPlaylist(
   panelProviderByPlaylistId: Map<string, MusicProviderId>,
 ): MusicProviderId {
   const mappedProviderId = panelProviderByPlaylistId.get(playlistId);
-  if (mappedProviderId) {
+  if (mappedProviderId && isPlaylistIdCompatibleWithProvider(playlistId, mappedProviderId)) {
     return mappedProviderId;
   }
 

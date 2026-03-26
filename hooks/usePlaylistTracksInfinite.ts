@@ -158,7 +158,10 @@ function flattenUniqueTracks(pages: PlaylistTracksPage[] | undefined): Track[] {
       }
 
       seenKeys.add(key);
-      tracks.push(track);
+      tracks.push({
+        ...track,
+        position: tracks.length,
+      });
     }
   }
 

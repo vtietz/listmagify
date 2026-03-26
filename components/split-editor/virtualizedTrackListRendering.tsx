@@ -1,11 +1,22 @@
 import type { MouseEvent, ReactElement } from 'react';
 import type { VirtualItem } from '@tanstack/react-virtual';
 import { TrackRowInner } from './track-row';
-import type { ReorderActions, TrackActions } from './TrackContextMenu';
+import type { PendingActions, ReorderActions, TrackActions } from './TrackContextMenu';
 import type { MarkerActions } from './context-menu/types';
 import type { TrackRowSharedContext } from './track-row/types';
 import { getPendingIdFromUri } from '@/hooks/pending/state';
 import type { Track } from '@/lib/music-provider/types';
+import type { MatchCandidate } from '@/lib/matching/providers';
+
+function formatProviderName(providerId: 'spotify' | 'tidal'): string {
+  return providerId === 'tidal' ? 'TIDAL' : 'Spotify';
+}
+
+function buildResolveOptionLabel(candidate: MatchCandidate): string {
+  const artists = candidate.previewMetadata.artists.join(', ') || 'Unknown artist';
+  const year = candidate.previewMetadata.releaseYear;
+  return `${candidate.previewMetadata.title} — ${artists}${year ? ` (${year})` : ''}`;
+}
 
 /** Build per-row context track actions, merging panel-level base with row-specific duplicate handler */
 function buildRowContextActions(
@@ -115,6 +126,7 @@ interface ContextMenuOptionalProps {
   reorderActions?: ReorderActions;
   markerActions?: MarkerActions;
   trackActions?: TrackActions;
+  pendingActions?: PendingActions;
 }
 
 export function buildContextMenuOptionalProps(contextMenu: {
@@ -122,6 +134,7 @@ export function buildContextMenuOptionalProps(contextMenu: {
   reorderActions: ReorderActions | null;
   markerActions: MarkerActions | null;
   trackActions: TrackActions | null;
+  pendingActions: PendingActions | null;
 }): ContextMenuOptionalProps {
   const optionalProps: ContextMenuOptionalProps = {};
 
@@ -139,6 +152,10 @@ export function buildContextMenuOptionalProps(contextMenu: {
 
   if (contextMenu.trackActions) {
     optionalProps.trackActions = contextMenu.trackActions;
+  }
+
+  if (contextMenu.pendingActions) {
+    optionalProps.pendingActions = contextMenu.pendingActions;
   }
 
   return optionalProps;
@@ -182,7 +199,15 @@ interface RenderVirtualizedTrackRowParams {
   showReleaseYearColumn: boolean;
   showPopularityColumn: boolean;
   sharedCtx: TrackRowSharedContext;
-  pendingById: Map<string, { status: 'matching' | 'unresolved' | 'matched' | 'cancelled'; message?: string }>;
+  pendingById: Map<string, {
+    status: 'matching' | 'unresolved' | 'matched' | 'cancelled';
+    message?: string;
+    candidates?: MatchCandidate[];
+    sourceQuery?: string;
+    targetProvider?: 'spotify' | 'tidal';
+  }>;
+  cancelPending: (pendingId: string) => void;
+  resolvePending: (pendingId: string, candidate: MatchCandidate) => void | Promise<void>;
 }
 
 type VirtualizedRowModel = {
@@ -191,7 +216,14 @@ type VirtualizedRowModel = {
   trackUri: string;
   trackPosition: number;
   selectionId: string;
-  pendingState: { status: 'matching' | 'unresolved' | 'matched' | 'cancelled'; message?: string } | undefined;
+  pendingId: string | null;
+  pendingState: {
+    status: 'matching' | 'unresolved' | 'matched' | 'cancelled';
+    message?: string;
+    candidates?: MatchCandidate[];
+    sourceQuery?: string;
+    targetProvider?: 'spotify' | 'tidal';
+  } | undefined;
   isPendingRow: boolean;
   isRowDuplicate: boolean;
   rowOptionalProps: TrackRowOptionalProps;
@@ -242,6 +274,7 @@ function buildVirtualizedRowModel(params: RenderVirtualizedTrackRowParams): Virt
     trackUri,
     trackPosition,
     selectionId,
+    pendingId,
     pendingState,
     isPendingRow,
     isRowDuplicate,
@@ -322,6 +355,52 @@ function buildTrackRowInnerProps(
   onClick: RenderVirtualizedTrackRowParams['handleTrackClick'] | (() => void),
 ): React.ComponentProps<typeof TrackRowInner> {
   const markerProps = resolveMarkerProps(params.allowMarkerToggle, params.activeMarkerIndices, rowModel.trackPosition);
+  const pendingId = rowModel.pendingId;
+  const pendingActions: PendingActions | undefined = pendingId
+    ? {
+        ...(rowModel.pendingState?.status === 'unresolved'
+          ? {
+              resolveOptions: (() => {
+                const seenLabels = new Set<string>();
+                const options: NonNullable<PendingActions['resolveOptions']> = [];
+
+                for (const candidate of rowModel.pendingState.candidates ?? []) {
+                  const label = buildResolveOptionLabel(candidate);
+                  if (seenLabels.has(label)) {
+                    continue;
+                  }
+
+                  seenLabels.add(label);
+                  options.push({
+                    label,
+                    onResolve: () => {
+                      void params.resolvePending(pendingId, candidate);
+                    },
+                  });
+
+                  if (options.length >= 3) {
+                    break;
+                  }
+                }
+
+                return options;
+              })(),
+              onSearchInProvider: () => {
+                const targetProvider = rowModel.pendingState?.targetProvider ?? params.sharedCtx.providerId;
+                params.sharedCtx.openBrowsePanel(targetProvider);
+                const sourceQuery = rowModel.pendingState?.sourceQuery;
+                if (sourceQuery) {
+                  params.sharedCtx.setSearchQuery(sourceQuery);
+                }
+              },
+              searchProviderLabel: `Search on ${formatProviderName(rowModel.pendingState?.targetProvider ?? params.sharedCtx.providerId)}`,
+            }
+          : {}),
+        onCancel: () => {
+          params.cancelPending(pendingId);
+        },
+      }
+    : undefined;
 
   return {
     ctx: params.sharedCtx,
@@ -364,6 +443,8 @@ function buildTrackRowInnerProps(
     markerActions: params.panelMarkerActions,
     pendingStatus: resolvePendingStatus(rowModel.pendingState),
     pendingMessage: rowModel.pendingState?.message,
+    onRemovePending: pendingId ? () => params.cancelPending(pendingId) : undefined,
+    pendingActions,
     ...rowModel.rowOptionalProps,
   };
 }

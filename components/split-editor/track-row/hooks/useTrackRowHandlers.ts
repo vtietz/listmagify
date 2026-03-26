@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import type * as React from 'react';
 import { useLongPress } from '@/hooks/useLongPress';
-import type { MarkerActions, ReorderActions, TrackActions } from '../../TrackContextMenu';
+import type { MarkerActions, PendingActions, ReorderActions, TrackActions } from '../../TrackContextMenu';
 import type { Track, MusicProviderId, SearchFilterType } from '@/lib/music-provider/types';
 import type { MobileOverlay } from '../../mobile/MobileBottomNav';
 import { useContextMenuStore } from '@/hooks/useContextMenuStore';
@@ -33,6 +33,8 @@ interface UseTrackRowHandlersInput {
   fullMarkerActions: MarkerActions;
   fullTrackActions: TrackActions;
   reorderActions: ReorderActions | undefined;
+  pendingActions?: PendingActions;
+  disableContextMenu?: boolean;
 }
 
 export function useTrackRowHandlers({
@@ -62,6 +64,8 @@ export function useTrackRowHandlers({
   fullMarkerActions,
   fullTrackActions,
   reorderActions,
+  pendingActions,
+  disableContextMenu = false,
 }: UseTrackRowHandlersInput) {
   const { wasLongPress, resetLongPress, ...longPressTouchHandlers } = useLongPress({
     delay: 350,
@@ -157,6 +161,10 @@ export function useTrackRowHandlers({
 
   const handleContextMenu = useCallback(
     (e: React.MouseEvent) => {
+      if (disableContextMenu) {
+        return;
+      }
+
       e.preventDefault();
       e.stopPropagation();
 
@@ -178,6 +186,7 @@ export function useTrackRowHandlers({
         markerActions: fullMarkerActions,
         trackActions: fullTrackActions,
         reorderActions: reorderActions || {},
+        ...(pendingActions ? { pendingActions } : {}),
       });
     },
     [
@@ -194,11 +203,17 @@ export function useTrackRowHandlers({
       fullMarkerActions,
       fullTrackActions,
       reorderActions,
+      pendingActions,
+      disableContextMenu,
     ],
   );
 
   const handleMoreButtonClick = useCallback(
     (e: React.MouseEvent) => {
+      if (disableContextMenu) {
+        return;
+      }
+
       e.stopPropagation();
       e.preventDefault();
       const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
@@ -214,6 +229,7 @@ export function useTrackRowHandlers({
         markerActions: fullMarkerActions,
         trackActions: fullTrackActions,
         reorderActions: reorderActions || {},
+        ...(pendingActions ? { pendingActions } : {}),
       });
     },
     [
@@ -227,6 +243,8 @@ export function useTrackRowHandlers({
       fullMarkerActions,
       fullTrackActions,
       reorderActions,
+      pendingActions,
+      disableContextMenu,
     ],
   );
 

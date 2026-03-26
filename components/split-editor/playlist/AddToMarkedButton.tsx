@@ -14,12 +14,14 @@ import {
   type InsertionPoint,
 } from '@/hooks/useInsertionPointsStore';
 import { useSplitGridStore, flattenPanels } from '@/hooks/useSplitGridStore';
+import { usePendingActions } from '@/hooks/pending/usePendingActions';
 import { useAddTracks, useReorderTracks } from '@/lib/spotify/playlistMutations';
 import { useCompactModeStore } from '@/hooks/useCompactModeStore';
 import { usePlaylistTrackCheck, type DuplicateCheckResult } from '@/hooks/usePlaylistTrackCheck';
+import { isPlaylistIdCompatibleWithProvider } from '@/lib/providers/playlistIdCompat';
 import { AddToPlaylistDialog } from '@/components/playlist/AddToPlaylistDialog';
 import { cn } from '@/lib/utils';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,6 +34,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/lib/ui/toast';
+import type { MusicProviderId } from '@/lib/music-provider/types';
+import type { TrackPayload } from '@/hooks/dnd/types';
 
 interface AddToMarkedButtonProps {
   /** Track URI to add */
@@ -55,6 +59,50 @@ type AddClickAction = 'ignore' | 'open-playlist-dialog' | 'open-confirm-dialog' 
 interface DuplicateInfoState {
   results: DuplicateCheckResult[];
   playlistsWithDuplicates: string[];
+}
+
+function inferProviderFromTrackUri(trackUri: string): MusicProviderId {
+  if (trackUri.startsWith('tidal:track:')) {
+    return 'tidal';
+  }
+
+  return 'spotify';
+}
+
+function inferProviderFromPlaylistId(playlistId: string): MusicProviderId {
+  if (isPlaylistIdCompatibleWithProvider(playlistId, 'tidal')) {
+    return 'tidal';
+  }
+
+  return 'spotify';
+}
+
+function resolveTargetProviderId(
+  playlistId: string,
+  panelProviderByPlaylistId: Map<string, MusicProviderId>,
+): MusicProviderId {
+  const mappedProvider = panelProviderByPlaylistId.get(playlistId);
+  if (mappedProvider && isPlaylistIdCompatibleWithProvider(playlistId, mappedProvider)) {
+    return mappedProvider;
+  }
+
+  return inferProviderFromPlaylistId(playlistId);
+}
+
+function buildTrackPayload(trackUri: string, trackName: string, trackArtists: string[]): TrackPayload {
+  const sourceProvider = inferProviderFromTrackUri(trackUri);
+  const sourceProviderId = trackUri.includes(':track:') ? trackUri.split(':track:')[1] : undefined;
+
+  return {
+    title: trackName,
+    artists: trackArtists,
+    normalizedArtists: trackArtists.map((artist) => artist.trim().toLowerCase()),
+    album: null,
+    durationSec: 0,
+    sourceProvider,
+    sourceProviderId,
+    sourceProviderUri: trackUri,
+  };
 }
 
 function pluralize(count: number, singular: string, plural?: string): string {
@@ -137,27 +185,30 @@ function buildButtonAriaLabel(hasActiveMarkers: boolean, totalMarkers: number, t
 
 async function addTrackToMarkerPositions(params: {
   playlistId: string;
+  providerId: MusicProviderId;
   markers: InsertionPoint[];
   trackUri: string;
   addTracksMutation: ReturnType<typeof useAddTracks>;
-  shiftAfterMultiInsert: (playlistId: string) => void;
+  shiftAfterMultiInsert: (playlistId: string, options?: { tracksPerInsert?: number }) => void;
 }): Promise<number> {
   const positions = computeInsertionPositions(params.markers, 1);
 
   for (const position of positions) {
     await params.addTracksMutation.mutateAsync({
       playlistId: params.playlistId,
+      providerId: params.providerId,
       trackUris: [params.trackUri],
       position: position.effectiveIndex,
     });
   }
 
-  params.shiftAfterMultiInsert(params.playlistId);
+  params.shiftAfterMultiInsert(params.playlistId, { tracksPerInsert: 1 });
   return positions.length;
 }
 
 async function moveExistingTracksInPlaylist(params: {
   playlistId: string;
+  providerId: MusicProviderId;
   existingPositions: Array<{ position: number }>;
   targetPosition: number;
   reorderTracksMutation: ReturnType<typeof useReorderTracks>;
@@ -173,6 +224,7 @@ async function moveExistingTracksInPlaylist(params: {
 
     await params.reorderTracksMutation.mutateAsync({
       playlistId: params.playlistId,
+      providerId: params.providerId,
       fromIndex,
       toIndex: effectiveTarget,
       rangeLength: 1,
@@ -192,12 +244,13 @@ function findDuplicateResult(
 
 async function moveOrAddForPlaylist(params: {
   playlistId: string;
+  providerId: MusicProviderId;
   playlistData: PlaylistMarkerData;
   duplicateInfo: DuplicateInfoState | null;
   trackUri: string;
   addTracksMutation: ReturnType<typeof useAddTracks>;
   reorderTracksMutation: ReturnType<typeof useReorderTracks>;
-  shiftAfterMultiInsert: (playlistId: string) => void;
+  shiftAfterMultiInsert: (playlistId: string, options?: { tracksPerInsert?: number }) => void;
 }): Promise<{ movedCount: number; addedCount: number }> {
   const positions = computeInsertionPositions(params.playlistData.markers, 1);
   if (positions.length === 0) {
@@ -208,6 +261,7 @@ async function moveOrAddForPlaylist(params: {
   if (duplicateResult?.existingPositions?.length) {
     const movedCount = await moveExistingTracksInPlaylist({
       playlistId: params.playlistId,
+      providerId: params.providerId,
       existingPositions: duplicateResult.existingPositions,
       targetPosition: positions[0]!.effectiveIndex,
       reorderTracksMutation: params.reorderTracksMutation,
@@ -217,6 +271,7 @@ async function moveOrAddForPlaylist(params: {
 
   const addedCount = await addTrackToMarkerPositions({
     playlistId: params.playlistId,
+    providerId: params.providerId,
     markers: params.playlistData.markers,
     trackUri: params.trackUri,
     addTracksMutation: params.addTracksMutation,
@@ -229,16 +284,19 @@ async function moveOrAddAcrossPlaylists(params: {
   playlistsWithMarkers: PlaylistsWithMarkers;
   duplicateInfo: DuplicateInfoState | null;
   trackUri: string;
+  panelProviderByPlaylistId: Map<string, MusicProviderId>;
   addTracksMutation: ReturnType<typeof useAddTracks>;
   reorderTracksMutation: ReturnType<typeof useReorderTracks>;
-  shiftAfterMultiInsert: (playlistId: string) => void;
+  shiftAfterMultiInsert: (playlistId: string, options?: { tracksPerInsert?: number }) => void;
 }): Promise<{ movedCount: number; addedCount: number }> {
   let movedCount = 0;
   let addedCount = 0;
 
   for (const [playlistId, playlistData] of params.playlistsWithMarkers) {
+    const providerId = resolveTargetProviderId(playlistId, params.panelProviderByPlaylistId);
     const playlistResult = await moveOrAddForPlaylist({
       playlistId,
+      providerId,
       playlistData,
       duplicateInfo: params.duplicateInfo,
       trackUri: params.trackUri,
@@ -279,6 +337,7 @@ export function AddToMarkedButton({
   const root = useSplitGridStore((s) => s.root);
   const addTracksMutation = useAddTracks();
   const reorderTracksMutation = useReorderTracks();
+  const { enqueuePendingFromBrowseDrop } = usePendingActions();
   const { checkForAnyDuplicates } = usePlaylistTrackCheck();
   const [isInserting, setIsInserting] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
@@ -297,6 +356,24 @@ export function AddToMarkedButton({
     flattenPanels(root)
       .filter((panel) => panel.playlistId)
       .map((panel) => panel.playlistId as string)
+  );
+
+  const panelProviderByPlaylistId = useMemo(() => {
+    const map = new Map<string, MusicProviderId>();
+
+    for (const panel of flattenPanels(root)) {
+      if (panel.playlistId) {
+        map.set(panel.playlistId, panel.providerId);
+      }
+    }
+
+    return map;
+  }, [root]);
+
+  const sourceProviderId = inferProviderFromTrackUri(trackUri);
+  const sourcePayload = useMemo(
+    () => buildTrackPayload(trackUri, trackName, trackArtists),
+    [trackUri, trackName, trackArtists],
   );
 
   const { hiddenPlaylistCount, hiddenMarkerCount } = getHiddenMarkerSummary(
@@ -320,20 +397,37 @@ export function AddToMarkedButton({
           continue;
         }
 
+        const targetProviderId = resolveTargetProviderId(playlistId, panelProviderByPlaylistId);
         const positions = computeInsertionPositions(data.markers, 1);
 
-        // Insert at each position in order (positions are already adjusted for cumulative inserts)
-        for (const pos of positions) {
-          await addTracksMutation.mutateAsync({
-            playlistId,
-            trackUris: [trackUri],
-            position: pos.effectiveIndex,
-          });
-          insertedCount++;
+        if (sourceProviderId !== targetProviderId) {
+          for (const pos of positions) {
+            const enqueued = enqueuePendingFromBrowseDrop({
+              targetPlaylistId: playlistId,
+              targetProviderId,
+              insertPosition: pos.effectiveIndex,
+              payloads: [sourcePayload],
+            });
+
+            if (enqueued) {
+              insertedCount++;
+            }
+          }
+        } else {
+          // Insert at each position in order (positions are already adjusted for cumulative inserts)
+          for (const pos of positions) {
+            await addTracksMutation.mutateAsync({
+              playlistId,
+              providerId: targetProviderId,
+              trackUris: [trackUri],
+              position: pos.effectiveIndex,
+            });
+            insertedCount++;
+          }
         }
 
         // Update marker indices after all insertions for this playlist
-        shiftAfterMultiInsert(playlistId);
+        shiftAfterMultiInsert(playlistId, { tracksPerInsert: 1 });
       }
 
       if (skippedCount > 0 && insertedCount > 0) {
@@ -348,7 +442,16 @@ export function AddToMarkedButton({
     } finally {
       setIsInserting(false);
     }
-  }, [playlistsWithMarkers, trackUri, addTracksMutation, shiftAfterMultiInsert]);
+  }, [
+    playlistsWithMarkers,
+    panelProviderByPlaylistId,
+    sourceProviderId,
+    sourcePayload,
+    trackUri,
+    addTracksMutation,
+    enqueuePendingFromBrowseDrop,
+    shiftAfterMultiInsert,
+  ]);
 
   // Check for duplicates and show appropriate dialog
   const checkAndProceed = useCallback(async () => {
@@ -423,6 +526,7 @@ export function AddToMarkedButton({
         playlistsWithMarkers,
         duplicateInfo,
         trackUri,
+        panelProviderByPlaylistId,
         addTracksMutation,
         reorderTracksMutation,
         shiftAfterMultiInsert,

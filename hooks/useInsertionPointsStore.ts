@@ -58,8 +58,8 @@ interface InsertionPointsState {
   /** Increment all marker indices at or after a given index (after insertion) */
   incrementIndicesFrom: (playlistId: string, fromIndex: number, count: number) => void;
   
-  /** Shift all markers after multi-point insertion: marker[i] shifts by (i+1) */
-  shiftAfterMultiInsert: (playlistId: string) => void;
+  /** Shift all markers after multi-point insertion: marker[i] shifts by (i+1)*tracksPerInsert */
+  shiftAfterMultiInsert: (playlistId: string, options?: { tracksPerInsert?: number }) => void;
 }
 
 /** Stable empty array to avoid creating new references */
@@ -228,20 +228,18 @@ export const useInsertionPointsStore = create<InsertionPointsState>()((set, get)
     });
   },
 
-  shiftAfterMultiInsert: (playlistId) => {
+  shiftAfterMultiInsert: (playlistId, options) => {
     set((state) => {
       const playlist = state.playlists[playlistId];
       if (!playlist || playlist.markers.length === 0) return state;
+      const tracksPerInsert = Math.max(1, options?.tracksPerInsert ?? 1);
       
       // After inserting one track at each marker position (in order from lowest to highest),
       // each marker needs to shift based on how many insertions happened at or before it.
-      // Marker at index i in the sorted array shifts by (i + 1):
-      // - marker[0] shifts by 1 (only the insertion at its position)
-      // - marker[1] shifts by 2 (insertion at marker[0] + insertion at its position)
-      // - marker[n] shifts by (n + 1)
+      // Marker at index i in the sorted array shifts by (i + 1) * tracksPerInsert.
       const newMarkers = playlist.markers.map((m, i) => ({
         ...m,
-        index: m.index + (i + 1),
+        index: m.index + ((i + 1) * tracksPerInsert),
       }));
       
       return {

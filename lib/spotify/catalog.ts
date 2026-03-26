@@ -10,6 +10,23 @@ import type { MusicProviderId } from '@/lib/music-provider/types';
 import { mapPlaylistItemToTrack } from '@/lib/spotify/types';
 import type { Track } from '@/lib/music-provider/types';
 
+function normalizeTrackIdsForProvider(
+  trackIds: string[],
+  providerId: MusicProviderId,
+): string[] {
+  const uniqueTrackIds = Array.from(new Set(
+    trackIds
+      .map((trackId) => trackId.trim())
+      .filter((trackId) => trackId.length > 0)
+  ));
+
+  if (providerId !== 'spotify') {
+    return uniqueTrackIds;
+  }
+
+  return uniqueTrackIds.filter((trackId) => /^[A-Za-z0-9]{22}$/.test(trackId));
+}
+
 /**
  * Fetch a single track's full details.
  * 
@@ -37,13 +54,14 @@ export async function fetchTracks(
   trackIds: string[],
   providerId: MusicProviderId = 'spotify'
 ): Promise<Track[]> {
-  if (trackIds.length === 0) return [];
+  const normalizedTrackIds = normalizeTrackIdsForProvider(trackIds, providerId);
+  if (normalizedTrackIds.length === 0) return [];
   
   const results: Track[] = [];
   
   // Process in batches of 50
-  for (let i = 0; i < trackIds.length; i += 50) {
-    const batch = trackIds.slice(i, i + 50);
+  for (let i = 0; i < normalizedTrackIds.length; i += 50) {
+    const batch = normalizedTrackIds.slice(i, i + 50);
     const ids = batch.join(',');
     
     const provider = getMusicProvider(providerId);
