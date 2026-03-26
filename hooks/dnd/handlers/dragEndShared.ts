@@ -85,6 +85,10 @@ export function resolveCrossProviderPayloads(
     return sourceData.selectedTrackPayloads;
   }
 
+  if (dragTracks.length > 1) {
+    return dragTracks.map((track) => buildPayloadFromTrack(track, sourceProvider));
+  }
+
   if (sourceData.trackPayload) {
     return [sourceData.trackPayload];
   }
