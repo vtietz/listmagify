@@ -1,7 +1,7 @@
 import type { MusicProviderId } from '@/lib/music-provider/types';
 import type { TrackPayload } from '@/hooks/dnd/types';
 import { createProviderMatchingAdapter, type MatchCandidate, type ProviderMatchingAdapter } from './providers';
-import { MATCH_THRESHOLDS } from './scoring';
+import { getConfiguredMatchThresholds } from './config';
 
 export interface MatchEngineTask {
   pendingId: string;
@@ -55,6 +55,7 @@ class MatchEngine {
 
   private async runTask(task: QueuedTask): Promise<void> {
     try {
+      const thresholds = getConfiguredMatchThresholds();
       const candidates = await this.adapter.searchCandidates(task.payload, task.targetProvider, 3);
       const candidate = candidates[0] ?? null;
 
@@ -67,12 +68,12 @@ class MatchEngine {
         return;
       }
 
-      if (candidate.score >= MATCH_THRESHOLDS.convert) {
+      if (candidate.score >= thresholds.convert) {
         await task.onMatched(candidate);
         return;
       }
 
-      if (candidate.score >= MATCH_THRESHOLDS.manual) {
+      if (candidate.score >= thresholds.manual) {
         task.onNeedsManualCheck(candidate, candidates);
         return;
       }

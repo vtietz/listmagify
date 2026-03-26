@@ -34,13 +34,12 @@ function renderHeaderNav(showSecureLinks: boolean) {
       isPlayerVisible={false}
       togglePlayerVisible={vi.fn()}
       supportsPlayer={true}
-      supportsCompact={true}
       isCompact={false}
-      toggleCompact={vi.fn()}
+      setCompact={vi.fn()}
       isAutoScrollText={false}
-      toggleAutoScrollText={vi.fn()}
+      setAutoScrollText={vi.fn()}
       isCompareEnabled={false}
-      toggleCompare={vi.fn()}
+      setCompareEnabled={vi.fn()}
       supportsCompare={true}
       markerStats={{ playlistIds: [], playlistCount: 0, totalMarkers: 0 }}
       clearAllMarkers={vi.fn()}

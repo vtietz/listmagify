@@ -1,5 +1,6 @@
 import type { Track } from '@/lib/music-provider/types';
 import type { TrackPayload } from '@/hooks/dnd/types';
+import { DEFAULT_MATCH_THRESHOLDS } from './config';
 
 export interface ScoredCandidate {
   track: Track;
@@ -105,6 +106,6 @@ export function pickTopCandidates(source: TrackPayload, candidates: Track[], lim
 }
 
 export const MATCH_THRESHOLDS = {
-  convert: 0.82,
-  manual: 0.72,
+  convert: DEFAULT_MATCH_THRESHOLDS.convert,
+  manual: DEFAULT_MATCH_THRESHOLDS.manual,
 };

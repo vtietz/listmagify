@@ -18,10 +18,8 @@ import {
   ListMusic, 
   LogIn, 
   LogOut,
-  Minimize2, 
   MapPinOff, 
   BarChart3, 
-  GitCompare, 
   Menu, 
   Shield, 
   FileText, 
@@ -29,7 +27,7 @@ import {
   Search,
   Music2,
   MessageSquarePlus,
-  TextCursorInput,
+  Settings2,
   // Github brand icon is deprecated in lucide-react but still functional
   // TODO: Consider migrating to SimpleIcons in the future
   Github,
@@ -42,6 +40,7 @@ import { FeedbackDialog } from '@/components/feedback';
 import { AdaptiveNav as AdaptiveNavComponent, type NavItem } from '@/components/ui/adaptive-nav';
 import { syncProviderAuthStatusWithRetry } from '@/lib/providers/syncProviderAuth';
 import type { ProviderId } from '@/lib/providers/types';
+import { ConfigDialog } from '@/components/shell/config/ConfigDialog';
 
 // ============================================================================
 // Types
@@ -74,20 +73,18 @@ interface AdaptiveNavProps {
   togglePlayerVisible: () => void;
   /** Whether player toggle should be shown (split-editor/playlists pages) */
   supportsPlayer: boolean;
-  /** Whether compact toggle should be shown */
-  supportsCompact?: boolean;
   /** Whether compact mode is enabled */
   isCompact: boolean;
-  /** Toggle compact mode */
-  toggleCompact: () => void;
+  /** Set compact mode */
+  setCompact: (value: boolean) => void;
   /** Whether auto-scroll text mode is enabled */
   isAutoScrollText: boolean;
-  /** Toggle auto-scroll text mode */
-  toggleAutoScrollText: () => void;
+  /** Set auto-scroll text mode */
+  setAutoScrollText: (value: boolean) => void;
   /** Whether compare mode is enabled */
   isCompareEnabled: boolean;
-  /** Toggle compare mode */
-  toggleCompare: () => void;
+  /** Set compare mode */
+  setCompareEnabled: (value: boolean) => void;
   /** Whether compare toggle should be shown */
   supportsCompare: boolean;
   /** Marker statistics */
@@ -236,18 +233,18 @@ export function AdaptiveNav({
   isPlayerVisible,
   togglePlayerVisible,
   supportsPlayer,
-  supportsCompact = true,
   isCompact,
-  toggleCompact,
+  setCompact,
   isAutoScrollText,
-  toggleAutoScrollText,
+  setAutoScrollText,
   isCompareEnabled,
-  toggleCompare,
+  setCompareEnabled,
   supportsCompare,
   markerStats,
   clearAllMarkers,
 }: AdaptiveNavProps) {
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [configOpen, setConfigOpen] = useState(false);
   const headerProviders = useHeaderProviders();
   const isSingleProvider = headerProviders.length <= 1;
   
@@ -307,33 +304,13 @@ export function AdaptiveNav({
       showCheckmark: true,
       group: 'view',
     }] : []),
-    ...(supportsCompact ? [{
-      id: 'compact',
-      icon: <Minimize2 className="h-3.5 w-3.5" />,
-      label: 'Compact',
-      onClick: toggleCompact,
-      isActive: isCompact,
-      showCheckmark: true,
+    {
+      id: 'config',
+      icon: <Settings2 className="h-3.5 w-3.5" />,
+      label: 'Config',
+      onClick: () => setConfigOpen(true),
       group: 'view',
-    }] : []),
-    ...(supportsCompact ? [{
-      id: 'auto-scroll',
-      icon: <TextCursorInput className="h-3.5 w-3.5" />,
-      label: 'Scroll Text',
-      onClick: toggleAutoScrollText,
-      isActive: isAutoScrollText,
-      showCheckmark: true,
-      group: 'view',
-    }] : []),
-    ...(supportsCompare ? [{
-      id: 'compare',
-      icon: <GitCompare className="h-3.5 w-3.5" />,
-      label: 'Compare',
-      onClick: toggleCompare,
-      isActive: isCompareEnabled,
-      showCheckmark: true,
-      group: 'view',
-    }] : []),
+    },
     // Group 3: Actions (markers)
     ...(markerStats.totalMarkers > 0 ? [{
       id: 'markers',
@@ -391,11 +368,9 @@ export function AdaptiveNav({
     supportsBrowse,
     isPlaylistsActive, isSplitEditorActive, isStatsActive, hasStatsAccess,
     isBrowseOpen, toggleBrowse, isPlayerVisible, togglePlayerVisible, supportsPlayer,
-    supportsCompact,
-    isCompact, toggleCompact, isAutoScrollText, toggleAutoScrollText,
-    isCompareEnabled, toggleCompare, supportsCompare,
     markerStats.totalMarkers, clearAllMarkers,
     isSingleProvider,
+    setConfigOpen,
   ]);
 
   return (
@@ -406,6 +381,17 @@ export function AdaptiveNav({
         burgerIcon={<Menu className="h-4 w-4" />}
       />
       <FeedbackDialog trigger={null} open={feedbackOpen} onOpenChange={setFeedbackOpen} />
+      <ConfigDialog
+        open={configOpen}
+        onOpenChange={setConfigOpen}
+        isCompact={isCompact}
+        setCompact={setCompact}
+        isAutoScrollText={isAutoScrollText}
+        setAutoScrollText={setAutoScrollText}
+        isCompareEnabled={isCompareEnabled}
+        setCompareEnabled={setCompareEnabled}
+        supportsCompare={supportsCompare}
+      />
     </>
   );
 }

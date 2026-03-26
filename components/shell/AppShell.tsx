@@ -184,9 +184,13 @@ function DefaultLayout({
 
 function Header({ title: _title }: { title: string }) {
   const pathname = usePathname();
-  const { isCompact, toggle: toggleCompact } = useCompactModeStore();
-  const { isEnabled: isAutoScrollText, toggle: toggleAutoScrollText } = useAutoScrollTextStore();
-  const { isEnabled: isCompareEnabled, toggle: toggleCompare } = useCompareModeStore();
+  const { isCompact, setCompact } = useCompactModeStore();
+  const { isEnabled: isAutoScrollText, setEnabled: setAutoScrollText } = useAutoScrollTextStore();
+  const {
+    isEnabled: isCompareEnabled,
+    enable: enableCompare,
+    disable: disableCompare,
+  } = useCompareModeStore();
   const {
     isOpen: isBrowseOpen,
     open: openBrowse,
@@ -265,13 +269,18 @@ function Header({ title: _title }: { title: string }) {
               isPlayerVisible={isPlayerVisible}
               togglePlayerVisible={togglePlayerVisible}
               supportsPlayer={supportsPlayerToggle}
-              supportsCompact={!isLandingPage}
               isCompact={isCompact}
-              toggleCompact={toggleCompact}
+              setCompact={setCompact}
               isAutoScrollText={isAutoScrollText}
-              toggleAutoScrollText={toggleAutoScrollText}
+              setAutoScrollText={setAutoScrollText}
               isCompareEnabled={isCompareEnabled}
-              toggleCompare={toggleCompare}
+              setCompareEnabled={(value) => {
+                if (value) {
+                  enableCompare();
+                } else {
+                  disableCompare();
+                }
+              }}
               supportsCompare={supportsPlayerAndCompare}
               markerStats={markerStats}
               clearAllMarkers={clearAllMarkers}
