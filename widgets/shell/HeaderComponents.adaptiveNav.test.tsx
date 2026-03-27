@@ -54,6 +54,8 @@ describe('HeaderComponents AdaptiveNav secure links', () => {
     expect(screen.queryByText('Playlists')).not.toBeInTheDocument();
     expect(screen.queryByText('Panels')).not.toBeInTheDocument();
     expect(screen.queryByText('Admin')).not.toBeInTheDocument();
+    expect(screen.queryByText('Browse')).not.toBeInTheDocument();
+    expect(screen.queryByText('Config')).not.toBeInTheDocument();
   });
 
   it('shows secured navigation links when showSecureLinks is true', () => {
@@ -62,5 +64,7 @@ describe('HeaderComponents AdaptiveNav secure links', () => {
     expect(screen.getByText('Playlists')).toBeInTheDocument();
     expect(screen.getByText('Panels')).toBeInTheDocument();
     expect(screen.getByText('Admin')).toBeInTheDocument();
+    expect(screen.getByText('Browse')).toBeInTheDocument();
+    expect(screen.getByText('Config')).toBeInTheDocument();
   });
 });

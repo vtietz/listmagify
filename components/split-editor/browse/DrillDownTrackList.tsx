@@ -178,6 +178,7 @@ export function DrillDownTrackList({ drillDown, providerId }: DrillDownTrackList
             onClick={handleClick}
             isFetchingNextPage={false}
             providerId={providerId}
+            hasAnyMarkers={false}
           />
         )}
 

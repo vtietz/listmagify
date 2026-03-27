@@ -7,7 +7,14 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { useBrowsePanelStore } from '@features/split-editor/browse/hooks/useBrowsePanelStore';
 import { useHydratedCompactMode } from '@features/split-editor/stores/useCompactModeStore';
 import { useCompareModeStore, getTrackCompareColor } from '@features/split-editor/stores/useCompareModeStore';
-import { useInsertionPointsStore } from '@features/split-editor/playlist/hooks/useInsertionPointsStore';
+import {
+  useInsertionPointsStore,
+  computeInsertionPositions,
+} from '@features/split-editor/playlist/hooks/useInsertionPointsStore';
+import { usePendingActions } from '@features/split-editor/hooks/usePendingActions';
+import { useSplitGridStore } from '@features/split-editor/stores/useSplitGridStore';
+import { useAddTracks } from '@/lib/spotify/playlistMutations';
+import { isPlaylistIdCompatibleWithProvider } from '@/lib/providers/playlistIdCompat';
 import { useContextMenuStore } from '@features/split-editor/stores/useContextMenuStore';
 import { useSavedTracksIndex } from '@features/playlists/hooks/useSavedTracksIndex';
 import { useTrackPlayback } from '@features/player/hooks/useTrackPlayback';
@@ -75,6 +82,8 @@ type SearchPanelBodyProps = {
   handleClick: (_selectionKey: string, index: number) => void;
   isFetchingNextPage: boolean;
   isActive: boolean;
+  hasAnyMarkers: boolean;
+  onAddTrackToAllMarkers: (track: Track) => void;
 };
 
 function SearchPanelBody(props: SearchPanelBodyProps) {
@@ -130,6 +139,8 @@ function SearchPanelBody(props: SearchPanelBodyProps) {
           onClick={props.handleClick}
           isFetchingNextPage={props.isFetchingNextPage}
           providerId={props.effectiveProviderId}
+          hasAnyMarkers={props.hasAnyMarkers}
+          onAddTrackToAllMarkers={props.onAddTrackToAllMarkers}
         />
       </SearchResultsState>
 
@@ -227,7 +238,50 @@ export function SearchPanel({ isActive = true, inputRef: externalInputRef, provi
   }, [compareDistribution, isCompareEnabled]);
 
   const allPlaylists = useInsertionPointsStore((state) => state.playlists);
+  const shiftAfterMultiInsert = useInsertionPointsStore((s) => s.shiftAfterMultiInsert);
   const hasAnyMarkers = Object.values(allPlaylists).some((playlist) => playlist.markers.length > 0);
+  const panels = useSplitGridStore((s) => s.panels);
+  const addTracksMutation = useAddTracks();
+  const { enqueuePendingFromBrowseDrop } = usePendingActions();
+
+  const onAddTrackToAllMarkers = useCallback((track: Track) => {
+    const payload = buildTrackPayload(track, effectiveProviderId);
+    const uris = track.uri ? [track.uri] : [];
+
+    for (const [playlistId, playlistData] of Object.entries(allPlaylists)) {
+      if (playlistData.markers.length === 0) continue;
+
+      const panel = panels.find((p) => p.playlistId === playlistId);
+      const targetProviderId = panel?.providerId
+        ?? (isPlaylistIdCompatibleWithProvider(playlistId, 'tidal') ? 'tidal' as const : 'spotify' as const);
+      const isCrossProvider = effectiveProviderId !== targetProviderId;
+
+      if (isCrossProvider) {
+        const positions = computeInsertionPositions(playlistData.markers, 1);
+        for (const position of positions) {
+          enqueuePendingFromBrowseDrop({
+            targetPlaylistId: playlistId,
+            targetProviderId,
+            insertPosition: position.effectiveIndex,
+            payloads: [payload],
+          });
+        }
+      } else if (uris.length > 0) {
+        const positions = computeInsertionPositions(playlistData.markers, uris.length);
+        for (const position of positions) {
+          void addTracksMutation.mutateAsync({
+            playlistId,
+            trackUris: uris,
+            position: position.effectiveIndex,
+            providerId: targetProviderId,
+          });
+        }
+        if (playlistData.markers.length > 1) {
+          shiftAfterMultiInsert(playlistId, { tracksPerInsert: uris.length });
+        }
+      }
+    }
+  }, [effectiveProviderId, allPlaylists, panels, enqueuePendingFromBrowseDrop, addTracksMutation, shiftAfterMultiInsert]);
 
   const contextMenu = useContextMenuStore();
   const closeContextMenu = useContextMenuStore((state) => state.closeMenu);
@@ -436,6 +490,8 @@ export function SearchPanel({ isActive = true, inputRef: externalInputRef, provi
           handleClick={handleClick}
           isFetchingNextPage={isFetchingNextPage}
           isActive={isActive}
+          hasAnyMarkers={hasAnyMarkers}
+          onAddTrackToAllMarkers={onAddTrackToAllMarkers}
         />
       </div>
     </div>

@@ -48,6 +48,27 @@ test.describe('Provider connection UX', () => {
   });
 
   test('blocks interactions while overlay is active and re-enables after panel sign-in', async ({ page }) => {
+    // Mock search API so cross-provider matching (TIDAL → Spotify) can resolve.
+    // Return a track whose name/artist match the TIDAL source for a high match score.
+    await page.route('**/api/search/tracks**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          tracks: [{
+            id: 'spotify-matched-6',
+            uri: 'spotify:track:spotify-matched-6',
+            name: 'TIDAL Track 6',
+            artists: ['TIDAL Artist 5'],
+            durationMs: 169000,
+            album: { name: 'TIDAL Album 5', image: null },
+          }],
+          total: 1,
+          nextOffset: null,
+        }),
+      });
+    });
+
     await page.goto(TWO_PANEL_AUTH_LAYOUT);
 
     const panels = page.locator('[data-testid="playlist-panel"]');

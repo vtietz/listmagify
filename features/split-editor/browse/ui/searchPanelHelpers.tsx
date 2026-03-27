@@ -165,6 +165,7 @@ export function SearchInputBar({
           providers={availableProviders}
           statusMap={statusMap}
           hideWhenSingleConnected={false}
+          showProviderLabelInPanelTrigger
           triggerRole="combobox"
           triggerAriaLabel="Search provider"
           onProviderChange={onProviderChange}
@@ -268,6 +269,8 @@ export function SearchTracksVirtualList({
   onClick,
   isFetchingNextPage,
   providerId,
+  hasAnyMarkers,
+  onAddTrackToAllMarkers,
 }: {
   panelId: string;
   sortableIds: string[];
@@ -290,6 +293,8 @@ export function SearchTracksVirtualList({
   onClick: (_selectionKey: string, index: number) => void;
   isFetchingNextPage: boolean;
   providerId: MusicProviderId;
+  hasAnyMarkers: boolean;
+  onAddTrackToAllMarkers?: (track: Track) => void;
 }) {
   return (
     <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
@@ -353,6 +358,12 @@ export function SearchTracksVirtualList({
                     isMultiSelect={spotifySelection.length > 1}
                     selectedCount={spotifySelection.length}
                     selectedTracks={selectedTracksForDrag}
+                    {...(hasAnyMarkers && onAddTrackToAllMarkers ? {
+                      markerActions: {
+                        hasAnyMarkers: true,
+                        onAddToAllMarkers: () => onAddTrackToAllMarkers(track),
+                      },
+                    } : {})}
                   />
                 </div>
               );

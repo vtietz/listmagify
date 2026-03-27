@@ -293,6 +293,7 @@ export function AdaptiveNav({
       onClick: toggleBrowse,
       isActive: isBrowseOpen,
       showCheckmark: true,
+      visible: showSecureLinks,
       group: 'view',
     }] : []),
     ...(!isPhone && supportsPlayer ? [{
@@ -309,6 +310,7 @@ export function AdaptiveNav({
       icon: <Settings2 className="h-3.5 w-3.5" />,
       label: 'Config',
       onClick: () => setConfigOpen(true),
+      visible: showSecureLinks,
       group: 'view',
     },
     // Group 3: Actions (markers)

@@ -51,10 +51,10 @@ function getPlaylistPanelClassName({
   isPlayingPanel: boolean;
   isActiveDropTarget: boolean;
 }) {
-  return isPlayingPanel
-    ? 'flex flex-col h-full border-2 rounded-lg overflow-hidden transition-all border-green-500 shadow-[0_0_10px_rgba(34,197,94,0.3)]'
-    : isActiveDropTarget
-      ? 'flex flex-col h-full border-2 rounded-lg overflow-hidden transition-all border-primary bg-primary/10'
+  return isActiveDropTarget
+    ? 'flex flex-col h-full border-2 rounded-lg overflow-hidden transition-all border-primary bg-primary/10'
+    : isPlayingPanel
+      ? 'flex flex-col h-full border-2 rounded-lg overflow-hidden transition-all border-green-500 shadow-[0_0_10px_rgba(34,197,94,0.3)]'
       : 'flex flex-col h-full border-2 rounded-lg overflow-hidden transition-all border-border bg-card';
 }
 
