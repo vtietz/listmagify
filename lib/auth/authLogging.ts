@@ -13,17 +13,12 @@ type ProviderAuthCode =
   | 'rate_limited'
   | 'provider_unavailable';
 
-function formatDebugUser(user: any): string {
-  return user?.email ?? user?.name ?? '[unknown]';
-}
-
 function extractSignInData(message: SignInMessage): {
   providerAccountId: string | undefined;
   accessToken: string | undefined;
   email: string | undefined;
   userAgent: string | undefined;
   provider: string | undefined;
-  debugUser: string;
 } {
   const account = message?.account;
   const user = message?.user;
@@ -34,7 +29,6 @@ function extractSignInData(message: SignInMessage): {
     email: user?.email,
     userAgent: user?.userAgent,
     provider: account?.provider,
-    debugUser: formatDebugUser(user),
   };
 }
 
@@ -82,16 +76,14 @@ export function createAuthEvents() {
   return {
     async signIn(message: SignInMessage) {
       try {
-        const { providerAccountId, accessToken, email, userAgent, provider, debugUser } = extractSignInData(message);
+        const { providerAccountId, accessToken, email, userAgent, provider } = extractSignInData(message);
         const trackedUserId = provider === 'spotify' && accessToken
           ? await fetchSpotifyUserId(accessToken, providerAccountId ?? '')
           : providerAccountId;
 
-        console.debug('[auth] NextAuth signIn', {
+        console.debug('[auth] signIn', {
           provider,
-          providerAccountId,
-          trackedUserId,
-          user: debugUser,
+          userId: trackedUserId ?? providerAccountId,
         });
 
         if (trackedUserId) {
@@ -135,12 +127,12 @@ export const authLogger = {
   warn(...args: any[]) {
     console.warn('[auth] NextAuth logger warn', ...args);
   },
-  debug(...args: any[]) {
-    if (args[0] === 'CHUNKING_SESSION_COOKIE') {
-      return;
+  debug(code: string, ..._args: any[]) {
+    // Only log session-lifecycle events; suppress verbose OAuth dumps
+    // (GET_AUTHORIZATION_URL, PROFILE_DATA, OAUTH_CALLBACK_RESPONSE, etc.)
+    if (code === 'SESSION_CREATED' || code === 'SESSION_UPDATED') {
+      console.debug('[auth]', code);
     }
-
-    console.debug('[auth] NextAuth logger debug', ...args);
   },
 };
 
