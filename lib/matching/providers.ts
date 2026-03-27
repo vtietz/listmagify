@@ -2,6 +2,7 @@ import { apiFetch } from '@/lib/api/client';
 import type { MusicProviderId, Track } from '@/lib/music-provider/types';
 import type { TrackPayload } from '@features/dnd/model/types';
 import { pickTopCandidates } from './scoring';
+import { getConfiguredMatchThresholds } from './config';
 
 export interface MatchCandidate {
   provider: MusicProviderId;
@@ -39,6 +40,42 @@ function buildQuery(payload: TrackPayload): string {
   return [payload.title, artists, album].filter(Boolean).join(' ').trim();
 }
 
+function buildFallbackQuery(payload: TrackPayload): string {
+  const artists = payload.artists.join(' ').trim();
+  return [payload.title, artists].filter(Boolean).join(' ').trim();
+}
+
+function dedupeTracksByUri(tracks: Track[]): Track[] {
+  const seen = new Set<string>();
+  const deduped: Track[] = [];
+
+  for (const track of tracks) {
+    if (!track.uri || seen.has(track.uri)) {
+      continue;
+    }
+
+    seen.add(track.uri);
+    deduped.push(track);
+  }
+
+  return deduped;
+}
+
+async function searchTracks(query: string, targetProvider: MusicProviderId, limit: number): Promise<Track[]> {
+  if (!query) {
+    return [];
+  }
+
+  const result = await apiFetch<{ tracks: Track[] }>('/api/search/tracks?' + new URLSearchParams({
+    provider: targetProvider,
+    q: query,
+    limit: String(Math.max(1, Math.min(25, limit * 4))),
+    offset: '0',
+  }).toString());
+
+  return result.tracks ?? [];
+}
+
 class ApiSearchProviderAdapter implements ProviderMatchingAdapter {
   async searchCandidates(payload: TrackPayload, targetProvider: MusicProviderId, limit = 3): Promise<MatchCandidate[]> {
     const query = buildQuery(payload);
@@ -46,14 +83,23 @@ class ApiSearchProviderAdapter implements ProviderMatchingAdapter {
       return [];
     }
 
-    const result = await apiFetch<{ tracks: Track[] }>('/api/search/tracks?' + new URLSearchParams({
-      provider: targetProvider,
-      q: query,
-      limit: String(Math.max(1, Math.min(25, limit * 4))),
-      offset: '0',
-    }).toString());
+    const thresholds = getConfiguredMatchThresholds();
+    const primaryTracks = await searchTracks(query, targetProvider, limit);
+    let combinedTracks = primaryTracks;
 
-    const scored = pickTopCandidates(payload, result.tracks ?? [], limit);
+    const fallbackQuery = buildFallbackQuery(payload);
+    const primaryBest = pickTopCandidates(payload, primaryTracks, 1)[0];
+    const shouldRunFallback = Boolean(payload.album)
+      && fallbackQuery.length > 0
+      && fallbackQuery !== query
+      && (!primaryBest || primaryBest.score < thresholds.manual);
+
+    if (shouldRunFallback) {
+      const fallbackTracks = await searchTracks(fallbackQuery, targetProvider, limit);
+      combinedTracks = dedupeTracksByUri([...primaryTracks, ...fallbackTracks]);
+    }
+
+    const scored = pickTopCandidates(payload, combinedTracks, limit);
 
     return scored.map((candidate) => {
       const releaseYear = extractReleaseYear(candidate.track);
