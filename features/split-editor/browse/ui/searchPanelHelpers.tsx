@@ -49,14 +49,16 @@ function useAvailableProviders(): MusicProviderId[] {
 export function useSearchQueryState(
   searchQuery: string,
   setSearchQuery: (query: string) => void,
-  clearSpotifySelection: () => void
+  clearSpotifySelection: () => void,
+  providerId: MusicProviderId
 ) {
   const [localQuery, setLocalQuery] = useState(searchQuery);
   const debouncedQuery = useDebouncedValue(localQuery, 300);
 
+  // Reset localQuery when provider changes or store query changes externally
   useEffect(() => {
     setLocalQuery(searchQuery);
-  }, [searchQuery]);
+  }, [searchQuery, providerId]);
 
   useEffect(() => {
     setSearchQuery(debouncedQuery);
@@ -165,7 +167,6 @@ export function SearchInputBar({
           providers={availableProviders}
           statusMap={statusMap}
           hideWhenSingleConnected={false}
-          showProviderLabelInPanelTrigger
           triggerRole="combobox"
           triggerAriaLabel="Search provider"
           onProviderChange={onProviderChange}

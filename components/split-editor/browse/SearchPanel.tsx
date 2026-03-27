@@ -295,7 +295,8 @@ export function SearchPanel({ isActive = true, inputRef: externalInputRef, provi
   const { localQuery, setLocalQuery, debouncedQuery } = useSearchQueryState(
     searchQuery,
     setSearchQuery,
-    clearSpotifySelection
+    clearSpotifySelection,
+    effectiveProviderId
   );
 
   useFocusWhenActive(isActive, inputRef);

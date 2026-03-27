@@ -35,6 +35,7 @@ export function usePendingActions() {
     targetPlaylistId: string;
     position: number;
     candidate: MatchCandidate;
+    enqueueOrder: number;
   }>>>(new Map());
   const matchedInsertTimerRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const addTracks = useAddTracks();
@@ -121,13 +122,18 @@ export function usePendingActions() {
     targetPlaylistId: string;
     position: number;
     candidate: MatchCandidate;
+    enqueueOrder: number;
   }>) => {
     const activeBatch = batch.filter((entry) => findPendingById(entry.pendingId));
     if (activeBatch.length === 0) {
       return;
     }
 
-    const sorted = [...activeBatch].sort((a, b) => a.position - b.position);
+    const sorted = [...activeBatch].sort((a, b) => {
+      const positionDiff = a.position - b.position;
+      if (positionDiff !== 0) return positionDiff;
+      return a.enqueueOrder - b.enqueueOrder;
+    });
     const first = sorted[0];
     if (!first) {
       return;
@@ -166,6 +172,7 @@ export function usePendingActions() {
     targetPlaylistId: string;
     position: number;
     candidate: MatchCandidate;
+    enqueueOrder: number;
   }) => {
     const queueKey = `${entry.targetProviderId}:${entry.targetPlaylistId}`;
     const currentBatch = matchedInsertBufferRef.current.get(queueKey) ?? [];
@@ -224,7 +231,7 @@ export function usePendingActions() {
 
     const engine = getMatchEngine();
 
-    pendingTracks.forEach((pendingTrack) => {
+    pendingTracks.forEach((pendingTrack, enqueueOrder) => {
       engine.enqueue({
         pendingId: pendingTrack.tempId,
         payload: pendingTrack.sourceMeta,
@@ -240,6 +247,7 @@ export function usePendingActions() {
             targetPlaylistId: params.targetPlaylistId,
             position: pendingTrack.position,
             candidate,
+            enqueueOrder,
           });
         },
         onNeedsManualCheck: (candidate, candidates) => {

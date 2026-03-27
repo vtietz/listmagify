@@ -20,16 +20,19 @@ export type DrillDownTarget = {
 type BrowseProviderSearchState = {
   searchQuery: string;
   searchFilter: SearchFilterType;
+  drillDown: DrillDownTarget | null;
 };
 
 const DEFAULT_PROVIDER_SEARCH_STATE: Record<MusicProviderId, BrowseProviderSearchState> = {
   spotify: {
     searchQuery: '',
     searchFilter: 'tracks',
+    drillDown: null,
   },
   tidal: {
     searchQuery: '',
     searchFilter: 'all',
+    drillDown: null,
   },
 };
 
@@ -126,13 +129,24 @@ export const useBrowsePanelStore = create<BrowsePanelState>()(
       close: () => set({ isOpen: false }),
       setActiveTab: (tab) => set({ activeTab: tab }),
       setProviderId: (providerId) => set((state) => {
-        const providerSearchState = state.searchStateByProvider[providerId] ?? DEFAULT_PROVIDER_SEARCH_STATE[providerId];
+        // Save outgoing provider's current state
+        const updatedStateByProvider = {
+          ...state.searchStateByProvider,
+          [state.providerId]: {
+            searchQuery: state.searchQuery,
+            searchFilter: state.searchFilter,
+            drillDown: state.drillDown,
+          },
+        };
+        // Restore incoming provider's state
+        const incoming = updatedStateByProvider[providerId] ?? DEFAULT_PROVIDER_SEARCH_STATE[providerId];
         return {
           providerId,
-          searchQuery: providerSearchState.searchQuery,
-          searchFilter: providerSearchState.searchFilter,
+          searchQuery: incoming.searchQuery,
+          searchFilter: incoming.searchFilter,
+          drillDown: incoming.drillDown,
           spotifySelection: [],
-          drillDown: null,
+          searchStateByProvider: updatedStateByProvider,
         };
       }),
       setSearchQuery: (query) => set((state) => ({
@@ -143,6 +157,7 @@ export const useBrowsePanelStore = create<BrowsePanelState>()(
           [state.providerId]: {
             ...state.searchStateByProvider[state.providerId],
             searchQuery: query,
+            drillDown: null,
           },
         },
       })),
@@ -155,11 +170,32 @@ export const useBrowsePanelStore = create<BrowsePanelState>()(
           [state.providerId]: {
             ...state.searchStateByProvider[state.providerId],
             searchFilter: filter,
+            drillDown: null,
           },
         },
       })),
-      setDrillDown: (target) => set({ drillDown: target, spotifySelection: [] }),
-      clearDrillDown: () => set({ drillDown: null, spotifySelection: [] }),
+      setDrillDown: (target) => set((state) => ({
+        drillDown: target,
+        spotifySelection: [],
+        searchStateByProvider: {
+          ...state.searchStateByProvider,
+          [state.providerId]: {
+            ...state.searchStateByProvider[state.providerId],
+            drillDown: target,
+          },
+        },
+      })),
+      clearDrillDown: () => set((state) => ({
+        drillDown: null,
+        spotifySelection: [],
+        searchStateByProvider: {
+          ...state.searchStateByProvider,
+          [state.providerId]: {
+            ...state.searchStateByProvider[state.providerId],
+            drillDown: null,
+          },
+        },
+      })),
       setWidth: (width) => set({ width: Math.max(300, Math.min(800, width)) }),
       setRecsExpanded: (expanded) => set({ recsExpanded: expanded }),
       toggleRecsExpanded: () => set((state) => ({ recsExpanded: !state.recsExpanded })),
