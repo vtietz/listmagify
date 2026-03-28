@@ -18,7 +18,6 @@ type SessionLike = {
 };
 
 type HomeSessionState = {
-  sessionError: string | undefined;
   hasValidSession: boolean;
   isAuthenticated: boolean;
 };
@@ -54,8 +53,8 @@ function resolveReturnTo(next: string | undefined): string {
   return next && next.startsWith("/") ? next : "/split-editor";
 }
 
-function resolveHomeMessage(reason: string | undefined, sessionError: string | undefined): string | null {
-  if (reason === "expired" || sessionError) {
+function resolveHomeMessage(reason: string | undefined): string | null {
+  if (reason === "expired") {
     return "Your session has expired. Please sign in again.";
   }
   if (reason === "unauthenticated") {
@@ -109,7 +108,6 @@ function deriveHomeSessionState(sessionLike: SessionLike | null, session: unknow
   const hasValidSession = Boolean(session && !sessionError && (hasPrimaryAccessToken || hasProviderAccessToken(sessionLike)));
 
   return {
-    sessionError,
     hasValidSession,
     isAuthenticated: hasValidSession,
   };
@@ -126,7 +124,7 @@ export default async function Home({ searchParams }: Props) {
   const oauthProvider = resolveOAuthProviderFromCallbackUrl(callbackUrl);
 
   const typedSession = session as SessionLike | null;
-  const { sessionError, hasValidSession, isAuthenticated } = deriveHomeSessionState(typedSession, session);
+  const { hasValidSession, isAuthenticated } = deriveHomeSessionState(typedSession, session);
   const returnTo = resolveReturnTo(next);
   const preferredProvider = resolvePreferredProviderFromSession(typedSession);
   const returnToWithProvider = preferredProvider ? appendProviderToPath(returnTo, preferredProvider) : returnTo;
@@ -136,7 +134,7 @@ export default async function Home({ searchParams }: Props) {
     redirect(returnToWithProvider);
   }
 
-  const message = resolveHomeMessage(reason, sessionError);
+  const message = resolveHomeMessage(reason);
   const showMessage = message !== null;
 
   const jsonLd = {
