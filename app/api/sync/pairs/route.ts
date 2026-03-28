@@ -53,6 +53,10 @@ export async function POST(request: NextRequest) {
       return badRequest(`Invalid direction: ${body.direction}. Must be one of: a-to-b, b-to-a, bidirectional`);
     }
 
+    if (body.sourceProvider === body.targetProvider && body.sourcePlaylistId === body.targetPlaylistId) {
+      return badRequest('Cannot sync a playlist with itself');
+    }
+
     const pair = createSyncPair({
       sourceProvider: parseMusicProviderId(body.sourceProvider),
       sourcePlaylistId: String(body.sourcePlaylistId),
