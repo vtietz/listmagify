@@ -1,3 +1,4 @@
+import type { MusicProviderId } from '@/lib/music-provider/types';
 import type { SyncDirection, SyncDiffItem, SyncPlan } from '@/lib/sync/types';
 import type { PlaylistSnapshot, CanonicalSnapshotItem } from '@/lib/sync/snapshot';
 import { getCanonicalTrackMetadata } from '@/lib/resolver/canonicalResolver';
@@ -40,12 +41,14 @@ function confidenceToNumber(confidence: string): number {
 function buildDiffItem(
   canonicalTrackId: string,
   action: 'add' | 'remove',
+  targetProvider: MusicProviderId,
   snapshotItem: CanonicalSnapshotItem | undefined,
 ): SyncDiffItem {
   if (snapshotItem) {
     return {
       canonicalTrackId,
       action,
+      targetProvider,
       title: snapshotItem.title,
       artists: snapshotItem.artists,
       durationMs: snapshotItem.durationMs,
@@ -54,12 +57,12 @@ function buildDiffItem(
     };
   }
 
-  // Fallback: look up canonical metadata from the resolver DB
   const meta = getCanonicalTrackMetadata(canonicalTrackId);
   if (meta) {
     return {
       canonicalTrackId,
       action,
+      targetProvider,
       title: meta.titleNorm,
       artists: meta.artistNorm ? [meta.artistNorm] : [],
       durationMs: meta.durationSec != null ? meta.durationSec * 1000 : 0,
@@ -68,10 +71,10 @@ function buildDiffItem(
     };
   }
 
-  // Absolute fallback: no metadata available
   return {
     canonicalTrackId,
     action,
+    targetProvider,
     title: '',
     artists: [],
     durationMs: 0,
@@ -97,14 +100,14 @@ function computeOneway(
   const toAdd: SyncDiffItem[] = [];
   for (const id of authIds) {
     if (!receiverIds.has(id)) {
-      toAdd.push(buildDiffItem(id, 'add', authIndex.get(id)));
+      toAdd.push(buildDiffItem(id, 'add', receiver.providerId, authIndex.get(id)));
     }
   }
 
   const toRemove: SyncDiffItem[] = [];
   for (const id of receiverIds) {
     if (!authIds.has(id)) {
-      toRemove.push(buildDiffItem(id, 'remove', receiverIndex.get(id)));
+      toRemove.push(buildDiffItem(id, 'remove', receiver.providerId, receiverIndex.get(id)));
     }
   }
 
@@ -151,14 +154,14 @@ export function computeSyncDiff(
       // Tracks in source missing from target -> add to target
       for (const id of sourceIds) {
         if (!targetIds.has(id)) {
-          items.push(buildDiffItem(id, 'add', sourceIndex.get(id)));
+          items.push(buildDiffItem(id, 'add', target.providerId, sourceIndex.get(id)));
         }
       }
 
       // Tracks in target missing from source -> add to source
       for (const id of targetIds) {
         if (!sourceIds.has(id)) {
-          items.push(buildDiffItem(id, 'add', targetIndex.get(id)));
+          items.push(buildDiffItem(id, 'add', source.providerId, targetIndex.get(id)));
         }
       }
 

@@ -67,7 +67,7 @@ export function AddSyncPairForm() {
   }
 
   return (
-    <div className={`${ROW_GRID} px-3 py-2`}>
+    <div className={`${ROW_GRID} px-3 py-0.5`}>
       {/* Left: provider + playlist */}
       <div className="flex items-center gap-1.5 min-w-0">
         <ProviderStatusDropdown

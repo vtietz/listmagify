@@ -40,6 +40,8 @@ export interface SyncConfig {
 export interface SyncDiffItem {
   canonicalTrackId: string;
   action: 'add' | 'remove';
+  /** Which provider this item will be added to / removed from */
+  targetProvider: MusicProviderId;
   title: string;
   artists: string[];
   durationMs: number;
