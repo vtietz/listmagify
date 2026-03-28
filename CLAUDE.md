@@ -111,3 +111,14 @@ Complexity constraints enforced via ESLint: cyclomatic complexity ≤ 12 and max
 - Commit messages: imperative mood, 50-72 chars
 - After completing code changes, always suggest a commit message at the end of the response
 - Service layers should be provider-agnostic where possible
+
+## Agent Team Workflow
+
+For non-trivial feature requests, use the agent team in order:
+1. **Analyst** — scope requirements, identify edge cases, structure the spec (for complex/ambiguous features)
+2. **Architect** — design the technical solution, identify affected files, produce implementation plan
+3. **Coder** — implement the plan (can be parallelized for independent modules)
+4. **Reviewer** — run quality gate, review code, write missing tests
+5. **E2E Tester** — write/run Playwright tests for user-facing features
+
+For simple bug fixes or small changes, skip directly to implementation. Use judgment about when the full pipeline is needed.
