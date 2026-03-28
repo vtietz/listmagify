@@ -9,6 +9,7 @@ import { useTrackPlayback } from '@features/player/hooks/useTrackPlayback';
 import { useHydratedCompactMode } from '@features/split-editor/stores/useCompactModeStore';
 import { useDeviceType } from '@shared/hooks/useDeviceType';
 import { useCompareModeStore, getTrackCompareColor } from '@features/split-editor/stores/useCompareModeStore';
+import { getCanonicalTrackKey } from '@/lib/music-provider/canonicalKey';
 import { useContextMenuStore } from '@features/split-editor/stores/useContextMenuStore';
 import {
   type RecommendationItem,
@@ -232,7 +233,7 @@ function RecommendationsList({
                 isPlaybackLoading={isTrackLoading(track.uri)}
                 onPlay={onPlay}
                 onPause={onPause}
-                compareColor={getCompareColorForTrack(track.uri)}
+                compareColor={getCompareColorForTrack(getCanonicalTrackKey(track))}
                 isMultiSelect={recsSelection.length > 1}
                 selectedCount={recsSelection.length}
                 selectedTracks={selectedTracksForDrag}

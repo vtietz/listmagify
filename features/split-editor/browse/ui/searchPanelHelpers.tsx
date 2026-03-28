@@ -19,6 +19,7 @@ import { makeCompositeId } from '@/lib/dnd/id';
 import type { TrackPayload } from '@features/dnd/model/types';
 import type { SortKey, SortDirection } from '@features/split-editor/playlist/hooks/usePlaylistSort';
 import type { Track, MusicProviderId } from '@/lib/music-provider/types';
+import { getCanonicalTrackKey } from '@/lib/music-provider/canonicalKey';
 
 export function useSearchQueryState(
   searchQuery: string,
@@ -331,7 +332,7 @@ export function SearchTracksVirtualList({
                     isPlaybackLoading={isTrackLoading(track.uri)}
                     onPlay={playTrack}
                     onPause={pausePlayback}
-                    compareColor={getCompareColorForTrack(track.uri)}
+                    compareColor={getCompareColorForTrack(getCanonicalTrackKey(track))}
                     isMultiSelect={spotifySelection.length > 1}
                     selectedCount={spotifySelection.length}
                     selectedTracks={selectedTracksForDrag}

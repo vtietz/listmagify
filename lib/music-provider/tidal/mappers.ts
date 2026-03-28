@@ -283,6 +283,7 @@ function mapTrackResource(
     album: mapAlbumResource(albumResource, includedIndex),
     popularity: normalizeTidalPopularity(attributes.popularity),
     explicit: attributes.explicit === true,
+    isrc: typeof attributes.isrc === 'string' ? attributes.isrc : null,
   };
 
   return withAddedAt(mapped, identifier);

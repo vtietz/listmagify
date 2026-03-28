@@ -26,7 +26,7 @@ export function createSyncMaterializeAdapter(
           durationSec: track.durationMs
             ? Math.round(track.durationMs / 1000)
             : null,
-          isrc: null, // Standard track objects don't include ISRC
+          isrc: track.isrc ?? null,
         }),
       );
     },

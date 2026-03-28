@@ -13,7 +13,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 export interface TrackDistribution {
-  /** Map of track URI to the set of panel IDs containing it */
+  /** Map of canonical track key to the set of panel IDs containing it */
   trackToPanels: Map<string, Set<string>>;
   /** Total number of playlist panels being compared */
   totalPanels: number;
@@ -24,7 +24,7 @@ export interface TrackDistribution {
 export interface CompareModeState {
   /** Whether compare mode is enabled */
   isEnabled: boolean;
-  /** Map of panelId to their track URIs (only for playlist panels, not browse/recs) */
+  /** Map of panelId to their canonical track keys (only for playlist panels, not browse/recs) */
   panelTracks: Map<string, string[]>;
   /** Computed distribution (derived from panelTracks) */
   distribution: TrackDistribution | null;
@@ -35,7 +35,7 @@ export interface CompareModeState {
   /** Disable compare mode */
   disable: () => void;
   /** Register a panel's tracks for comparison */
-  registerPanelTracks: (panelId: string, trackUris: string[]) => void;
+  registerPanelTracks: (panelId: string, trackKeys: string[]) => void;
   /** Unregister a panel from comparison */
   unregisterPanel: (panelId: string) => void;
 }
@@ -49,13 +49,13 @@ function computeDistribution(panelTracks: Map<string, string[]>): TrackDistribut
   const trackToPanels = new Map<string, Set<string>>();
   const panelIds = new Set<string>();
 
-  for (const [panelId, trackUris] of panelTracks) {
+  for (const [panelId, trackKeys] of panelTracks) {
     panelIds.add(panelId);
-    for (const uri of trackUris) {
-      if (!trackToPanels.has(uri)) {
-        trackToPanels.set(uri, new Set());
+    for (const key of trackKeys) {
+      if (!trackToPanels.has(key)) {
+        trackToPanels.set(key, new Set());
       }
-      trackToPanels.get(uri)!.add(panelId);
+      trackToPanels.get(key)!.add(panelId);
     }
   }
 
@@ -77,24 +77,24 @@ export const useCompareModeStore = create<CompareModeState>()(
       enable: () => set({ isEnabled: true }),
       disable: () => set({ isEnabled: false }),
       
-      registerPanelTracks: (panelId: string, trackUris: string[]) => {
+      registerPanelTracks: (panelId: string, trackKeys: string[]) => {
         const current = get().panelTracks;
-        const existingUris = current.get(panelId);
-        
-        // Skip if URIs haven't changed (array equality check)
-        if (existingUris && existingUris.length === trackUris.length) {
+        const existingKeys = current.get(panelId);
+
+        // Skip if keys haven't changed (array equality check)
+        if (existingKeys && existingKeys.length === trackKeys.length) {
           let identical = true;
-          for (let i = 0; i < trackUris.length; i++) {
-            if (existingUris[i] !== trackUris[i]) {
+          for (let i = 0; i < trackKeys.length; i++) {
+            if (existingKeys[i] !== trackKeys[i]) {
               identical = false;
               break;
             }
           }
           if (identical) return; // No change needed
         }
-        
+
         const newMap = new Map(current);
-        newMap.set(panelId, trackUris);
+        newMap.set(panelId, trackKeys);
         set({
           panelTracks: newMap,
           distribution: computeDistribution(newMap),
@@ -171,7 +171,7 @@ export function getCompareColorClass(
  * Returns transparent if compare mode is disabled or track not found.
  */
 export function getTrackCompareColor(
-  trackUri: string,
+  trackKey: string,
   distribution: TrackDistribution | null,
   isCompareEnabled: boolean
 ): string {
@@ -179,7 +179,7 @@ export function getTrackCompareColor(
     return 'transparent';
   }
 
-  const panelsWithTrack = distribution.trackToPanels.get(trackUri);
+  const panelsWithTrack = distribution.trackToPanels.get(trackKey);
   const count = panelsWithTrack?.size ?? 0;
 
   // Track not in any compared panel (e.g., from browse/recs)

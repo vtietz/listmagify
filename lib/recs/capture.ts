@@ -29,8 +29,7 @@ export interface PlaylistSnapshotInput {
 }
 
 function extractIsrc(track: Track): string | null {
-  const maybeWithIsrc = track as Track & { isrc?: string; external_ids?: { isrc?: string } };
-  return maybeWithIsrc.isrc ?? maybeWithIsrc.external_ids?.isrc ?? null;
+  return track.isrc ?? null;
 }
 
 function extractAlbumUpc(track: Track): string | null {

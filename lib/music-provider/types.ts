@@ -53,6 +53,7 @@ export type Track = {
   } | null;
   popularity?: number | null;
   explicit?: boolean;
+  isrc?: string | null;
   addedBy?: {
     id: string;
     displayName?: string | null;

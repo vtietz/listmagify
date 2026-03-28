@@ -20,6 +20,7 @@ import { makeMatchKeyFromDTO } from '@features/split-editor/browse/hooks/useLast
 import { LASTFM_PANEL_ID } from './LastfmBrowseTab';
 import type { LastfmTrack, IndexedTrackDTO } from '@features/split-editor/browse/hooks/useLastfmTracks';
 import type { Track } from '@/lib/music-provider/types';
+import { getCanonicalTrackKey } from '@/lib/music-provider/canonicalKey';
 
 interface LastfmBrowseListProps {
   allTracks: LastfmTrack[];
@@ -302,7 +303,7 @@ function renderVirtualRow(params: {
           albumName: dto.albumName,
         }}
         onDragStart={handleDragStart}
-        compareColor={matchedTrack?.uri ? params.getCompareColorForTrack(matchedTrack.uri) : undefined}
+        compareColor={matchedTrack ? params.getCompareColorForTrack(getCanonicalTrackKey(matchedTrack)) : undefined}
         isMultiSelect={params.lastfmSelection.length > 1}
         selectedCount={params.lastfmSelection.length}
         {...optionalProps}

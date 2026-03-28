@@ -9,7 +9,7 @@ import { mapPlaylistItemToTrack } from '@/lib/spotify/types';
 import { DEFAULT_PROVIDER_ID } from './http';
 
 export function buildTracksPath(playlistId: string, limit: number, nextCursor?: string | null): string {
-  const fields = 'items(track(id,uri,name,artists(name),duration_ms,album(id,name,images,release_date,release_date_precision),popularity),added_at,added_by(id,display_name)),next,total,snapshot_id';
+  const fields = 'items(track(id,uri,name,artists(name),duration_ms,album(id,name,images,release_date,release_date_precision),popularity,external_ids),added_at,added_by(id,display_name)),next,total,snapshot_id';
   if (!nextCursor) {
     return `/playlists/${encodeURIComponent(playlistId)}/tracks?limit=${limit}&fields=${encodeURIComponent(fields)}`;
   }

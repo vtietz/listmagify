@@ -6,6 +6,7 @@ import type { MarkerActions } from './context-menu/types';
 import type { TrackRowSharedContext } from './track-row/types';
 import { getPendingIdFromUri } from '@features/split-editor/hooks/state';
 import type { Track } from '@/lib/music-provider/types';
+import { getCanonicalTrackKey } from '@/lib/music-provider/canonicalKey';
 import type { MatchCandidate } from '@/lib/matching/providers';
 
 function formatProviderName(providerId: 'spotify' | 'tidal'): string {
@@ -434,7 +435,7 @@ function buildTrackRowInnerProps(
     isDuplicate: rowModel.isRowDuplicate,
     isSoftDuplicate: resolveSoftDuplicate(params.isSoftDuplicate, rowModel.trackUri),
     isOtherInstanceSelected: params.isOtherInstanceSelected(rowModel.trackUri),
-    compareColor: params.getCompareColorForTrack(rowModel.trackUri),
+    compareColor: params.getCompareColorForTrack(getCanonicalTrackKey(rowModel.track)),
     isCollaborative: params.hasMultipleContributors,
     getProfile: params.profileGetter,
     cumulativeDurationMs: params.cumulativeDurations[rowModel.index] || 0,
