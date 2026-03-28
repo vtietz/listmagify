@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useSyncDialogStore } from '@features/sync/stores/useSyncDialogStore';
 import { useSyncPairs, useDeleteSyncPair } from '@features/sync/hooks/useSyncPairs';
 import { useUpdateSyncPair } from '@features/sync/hooks/useUpdateSyncPair';
@@ -95,7 +95,7 @@ function SyncPairRow({ pair, bothConnected, showScheduler }: { pair: SyncPairWit
               {formatRelativeTime(lastSyncTime)}
             </span>
           ) : null}
-          {pair.nextRunAt && pair.syncInterval !== 'off' ? (
+          {showScheduler && pair.nextRunAt && pair.syncInterval !== 'off' ? (
             <span
               className="text-[10px] text-muted-foreground whitespace-nowrap"
               title={`Next: ${pair.nextRunAt}`}
@@ -205,18 +205,15 @@ export function SyncManagementDialog() {
   const closeManagement = useSyncDialogStore((s) => s.closeManagement);
   const { data: pairs, isLoading } = useSyncPairs(isManagementOpen);
   const schedulerEnabled = useSyncSchedulerEnabled();
+  const [overlayEl, setOverlayEl] = useState<HTMLDivElement | null>(null);
+  const overlayRef = useCallback((node: HTMLDivElement | null) => { setOverlayEl(node); }, []);
 
   return (
-    <Dialog modal={false} open={isManagementOpen} onOpenChange={(open) => { if (!open) closeManagement(); }}>
-      <DialogContent
-        className="max-w-2xl"
-        onPointerDownOutside={(e) => {
-          // Prevent dialog from closing when clicking in the PlaylistSelector portal dropdown
-          if ((e.target as HTMLElement | null)?.closest('[data-playlist-dropdown]')) {
-            e.preventDefault();
-          }
-        }}
-      >
+    <Dialog open={isManagementOpen} onOpenChange={(open) => { if (!open) closeManagement(); }}>
+      <DialogContent className="max-w-2xl">
+        {/* Overlay layer for popover portals — inside Dialog's DOM tree */}
+        <div ref={overlayRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 1 }} />
+
         <DialogHeader>
           <DialogTitle>Sync Management</DialogTitle>
         </DialogHeader>
@@ -233,12 +230,12 @@ export function SyncManagementDialog() {
           )}
 
           {pairs?.map((pair: SyncPairWithRun) => (
-            <SyncPairRowWithAuth key={pair.id} pair={pair} />
+            <SyncPairRowWithAuth key={pair.id} pair={pair} showScheduler={schedulerEnabled} />
           ))}
         </div>
 
         <div className="border-t border-border pt-2">
-          <AddSyncPairForm />
+          <AddSyncPairForm popoverContainer={overlayEl} />
         </div>
       </DialogContent>
     </Dialog>

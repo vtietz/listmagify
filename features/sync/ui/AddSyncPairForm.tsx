@@ -15,7 +15,7 @@ import type { SyncPair } from '@/lib/sync/types';
 /** Same grid as SyncPairRow: [left] [↔] [right] [_status_] [actions] */
 const ROW_GRID = 'grid grid-cols-[1fr_auto_1fr_auto_auto] items-center gap-x-2';
 
-export function AddSyncPairForm() {
+export function AddSyncPairForm({ popoverContainer }: { popoverContainer?: HTMLElement | null | undefined }) {
   const allProviders = useAvailableProviders();
   const authSummary = useAuthSummary();
   const createPair = useCreateSyncPair();
@@ -92,7 +92,7 @@ export function AddSyncPairForm() {
             selectedPlaylistName=""
             onSelectPlaylist={(id) => setSourcePlaylistId(id)}
             disabled={connectedProviders.length === 0}
-
+            popoverContainer={popoverContainer}
           />
         </div>
       </div>
@@ -117,7 +117,7 @@ export function AddSyncPairForm() {
             selectedPlaylistName=""
             onSelectPlaylist={(id) => setTargetPlaylistId(id)}
             disabled={statusMap[targetProvider] !== 'connected'}
-
+            popoverContainer={popoverContainer}
           />
         </div>
       </div>

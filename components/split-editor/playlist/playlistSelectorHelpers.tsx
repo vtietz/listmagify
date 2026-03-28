@@ -1,9 +1,7 @@
 'use client';
 
-import { useState, useEffect, useLayoutEffect, useMemo, useCallback, type Dispatch, type SetStateAction, type KeyboardEvent } from 'react';
-import { createPortal } from 'react-dom';
+import { useEffect, useMemo, useCallback, type Dispatch, type SetStateAction, type KeyboardEvent } from 'react';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
-import { Input } from '@/components/ui/input';
 import { Check, Heart } from 'lucide-react';
 import { apiFetch } from '@/lib/api/client';
 import { userPlaylistsByProvider } from '@/lib/api/queryKeys';
@@ -153,62 +151,6 @@ export function getSelectedPlaylistLabel({
   return selected?.name || selectedPlaylistName || 'Select a playlist...';
 }
 
-export function useCloseOnOutsideClick({
-  open,
-  containerRef,
-  buttonRef,
-  dropdownRef,
-  onClose,
-}: {
-  open: boolean;
-  containerRef: React.RefObject<HTMLDivElement | null>;
-  buttonRef: React.RefObject<HTMLButtonElement | null>;
-  dropdownRef: React.RefObject<HTMLDivElement | null>;
-  onClose: () => void;
-}) {
-  useEffect(() => {
-    const onDocumentClick = (event: MouseEvent) => {
-      const path = event.composedPath();
-      const isInsideContainer = containerRef.current ? path.includes(containerRef.current) : false;
-      const isInsideButton = buttonRef.current ? path.includes(buttonRef.current) : false;
-      const isInsideDropdown = dropdownRef.current ? path.includes(dropdownRef.current) : false;
-
-      if (isInsideContainer || isInsideButton || isInsideDropdown) {
-        return;
-      }
-      onClose();
-    };
-
-    if (open) {
-      document.addEventListener('click', onDocumentClick);
-    }
-
-    return () => document.removeEventListener('click', onDocumentClick);
-  }, [open, containerRef, buttonRef, dropdownRef, onClose]);
-}
-
-export function useDropdownPositionOnOpen(
-  open: boolean,
-  buttonRef: React.RefObject<HTMLButtonElement | null>
-) {
-  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
-
-  useLayoutEffect(() => {
-    if (!open || !buttonRef.current) {
-      return;
-    }
-
-    const rect = buttonRef.current.getBoundingClientRect();
-    setDropdownPosition({
-      top: rect.bottom + 4,
-      left: rect.left,
-      width: rect.width,
-    });
-  }, [open, buttonRef]);
-
-  return dropdownPosition;
-}
-
 export function getInitialActiveIndex({
   selectedPlaylistId,
   filtered,
@@ -253,7 +195,6 @@ export function usePlaylistKeyboardNavigation({
   activeIndex,
   setActiveIndex,
   handleSelect,
-  onEscape,
   filtered,
   showLikedSongs,
 }: {
@@ -262,7 +203,6 @@ export function usePlaylistKeyboardNavigation({
   activeIndex: number;
   setActiveIndex: Dispatch<SetStateAction<number>>;
   handleSelect: (playlistId: string) => void;
-  onEscape: () => void;
   filtered: Playlist[];
   showLikedSongs: boolean;
 }) {
@@ -288,14 +228,10 @@ export function usePlaylistKeyboardNavigation({
         }
         break;
       }
-      case 'Escape':
-        event.preventDefault();
-        onEscape();
-        break;
       default:
         break;
     }
-  }, [open, totalItems, activeIndex, setActiveIndex, handleSelect, onEscape, filtered, showLikedSongs]);
+  }, [open, totalItems, activeIndex, setActiveIndex, handleSelect, filtered, showLikedSongs]);
 }
 
 function PlaylistOption({
@@ -335,7 +271,7 @@ function PlaylistOption({
   );
 }
 
-function PlaylistOptionsContent({
+export function PlaylistOptionsContent({
   isLoading,
   isFetching,
   allPlaylistsLength,
@@ -416,85 +352,3 @@ function PlaylistOptionsContent({
   );
 }
 
-export function PlaylistSelectorDropdown({
-  open,
-  dropdownRef,
-  dropdownPosition,
-  query,
-  setQuery,
-  handleKeyDown,
-  isLoading,
-  isFetching,
-  allPlaylists,
-  showLikedSongs,
-  providerId,
-  filtered,
-  activeIndex,
-  selectedPlaylistId,
-  handleSelect,
-  isFetchingNextPage,
-}: {
-  open: boolean;
-  dropdownRef: React.RefObject<HTMLDivElement | null>;
-  dropdownPosition: { top: number; left: number; width: number };
-  query: string;
-  setQuery: Dispatch<SetStateAction<string>>;
-  handleKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void;
-  isLoading: boolean;
-  isFetching: boolean;
-  allPlaylists: Playlist[];
-  showLikedSongs: boolean;
-  providerId: MusicProviderId;
-  filtered: Playlist[];
-  activeIndex: number;
-  selectedPlaylistId: string | null;
-  handleSelect: (playlistId: string) => void;
-  isFetchingNextPage: boolean;
-}) {
-  if (!open || typeof document === 'undefined') {
-    return null;
-  }
-
-  return createPortal(
-    <div
-      ref={dropdownRef}
-      style={{
-        position: 'fixed',
-        top: `${dropdownPosition.top}px`,
-        left: `${dropdownPosition.left}px`,
-        width: `${Math.max(dropdownPosition.width, 300)}px`,
-        zIndex: 99999,
-      }}
-      className="rounded-md border border-border bg-card p-2 shadow-md pointer-events-auto"
-      data-playlist-dropdown
-      onClick={(event) => event.stopPropagation()}
-      onMouseDown={(event) => event.stopPropagation()}
-    >
-      <Input
-        autoFocus
-        type="text"
-        placeholder="Search playlists..."
-        value={query}
-        onChange={(event) => setQuery(event.target.value)}
-        onKeyDown={handleKeyDown}
-        className="h-8 text-sm mb-2"
-      />
-
-      <div className="max-h-64 overflow-auto">
-        <PlaylistOptionsContent
-          isLoading={isLoading}
-          isFetching={isFetching}
-          allPlaylistsLength={allPlaylists.length}
-          showLikedSongs={showLikedSongs}
-          likedPlaylistName={getLikedPlaylistMetadata(providerId).name}
-          filtered={filtered}
-          activeIndex={activeIndex}
-          selectedPlaylistId={selectedPlaylistId}
-          handleSelect={handleSelect}
-          isFetchingNextPage={isFetchingNextPage}
-        />
-      </div>
-    </div>,
-    document.body
-  );
-}
