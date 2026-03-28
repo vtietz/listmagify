@@ -3,6 +3,7 @@ import type { MusicProviderId, Track } from '@/lib/music-provider/types';
 import type { TrackPayload } from '@features/dnd/model/types';
 import { pickTopCandidates } from './scoring';
 import { getConfiguredMatchThresholds } from './config';
+import { buildProviderSearchQuery, buildProviderFallbackQuery } from './searchQuery';
 
 export interface MatchCandidate {
   provider: MusicProviderId;
@@ -34,15 +35,19 @@ export interface ProviderMatchingAdapter {
   searchBestMatch(payload: TrackPayload, targetProvider: MusicProviderId): Promise<MatchCandidate | null>;
 }
 
-function buildQuery(payload: TrackPayload): string {
-  const artists = payload.artists.join(' ').trim();
-  const album = payload.album?.trim() ?? '';
-  return [payload.title, artists, album].filter(Boolean).join(' ').trim();
+function buildQuery(payload: TrackPayload, provider: MusicProviderId): string {
+  return buildProviderSearchQuery({
+    title: payload.title,
+    artist: payload.artists.join(' '),
+    album: payload.album ?? undefined,
+  }, provider);
 }
 
-function buildFallbackQuery(payload: TrackPayload): string {
-  const artists = payload.artists.join(' ').trim();
-  return [payload.title, artists].filter(Boolean).join(' ').trim();
+function buildFallbackQuery(payload: TrackPayload, provider: MusicProviderId): string {
+  return buildProviderFallbackQuery({
+    title: payload.title,
+    artist: payload.artists.join(' '),
+  }, provider);
 }
 
 function dedupeTracksByUri(tracks: Track[]): Track[] {
@@ -113,7 +118,7 @@ class ApiSearchProviderAdapter implements ProviderMatchingAdapter {
     }
 
     // Text search fallback
-    const query = buildQuery(payload);
+    const query = buildQuery(payload, targetProvider);
     if (!query) {
       return [];
     }
@@ -122,7 +127,7 @@ class ApiSearchProviderAdapter implements ProviderMatchingAdapter {
     const primaryTracks = await searchTracks(query, targetProvider, limit);
     let combinedTracks = primaryTracks;
 
-    const fallbackQuery = buildFallbackQuery(payload);
+    const fallbackQuery = buildFallbackQuery(payload, targetProvider);
     const primaryBest = pickTopCandidates(payload, primaryTracks, 1)[0];
     const shouldRunFallback = Boolean(payload.album)
       && fallbackQuery.length > 0

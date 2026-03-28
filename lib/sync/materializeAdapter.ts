@@ -1,8 +1,9 @@
-import type { MusicProvider } from '@/lib/music-provider/types';
+import type { MusicProvider, MusicProviderId } from '@/lib/music-provider/types';
 import type {
   MaterializeProviderAdapter,
   MaterializeSearchCandidate,
 } from '@/lib/recs/materialize';
+import { buildProviderSearchQuery } from '@/lib/matching/searchQuery';
 
 /**
  * Wraps a MusicProvider to implement the MaterializeProviderAdapter interface.
@@ -10,6 +11,7 @@ import type {
  */
 export function createSyncMaterializeAdapter(
   provider: MusicProvider,
+  providerId?: MusicProviderId,
 ): MaterializeProviderAdapter {
   return {
     async searchTrack(query) {
@@ -33,8 +35,10 @@ export function createSyncMaterializeAdapter(
         }
       }
 
-      // Fallback: text search
-      const searchQuery = `${query.title} ${query.artist}`.trim();
+      // Fallback: text search (structured for Spotify, plain for TIDAL)
+      const searchQuery = providerId
+        ? buildProviderSearchQuery({ title: query.title, artist: query.artist }, providerId)
+        : `${query.title} ${query.artist}`.trim();
       if (!searchQuery) return [];
 
       const result = await provider.searchTracks(searchQuery, 5);

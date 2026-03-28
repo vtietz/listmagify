@@ -52,7 +52,7 @@ async function resolveAddUris(
   }
 
   const canonicalTrackIds = adds.map((item) => item.canonicalTrackId);
-  const adapter = createSyncMaterializeAdapter(targetProvider);
+  const adapter = createSyncMaterializeAdapter(targetProvider, targetProviderId);
 
   try {
     const result = await materializeCanonicalTrackIds({
