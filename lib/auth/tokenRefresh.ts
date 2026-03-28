@@ -105,26 +105,27 @@ export async function refreshSpotifyAccessToken(token: ProviderJwtToken): Promis
     const data = await res.json();
 
     if (!res.ok) {
-      if (data.error === 'invalid_grant' && data.error_description?.includes('revoked')) {
-        console.debug('[auth] Refresh token revoked by user (expected) - session will expire');
-      } else {
-        console.error(
-          `[auth] Failed to refresh token: ${res.status} ${res.statusText}`,
-          data
-        );
+      // Permanent failure: refresh token is revoked or otherwise invalid
+      if (data.error === 'invalid_grant') {
+        console.debug(`[auth] Refresh token permanently invalid: ${data.error_description ?? 'invalid_grant'}`);
+        return { ...token, error: TOKEN_REFRESH_ERROR };
       }
-      throw new Error(
-        `Failed to refresh token: ${res.status} ${res.statusText} ${JSON.stringify(data)}`
+
+      // Transient failure: server error, rate limit, etc. — don't set error so
+      // the next JWT callback will retry the refresh automatically.
+      console.warn(
+        `[auth] Transient token refresh failure: ${res.status} ${res.statusText}`,
+        data
       );
+      return token;
     }
 
     return buildRefreshedSpotifyToken(token, data);
   } catch (error) {
-    if (error instanceof Error && error.message.includes('revoked')) {
-      return { ...token, error: TOKEN_REFRESH_ERROR };
-    }
-    console.warn("[auth] refreshSpotifyAccessToken error", error);
-    return { ...token, error: TOKEN_REFRESH_ERROR };
+    // Network errors (DNS, timeout, etc.) are transient — return token unchanged
+    // so the next JWT callback retries instead of permanently killing the session.
+    console.warn("[auth] refreshSpotifyAccessToken transient error (will retry)", error);
+    return token;
   }
 }
 
@@ -162,21 +163,36 @@ export async function refreshTidalAccessToken(token: ProviderJwtToken): Promise<
     client_secret: serverEnv.TIDAL_CLIENT_SECRET,
   });
 
-  const response = await fetch(TIDAL_TOKEN_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: params.toString(),
-  });
+  try {
+    const response = await fetch(TIDAL_TOKEN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString(),
+    });
 
-  const data = await response.json();
+    const data = await response.json();
 
-  if (!response.ok) {
-    throw new Error(
-      `Failed to refresh TIDAL token: ${response.status} ${response.statusText} ${JSON.stringify(data)}`
-    );
+    if (!response.ok) {
+      // Permanent failure: refresh token invalid
+      if (data.error === 'invalid_grant') {
+        console.debug(`[auth] TIDAL refresh token permanently invalid: ${data.error_description ?? 'invalid_grant'}`);
+        return { ...token, error: TOKEN_REFRESH_ERROR };
+      }
+
+      // Transient failure — return token unchanged so next callback retries
+      console.warn(
+        `[auth] Transient TIDAL token refresh failure: ${response.status} ${response.statusText}`,
+        data
+      );
+      return token;
+    }
+
+    return buildRefreshedTidalToken(token, data);
+  } catch (error) {
+    // Network errors are transient — return unchanged so next callback retries
+    console.warn('[auth] refreshTidalAccessToken transient error (will retry)', error);
+    return token;
   }
-
-  return buildRefreshedTidalToken(token, data);
 }
 
 // ---------------------------------------------------------------------------
@@ -227,14 +243,18 @@ export async function refreshProviderTokenIfNeeded(
     console.debug(`[auth] ${providerId} token expiring soon or expired, refreshing...`);
     const refreshedToken = await refreshProviderAccessToken(providerId, providerToken);
     providerTokens[providerId] = refreshedToken;
-    providerErrors[providerId] = undefined;
+
+    // Provider functions return an error token for permanent failures,
+    // or the unchanged token for transient failures (no error flag).
+    if (refreshedToken.error === TOKEN_REFRESH_ERROR) {
+      providerErrors[providerId] = TOKEN_REFRESH_ERROR;
+    } else {
+      providerErrors[providerId] = undefined;
+    }
   } catch (error) {
-    console.warn(`[auth] Failed to refresh ${providerId} token`, error);
-    providerTokens[providerId] = {
-      ...providerToken,
-      error: TOKEN_REFRESH_ERROR,
-    };
-    providerErrors[providerId] = TOKEN_REFRESH_ERROR;
+    // Unexpected throw — treat as transient; leave token unchanged so next
+    // JWT callback retries instead of permanently killing the session.
+    console.warn(`[auth] Failed to refresh ${providerId} token (will retry)`, error);
   }
 }
 
