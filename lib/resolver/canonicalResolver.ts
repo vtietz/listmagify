@@ -167,6 +167,19 @@ export function fromProviderTrack(
     | undefined;
 
   if (existing) {
+    // Backfill ISRC on cached entries that were stored without it
+    if (input.isrc) {
+      db.prepare(`
+        UPDATE canonical_tracks SET isrc = ?
+        WHERE id = ? AND isrc IS NULL
+      `).run(input.isrc, existing.canonicalTrackId);
+
+      db.prepare(`
+        UPDATE provider_track_map SET isrc = ?
+        WHERE provider = ? AND provider_track_id = ? AND isrc IS NULL
+      `).run(input.isrc, input.provider, input.providerTrackId);
+    }
+
     return {
       canonicalTrackId: existing.canonicalTrackId,
       matchScore: existing.matchScore,

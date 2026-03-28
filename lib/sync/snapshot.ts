@@ -78,6 +78,7 @@ export function canonicalizeSnapshot(
       title: track.name,
       artists: track.artists,
       durationMs: track.durationMs,
+      isrc: track.isrc ?? null,
     };
     const mapping = options?.resolveOptions
       ? fromProviderTrack(resolveInput, options.resolveOptions)
