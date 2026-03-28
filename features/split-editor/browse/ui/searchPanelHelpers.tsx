@@ -1,13 +1,13 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { Search, X, Loader2 } from 'lucide-react';
 import { useDebouncedValue } from '@shared/hooks/useDebouncedValue';
 import { useContextMenuStore } from '@features/split-editor/stores/useContextMenuStore';
 import { useAuthSummary } from '@features/auth/hooks/useAuth';
+import { useAvailableProviders } from '@shared/hooks/useAvailableProviders';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ProviderStatusDropdown } from '@/components/auth/ProviderStatusDropdown';
@@ -19,32 +19,6 @@ import { makeCompositeId } from '@/lib/dnd/id';
 import type { TrackPayload } from '@features/dnd/model/types';
 import type { SortKey, SortDirection } from '@features/split-editor/playlist/hooks/usePlaylistSort';
 import type { Track, MusicProviderId } from '@/lib/music-provider/types';
-
-interface AppConfigResponse {
-  availableProviders?: MusicProviderId[];
-}
-
-function useAvailableProviders(): MusicProviderId[] {
-  const { data } = useQuery({
-    queryKey: ['app-config'],
-    queryFn: async () => {
-      const response = await fetch('/api/config');
-      if (!response.ok) {
-        return { availableProviders: ['spotify'] } satisfies AppConfigResponse;
-      }
-
-      return response.json() as Promise<AppConfigResponse>;
-    },
-    staleTime: Infinity,
-  });
-
-  const providers = data?.availableProviders;
-  if (!providers || providers.length === 0) {
-    return ['spotify'];
-  }
-
-  return providers;
-}
 
 export function useSearchQueryState(
   searchQuery: string,

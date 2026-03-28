@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, ChangeEvent, useCallback, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { Search, ListChecks } from 'lucide-react';
 import { PlaylistSelector } from '@/components/split-editor/playlist/PlaylistSelector';
 import { Input } from '@/components/ui/input';
@@ -11,6 +10,7 @@ import { AdaptiveNav, type NavItem } from '@/components/ui/adaptive-nav';
 import { buildPanelToolbarNavItems } from '@/components/split-editor/playlist/panelToolbarNavItems';
 import { ProviderStatusDropdown } from '@/components/auth/ProviderStatusDropdown';
 import { useAuthSummary } from '@features/auth/hooks/useAuth';
+import { useAvailableProviders } from '@shared/hooks/useAvailableProviders';
 import { useUpdatePlaylist } from '@/lib/spotify/playlistMutations';
 import { isLikedSongsPlaylist } from '@features/playlists/hooks/useLikedVirtualPlaylist';
 import { cn } from '@/lib/utils';
@@ -19,32 +19,6 @@ import type { MusicProviderId } from '@/lib/music-provider/types';
 
 const ULTRA_COMPACT_BREAKPOINT = 280;
 const MIN_SPLIT_WIDTH = ULTRA_COMPACT_BREAKPOINT;
-
-interface AppConfigResponse {
-  availableProviders?: MusicProviderId[];
-}
-
-function useAvailableProviders(): MusicProviderId[] {
-  const { data } = useQuery({
-    queryKey: ['app-config'],
-    queryFn: async () => {
-      const response = await fetch('/api/config');
-      if (!response.ok) {
-        return { availableProviders: ['spotify'] } satisfies AppConfigResponse;
-      }
-
-      return response.json() as Promise<AppConfigResponse>;
-    },
-    staleTime: Infinity,
-  });
-
-  const providers = data?.availableProviders;
-  if (!providers || providers.length === 0) {
-    return ['spotify'];
-  }
-
-  return providers;
-}
 
 export interface PanelToolbarProps {
   panelId: string;

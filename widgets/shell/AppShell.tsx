@@ -27,6 +27,8 @@ import {
   LoginButton,
   type MarkerStats,
 } from "./HeaderComponents";
+import { SyncPreviewDialog } from "@features/sync/ui/SyncPreviewDialog";
+import { SyncManagementDialog } from "@features/sync/ui/SyncManagementDialog";
 
 type AppShellProps = {
   headerTitle?: string;
@@ -106,7 +108,13 @@ export function AppShell({ headerTitle = "Listmagify", children }: AppShellProps
     ),
   };
 
-  return <>{renderByMode[mode]()}</>;
+  return (
+    <>
+      {renderByMode[mode]()}
+      <SyncPreviewDialog />
+      <SyncManagementDialog />
+    </>
+  );
 }
 
 function FixedHeightLayout({

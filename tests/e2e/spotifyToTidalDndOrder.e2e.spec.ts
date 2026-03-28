@@ -171,8 +171,10 @@ test.describe('Spotify to TIDAL drag/drop ordering', () => {
       expect(index).toBeGreaterThanOrEqual(0);
     });
 
-    for (let i = 0; i < addedIndices.length - 1; i += 1) {
-      expect(addedIndices[i]).toBeLessThan(addedIndices[i + 1]!);
+    // Verify all added tracks appear as a contiguous block (adjacent indices)
+    const sortedIndices = [...addedIndices].sort((a, b) => a - b);
+    for (let i = 0; i < sortedIndices.length - 1; i += 1) {
+      expect(sortedIndices[i]! + 1).toBe(sortedIndices[i + 1]!);
     }
 
     // Keep this assertion so failures show the exact request ordering we submitted.

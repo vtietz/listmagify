@@ -14,20 +14,21 @@ import { useCallback, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { signIn, useSession } from 'next-auth/react';
-import { 
-  ListMusic, 
-  LogIn, 
+import {
+  ListMusic,
+  LogIn,
   LogOut,
-  MapPinOff, 
-  BarChart3, 
-  Menu, 
-  Shield, 
-  FileText, 
-  Columns, 
+  MapPinOff,
+  BarChart3,
+  Menu,
+  Shield,
+  FileText,
+  Columns,
   Search,
   Music2,
   MessageSquarePlus,
   Settings2,
+  ArrowLeftRight,
   // Github brand icon is deprecated in lucide-react but still functional
   // TODO: Consider migrating to SimpleIcons in the future
   Github,
@@ -41,6 +42,7 @@ import { AdaptiveNav as AdaptiveNavComponent, type NavItem } from '@/components/
 import { syncProviderAuthStatusWithRetry } from '@/lib/providers/syncProviderAuth';
 import type { ProviderId } from '@/lib/providers/types';
 import { ConfigDialog } from '@widgets/shell/config/ConfigDialog';
+import { useSyncDialogStore } from '@features/sync/stores/useSyncDialogStore';
 
 // ============================================================================
 // Types
@@ -245,6 +247,7 @@ export function AdaptiveNav({
 }: AdaptiveNavProps) {
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [configOpen, setConfigOpen] = useState(false);
+  const openManagement = useSyncDialogStore((s) => s.openManagement);
   const headerProviders = useHeaderProviders();
   const isSingleProvider = headerProviders.length <= 1;
   
@@ -305,6 +308,14 @@ export function AdaptiveNav({
       showCheckmark: true,
       group: 'view',
     }] : []),
+    {
+      id: 'sync',
+      icon: <ArrowLeftRight className="h-3.5 w-3.5" />,
+      label: 'Sync',
+      onClick: openManagement,
+      visible: showSecureLinks,
+      group: 'view',
+    },
     {
       id: 'config',
       icon: <Settings2 className="h-3.5 w-3.5" />,
@@ -370,6 +381,7 @@ export function AdaptiveNav({
     supportsBrowse,
     isPlaylistsActive, isSplitEditorActive, isStatsActive, hasStatsAccess,
     isBrowseOpen, toggleBrowse, isPlayerVisible, togglePlayerVisible, supportsPlayer,
+    openManagement,
     markerStats.totalMarkers, clearAllMarkers,
     isSingleProvider,
     setConfigOpen,

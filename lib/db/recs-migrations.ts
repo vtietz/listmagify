@@ -236,4 +236,44 @@ export const recsMigrations: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_rec_edges_canonical_dst ON rec_edges_canonical(dst_canonical_track_id, type);
     `,
   },
+  {
+    version: 5,
+    name: 'add_sync_tables',
+    sql: `
+      CREATE TABLE IF NOT EXISTS sync_pairs (
+        id TEXT PRIMARY KEY,
+        source_provider TEXT NOT NULL CHECK(source_provider IN ('spotify','tidal')),
+        source_playlist_id TEXT NOT NULL,
+        target_provider TEXT NOT NULL CHECK(target_provider IN ('spotify','tidal')),
+        target_playlist_id TEXT NOT NULL,
+        direction TEXT NOT NULL CHECK(direction IN ('a-to-b','b-to-a','bidirectional')),
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(source_provider, source_playlist_id, target_provider, target_playlist_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS sync_runs (
+        id TEXT PRIMARY KEY,
+        sync_pair_id TEXT NOT NULL REFERENCES sync_pairs(id) ON DELETE CASCADE,
+        status TEXT NOT NULL CHECK(status IN ('pending','previewing','executing','done','failed')),
+        direction TEXT NOT NULL CHECK(direction IN ('a-to-b','b-to-a','bidirectional')),
+        tracks_added INTEGER NOT NULL DEFAULT 0,
+        tracks_removed INTEGER NOT NULL DEFAULT 0,
+        tracks_unresolved INTEGER NOT NULL DEFAULT 0,
+        error_message TEXT,
+        started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        completed_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_sync_runs_pair ON sync_runs(sync_pair_id);
+      CREATE INDEX IF NOT EXISTS idx_sync_runs_status ON sync_runs(status);
+    `,
+  },
+  {
+    version: 6,
+    name: 'add_sync_user_scoping',
+    sql: `
+      ALTER TABLE sync_pairs ADD COLUMN created_by TEXT NOT NULL DEFAULT '';
+      CREATE INDEX IF NOT EXISTS idx_sync_pairs_created_by ON sync_pairs(created_by);
+    `,
+  },
 ];

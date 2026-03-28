@@ -168,8 +168,8 @@ test.describe('Provider connection UX', () => {
 
     await page.getByRole('button', { name: 'Browse' }).click();
 
-    const browseProviderSelect = page.getByRole('combobox', { name: 'Search provider' });
-    await expect(browseProviderSelect).toHaveText(/TIDAL/i, { timeout: 20_000 });
+    const browseProviderSelect = page.locator('[data-testid="browse-provider-status-dropdown"]');
+    await expect(browseProviderSelect.locator('img[src*="tidal" i]').locator('visible=true')).toBeVisible({ timeout: 20_000 });
   });
 
   test('shows waveform indicator only on currently playing panel', async ({ page }) => {

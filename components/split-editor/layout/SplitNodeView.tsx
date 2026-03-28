@@ -12,6 +12,7 @@ import { Panel, Group as PanelGroup, Separator as PanelResizeHandle, useDefaultL
 import { cn } from '@/lib/utils';
 import { Fragment } from 'react';
 import type { CSSProperties } from 'react';
+import { InterPanelSyncButton } from '@features/sync/ui/InterPanelSyncButton';
 
 interface SplitNodeViewProps {
   node: SplitNode;
@@ -315,18 +316,32 @@ function ResizableGroupView({
               onUnregisterVirtualizer={onUnregisterVirtualizer}
             />
           </Panel>
-          {index < visibleChildren.length - 1 && (
-            <PanelResizeHandle className={cn(
-              'group/handle relative flex items-center justify-center',
-              'bg-border hover:bg-primary/20 active:bg-primary/30 transition-colors',
-              isHorizontal ? 'w-1.5 cursor-col-resize' : 'h-1.5 cursor-row-resize'
-            )}>
-              <div className={cn(
-                'absolute bg-primary/0 group-hover/handle:bg-primary/50 transition-colors rounded-full',
-                isHorizontal ? 'w-1 h-10' : 'h-1 w-10'
-              )} />
-            </PanelResizeHandle>
-          )}
+          {index < visibleChildren.length - 1 && (() => {
+            const left = child.kind === 'panel' ? child.panel : null;
+            const nextChild = visibleChildren[index + 1];
+            const right = nextChild?.kind === 'panel' ? nextChild.panel : null;
+            return (
+              <PanelResizeHandle className={cn(
+                'group/handle relative flex items-center justify-center',
+                'bg-border hover:bg-primary/20 active:bg-primary/30 transition-colors',
+                isHorizontal ? 'w-1.5 cursor-col-resize' : 'h-1.5 cursor-row-resize'
+              )}>
+                <div className={cn(
+                  'absolute bg-primary/0 group-hover/handle:bg-primary/50 transition-colors rounded-full',
+                  isHorizontal ? 'w-1 h-10' : 'h-1 w-10'
+                )} />
+                {left && right && (
+                  <InterPanelSyncButton
+                    leftProviderId={left.providerId}
+                    leftPlaylistId={left.playlistId}
+                    rightProviderId={right.providerId}
+                    rightPlaylistId={right.playlistId}
+                    isHorizontal={isHorizontal}
+                  />
+                )}
+              </PanelResizeHandle>
+            );
+          })()}
         </Fragment>
       ))}
     </PanelGroup>

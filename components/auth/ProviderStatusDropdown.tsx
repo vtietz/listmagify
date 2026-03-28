@@ -37,7 +37,7 @@ function getProviderLabel(providerId: ProviderId): string {
   return providerId === 'spotify' ? 'Spotify' : 'TIDAL';
 }
 
-function ProviderGlyph({ providerId }: { providerId: ProviderId }) {
+export function ProviderGlyph({ providerId }: { providerId: ProviderId }) {
   if (providerId === 'spotify') {
     return (
       <>
