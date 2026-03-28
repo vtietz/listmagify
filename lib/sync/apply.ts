@@ -31,9 +31,14 @@ function errorMessage(err: unknown): string {
 // Phase: Resolve add items to provider track URIs via materialize
 // ---------------------------------------------------------------------------
 
+interface UnresolvedEntry {
+  canonicalTrackId: string;
+  reason: UnresolvedTrackInfo['reason'];
+}
+
 interface ResolveResult {
   uris: string[];
-  unresolved: string[];
+  unresolved: UnresolvedEntry[];
   errors: string[];
 }
 
@@ -58,13 +63,19 @@ async function resolveAddUris(
 
     return {
       uris: result.trackIds.map((id) => toTrackUri(targetProviderId, id)),
-      unresolved: result.unresolvedCanonicalIds,
+      unresolved: result.unresolvedCanonicalIds.map((id) => ({
+        canonicalTrackId: id,
+        reason: 'not_found' as const,
+      })),
       errors: [],
     };
   } catch (err) {
     return {
       uris: [],
-      unresolved: canonicalTrackIds,
+      unresolved: canonicalTrackIds.map((id) => ({
+        canonicalTrackId: id,
+        reason: 'materialize_failed' as const,
+      })),
       errors: [`Materialize failed: ${errorMessage(err)}`],
     };
   }
@@ -121,15 +132,18 @@ async function applyBatchedRemoves(
 function resolveRemoveUris(
   removes: SyncDiffItem[],
   targetProviderId: MusicProviderId,
-): { uris: string[]; unresolved: string[] } {
+): { uris: string[]; unresolved: UnresolvedEntry[] } {
   const uris: string[] = [];
-  const unresolved: string[] = [];
+  const unresolved: UnresolvedEntry[] = [];
 
   for (const item of removes) {
     if (item.providerTrackId) {
       uris.push(toTrackUri(targetProviderId, item.providerTrackId));
     } else {
-      unresolved.push(item.canonicalTrackId);
+      unresolved.push({
+        canonicalTrackId: item.canonicalTrackId,
+        reason: 'no_provider_mapping',
+      });
     }
   }
 
@@ -157,7 +171,7 @@ export async function applySyncPlan(plan: SyncPlan, targetProviderOverride?: Mus
   const resolved = await resolveAddUris(adds, targetProvider, plan.targetProvider);
   const removeResolved = resolveRemoveUris(removes, plan.targetProvider);
 
-  const allUnresolvedIds = [...resolved.unresolved, ...removeResolved.unresolved];
+  const allUnresolvedEntries = [...resolved.unresolved, ...removeResolved.unresolved];
   const allErrors = [...resolved.errors];
 
   // Apply additions
@@ -180,14 +194,14 @@ export async function applySyncPlan(plan: SyncPlan, targetProviderOverride?: Mus
   const removeResult = await applyBatchedRemoves(removeResolved.uris, targetProvider, plan.targetPlaylistId);
   allErrors.push(...removeResult.errors);
 
-  const unresolvedDetails: UnresolvedTrackInfo[] = allUnresolvedIds.map((canonicalId) => {
-    const diffItem = plan.items.find((i) => i.canonicalTrackId === canonicalId);
+  const unresolvedDetails: UnresolvedTrackInfo[] = allUnresolvedEntries.map((entry) => {
+    const diffItem = plan.items.find((i) => i.canonicalTrackId === entry.canonicalTrackId);
     return {
-      canonicalTrackId: canonicalId,
+      canonicalTrackId: entry.canonicalTrackId,
       title: diffItem?.title ?? '',
       artists: diffItem?.artists ?? [],
       durationMs: diffItem?.durationMs ?? 0,
-      confidence: diffItem?.confidence ?? 0,
+      reason: entry.reason,
     };
   });
 

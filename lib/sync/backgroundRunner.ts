@@ -40,11 +40,16 @@ export async function executeBackgroundSync(pair: SyncPair): Promise<void> {
     const result = await applySyncPlan(plan, targetProvider);
 
     // Build warnings from unresolved tracks
+    const reasonLabels: Record<string, string> = {
+      not_found: 'Not found on target provider',
+      materialize_failed: 'Search on target provider failed',
+      no_provider_mapping: 'No track mapping for target provider',
+    };
     const warnings: SyncWarning[] = result.unresolved.map((info) => ({
       canonicalTrackId: info.canonicalTrackId,
       title: info.title,
       artists: info.artists,
-      reason: 'Could not match on target provider',
+      reason: reasonLabels[info.reason] ?? 'Could not match on target provider',
     }));
 
     const hasErrors = result.errors.length > 0;

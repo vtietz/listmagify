@@ -78,9 +78,10 @@ function ResultStep({
                     {track.artists.join(', ')}
                   </div>
                 </div>
-                <span className="inline-flex items-center gap-1 text-yellow-500 shrink-0">
-                  <AlertTriangle className="h-3 w-3" />
-                  {Math.round(track.confidence * 100)}%
+                <span className="text-xs text-muted-foreground shrink-0">
+                  {track.reason === 'not_found' && 'Not found'}
+                  {track.reason === 'materialize_failed' && 'Search failed'}
+                  {track.reason === 'no_provider_mapping' && 'No mapping'}
                 </span>
               </div>
             ))}

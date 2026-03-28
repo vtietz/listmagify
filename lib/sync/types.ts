@@ -85,7 +85,7 @@ export interface UnresolvedTrackInfo {
   title: string;
   artists: string[];
   durationMs: number;
-  confidence: number;
+  reason: 'not_found' | 'materialize_failed' | 'no_provider_mapping';
 }
 
 export interface SyncApplyResult {
