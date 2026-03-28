@@ -2,7 +2,7 @@ import type { MusicProvider, MusicProviderId } from '@/lib/music-provider/types'
 import { getMusicProvider } from '@/lib/music-provider';
 import { materializeCanonicalTrackIds } from '@/lib/recs/materialize';
 import { createSyncMaterializeAdapter } from '@/lib/sync/materializeAdapter';
-import type { SyncDiffItem, SyncPlan, SyncApplyResult } from '@/lib/sync/types';
+import type { SyncDiffItem, SyncPlan, SyncApplyResult, UnresolvedTrackInfo } from '@/lib/sync/types';
 
 const BATCH_SIZE = 100;
 
@@ -157,7 +157,7 @@ export async function applySyncPlan(plan: SyncPlan, targetProviderOverride?: Mus
   const resolved = await resolveAddUris(adds, targetProvider, plan.targetProvider);
   const removeResolved = resolveRemoveUris(removes, plan.targetProvider);
 
-  const allUnresolved = [...resolved.unresolved, ...removeResolved.unresolved];
+  const allUnresolvedIds = [...resolved.unresolved, ...removeResolved.unresolved];
   const allErrors = [...resolved.errors];
 
   // Apply additions
@@ -180,17 +180,28 @@ export async function applySyncPlan(plan: SyncPlan, targetProviderOverride?: Mus
   const removeResult = await applyBatchedRemoves(removeResolved.uris, targetProvider, plan.targetPlaylistId);
   allErrors.push(...removeResult.errors);
 
+  const unresolvedDetails: UnresolvedTrackInfo[] = allUnresolvedIds.map((canonicalId) => {
+    const diffItem = plan.items.find((i) => i.canonicalTrackId === canonicalId);
+    return {
+      canonicalTrackId: canonicalId,
+      title: diffItem?.title ?? '',
+      artists: diffItem?.artists ?? [],
+      durationMs: diffItem?.durationMs ?? 0,
+      confidence: diffItem?.confidence ?? 0,
+    };
+  });
+
   console.debug('[sync/apply] sync plan applied', {
     added: addResult.count,
     removed: removeResult.count,
-    unresolved: allUnresolved.length,
+    unresolved: unresolvedDetails.length,
     errors: allErrors.length,
   });
 
   return {
     added: addResult.count,
     removed: removeResult.count,
-    unresolved: allUnresolved,
+    unresolved: unresolvedDetails,
     errors: allErrors,
   };
 }

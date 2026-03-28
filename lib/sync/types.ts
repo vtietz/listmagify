@@ -80,10 +80,18 @@ export interface SyncPlan {
   };
 }
 
+export interface UnresolvedTrackInfo {
+  canonicalTrackId: string;
+  title: string;
+  artists: string[];
+  durationMs: number;
+  confidence: number;
+}
+
 export interface SyncApplyResult {
   added: number;
   removed: number;
-  unresolved: string[];
+  unresolved: UnresolvedTrackInfo[];
   errors: string[];
 }
 

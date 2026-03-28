@@ -12,10 +12,96 @@ import {
   type ProviderJwtToken,
   type ProviderTokenStore,
 } from '@/lib/auth/tokenRefresh';
-import { persistProviderTokens, deleteProviderTokens, markTokenStatus } from '@/lib/auth/tokenStore';
+import { persistProviderTokens, deleteProviderTokens, markTokenStatus, getProviderTokens as getDbProviderTokens } from '@/lib/auth/tokenStore';
 import { isTokenEncryptionAvailable } from '@/lib/auth/tokenEncryption';
 
 const FALLBACK_PROVIDER_ID = getFallbackMusicProviderId();
+
+// ---------------------------------------------------------------------------
+// Single-flight refresh lock — prevents concurrent JWT callbacks from racing
+// on the same refresh token (Spotify rotates refresh tokens, so the second
+// concurrent call would get "revoked").
+// ---------------------------------------------------------------------------
+
+type RefreshResult = {
+  tokens: ProviderTokenStore;
+  errors: Partial<Record<MusicProviderId, string | undefined>>;
+};
+
+const jwtRefreshInFlight = new Map<string, Promise<RefreshResult>>();
+
+async function refreshTokensWithDedup(
+  userId: string,
+  providerTokens: ProviderTokenStore,
+  providerErrors: Partial<Record<MusicProviderId, string | undefined>>,
+): Promise<void> {
+  const inflight = jwtRefreshInFlight.get(userId);
+  if (inflight) {
+    const result = await inflight;
+    for (const [pid, token] of Object.entries(result.tokens) as [MusicProviderId, ProviderJwtToken | undefined][]) {
+      if (token) providerTokens[pid] = token;
+    }
+    for (const [pid, error] of Object.entries(result.errors) as [MusicProviderId, string | undefined][]) {
+      providerErrors[pid] = error;
+    }
+    return;
+  }
+
+  const promise = (async () => {
+    await refreshProviderTokens(providerTokens, providerErrors);
+    return {
+      tokens: { ...providerTokens },
+      errors: { ...providerErrors },
+    };
+  })();
+
+  jwtRefreshInFlight.set(userId, promise);
+  try {
+    await promise;
+  } finally {
+    jwtRefreshInFlight.delete(userId);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// DB fallback — when refresh fails, try to recover from a token that was
+// successfully refreshed and persisted by an earlier request.
+// ---------------------------------------------------------------------------
+
+function tryRecoverFromDb(
+  userId: string,
+  providerTokens: ProviderTokenStore,
+  providerErrors: Partial<Record<MusicProviderId, string | undefined>>,
+): void {
+  if (!isTokenEncryptionAvailable()) return;
+
+  for (const pid of Object.keys(providerTokens) as MusicProviderId[]) {
+    const pt = providerTokens[pid];
+    if (pt?.error !== TOKEN_REFRESH_ERROR) continue;
+
+    try {
+      const dbToken = getDbProviderTokens(userId, pid);
+      if (!dbToken?.accessToken || !dbToken.refreshToken) continue;
+
+      // Only use DB token if it's different (i.e. a newer successful refresh)
+      if (dbToken.refreshToken === pt.refreshToken) continue;
+
+      console.debug(`[auth] Recovering ${pid} token from DB after refresh failure`);
+      providerTokens[pid] = {
+        accessToken: dbToken.accessToken,
+        refreshToken: dbToken.refreshToken,
+        ...(dbToken.accessTokenExpires != null ? { accessTokenExpires: dbToken.accessTokenExpires } : {}),
+        isByok: dbToken.isByok,
+        ...(dbToken.byokClientId && dbToken.byokClientSecret ? {
+          byok: { clientId: dbToken.byokClientId, clientSecret: dbToken.byokClientSecret },
+        } : {}),
+      };
+      providerErrors[pid] = undefined;
+    } catch {
+      // DB read failure should never break auth flow
+    }
+  }
+}
 
 type AuthJwtToken = Record<string, any> & {
   musicProviderTokens?: ProviderTokenStore;
@@ -271,7 +357,17 @@ export const authOptions: AuthOptions = {
         }
       }
 
-      await refreshProviderTokens(providerTokens, providerErrors);
+      if (nextToken.sub) {
+        await refreshTokensWithDedup(nextToken.sub, providerTokens, providerErrors);
+      } else {
+        await refreshProviderTokens(providerTokens, providerErrors);
+      }
+
+      // If refresh failed, try to recover from DB (another request may have
+      // already refreshed successfully and persisted the new token).
+      if (nextToken.sub) {
+        tryRecoverFromDb(nextToken.sub, providerTokens, providerErrors);
+      }
 
       // Persist refreshed tokens to DB
       persistRefreshedTokens(nextToken.sub, providerTokens);

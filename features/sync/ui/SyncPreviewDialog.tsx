@@ -66,6 +66,25 @@ function ResultStep({
           <p className="text-xs text-muted-foreground mt-1">
             These tracks could not be matched on the target provider.
           </p>
+          <div className="mt-2 max-h-[200px] overflow-y-auto space-y-1">
+            {result.unresolved.map((track) => (
+              <div
+                key={track.canonicalTrackId}
+                className="flex items-center gap-2 py-1 text-xs border-l-2 border-yellow-500 pl-2"
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="truncate font-medium">{track.title}</div>
+                  <div className="truncate text-muted-foreground">
+                    {track.artists.join(', ')}
+                  </div>
+                </div>
+                <span className="inline-flex items-center gap-1 text-yellow-500 shrink-0">
+                  <AlertTriangle className="h-3 w-3" />
+                  {Math.round(track.confidence * 100)}%
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

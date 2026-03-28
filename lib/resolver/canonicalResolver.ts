@@ -2,6 +2,8 @@ import { randomUUID } from 'crypto';
 import type { MusicProviderId } from '@/lib/music-provider/types';
 import { getRecsDb } from '@/lib/recs/db';
 import { normalizeTrackSignals, tokenSimilarity } from './normalize';
+import { durationSimilarity, computeWeightedScore } from '@/lib/matching/scoring-core';
+import { DEFAULT_MATCH_THRESHOLDS, scoreToConfidence } from '@/lib/matching/config';
 
 export type MappingConfidence = 'high' | 'medium' | 'low';
 
@@ -30,12 +32,6 @@ type CanonicalCandidate = {
   duration_sec: number | null;
 };
 
-function toConfidence(score: number): MappingConfidence {
-  if (score >= 0.9) return 'high';
-  if (score >= 0.75) return 'medium';
-  return 'low';
-}
-
 function scoreCanonicalCandidate(
   source: ReturnType<typeof normalizeTrackSignals>,
   candidate: CanonicalCandidate,
@@ -48,16 +44,14 @@ function scoreCanonicalCandidate(
   const titleScore = tokenSimilarity(source.titleNorm, candidate.title_norm);
   const artistScore = tokenSimilarity(source.artistNorm, candidate.artist_norm);
 
-  let durationScore = 0;
-  if (source.durationSec != null && candidate.duration_sec != null) {
-    const delta = Math.abs(source.durationSec - candidate.duration_sec);
-    if (delta <= 1) durationScore = 1;
-    else if (delta <= 2) durationScore = 0.92;
-    else if (delta <= 4) durationScore = 0.8;
-    else if (delta <= 8) durationScore = 0.5;
-  }
+  const durationScore =
+    source.durationSec != null && candidate.duration_sec != null
+      ? durationSimilarity(source.durationSec, candidate.duration_sec * 1000)
+      : 0;
 
-  return Number(((titleScore * 0.45) + (artistScore * 0.4) + (durationScore * 0.15)).toFixed(4));
+  // No album data in canonical_tracks table, so albumScore is omitted.
+  // computeWeightedScore redistributes the album weight proportionally.
+  return computeWeightedScore({ titleScore, artistScore, durationScore });
 }
 
 function upsertProviderMap(input: {
@@ -95,7 +89,10 @@ function upsertProviderMap(input: {
   );
 }
 
-function findBestCanonicalCandidate(input: ResolveProviderTrackInput): {
+function findBestCanonicalCandidate(
+  input: ResolveProviderTrackInput,
+  acceptThreshold: number,
+): {
   candidateId: string | null;
   score: number;
 } {
@@ -145,13 +142,21 @@ function findBestCanonicalCandidate(input: ResolveProviderTrackInput): {
   }
 
   return {
-    candidateId: bestScore >= 0.8 ? bestId : null,
+    candidateId: bestScore >= acceptThreshold ? bestId : null,
     score: bestScore,
   };
 }
 
-export function fromProviderTrack(input: ResolveProviderTrackInput): CanonicalMappingResult {
+export interface ResolveOptions {
+  thresholds?: { convert: number; manual: number };
+}
+
+export function fromProviderTrack(
+  input: ResolveProviderTrackInput,
+  options?: ResolveOptions,
+): CanonicalMappingResult {
   const db = getRecsDb();
+  const thresholds = options?.thresholds ?? DEFAULT_MATCH_THRESHOLDS;
 
   const existing = db.prepare(`
     SELECT canonical_track_id as canonicalTrackId, match_score as matchScore, confidence
@@ -176,10 +181,10 @@ export function fromProviderTrack(input: ResolveProviderTrackInput): CanonicalMa
     ...(input.durationMs !== undefined ? { durationMs: input.durationMs } : {}),
   });
 
-  const { candidateId, score } = findBestCanonicalCandidate(input);
+  const { candidateId, score } = findBestCanonicalCandidate(input, thresholds.manual);
   const canonicalTrackId = candidateId ?? randomUUID();
   const matchScore = candidateId ? score : 1;
-  const confidence = candidateId ? toConfidence(score) : 'high';
+  const confidence = candidateId ? scoreToConfidence(score, thresholds) : 'high';
 
   db.prepare(`
     INSERT INTO canonical_tracks (

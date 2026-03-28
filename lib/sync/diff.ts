@@ -2,6 +2,7 @@ import type { MusicProviderId } from '@/lib/music-provider/types';
 import type { SyncDirection, SyncDiffItem, SyncPlan } from '@/lib/sync/types';
 import type { PlaylistSnapshot, CanonicalSnapshotItem } from '@/lib/sync/snapshot';
 import { getCanonicalTrackMetadata } from '@/lib/resolver/canonicalResolver';
+import { DEFAULT_MATCH_THRESHOLDS } from '@/lib/matching/config';
 
 /**
  * Build a lookup map from canonical track ID to the first matching snapshot item.
@@ -18,20 +19,8 @@ function buildSnapshotIndex(
   return index;
 }
 
-/**
- * Convert a confidence label into a numeric score for `SyncDiffItem.confidence`.
- */
-function confidenceToNumber(confidence: string): number {
-  switch (confidence) {
-    case 'high':
-      return 1;
-    case 'medium':
-      return 0.75;
-    case 'low':
-      return 0.5;
-    default:
-      return 0;
-  }
+export interface SyncDiffOptions {
+  thresholds?: { convert: number; manual: number };
 }
 
 /**
@@ -127,7 +116,9 @@ export function computeSyncDiff(
   source: PlaylistSnapshot,
   target: PlaylistSnapshot,
   direction: SyncDirection,
+  options?: SyncDiffOptions,
 ): SyncPlan {
+  const manualThreshold = options?.thresholds?.manual ?? DEFAULT_MATCH_THRESHOLDS.manual;
   let items: SyncDiffItem[];
 
   switch (direction) {
@@ -172,7 +163,7 @@ export function computeSyncDiff(
   const summary = {
     toAdd: items.filter((i) => i.action === 'add').length,
     toRemove: items.filter((i) => i.action === 'remove').length,
-    unresolved: items.filter((i) => i.confidence < confidenceToNumber('medium')).length,
+    unresolved: items.filter((i) => i.confidence < manualThreshold).length,
   };
 
   console.debug('[sync/diff] computed sync diff', {

@@ -1,11 +1,17 @@
 import { getMusicProvider } from '@/lib/music-provider';
 import type { MusicProviderId } from '@/lib/music-provider/types';
 import { captureSnapshot } from '@/lib/sync/snapshot';
+import type { SnapshotOptions } from '@/lib/sync/snapshot';
 import { computeSyncDiff } from '@/lib/sync/diff';
 import { applySyncPlan } from '@/lib/sync/apply';
 import { getSyncPair, createSyncRun, updateSyncRun } from '@/lib/sync/syncStore';
 import type { SyncConfig, SyncPlan, SyncApplyResult, SyncPreviewResult, SyncPreviewTrack } from '@/lib/sync/types';
 import type { PlaylistSnapshot } from '@/lib/sync/snapshot';
+
+export interface SyncMatchThresholds {
+  convert: number;
+  manual: number;
+}
 
 // ---------------------------------------------------------------------------
 // Preview
@@ -24,16 +30,24 @@ function snapshotToPreviewTracks(snapshot: PlaylistSnapshot): SyncPreviewTrack[]
  * Capture snapshots from both playlists and compute the diff without
  * applying any changes.
  */
-export async function previewSync(config: SyncConfig): Promise<SyncPreviewResult> {
+export async function previewSync(
+  config: SyncConfig,
+  matchThresholds?: SyncMatchThresholds,
+): Promise<SyncPreviewResult> {
   const sourceProvider = getMusicProvider(config.sourceProvider);
   const targetProvider = getMusicProvider(config.targetProvider);
 
+  const snapshotOpts: SnapshotOptions | undefined = matchThresholds
+    ? { resolveOptions: { thresholds: matchThresholds } }
+    : undefined;
+
   const [sourceSnapshot, targetSnapshot] = await Promise.all([
-    captureSnapshot(sourceProvider, config.sourceProvider, config.sourcePlaylistId),
-    captureSnapshot(targetProvider, config.targetProvider, config.targetPlaylistId),
+    captureSnapshot(sourceProvider, config.sourceProvider, config.sourcePlaylistId, snapshotOpts),
+    captureSnapshot(targetProvider, config.targetProvider, config.targetPlaylistId, snapshotOpts),
   ]);
 
-  const plan = computeSyncDiff(sourceSnapshot, targetSnapshot, config.direction);
+  const diffOpts = matchThresholds ? { thresholds: matchThresholds } : undefined;
+  const plan = computeSyncDiff(sourceSnapshot, targetSnapshot, config.direction, diffOpts);
 
   console.debug('[sync/runner] preview complete', {
     direction: config.direction,
@@ -67,7 +81,10 @@ interface ExecuteSyncResult {
  * Preview then apply the sync plan. When a `syncPairId` is supplied, a
  * `SyncRun` record is created and updated through the lifecycle.
  */
-export async function executeSync(config: ExecuteSyncConfig): Promise<ExecuteSyncResult> {
+export async function executeSync(
+  config: ExecuteSyncConfig,
+  matchThresholds?: SyncMatchThresholds,
+): Promise<ExecuteSyncResult> {
   let runId: string | undefined;
 
   try {
@@ -80,7 +97,7 @@ export async function executeSync(config: ExecuteSyncConfig): Promise<ExecuteSyn
       updateSyncRun(runId, { status: 'executing' });
     }
 
-    const previewResult = await previewSync(config);
+    const previewResult = await previewSync(config, matchThresholds);
     const plan = previewResult.plan;
     const result = await applySyncPlan(plan);
 
@@ -142,13 +159,17 @@ function buildConfigFromPair(pair: {
  * Look up a saved sync pair and preview the diff.
  * When `createdBy` is provided, the pair must belong to that user.
  */
-export async function previewSyncFromPair(syncPairId: string, createdBy?: string): Promise<SyncPreviewResult> {
+export async function previewSyncFromPair(
+  syncPairId: string,
+  createdBy?: string,
+  matchThresholds?: SyncMatchThresholds,
+): Promise<SyncPreviewResult> {
   const pair = getSyncPair(syncPairId, createdBy);
   if (!pair) {
     throw new Error(`Sync pair not found: ${syncPairId}`);
   }
 
-  return previewSync(buildConfigFromPair(pair));
+  return previewSync(buildConfigFromPair(pair), matchThresholds);
 }
 
 /**
@@ -158,6 +179,7 @@ export async function previewSyncFromPair(syncPairId: string, createdBy?: string
 export async function executeSyncFromPair(
   syncPairId: string,
   createdBy?: string,
+  matchThresholds?: SyncMatchThresholds,
 ): Promise<{ plan: SyncPlan; result: SyncApplyResult; runId: string }> {
   const pair = getSyncPair(syncPairId, createdBy);
   if (!pair) {
@@ -165,7 +187,7 @@ export async function executeSyncFromPair(
   }
 
   const config = buildConfigFromPair(pair);
-  const outcome = await executeSync({ ...config, syncPairId });
+  const outcome = await executeSync({ ...config, syncPairId }, matchThresholds);
 
   // runId is always defined when syncPairId is provided
   return { plan: outcome.plan, result: outcome.result, runId: outcome.runId! };

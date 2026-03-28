@@ -57,6 +57,15 @@ export function getConfiguredMatchThresholds(): { convert: number; manual: numbe
   }
 }
 
+export function scoreToConfidence(
+  score: number,
+  thresholds: { convert: number; manual: number },
+): 'high' | 'medium' | 'low' {
+  if (score >= thresholds.convert) return 'high';
+  if (score >= thresholds.manual) return 'medium';
+  return 'low';
+}
+
 export function formatProviderName(providerId: MusicProviderId): string {
   return providerId === 'tidal' ? 'TIDAL' : 'Spotify';
 }

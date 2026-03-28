@@ -124,7 +124,6 @@ export function persistProviderTokens(params: PersistParams): boolean {
       byokClientSecret: encryptedByokSecret,
     });
 
-    console.debug(`[auth-token-store] Persisted tokens for ${params.provider}/${params.userId}`);
     return true;
   } catch (error) {
     console.error('[auth-token-store] Failed to persist tokens:', error);

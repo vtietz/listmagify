@@ -4,11 +4,25 @@ import { ok, badRequest, fromError } from '@/app/api/_shared/http';
 import { parseMusicProviderId } from '@/lib/music-provider';
 import { executeSync, executeSyncFromPair } from '@/lib/sync/runner';
 import type { SyncDirection } from '@/lib/sync/types';
+import type { SyncMatchThresholds } from '@/lib/sync/runner';
+import { normalizeConvertThreshold, deriveManualThreshold } from '@/lib/matching/config';
 
 const VALID_DIRECTIONS = new Set<SyncDirection>(['a-to-b', 'b-to-a', 'bidirectional']);
 
 function isValidDirection(value: unknown): value is SyncDirection {
   return typeof value === 'string' && VALID_DIRECTIONS.has(value as SyncDirection);
+}
+
+function parseMatchThresholds(body: Record<string, unknown>): SyncMatchThresholds | undefined {
+  const raw = body.matchThresholds;
+  if (!raw || typeof raw !== 'object') return undefined;
+
+  const obj = raw as Record<string, unknown>;
+  if (typeof obj.convert !== 'number') return undefined;
+
+  const convert = normalizeConvertThreshold(obj.convert);
+  const manual = deriveManualThreshold(convert);
+  return { convert, manual };
 }
 
 /**
@@ -18,23 +32,24 @@ function isValidDirection(value: unknown): value is SyncDirection {
  * record is created to track the operation.
  *
  * Accepts either an inline config:
- *   { sourceProvider, sourcePlaylistId, targetProvider, targetPlaylistId, direction }
+ *   { sourceProvider, sourcePlaylistId, targetProvider, targetPlaylistId, direction, matchThresholds? }
  *
  * Or a saved pair reference:
- *   { syncPairId }
+ *   { syncPairId, matchThresholds? }
  */
 export async function POST(request: NextRequest) {
   try {
     const session = await assertAuthenticated();
 
     const body = await request.json();
+    const matchThresholds = parseMatchThresholds(body);
 
     // Pair-based execute
     if (body.syncPairId) {
       if (typeof body.syncPairId !== 'string') {
         return badRequest('syncPairId must be a string');
       }
-      const outcome = await executeSyncFromPair(body.syncPairId, session.user.id);
+      const outcome = await executeSyncFromPair(body.syncPairId, session.user.id, matchThresholds);
       return ok(outcome);
     }
 
@@ -55,7 +70,7 @@ export async function POST(request: NextRequest) {
       direction: body.direction as SyncDirection,
     };
 
-    const outcome = await executeSync(config);
+    const outcome = await executeSync(config, matchThresholds);
     return ok(outcome);
   } catch (error) {
     console.error('[api/sync/execute] Error:', error);

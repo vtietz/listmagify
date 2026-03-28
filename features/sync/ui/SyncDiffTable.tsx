@@ -3,10 +3,9 @@
 import { Plus, Minus, AlertTriangle } from 'lucide-react';
 import { ProviderGlyph } from '@/components/auth/ProviderStatusDropdown';
 import { cn } from '@/lib/utils';
+import { getConfiguredMatchThresholds } from '@/lib/matching/config';
 import type { SyncDiffItem, SyncPlan } from '@/lib/sync/types';
 import type { MusicProviderId } from '@/lib/music-provider/types';
-
-const LOW_CONFIDENCE_THRESHOLD = 0.7;
 
 interface SyncDiffTableProps {
   plan: SyncPlan;
@@ -19,9 +18,9 @@ function formatDuration(ms: number): string {
   return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 }
 
-function DiffRow({ item }: { item: SyncDiffItem }) {
+function DiffRow({ item, lowConfidenceThreshold }: { item: SyncDiffItem; lowConfidenceThreshold: number }) {
   const isAdd = item.action === 'add';
-  const isLowConfidence = item.confidence < LOW_CONFIDENCE_THRESHOLD;
+  const isLowConfidence = item.confidence < lowConfidenceThreshold;
 
   return (
     <div
@@ -53,7 +52,7 @@ function DiffRow({ item }: { item: SyncDiffItem }) {
   );
 }
 
-function ProviderSection({ providerId, label, items }: { providerId: MusicProviderId; label: string; items: SyncDiffItem[] }) {
+function ProviderSection({ providerId, label, items, lowConfidenceThreshold }: { providerId: MusicProviderId; label: string; items: SyncDiffItem[]; lowConfidenceThreshold: number }) {
   if (items.length === 0) return null;
 
   return (
@@ -64,13 +63,15 @@ function ProviderSection({ providerId, label, items }: { providerId: MusicProvid
         <span className="ml-auto">{items.length} track{items.length !== 1 ? 's' : ''}</span>
       </div>
       {items.map((item) => (
-        <DiffRow key={`${item.action}-${item.canonicalTrackId}`} item={item} />
+        <DiffRow key={`${item.action}-${item.canonicalTrackId}`} item={item} lowConfidenceThreshold={lowConfidenceThreshold} />
       ))}
     </div>
   );
 }
 
 export function SyncDiffTable({ plan }: SyncDiffTableProps) {
+  const { manual: lowConfidenceThreshold } = getConfiguredMatchThresholds();
+
   // Group items by target provider
   const byProvider = new Map<MusicProviderId, { adds: SyncDiffItem[]; removes: SyncDiffItem[] }>();
 
@@ -99,10 +100,10 @@ export function SyncDiffTable({ plan }: SyncDiffTableProps) {
         {[...byProvider.entries()].map(([providerId, group]) => (
           <div key={providerId}>
             {group.adds.length > 0 && (
-              <ProviderSection providerId={providerId} label={`Add to ${providerId === 'spotify' ? 'Spotify' : 'TIDAL'}`} items={group.adds} />
+              <ProviderSection providerId={providerId} label={`Add to ${providerId === 'spotify' ? 'Spotify' : 'TIDAL'}`} items={group.adds} lowConfidenceThreshold={lowConfidenceThreshold} />
             )}
             {group.removes.length > 0 && (
-              <ProviderSection providerId={providerId} label={`Remove from ${providerId === 'spotify' ? 'Spotify' : 'TIDAL'}`} items={group.removes} />
+              <ProviderSection providerId={providerId} label={`Remove from ${providerId === 'spotify' ? 'Spotify' : 'TIDAL'}`} items={group.removes} lowConfidenceThreshold={lowConfidenceThreshold} />
             )}
           </div>
         ))}

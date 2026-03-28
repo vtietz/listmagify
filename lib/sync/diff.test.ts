@@ -3,6 +3,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { computeSyncDiff } from '@/lib/sync/diff';
+import { DEFAULT_MATCH_THRESHOLDS } from '@/lib/matching/config';
 import type { PlaylistSnapshot, CanonicalSnapshotItem } from '@/lib/sync/snapshot';
 
 // Mock the canonical resolver (depends on DB)
@@ -240,7 +241,7 @@ describe('computeSyncDiff', () => {
 
       const plan = computeSyncDiff(source, target, 'a-to-b');
 
-      // matchScore 0.3 < 0.75 (medium) -> unresolved
+      // matchScore 0.3 < manual threshold (0.72) -> unresolved
       expect(plan.summary.unresolved).toBe(1);
     });
 
@@ -364,7 +365,7 @@ describe('computeSyncDiff', () => {
 
       const actualAdds = plan.items.filter((i) => i.action === 'add');
       const actualRemoves = plan.items.filter((i) => i.action === 'remove');
-      const actualUnresolved = plan.items.filter((i) => i.confidence < 0.75);
+      const actualUnresolved = plan.items.filter((i) => i.confidence < DEFAULT_MATCH_THRESHOLDS.manual);
 
       expect(plan.summary.toAdd).toBe(actualAdds.length);
       expect(plan.summary.toRemove).toBe(actualRemoves.length);

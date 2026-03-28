@@ -1,6 +1,6 @@
 import type { MusicProvider, MusicProviderId, Track } from '@/lib/music-provider/types';
 import { fromProviderTrack } from '@/lib/resolver/canonicalResolver';
-import type { MappingConfidence } from '@/lib/resolver/canonicalResolver';
+import type { MappingConfidence, ResolveOptions } from '@/lib/resolver/canonicalResolver';
 
 export interface CanonicalSnapshotItem {
   canonicalTrackId: string;
@@ -55,6 +55,10 @@ export async function fetchFullPlaylistTracks(
   return { tracks: allTracks, snapshotId };
 }
 
+export interface SnapshotOptions {
+  resolveOptions?: ResolveOptions;
+}
+
 /**
  * Map each provider track to a canonical ID and build an array of snapshot items.
  */
@@ -63,17 +67,21 @@ export function canonicalizeSnapshot(
   playlistId: string,
   tracks: Track[],
   snapshotId: string | null,
+  options?: SnapshotOptions,
 ): PlaylistSnapshot {
   const items: CanonicalSnapshotItem[] = tracks.map((track, index) => {
     const providerTrackId = track.id ?? track.uri;
 
-    const mapping = fromProviderTrack({
+    const resolveInput = {
       provider: providerId,
       providerTrackId,
       title: track.name,
       artists: track.artists,
       durationMs: track.durationMs,
-    });
+    };
+    const mapping = options?.resolveOptions
+      ? fromProviderTrack(resolveInput, options.resolveOptions)
+      : fromProviderTrack(resolveInput);
 
     return {
       canonicalTrackId: mapping.canonicalTrackId,
@@ -110,7 +118,8 @@ export async function captureSnapshot(
   provider: MusicProvider,
   providerId: MusicProviderId,
   playlistId: string,
+  options?: SnapshotOptions,
 ): Promise<PlaylistSnapshot> {
   const { tracks, snapshotId } = await fetchFullPlaylistTracks(provider, playlistId);
-  return canonicalizeSnapshot(providerId, playlistId, tracks, snapshotId);
+  return canonicalizeSnapshot(providerId, playlistId, tracks, snapshotId, options);
 }

@@ -2,6 +2,7 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api/client';
+import { getConfiguredMatchThresholds } from '@/lib/matching/config';
 import { eventBus } from '@/lib/sync/eventBus';
 import { useSyncActivityStore } from '@features/sync/stores/useSyncActivityStore';
 import type { SyncPlan, SyncApplyResult, SyncConfig } from '@/lib/sync/types';
@@ -16,6 +17,7 @@ interface SyncExecuteResponse {
 /**
  * Mutation hook to execute a sync operation between two playlists.
  * On success, invalidates the target playlist's track cache so the UI refreshes.
+ * Sends the user's configured match thresholds to the server.
  */
 export function useSyncExecute() {
   const queryClient = useQueryClient();
@@ -26,10 +28,11 @@ export function useSyncExecute() {
     mutationFn: async (config: SyncConfig) => {
       incrementActive();
       try {
+        const matchThresholds = getConfiguredMatchThresholds();
         return await apiFetch<SyncExecuteResponse>('/api/sync/execute', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(config),
+          body: JSON.stringify({ ...config, matchThresholds }),
         });
       } catch (err) {
         decrementActive();
