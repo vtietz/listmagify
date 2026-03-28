@@ -175,9 +175,50 @@ function requireDefaultSession(session: any, typedSession: any): AuthenticatedSe
 }
 
 /**
+ * Attempt to restore a session-like object from the persistent token DB.
+ * Uses the UID cookie to identify the user, then fetches tokens for all providers.
+ * Returns null on any failure — this is a best-effort fallback.
+ */
+async function tryRestoreFromDb(): Promise<any | null> {
+  try {
+    const { cookies } = await import('next/headers');
+    const cookieStore = await cookies();
+    const uidCookie = cookieStore.get('__listmagify_uid');
+    if (!uidCookie?.value) return null;
+
+    const { getSessionFromDb } = await import('./sessionFromDb');
+    const userId = uidCookie.value;
+
+    // Try each provider
+    const providers: MusicProviderId[] = ['spotify', 'tidal'];
+    const tokenResults: Record<string, any> = {};
+
+    for (const pid of providers) {
+      const dbSession = await getSessionFromDb(userId, pid);
+      if (dbSession) {
+        tokenResults[pid] = {
+          accessToken: dbSession.accessToken,
+          accessTokenExpires: dbSession.accessTokenExpires,
+        };
+      }
+    }
+
+    if (Object.keys(tokenResults).length === 0) return null;
+
+    // Build a session-like object compatible with the existing session parsing
+    return {
+      user: { id: userId },
+      musicProviderTokens: tokenResults,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Require an authenticated session with a valid access token.
  * Throws ServerAuthError if not authenticated or token is invalid.
- * 
+ *
  * Usage:
  * ```ts
  * export async function GET(request: NextRequest) {
@@ -207,6 +248,15 @@ export async function requireAuth(providerId?: MusicProviderId): Promise<Authent
   const session = await getServerSession(authOptions);
 
   if (!session) {
+    // Try to restore session from persistent token DB
+    const restoredSession = await tryRestoreFromDb();
+    if (restoredSession) {
+      const typedSession = restoredSession as any;
+      if (providerId) {
+        return requireSessionForProvider(restoredSession, typedSession, providerId);
+      }
+      return requireDefaultSession(restoredSession, typedSession);
+    }
     throw new ServerAuthError('No session found', 'no_session');
   }
 

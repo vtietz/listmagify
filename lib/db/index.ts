@@ -7,3 +7,4 @@
 export { runMigrations, getMigrationStatus, type Migration } from './migrations';
 export { metricsMigrations } from './metrics-migrations';
 export { recsMigrations } from './recs-migrations';
+export { authMigrations } from './auth-migrations';

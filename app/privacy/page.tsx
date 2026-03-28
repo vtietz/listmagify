@@ -47,19 +47,19 @@ export default function PrivacyPage() {
           <div>
             <h2 className="text-lg font-semibold mb-2">3. Data We Process</h2>
             
-            <h3 className="font-medium mt-4 mb-2">3.1 Spotify API Data</h3>
+            <h3 className="font-medium mt-4 mb-2">3.1 Music Provider Data (Spotify &amp; TIDAL)</h3>
             <p className="text-muted-foreground mb-2">
-              When you sign in with Spotify, we access the following data through the Spotify Web API:
+              When you sign in with Spotify or TIDAL, we access the following data through their APIs:
             </p>
             <ul className="list-disc list-inside text-muted-foreground space-y-1 ml-2">
-              <li>Your Spotify display name and profile information</li>
+              <li>Your display name and profile information</li>
               <li>Your playlists (names, tracks, metadata)</li>
-              <li>Your Liked Songs library</li>
-              <li>Playback control for track previews</li>
+              <li>Your Liked Songs / Favorites library</li>
+              <li>Playback control for track previews (Spotify)</li>
             </ul>
             <p className="text-muted-foreground mt-2">
-              <strong>Important:</strong> Your playlist data is fetched directly from Spotify and is not stored 
-              on our servers. All playlist modifications are made directly through the Spotify API.
+              Your playlist data is fetched directly from each provider and is not permanently stored
+              on our servers. All playlist modifications are made directly through the provider APIs.
             </p>
 
             <h3 className="font-medium mt-4 mb-2">3.2 Local Browser Storage</h3>
@@ -77,9 +77,28 @@ export default function PrivacyPage() {
 
             <h3 className="font-medium mt-4 mb-2">3.3 Authentication Data</h3>
             <p className="text-muted-foreground">
-              We use secure HTTP-only cookies to maintain your session. These cookies contain encrypted 
-              tokens that allow us to make authorized requests to Spotify on your behalf. We do not store 
-              your Spotify password.
+              We use secure HTTP-only cookies to maintain your session. These cookies contain encrypted
+              tokens that allow us to make authorized requests to Spotify and TIDAL on your behalf. We do not store
+              your passwords.
+            </p>
+
+            <h3 className="font-medium mt-4 mb-2">3.4 Server-Side Token Storage (Background Sync)</h3>
+            <p className="text-muted-foreground mb-2">
+              If you enable playlist synchronization between providers, we store encrypted OAuth tokens
+              (access tokens and refresh tokens) on the server to enable background sync when you are
+              not actively using the application.
+            </p>
+            <ul className="list-disc list-inside text-muted-foreground space-y-1 ml-2">
+              <li>Tokens are encrypted using AES-256-GCM before storage</li>
+              <li>Tokens are used exclusively to sync your playlists between providers</li>
+              <li>Tokens are deleted immediately when you disconnect a provider</li>
+              <li>You can disable background sync at any time, which stops token usage</li>
+              <li>Stored tokens grant limited access (playlist management only, per the scopes you authorized)</li>
+            </ul>
+            <p className="text-muted-foreground mt-2">
+              This server-side storage is necessary because OAuth tokens expire regularly and must be
+              refreshed to maintain continuous sync. Without stored tokens, sync would only work while
+              you have the application open in your browser.
             </p>
           </div>
 
@@ -91,7 +110,9 @@ export default function PrivacyPage() {
             <ul className="list-disc list-inside text-muted-foreground space-y-1 ml-2 mt-2">
               <li>Display and organize your playlists</li>
               <li>Enable drag-and-drop track management</li>
+              <li>Synchronize playlists between Spotify and TIDAL</li>
               <li>Preview tracks through Spotify&apos;s player</li>
+              <li>Match and resolve tracks across providers</li>
               <li>Remember your UI preferences</li>
             </ul>
           </div>
@@ -99,17 +120,23 @@ export default function PrivacyPage() {
           <div>
             <h2 className="text-lg font-semibold mb-2">5. Data Sharing</h2>
             <p className="text-muted-foreground">
-              We do not sell, trade, or share your personal data with third parties. Your data is only 
-              transmitted to Spotify to perform the actions you request (e.g., moving tracks, updating playlists).
+              We do not sell, trade, or share your personal data with third parties. Your data is only
+              transmitted to Spotify and TIDAL to perform the actions you request (e.g., moving tracks,
+              updating playlists, syncing between providers).
             </p>
           </div>
 
           <div>
             <h2 className="text-lg font-semibold mb-2">6. Data Retention</h2>
+            <p className="text-muted-foreground mb-2">
+              We do not permanently store your playlist content on our servers. Session data is temporary and
+              is deleted when you log out or your session expires. Local storage data remains in your browser
+              until you clear it.
+            </p>
             <p className="text-muted-foreground">
-              We do not store your Spotify data on our servers. Session data is temporary and is deleted 
-              when you log out or your session expires. Local storage data remains in your browser until 
-              you clear it.
+              <strong>Encrypted tokens</strong> stored for background sync (see section 3.4) are retained
+              as long as the sync feature is enabled and deleted immediately when you disconnect a
+              provider or delete a sync pair. You can request deletion of all stored tokens by contacting us.
             </p>
           </div>
 
@@ -133,33 +160,58 @@ export default function PrivacyPage() {
           </div>
 
           <div>
-            <h2 className="text-lg font-semibold mb-2">8. Spotify&apos;s Privacy Policy</h2>
-            <p className="text-muted-foreground">
-              This application uses the Spotify Web API. Please also review{" "}
-              <a 
-                href="https://www.spotify.com/legal/privacy-policy/" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="hover:text-foreground underline"
-              >
-                Spotify&apos;s Privacy Policy
-              </a>{" "}
-              to understand how Spotify handles your data.
+            <h2 className="text-lg font-semibold mb-2">8. Provider Privacy Policies</h2>
+            <p className="text-muted-foreground mb-2">
+              This application uses the Spotify Web API and TIDAL API. Please also review their privacy policies:
             </p>
+            <ul className="list-disc list-inside text-muted-foreground space-y-1 ml-2">
+              <li>
+                <a
+                  href="https://www.spotify.com/legal/privacy-policy/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-foreground underline"
+                >
+                  Spotify&apos;s Privacy Policy
+                </a>
+              </li>
+              <li>
+                <a
+                  href="https://tidal.com/privacy"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-foreground underline"
+                >
+                  TIDAL&apos;s Privacy Policy
+                </a>
+              </li>
+            </ul>
           </div>
 
           <div>
             <h2 className="text-lg font-semibold mb-2">9. Revoking Access</h2>
-            <p className="text-muted-foreground">
-              You can revoke this application&apos;s access to your Spotify account at any time by visiting{" "}
-              <a 
-                href="https://www.spotify.com/account/apps/" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="hover:text-foreground underline"
-              >
-                your Spotify account settings
-              </a>.
+            <p className="text-muted-foreground mb-2">
+              You can revoke this application&apos;s access at any time:
+            </p>
+            <ul className="list-disc list-inside text-muted-foreground space-y-1 ml-2">
+              <li>
+                <strong>Spotify:</strong>{" "}
+                <a
+                  href="https://www.spotify.com/account/apps/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-foreground underline"
+                >
+                  Spotify account settings
+                </a>
+              </li>
+              <li>
+                <strong>TIDAL:</strong> Visit your TIDAL account settings to manage connected applications
+              </li>
+            </ul>
+            <p className="text-muted-foreground mt-2">
+              Revoking access will immediately invalidate all stored tokens and stop any active background sync.
+              You can also disconnect a provider within Listmagify, which deletes stored tokens from our servers.
             </p>
           </div>
 
@@ -170,7 +222,7 @@ export default function PrivacyPage() {
               changes by posting the new policy on this page.
             </p>
             <p className="text-muted-foreground mt-2">
-              Last updated: December 2024
+              Last updated: March 2026
             </p>
           </div>
 

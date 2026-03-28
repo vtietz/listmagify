@@ -3,27 +3,19 @@ import { serverEnv } from "@/lib/env";
 import { getFallbackMusicProviderId, isMusicProviderEnabled } from '@/lib/music-provider/enabledProviders';
 import type { MusicProviderId } from '@/lib/music-provider/types';
 import { authLogger, createAuthEvents } from '@/lib/auth/authLogging';
-import { createSpotifyAuthProvider, createTidalAuthProvider, TIDAL_TOKEN_URL } from '@/lib/auth/authProviderFactories';
+import { createSpotifyAuthProvider, createTidalAuthProvider } from '@/lib/auth/authProviderFactories';
 import { restoreProviderTokensFromBackup } from '@/lib/auth/authBackupCookie';
 import { buildJwtCallbackResult } from '@/lib/auth/authJwtPayload';
+import {
+  refreshProviderTokens,
+  TOKEN_REFRESH_ERROR,
+  type ProviderJwtToken,
+  type ProviderTokenStore,
+} from '@/lib/auth/tokenRefresh';
+import { persistProviderTokens, deleteProviderTokens, markTokenStatus } from '@/lib/auth/tokenStore';
+import { isTokenEncryptionAvailable } from '@/lib/auth/tokenEncryption';
 
-const TOKEN_REFRESH_ERROR = 'RefreshAccessTokenError';
-const REFRESH_BUFFER_MS = 5 * 60 * 1000;
 const FALLBACK_PROVIDER_ID = getFallbackMusicProviderId();
-
-type ProviderJwtToken = {
-  accessToken?: string;
-  refreshToken?: string;
-  accessTokenExpires?: number;
-  isByok?: boolean;
-  byok?: {
-    clientId?: string;
-    clientSecret?: string;
-  };
-  error?: string;
-};
-
-type ProviderTokenStore = Partial<Record<MusicProviderId, ProviderJwtToken>>;
 
 type AuthJwtToken = Record<string, any> & {
   musicProviderTokens?: ProviderTokenStore;
@@ -83,152 +75,10 @@ function extractExpiresAt(accountData: Record<string, any>): number {
   return Date.now() + 3600 * 1000;
 }
 
-function resolveSpotifyClientCredentials(token: ProviderJwtToken): { clientId: string; clientSecret: string } {
-  const clientId = token.byok?.clientId || serverEnv.SPOTIFY_CLIENT_ID;
-  const clientSecret = token.byok?.clientSecret || serverEnv.SPOTIFY_CLIENT_SECRET;
-
-  if (!clientId || !clientSecret) {
-    throw new Error('Spotify client credentials are not configured');
-  }
-
-  return {
-    clientId,
-    clientSecret,
-  };
-}
-
-
 const authProviders = [
   ...(isMusicProviderEnabled('spotify') ? [createSpotifyAuthProvider()] : []),
   ...(isMusicProviderEnabled('tidal') ? [createTidalAuthProvider()] : []),
 ];
-function buildRefreshedSpotifyToken(token: ProviderJwtToken, data: any): ProviderJwtToken {
-  const expiresInMs = (data.expires_in ?? 3600) * 1000;
-  const refreshToken = data.refresh_token ?? token.refreshToken;
-  const refreshedToken: ProviderJwtToken = {
-    ...token,
-    accessToken: data.access_token,
-    accessTokenExpires: Date.now() + expiresInMs,
-    ...(typeof refreshToken === 'string' ? { refreshToken } : {}),
-    ...(token.isByok ? { isByok: true } : {}),
-    ...(token.byok ? { byok: token.byok } : {}),
-  };
-
-  delete refreshedToken.error;
-  return refreshedToken;
-}
-async function refreshSpotifyAccessToken(token: ProviderJwtToken): Promise<ProviderJwtToken> {
-  try {
-    if (!token.refreshToken) {
-      throw new Error("Missing refresh token");
-    }
-
-    const { clientId, clientSecret } = resolveSpotifyClientCredentials(token);
-
-    const params = new URLSearchParams({
-      grant_type: "refresh_token",
-      refresh_token: token.refreshToken as string,
-      client_id: clientId,
-      client_secret: clientSecret,
-    });
-
-    const res = await fetch("https://accounts.spotify.com/api/token", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: params.toString(),
-    });
-
-    const data = await res.json();
-
-    if (!res.ok) {
-      if (data.error === 'invalid_grant' && data.error_description?.includes('revoked')) {
-        console.debug('[auth] Refresh token revoked by user (expected) - session will expire');
-      } else {
-        console.error(
-          `[auth] Failed to refresh token: ${res.status} ${res.statusText}`,
-          data
-        );
-      }
-      throw new Error(
-        `Failed to refresh token: ${res.status} ${res.statusText} ${JSON.stringify(data)}`
-      );
-    }
-
-    return buildRefreshedSpotifyToken(token, data);
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('revoked')) {
-      return { ...token, error: TOKEN_REFRESH_ERROR };
-    }
-    console.warn("[auth] refreshSpotifyAccessToken error", error);
-    return { ...token, error: TOKEN_REFRESH_ERROR };
-  }
-}
-
-function buildRefreshedTidalToken(token: ProviderJwtToken, data: any): ProviderJwtToken {
-  const expiresInMs = (data.expires_in ?? 3600) * 1000;
-  const refreshToken = data.refresh_token ?? token.refreshToken;
-  const refreshedToken: ProviderJwtToken = {
-    ...token,
-    accessToken: data.access_token,
-    accessTokenExpires: Date.now() + expiresInMs,
-    ...(typeof refreshToken === 'string' ? { refreshToken } : {}),
-  };
-
-  delete refreshedToken.error;
-  return refreshedToken;
-}
-
-async function refreshTidalAccessToken(token: ProviderJwtToken): Promise<ProviderJwtToken> {
-  if (!token.refreshToken) {
-    throw new Error('Missing refresh token');
-  }
-
-  if (!serverEnv.TIDAL_CLIENT_ID || !serverEnv.TIDAL_CLIENT_SECRET) {
-    throw new Error('TIDAL client credentials are not configured');
-  }
-
-  const params = new URLSearchParams({
-    grant_type: 'refresh_token',
-    refresh_token: token.refreshToken,
-    client_id: serverEnv.TIDAL_CLIENT_ID,
-    client_secret: serverEnv.TIDAL_CLIENT_SECRET,
-  });
-
-  const response = await fetch(TIDAL_TOKEN_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: params.toString(),
-  });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(
-      `Failed to refresh TIDAL token: ${response.status} ${response.statusText} ${JSON.stringify(data)}`
-    );
-  }
-
-  return buildRefreshedTidalToken(token, data);
-}
-
-async function refreshProviderAccessToken(
-  providerId: MusicProviderId,
-  token: ProviderJwtToken
-): Promise<ProviderJwtToken> {
-  if (providerId === 'spotify') {
-    return refreshSpotifyAccessToken(token);
-  }
-
-  return refreshTidalAccessToken(token);
-}
-
-function shouldRefreshProviderToken(token: ProviderJwtToken): boolean {
-  if (!token.accessTokenExpires) {
-    return false;
-  }
-
-  return Date.now() >= token.accessTokenExpires - REFRESH_BUFFER_MS;
-}
 
 function getInitialProviderErrors(nextToken: AuthJwtToken): Partial<Record<MusicProviderId, string | undefined>> {
   return {
@@ -292,66 +142,79 @@ function applyAccountToken(
   providerErrors[providerId] = undefined;
 }
 
-function markProviderTokenHealthy(
-  providerErrors: Partial<Record<MusicProviderId, string | undefined>>,
+
+// ---------------------------------------------------------------------------
+// Persistent token DB helpers — each call is wrapped in try-catch so a DB
+// failure never breaks the auth flow.
+// ---------------------------------------------------------------------------
+
+function safePersistSingleProvider(
+  userId: string,
   providerId: MusicProviderId,
+  pt: ProviderJwtToken,
 ): void {
-  providerErrors[providerId] = providerErrors[providerId] ?? undefined;
-}
-
-async function refreshProviderTokenIfNeeded(
-  providerId: MusicProviderId,
-  providerTokens: ProviderTokenStore,
-  providerErrors: Partial<Record<MusicProviderId, string | undefined>>,
-): Promise<void> {
-  const providerToken = providerTokens[providerId];
-  if (!providerToken?.accessToken) {
-    return;
-  }
-
-  if (providerToken.error === TOKEN_REFRESH_ERROR) {
-    providerErrors[providerId] = TOKEN_REFRESH_ERROR;
-    return;
-  }
-
-  if (!shouldRefreshProviderToken(providerToken)) {
-    markProviderTokenHealthy(providerErrors, providerId);
-    return;
-  }
-
-  if (!providerToken.refreshToken) {
-    providerTokens[providerId] = {
-      ...providerToken,
-      error: TOKEN_REFRESH_ERROR,
-    };
-    providerErrors[providerId] = TOKEN_REFRESH_ERROR;
-    return;
-  }
-
   try {
-    console.debug(`[auth] ${providerId} token expiring soon or expired, refreshing...`);
-    const refreshedToken = await refreshProviderAccessToken(providerId, providerToken);
-    providerTokens[providerId] = refreshedToken;
-    providerErrors[providerId] = undefined;
-  } catch (error) {
-    console.warn(`[auth] Failed to refresh ${providerId} token`, error);
-    providerTokens[providerId] = {
-      ...providerToken,
-      error: TOKEN_REFRESH_ERROR,
-    };
-    providerErrors[providerId] = TOKEN_REFRESH_ERROR;
+    persistProviderTokens({
+      userId,
+      provider: providerId,
+      accessToken: pt.accessToken!,
+      refreshToken: pt.refreshToken!,
+      accessTokenExpires: pt.accessTokenExpires ?? null,
+      isByok: pt.isByok ?? false,
+      byokClientId: pt.byok?.clientId ?? null,
+      byokClientSecret: pt.byok?.clientSecret ?? null,
+    });
+  } catch {
+    // DB write failure should never break auth flow
   }
 }
 
-async function refreshProviderTokens(
+function persistSignInTokens(
+  userId: string | undefined,
+  accountProviderId: MusicProviderId | null,
   providerTokens: ProviderTokenStore,
-  providerErrors: Partial<Record<MusicProviderId, string | undefined>>,
-): Promise<void> {
-  for (const providerId of Object.keys(providerTokens) as MusicProviderId[]) {
-    await refreshProviderTokenIfNeeded(providerId, providerTokens, providerErrors);
+): void {
+  if (!userId || !accountProviderId || !isTokenEncryptionAvailable()) return;
+  const providerToken = providerTokens[accountProviderId];
+  if (!providerToken?.accessToken || !providerToken?.refreshToken) return;
+  safePersistSingleProvider(userId, accountProviderId, providerToken);
+}
+
+function persistRefreshedTokens(
+  userId: string | undefined,
+  providerTokens: ProviderTokenStore,
+): void {
+  if (!userId || !isTokenEncryptionAvailable()) return;
+  for (const [pid, pt] of Object.entries(providerTokens) as [MusicProviderId, ProviderJwtToken | undefined][]) {
+    if (pt?.accessToken && pt?.refreshToken && !pt.error) {
+      safePersistSingleProvider(userId, pid, pt);
+    }
+    if (pt?.error === TOKEN_REFRESH_ERROR) {
+      try {
+        markTokenStatus(userId, pid, 'needs_reauth');
+      } catch {
+        // DB failure should never break auth flow
+      }
+    }
   }
 }
 
+async function setUidCookie(userId: string | undefined): Promise<void> {
+  if (!userId) return;
+  try {
+    const { cookies } = await import('next/headers');
+    const cookieStore = await cookies();
+    cookieStore.set('__listmagify_uid', userId, {
+      httpOnly: false,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 365 * 24 * 60 * 60,
+      path: '/',
+    });
+  } catch {
+    // cookies() may not be available in all contexts
+  }
+}
 
 /**
  * Reads the backup cookie saved by /api/auth/preserve-tokens before OAuth redirect.
@@ -388,15 +251,33 @@ export const authOptions: AuthOptions = {
         await restoreProviderTokensFromBackup(providerTokens, accountProviderId, toMusicProviderId);
       }
 
+      // Persist tokens from initial sign-in to DB
+      persistSignInTokens(nextToken.sub, accountProviderId, providerTokens);
+
       if (trigger === 'update' && session?.providerAuthAction === 'logout-provider') {
         const providerId = toMusicProviderId(session.providerId);
         if (providerId) {
           delete providerTokens[providerId];
           providerErrors[providerId] = undefined;
+
+          // Remove tokens from persistent DB
+          if (nextToken.sub) {
+            try {
+              deleteProviderTokens(nextToken.sub, providerId);
+            } catch {
+              // DB failure should never break auth flow
+            }
+          }
         }
       }
 
       await refreshProviderTokens(providerTokens, providerErrors);
+
+      // Persist refreshed tokens to DB
+      persistRefreshedTokens(nextToken.sub, providerTokens);
+
+      // Set UID cookie for DB session restoration fallback
+      await setUidCookie(nextToken.sub);
 
       return buildJwtCallbackResult(nextToken, providerTokens, providerErrors);
     },
