@@ -140,7 +140,7 @@ export function SearchInputBar({
           currentProviderId={providerId}
           providers={availableProviders}
           statusMap={statusMap}
-          hideWhenSingleConnected={false}
+          hideWhenSingleConnected={true}
           triggerRole="combobox"
           triggerAriaLabel="Search provider"
           onProviderChange={onProviderChange}
