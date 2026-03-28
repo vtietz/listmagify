@@ -10,8 +10,10 @@ import type { MusicProviderId } from '@/lib/music-provider/types';
 export function createSyncPair(input: {
   sourceProvider: MusicProviderId;
   sourcePlaylistId: string;
+  sourcePlaylistName: string;
   targetProvider: MusicProviderId;
   targetPlaylistId: string;
+  targetPlaylistName: string;
   direction: SyncDirection;
   createdBy: string;
 }): SyncPair {
@@ -23,17 +25,21 @@ export function createSyncPair(input: {
       id,
       source_provider,
       source_playlist_id,
+      source_playlist_name,
       target_provider,
       target_playlist_id,
+      target_playlist_name,
       direction,
       created_by
-    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id,
     input.sourceProvider,
     input.sourcePlaylistId,
+    input.sourcePlaylistName,
     input.targetProvider,
     input.targetPlaylistId,
+    input.targetPlaylistName,
     input.direction,
     input.createdBy,
   );
@@ -50,10 +56,13 @@ export function getSyncPair(id: string, createdBy?: string): SyncPair | null {
         id,
         source_provider AS sourceProvider,
         source_playlist_id AS sourcePlaylistId,
+        source_playlist_name AS sourcePlaylistName,
         target_provider AS targetProvider,
         target_playlist_id AS targetPlaylistId,
+        target_playlist_name AS targetPlaylistName,
         direction,
         created_by AS createdBy,
+        auto_sync AS autoSync,
         created_at AS createdAt,
         updated_at AS updatedAt
       FROM sync_pairs
@@ -68,10 +77,13 @@ export function getSyncPair(id: string, createdBy?: string): SyncPair | null {
       id,
       source_provider AS sourceProvider,
       source_playlist_id AS sourcePlaylistId,
+      source_playlist_name AS sourcePlaylistName,
       target_provider AS targetProvider,
       target_playlist_id AS targetPlaylistId,
+      target_playlist_name AS targetPlaylistName,
       direction,
       created_by AS createdBy,
+      auto_sync AS autoSync,
       created_at AS createdAt,
       updated_at AS updatedAt
     FROM sync_pairs
@@ -95,10 +107,13 @@ export function getSyncPairByPlaylists(
       id,
       source_provider AS sourceProvider,
       source_playlist_id AS sourcePlaylistId,
+      source_playlist_name AS sourcePlaylistName,
       target_provider AS targetProvider,
       target_playlist_id AS targetPlaylistId,
+      target_playlist_name AS targetPlaylistName,
       direction,
       created_by AS createdBy,
+      auto_sync AS autoSync,
       created_at AS createdAt,
       updated_at AS updatedAt
     FROM sync_pairs
@@ -126,10 +141,13 @@ export function listSyncPairs(createdBy: string): SyncPair[] {
       id,
       source_provider AS sourceProvider,
       source_playlist_id AS sourcePlaylistId,
+      source_playlist_name AS sourcePlaylistName,
       target_provider AS targetProvider,
       target_playlist_id AS targetPlaylistId,
+      target_playlist_name AS targetPlaylistName,
       direction,
       created_by AS createdBy,
+      auto_sync AS autoSync,
       created_at AS createdAt,
       updated_at AS updatedAt
     FROM sync_pairs
@@ -147,6 +165,23 @@ export function deleteSyncPair(id: string, createdBy?: string): boolean {
   }
 
   const result = db.prepare('DELETE FROM sync_pairs WHERE id = ?').run(id);
+  return result.changes > 0;
+}
+
+export function updateSyncPairAutoSync(id: string, autoSync: boolean, createdBy?: string): boolean {
+  const db = getRecsDb();
+  const value = autoSync ? 1 : 0;
+
+  if (createdBy) {
+    const result = db.prepare(
+      'UPDATE sync_pairs SET auto_sync = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND created_by = ?',
+    ).run(value, id, createdBy);
+    return result.changes > 0;
+  }
+
+  const result = db.prepare(
+    'UPDATE sync_pairs SET auto_sync = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+  ).run(value, id);
   return result.changes > 0;
 }
 

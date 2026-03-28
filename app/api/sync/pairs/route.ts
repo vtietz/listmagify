@@ -56,8 +56,10 @@ export async function POST(request: NextRequest) {
     const pair = createSyncPair({
       sourceProvider: parseMusicProviderId(body.sourceProvider),
       sourcePlaylistId: String(body.sourcePlaylistId),
+      sourcePlaylistName: String(body.sourcePlaylistName ?? ''),
       targetProvider: parseMusicProviderId(body.targetProvider),
       targetPlaylistId: String(body.targetPlaylistId),
+      targetPlaylistName: String(body.targetPlaylistName ?? ''),
       direction: body.direction as SyncDirection,
       createdBy: session.user.id,
     });

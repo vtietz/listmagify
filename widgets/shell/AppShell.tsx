@@ -29,6 +29,7 @@ import {
 } from "./HeaderComponents";
 import { SyncPreviewDialog } from "@features/sync/ui/SyncPreviewDialog";
 import { SyncManagementDialog } from "@features/sync/ui/SyncManagementDialog";
+import { useAutoSyncRunner } from "@features/sync/hooks/useAutoSyncRunner";
 
 type AppShellProps = {
   headerTitle?: string;
@@ -58,6 +59,7 @@ export function AppShell({ headerTitle = "Listmagify", children }: AppShellProps
   const isBrowsePanelOpen = useBrowsePanelStore((state) => state.isOpen);
   const { authenticated } = useSessionUser();
   const { isPhone } = useDeviceType();
+  useAutoSyncRunner();
   const { mode, supportsBrowsePanel } = useAppShellLayout({
     pathname,
     authenticated,

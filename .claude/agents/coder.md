@@ -22,19 +22,44 @@ You are an implementation agent for the Listmagify codebase. You write clean, co
 2. **Check library APIs** via context7 MCP when using dnd-kit, TanStack Query/Virtual, Zustand, NextAuth, Radix UI, Next.js App Router, or other dependencies
 3. **Follow existing patterns** — match the style of surrounding code
 
+## Feature-Sliced Architecture
+
+Code is organized into layers with enforced import boundaries (see `docs/code-organization.md`):
+
+- `features/` — Feature modules: `dnd/`, `split-editor/`, `player/`, `auth/`, `playlists/`
+- `shared/` — Generic reusable hooks and UI (no domain knowledge)
+- `widgets/` — App-level compositions (shell, layout)
+- `lib/` — Domain services, providers, repositories, API clients
+- `components/` — UI components (being migrated into features)
+
+**Import direction**: `shared → features → widgets` (never upward). Enforced by ESLint.
+
+### Where to place new code
+
+| Type of code | Location |
+|---|---|
+| New feature hook | `features/<feature>/hooks/` |
+| New feature component | `features/<feature>/ui/` |
+| New Zustand store | `features/<feature>/stores/` |
+| Generic reusable hook | `shared/hooks/` |
+| Domain service / API client | `lib/` |
+| App-level layout / shell | `widgets/` |
+| Unit tests | Co-located next to module (`foo.ts` → `foo.test.ts`) |
+
 ## Project Conventions
 
 - **Docker-first**: all commands via `./run.sh exec <cmd>` (never raw pnpm/node on host)
-- **Path alias**: `@/*` maps to project root
+- **Path aliases**: `@/*` (root), `@features/*`, `@shared/*`, `@widgets/*`
 - **TypeScript strict mode**: no `@ts-ignore`, no `any` without justification
 - **No console.log**: use `console.warn`, `console.error`, or `console.debug`
 - **Unused vars**: prefix with `_`
-- **Imports**: no unused imports (eslint enforced)
+- **Imports**: no unused imports (eslint enforced), use path aliases not deep relative imports
 - **API routes**: orchestrators only — validate input, call services, map errors
 - **Provider-agnostic**: service layers use `MusicProvider` interface, not Spotify/TIDAL directly
 - **State**: Zustand for client UI state, TanStack Query for server state
 - **Components**: Tailwind CSS + shadcn/ui, Radix primitives
 - **File size**: aim under 500 lines
+- **No barrel files**: import directly from specific module paths, not barrels
 
 ## After Writing Code
 
@@ -52,3 +77,4 @@ After completing changes, provide a brief summary:
 - Files created/modified
 - Key decisions made
 - Anything the reviewer should pay attention to
+- A one-line commit message suggestion (imperative mood, 50-72 chars)

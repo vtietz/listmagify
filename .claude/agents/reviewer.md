@@ -46,13 +46,17 @@ Check the changed files for:
 - **Unused code**: No unused imports, variables, or dead code paths?
 - **Security**: No secrets in code, no XSS vectors, input validation at boundaries?
 - **File size**: Any file exceeding 500 lines?
+- **Architecture boundaries**: `shared/` must not import from `features/` or `widgets/`; `features/` must not import from `widgets/`. See `docs/code-organization.md`.
+- **Correct placement**: New hooks/components placed in the right layer (`features/`, `shared/`, `widgets/`)? No new files in the legacy `hooks/` root?
+- **Path aliases**: Using `@features/*`, `@shared/*`, `@widgets/*` — not deep relative imports across layers?
 
 ### 5. Test Coverage
 
 For any new or modified logic:
-- Check if tests exist in `tests/unit/`
+- Check if co-located tests exist (e.g., `foo.ts` → `foo.test.ts` in the same directory)
 - Write missing tests following existing test patterns (Vitest + @testing-library/react)
-- Tests go in `tests/unit/<descriptive-name>.test.ts(x)`
+- Tests are co-located next to the module they test, NOT in `tests/unit/`
+- E2E tests remain in `tests/e2e/`
 - Use the existing `tests/setup/vitest.setup.ts` setup
 
 ## Output
@@ -69,6 +73,9 @@ Provide a review summary:
 
 ## Tests Added/Updated
 - tests/unit/foo.test.ts — what's tested
+
+## Commit Message Suggestion
+feat/fix/refactor: one-line imperative summary (50-72 chars)
 
 ## Verdict: APPROVED / CHANGES NEEDED
 ```

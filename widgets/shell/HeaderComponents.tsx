@@ -28,7 +28,7 @@ import {
   Music2,
   MessageSquarePlus,
   Settings2,
-  ArrowLeftRight,
+  RefreshCw,
   // Github brand icon is deprecated in lucide-react but still functional
   // TODO: Consider migrating to SimpleIcons in the future
   Github,
@@ -42,7 +42,9 @@ import { AdaptiveNav as AdaptiveNavComponent, type NavItem } from '@/components/
 import { syncProviderAuthStatusWithRetry } from '@/lib/providers/syncProviderAuth';
 import type { ProviderId } from '@/lib/providers/types';
 import { ConfigDialog } from '@widgets/shell/config/ConfigDialog';
+import { cn } from '@/lib/utils';
 import { useSyncDialogStore } from '@features/sync/stores/useSyncDialogStore';
+import { useSyncActivityStore } from '@features/sync/stores/useSyncActivityStore';
 
 // ============================================================================
 // Types
@@ -248,6 +250,7 @@ export function AdaptiveNav({
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [configOpen, setConfigOpen] = useState(false);
   const openManagement = useSyncDialogStore((s) => s.openManagement);
+  const isSyncing = useSyncActivityStore((s) => s.activeSyncCount > 0);
   const headerProviders = useHeaderProviders();
   const isSingleProvider = headerProviders.length <= 1;
   
@@ -310,7 +313,7 @@ export function AdaptiveNav({
     }] : []),
     {
       id: 'sync',
-      icon: <ArrowLeftRight className="h-3.5 w-3.5" />,
+      icon: <RefreshCw className={cn('h-3.5 w-3.5', isSyncing && 'animate-spin')} />,
       label: 'Sync',
       onClick: openManagement,
       visible: showSecureLinks,
@@ -381,7 +384,7 @@ export function AdaptiveNav({
     supportsBrowse,
     isPlaylistsActive, isSplitEditorActive, isStatsActive, hasStatsAccess,
     isBrowseOpen, toggleBrowse, isPlayerVisible, togglePlayerVisible, supportsPlayer,
-    openManagement,
+    openManagement, isSyncing,
     markerStats.totalMarkers, clearAllMarkers,
     isSingleProvider,
     setConfigOpen,

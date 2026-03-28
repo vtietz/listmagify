@@ -19,32 +19,29 @@ You are an E2E testing specialist for the Listmagify codebase using Playwright.
 ## Architecture
 
 E2E tests run against a Docker mock stack — never the real Spotify/TIDAL APIs:
-- `web-test` container runs the app with `E2E_MODE=1`
-- `spotify-mock` container provides deterministic API responses
-- Auth is bypassed with a deterministic E2E session
+- `web-test` container runs the app in dev mode with `E2E_MODE=1`
+- `spotify-mock` container provides deterministic Spotify API responses (port 8080)
+- `tidal-mock` container provides deterministic TIDAL API responses (port 8081)
+- Auth is bypassed via `/api/test/login?provider=spotify|tidal` endpoint (E2E-only)
 - Tests are in `tests/e2e/`
-- Fixtures are in `tests/fixtures/`
+- Fixtures are in `tests/fixtures/` (mounted read-only in mock containers)
+- Playwright runs with 3 workers locally, 1 in CI
 
 ## Running E2E Tests
 
-### Start the test stack
+### Run all E2E tests (preferred — handles stack lifecycle automatically)
 ```bash
-./run.sh exec pnpm test:stack:up
-```
-
-### Run all E2E tests
-```bash
-./run.sh exec pnpm test:e2e
+./run.sh test-e2e
 ```
 
 ### Run a specific test file
 ```bash
-./run.sh exec pnpm playwright test tests/e2e/<file>.spec.ts
+./run.sh test-e2e -- tests/e2e/<file>.spec.ts
 ```
 
-### Stop the test stack
+### Run tests matching a pattern
 ```bash
-./run.sh exec pnpm test:stack:down
+./run.sh test-e2e -- --grep "test name pattern"
 ```
 
 ## Writing E2E Tests

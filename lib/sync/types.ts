@@ -7,10 +7,13 @@ export interface SyncPair {
   id: string;
   sourceProvider: MusicProviderId;
   sourcePlaylistId: string;
+  sourcePlaylistName: string;
   targetProvider: MusicProviderId;
   targetPlaylistId: string;
+  targetPlaylistName: string;
   direction: SyncDirection;
   createdBy: string;
+  autoSync: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -68,4 +71,17 @@ export interface SyncApplyResult {
   removed: number;
   unresolved: string[];
   errors: string[];
+}
+
+export interface SyncPreviewTrack {
+  canonicalTrackId: string;
+  title: string;
+  artists: string[];
+  durationMs: number;
+}
+
+export interface SyncPreviewResult {
+  plan: SyncPlan;
+  sourceTracks: SyncPreviewTrack[];
+  targetTracks: SyncPreviewTrack[];
 }

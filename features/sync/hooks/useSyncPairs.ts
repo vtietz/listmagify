@@ -6,7 +6,7 @@ import { apiFetch } from '@/lib/api/client';
 import type { SyncPair, SyncRun } from '@/lib/sync/types';
 import type { MusicProviderId } from '@/lib/music-provider/types';
 
-const SYNC_PAIRS_KEY = ['sync-pairs'] as const;
+export const SYNC_PAIRS_KEY = ['sync-pairs'] as const;
 
 export type SyncPairWithRun = SyncPair & { latestRun: SyncRun | null };
 

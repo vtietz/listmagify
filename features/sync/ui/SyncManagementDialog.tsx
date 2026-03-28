@@ -2,9 +2,10 @@
 
 import { useSyncDialogStore } from '@features/sync/stores/useSyncDialogStore';
 import { useSyncPairs, useDeleteSyncPair } from '@features/sync/hooks/useSyncPairs';
+import { useUpdateSyncPair } from '@features/sync/hooks/useUpdateSyncPair';
 import type { SyncPairWithRun } from '@features/sync/hooks/useSyncPairs';
-import { usePlaylistName } from '@features/sync/hooks/usePlaylistName';
 import { useSyncExecute } from '@features/sync/hooks/useSyncExecute';
+import { usePlaylistName } from '@features/sync/hooks/usePlaylistName';
 import { SyncStatusBadge } from '@features/sync/ui/SyncStatusBadge';
 import { AddSyncPairForm } from '@features/sync/ui/AddSyncPairForm';
 import { ProviderGlyph } from '@/components/auth/ProviderStatusDropdown';
@@ -16,7 +17,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Play, Eye, Trash2, ArrowLeftRight, Loader2 } from 'lucide-react';
+import { Play, Eye, Trash2, ArrowLeftRight, Loader2, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { MusicProviderId } from '@/lib/music-provider/types';
 
@@ -37,9 +38,12 @@ function SyncPairRow({ pair, bothConnected }: { pair: SyncPairWithRun; bothConne
   const openPreview = useSyncDialogStore((s) => s.openPreview);
   const deletePair = useDeleteSyncPair();
   const execute = useSyncExecute();
+  const updatePair = useUpdateSyncPair();
 
-  const sourceName = usePlaylistName(pair.sourceProvider, pair.sourcePlaylistId);
-  const targetName = usePlaylistName(pair.targetProvider, pair.targetPlaylistId);
+  const fetchedSourceName = usePlaylistName(pair.sourceProvider, pair.sourcePlaylistId);
+  const fetchedTargetName = usePlaylistName(pair.targetProvider, pair.targetPlaylistId);
+  const sourceName = pair.sourcePlaylistName || fetchedSourceName;
+  const targetName = pair.targetPlaylistName || fetchedTargetName;
   const lastSyncTime = pair.latestRun?.completedAt ?? pair.latestRun?.startedAt;
   const isSyncing = execute.isPending;
 
@@ -79,6 +83,16 @@ function SyncPairRow({ pair, bothConnected }: { pair: SyncPairWithRun; bothConne
       </div>
 
       <div className="flex items-center gap-0.5 shrink-0">
+        <Button
+          variant={pair.autoSync ? 'default' : 'ghost'}
+          size="icon"
+          className="h-7 w-7"
+          title={pair.autoSync ? 'Auto-sync enabled — click to disable' : 'Enable auto-sync'}
+          disabled={!bothConnected}
+          onClick={() => updatePair.mutate({ id: pair.id, autoSync: !pair.autoSync })}
+        >
+          <RefreshCw className="h-3.5 w-3.5" />
+        </Button>
         <Button
           variant="ghost"
           size="icon"

@@ -18,12 +18,12 @@ All development runs inside Docker. Never run `pnpm`, `node`, or `npm` directly 
 | Run unit tests | `./run.sh test` |
 | Run quality checks (lint + typecheck) | `./run.sh quality` |
 | Run tests in watch mode | `./run.sh test -- --watch` |
-| Run a single test file | `./run.sh exec pnpm vitest --run tests/unit/<file>.test.ts` |
+| Run a single test file | `./run.sh exec pnpm vitest --run <path/to/file>.test.ts` |
 | Type check | `./run.sh exec pnpm typecheck` |
 | Lint | `./run.sh exec pnpm lint` |
 | Add a package | `./run.sh exec pnpm add <pkg>` |
 | Run arbitrary command | `./run.sh exec <cmd>` |
-| E2E tests | `./run.sh exec pnpm test:stack:up && ./run.sh exec pnpm test:e2e && ./run.sh exec pnpm test:stack:down` |
+| E2E tests | `./run.sh test-e2e` |
 
 **Quality gate**: A task is not complete until `./run.sh quality` passes.
 
@@ -97,8 +97,8 @@ Complexity constraints enforced via ESLint: cyclomatic complexity ≤ 12 and max
 
 ### Testing
 
-- **Unit tests**: `tests/unit/` — Vitest with jsdom, `@testing-library/react`
-- **E2E tests**: `tests/e2e/` — Playwright against a Docker mock service (never real APIs)
+- **Unit tests**: Co-located next to modules (`foo.ts` → `foo.test.ts`) — Vitest with jsdom, `@testing-library/react`
+- **E2E tests**: `tests/e2e/` — Playwright against Docker mock stack (never real APIs)
 - **Setup**: `tests/setup/vitest.setup.ts`
 - E2E and unit tests block real Spotify/TIDAL API hosts to fail fast on misconfiguration
 

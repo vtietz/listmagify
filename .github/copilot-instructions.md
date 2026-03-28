@@ -57,6 +57,7 @@ After every code change, run:
 - If quality checks fail, fix the reported issues and re-run quality checks before finishing.
 
 When adding functionality, also add or update tests where appropriate.
+Unit tests are co-located next to the module they test (`foo.ts` → `foo.test.ts`). E2E tests remain in `tests/e2e/`.
 
 ## 🧼 Clean Code and Reduction Strategy
 
@@ -79,13 +80,41 @@ When asked to reduce code size/complexity, do **not** only split files mechanica
 
 ## Architecture Boundaries
 
+### Feature-Sliced Architecture (see `docs/code-organization.md`)
+
+Code is organized into layers with enforced import boundaries:
+
+| Layer | Purpose | Can import from |
+|-------|---------|-----------------|
+| `shared/` | Generic reusable hooks/UI (no domain knowledge) | `lib/` only |
+| `features/` | Feature modules (`dnd/`, `split-editor/`, `player/`, `auth/`, `playlists/`) | `shared/`, `lib/` |
+| `widgets/` | App-level compositions (`shell/`) | `features/`, `shared/`, `lib/` |
+| `lib/` | Domain services, providers, repositories, API clients | — |
+| `components/` | UI components (being migrated into features) | any |
+
+**Import direction**: `shared → features → widgets` (never upward). Enforced by ESLint.
+
+**Path aliases**: `@/*` (root), `@features/*`, `@shared/*`, `@widgets/*`.
+
+**Where new code goes**:
+- Feature hook → `features/<feature>/hooks/`
+- Feature component → `features/<feature>/ui/`
+- Zustand store → `features/<feature>/stores/`
+- Generic reusable hook → `shared/hooks/`
+- Domain service → `lib/`
+- App shell/layout → `widgets/`
+
+### Other rules
+
 1. `app/api/**/route.ts` handlers are orchestrators only (validate input, call services, map known errors).
 2. Auth/token lifecycle stays in `lib/auth/*`.
-3. Spotify transport logic stays in provider layer (`lib/music-provider/*`).
+3. Provider transport logic stays in `lib/music-provider/*`.
 4. Preserve existing API contracts unless explicitly asked to change.
 5. Keep API route complexity in check (cyclomatic complexity <= 12, max depth <= 3).
 6. Keep service layers provider-agnostic where possible.
 7. For auth/provider boundary changes, update tests for retry/refresh/error mapping behavior.
+8. No new files in the legacy `hooks/` root — use the feature-sliced layers.
+9. No barrel files — import directly from specific module paths.
 
 ## 📝 Documentation Requirements
 

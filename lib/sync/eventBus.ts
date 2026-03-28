@@ -9,7 +9,8 @@ type EventMap = {
   'playlist:update': {
     playlistId: string;
     providerId: MusicProviderId;
-    cause: 'reorder' | 'add' | 'remove' | 'metadata';
+    cause: 'reorder' | 'add' | 'remove' | 'metadata' | 'sync';
+    syncOriginated?: boolean;
   };
   'playlist:reload': { playlistId: string; providerId: MusicProviderId };
 };

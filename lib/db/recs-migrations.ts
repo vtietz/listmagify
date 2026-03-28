@@ -276,4 +276,19 @@ export const recsMigrations: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_sync_pairs_created_by ON sync_pairs(created_by);
     `,
   },
+  {
+    version: 7,
+    name: 'add_sync_playlist_names',
+    sql: `
+      ALTER TABLE sync_pairs ADD COLUMN source_playlist_name TEXT NOT NULL DEFAULT '';
+      ALTER TABLE sync_pairs ADD COLUMN target_playlist_name TEXT NOT NULL DEFAULT '';
+    `,
+  },
+  {
+    version: 8,
+    name: 'add_auto_sync_column',
+    sql: `
+      ALTER TABLE sync_pairs ADD COLUMN auto_sync INTEGER NOT NULL DEFAULT 0;
+    `,
+  },
 ];

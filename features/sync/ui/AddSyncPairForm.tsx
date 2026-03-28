@@ -7,6 +7,7 @@ import { ProviderStatusDropdown } from '@/components/auth/ProviderStatusDropdown
 import { useAvailableProviders } from '@shared/hooks/useAvailableProviders';
 import { useAuthSummary } from '@features/auth/hooks/useAuth';
 import { useCreateSyncPair } from '@features/sync/hooks/useSyncPairs';
+import { usePlaylistName } from '@features/sync/hooks/usePlaylistName';
 import { Plus, ArrowLeftRight } from 'lucide-react';
 import type { MusicProviderId } from '@/lib/music-provider/types';
 import type { SyncPair } from '@/lib/sync/types';
@@ -36,6 +37,9 @@ export function AddSyncPairForm() {
   const [targetProvider, setTargetProvider] = useState<MusicProviderId>(defaultProvider);
   const [targetPlaylistId, setTargetPlaylistId] = useState<string | null>(null);
 
+  const sourcePlaylistName = usePlaylistName(sourceProvider, sourcePlaylistId ?? '');
+  const targetPlaylistName = usePlaylistName(targetProvider, targetPlaylistId ?? '');
+
   const canSubmit = sourcePlaylistId && targetPlaylistId && !createPair.isPending;
 
   function handleSubmit() {
@@ -45,8 +49,10 @@ export function AddSyncPairForm() {
       {
         sourceProvider,
         sourcePlaylistId,
+        sourcePlaylistName,
         targetProvider,
         targetPlaylistId,
+        targetPlaylistName,
         direction: 'bidirectional',
       },
       {

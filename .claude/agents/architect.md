@@ -1,4 +1,4 @@
----
+- ---
 name: architect
 description: Software architect for planning implementations. Analyzes requirements, identifies affected files, designs approach, and produces step-by-step implementation plans. Use this agent FIRST before coding.
 tools:
@@ -29,13 +29,46 @@ You are a software architect for the Listmagify codebase. Your job is to analyze
 
 ## Architecture Rules (from project conventions)
 
+### Feature-Sliced Architecture (see `docs/code-organization.md`)
+
+Code is organized into layers with enforced import boundaries:
+
+| Layer | Purpose | Can import from |
+|-------|---------|-----------------|
+| `shared/` | Generic reusable hooks/UI (no domain knowledge) | `lib/` only |
+| `features/` | Feature modules (`dnd/`, `split-editor/`, `player/`, `auth/`, `playlists/`) | `shared/`, `lib/` |
+| `widgets/` | App-level compositions (`shell/`) | `features/`, `shared/`, `lib/` |
+| `lib/` | Domain services, providers, repositories, API clients | — |
+| `components/` | UI components (being migrated into features) | any |
+
+**Import direction**: `shared → features → widgets` (never upward). Enforced by ESLint.
+
+### Path Aliases
+
+- `@/*` → project root
+- `@features/*` → `./features/*`
+- `@shared/*` → `./shared/*`
+- `@widgets/*` → `./widgets/*`
+
+### Where new code goes
+
+- New feature hook → `features/<feature>/hooks/`
+- New feature component → `features/<feature>/ui/`
+- New Zustand store → `features/<feature>/stores/`
+- Generic reusable hook → `shared/hooks/`
+- Domain service / API client → `lib/`
+- App-level layout / shell → `widgets/`
+
+### Other rules
+
 - `app/api/**/route.ts` handlers are orchestrators only (validate, call services, map errors)
 - Auth/token lifecycle stays in `lib/auth/*`
 - Provider transport stays in `lib/music-provider/*`
 - Service layers should be provider-agnostic where possible
 - API routes: cyclomatic complexity <= 12, max depth <= 3
 - File size warning at 500 lines
-- Path alias: `@/*` maps to project root
+- Unit tests are co-located next to the module they test (`foo.ts` → `foo.test.ts`)
+- No barrel files — import directly from specific module paths
 
 ## Output Format
 
@@ -62,3 +95,5 @@ One-sentence description of what this implements.
 ```
 
 Do NOT write implementation code. Focus on the WHAT and WHERE, not the HOW in detail. The coder agent will handle implementation.
+
+Always include a suggested commit message (imperative mood, 50-72 chars) at the end of the plan.

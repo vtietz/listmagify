@@ -14,8 +14,9 @@ import { Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { useSyncDialogStore } from '@features/sync/stores/useSyncDialogStore';
 import { useSyncPreview } from '@features/sync/hooks/useSyncPreview';
 import { useSyncExecute } from '@features/sync/hooks/useSyncExecute';
-import { SyncDiffTable } from '@features/sync/ui/SyncDiffTable';
-import type { SyncPlan, SyncApplyResult } from '@/lib/sync/types';
+import { usePlaylistName } from '@features/sync/hooks/usePlaylistName';
+import { SyncSplitView } from '@features/sync/ui/SyncSplitView';
+import type { SyncPlan, SyncApplyResult, SyncPreviewResult } from '@/lib/sync/types';
 
 type Step = 'preview' | 'result';
 
@@ -91,11 +92,10 @@ function ResultStep({
   );
 }
 
-function PreviewStatusMessage({ isLoading, previewError, executeError, isInSync }: {
+function PreviewStatusMessage({ isLoading, previewError, executeError }: {
   isLoading: boolean;
   previewError: boolean;
   executeError: boolean;
-  isInSync: boolean;
 }) {
   if (isLoading) {
     return (
@@ -114,22 +114,14 @@ function PreviewStatusMessage({ isLoading, previewError, executeError, isInSync 
     return <div className="rounded-md bg-red-500/10 p-3 text-sm text-red-500">Sync execution failed. Please try again.</div>;
   }
 
-  if (isInSync) {
-    return (
-      <div className="flex flex-col items-center gap-2 py-6 text-center">
-        <CheckCircle2 className="h-10 w-10 text-green-500" />
-        <p className="text-sm font-medium">Playlists are already in sync</p>
-        <p className="text-xs text-muted-foreground">No changes needed between these playlists.</p>
-      </div>
-    );
-  }
-
   return null;
 }
 
 function PreviewStepContent({
   config,
-  plan,
+  previewData,
+  sourcePlaylistName,
+  targetPlaylistName,
   isLoading,
   previewError,
   executeError,
@@ -138,7 +130,9 @@ function PreviewStepContent({
   onCancel,
 }: {
   config: { sourceProvider: string; targetProvider: string } | null;
-  plan: SyncPlan | null;
+  previewData: SyncPreviewResult | null;
+  sourcePlaylistName: string;
+  targetPlaylistName: string;
   isLoading: boolean;
   previewError: boolean;
   executeError: boolean;
@@ -146,26 +140,34 @@ function PreviewStepContent({
   onExecute: () => void;
   onCancel: () => void;
 }) {
+  const plan = previewData?.plan ?? null;
   const hasChanges = plan !== null && (plan.summary.toAdd > 0 || plan.summary.toRemove > 0);
-  const isInSync = plan !== null && !hasChanges;
 
   return (
     <div className="space-y-4">
       {config && (
         <p className="text-xs text-muted-foreground text-center">
-          {config.sourceProvider} &harr; {config.targetProvider}
+          {sourcePlaylistName} &harr; {targetPlaylistName}
         </p>
       )}
 
-      <PreviewStatusMessage isLoading={isLoading} previewError={previewError} executeError={executeError} isInSync={isInSync} />
+      <PreviewStatusMessage isLoading={isLoading} previewError={previewError} executeError={executeError} />
 
-      {hasChanges && plan && (
+      {plan && previewData && (
         <>
-          <SyncDiffTable plan={plan} />
-          <p className="text-xs text-muted-foreground">
-            {plan.summary.toAdd} to add, {plan.summary.toRemove} to remove
-            {plan.summary.unresolved > 0 && `, ${plan.summary.unresolved} unresolved`}
-          </p>
+          <SyncSplitView
+            plan={plan}
+            sourceTracks={previewData.sourceTracks}
+            targetTracks={previewData.targetTracks}
+            sourcePlaylistName={sourcePlaylistName}
+            targetPlaylistName={targetPlaylistName}
+          />
+          {hasChanges && (
+            <p className="text-xs text-muted-foreground">
+              {plan.summary.toAdd} to add, {plan.summary.toRemove} to remove
+              {plan.summary.unresolved > 0 && `, ${plan.summary.unresolved} unresolved`}
+            </p>
+          )}
         </>
       )}
 
@@ -186,6 +188,15 @@ export function SyncPreviewDialog() {
   const { isPreviewOpen, previewConfig, closePreview } = useSyncDialogStore();
   const [step, setStep] = useState<Step>('preview');
   const [result, setResult] = useState<SyncApplyResult | null>(null);
+
+  const sourcePlaylistName = usePlaylistName(
+    previewConfig?.sourceProvider ?? 'spotify',
+    previewConfig?.sourcePlaylistId ?? '',
+  );
+  const targetPlaylistName = usePlaylistName(
+    previewConfig?.targetProvider ?? 'spotify',
+    previewConfig?.targetPlaylistId ?? '',
+  );
 
   const preview = useSyncPreview();
   const execute = useSyncExecute();
@@ -223,7 +234,7 @@ export function SyncPreviewDialog() {
 
   return (
     <Dialog open={isPreviewOpen} onOpenChange={(open) => { if (!open) closePreview(); }}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle>{step === 'preview' ? 'Sync preview' : 'Sync result'}</DialogTitle>
           <DialogDescription>
@@ -234,7 +245,9 @@ export function SyncPreviewDialog() {
         {step === 'preview' && (
           <PreviewStepContent
             config={previewConfig}
-            plan={preview.data ?? null}
+            previewData={preview.data ?? null}
+            sourcePlaylistName={sourcePlaylistName}
+            targetPlaylistName={targetPlaylistName}
             isLoading={preview.isPending}
             previewError={preview.isError}
             executeError={execute.isError}

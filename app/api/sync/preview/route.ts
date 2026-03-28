@@ -33,8 +33,8 @@ export async function POST(request: NextRequest) {
       if (typeof body.syncPairId !== 'string') {
         return badRequest('syncPairId must be a string');
       }
-      const plan = await previewSyncFromPair(body.syncPairId, session.user.id);
-      return ok(plan);
+      const previewResult = await previewSyncFromPair(body.syncPairId, session.user.id);
+      return ok(previewResult);
     }
 
     // Inline config preview
@@ -54,8 +54,8 @@ export async function POST(request: NextRequest) {
       direction: body.direction as SyncDirection,
     };
 
-    const plan = await previewSync(config);
-    return ok(plan);
+    const previewResult = await previewSync(config);
+    return ok(previewResult);
   } catch (error) {
     console.error('[api/sync/preview] Error:', error);
     return fromError(error);

@@ -2,6 +2,8 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api/client';
+import { eventBus } from '@/lib/sync/eventBus';
+import { useSyncActivityStore } from '@features/sync/stores/useSyncActivityStore';
 import type { SyncPlan, SyncApplyResult, SyncConfig } from '@/lib/sync/types';
 import { playlistTracksByProvider } from '@/lib/api/queryKeys';
 
@@ -17,16 +19,25 @@ interface SyncExecuteResponse {
  */
 export function useSyncExecute() {
   const queryClient = useQueryClient();
+  const incrementActive = useSyncActivityStore((s) => s.incrementActive);
+  const decrementActive = useSyncActivityStore((s) => s.decrementActive);
 
   return useMutation({
     mutationFn: async (config: SyncConfig) => {
-      return apiFetch<SyncExecuteResponse>('/api/sync/execute', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(config),
-      });
+      incrementActive();
+      try {
+        return await apiFetch<SyncExecuteResponse>('/api/sync/execute', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(config),
+        });
+      } catch (err) {
+        decrementActive();
+        throw err;
+      }
     },
     onSuccess: (_data: SyncExecuteResponse, variables: SyncConfig) => {
+      decrementActive();
       // Invalidate target playlist tracks so the panel refreshes
       queryClient.invalidateQueries({
         queryKey: playlistTracksByProvider(
@@ -44,6 +55,20 @@ export function useSyncExecute() {
           ),
         });
       }
+
+      // Emit sync-originated events so auto-sync runner ignores these changes
+      eventBus.emit('playlist:update', {
+        playlistId: variables.targetPlaylistId,
+        providerId: variables.targetProvider,
+        cause: 'sync',
+        syncOriginated: true,
+      });
+      eventBus.emit('playlist:update', {
+        playlistId: variables.sourcePlaylistId,
+        providerId: variables.sourceProvider,
+        cause: 'sync',
+        syncOriginated: true,
+      });
     },
   });
 }

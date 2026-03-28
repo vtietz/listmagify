@@ -1,12 +1,48 @@
 {
   "permissions": {
     "allow": [
+      "Edit",
+      "Write",
+      "Bash(./run.sh *)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git show*)",
+      "Bash(git branch*)",
+      "Bash(git add *)",
+      "Bash(git mv *)",
+      "Bash(git rm *)",
+      "Bash(git stash*)",
+      "Bash(git checkout -- *)",
+      "Bash(ls *)",
+      "Bash(ls)",
+      "Bash(find *)",
+      "Bash(cat *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(wc *)",
+      "Bash(mkdir *)",
+      "Bash(rmdir *)",
+      "Bash(rm *.ts)",
+      "Bash(rm *.tsx)",
+      "Bash(rm *.md)",
+      "Bash(rm *.json)",
+      "Bash(sed *)",
+      "Bash(grep *)",
+      "Bash(rg *)",
+      "Bash(chmod *)",
+      "Bash(docker compose *)",
+      "WebSearch",
       "WebFetch(domain:developer.spotify.com)",
-      "WebFetch(domain:lobehub.com)",
-      "Bash(curl -s https://tidal-music.github.io/tidal-api-reference/tidal-api-oas.json)",
-      "Bash(mkdir -p /home/vtietz/listmagify/app/api/artists/[artistId]/tracks)",
-      "Bash(mkdir -p /home/vtietz/listmagify/app/api/albums/[albumId]/tracks)",
-      "Bash(./run.sh .*)"
+      "WebFetch(domain:developer.tidal.com)",
+      "WebFetch(domain:tidal-music.github.io)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:lobehub.com)"
+    ],
+    "deny": [
+      "Bash(git push *)",
+      "Bash(git reset --hard*)",
+      "Bash(rm -rf *)"
     ]
   }
 }
