@@ -63,31 +63,9 @@ export function ConfigDialog({
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Configuration</DialogTitle>
-          <DialogDescription>
-            Matching confidence controls automatic conversion between providers: higher values are stricter and route more tracks to manual review.
-          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6">
-          <section className="space-y-2">
-            <div className="flex items-center justify-between text-sm">
-              <span className="font-medium">Auto-match confidence</span>
-              <span className="text-muted-foreground">{draftConvertThreshold.toFixed(2)}</span>
-            </div>
-            <input
-              type="range"
-              min={75}
-              max={95}
-              step={1}
-              value={Math.round(draftConvertThreshold * 100)}
-              onChange={(event) => setDraftConvertThreshold(Number(event.target.value) / 100)}
-              className="w-full accent-primary"
-              aria-label="Auto-match confidence threshold"
-            />
-            <p className="text-xs text-muted-foreground">
-              Manual review threshold is derived automatically: {Math.max(0.5, draftConvertThreshold - 0.1).toFixed(2)}
-            </p>
-          </section>
 
           <section className="space-y-2">
             <div className="text-sm font-medium">View toggles</div>
@@ -128,6 +106,30 @@ export function ConfigDialog({
               </div>
             </div>
           </section>
+
+          <section className="space-y-2">
+            <div className="flex items-center justify-between text-sm">
+              <span className="font-medium">Auto-match confidence</span>
+              <span className="text-muted-foreground">{draftConvertThreshold.toFixed(2)}</span>
+            </div>
+            <input
+              type="range"
+              min={75}
+              max={95}
+              step={1}
+              value={Math.round(draftConvertThreshold * 100)}
+              onChange={(event) => setDraftConvertThreshold(Number(event.target.value) / 100)}
+              className="w-full accent-primary"
+              aria-label="Auto-match confidence threshold"
+            />
+            <p className="text-xs text-muted-foreground">
+              Matching confidence controls automatic conversion between providers: higher values are stricter and route more tracks to manual review.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Manual review threshold is derived automatically: {Math.max(0.5, draftConvertThreshold - 0.1).toFixed(2)}
+            </p>
+          </section>
+
         </div>
 
         <DialogFooter>
