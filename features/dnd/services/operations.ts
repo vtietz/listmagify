@@ -98,7 +98,7 @@ export function validateDropOperation(
   }
 
   const sourceType = sourceData.type as string;
-  if (sourceType !== 'track' && sourceType !== 'lastfm-track') {
+  if (sourceType !== 'track') {
     return 'Invalid source type';
   }
 

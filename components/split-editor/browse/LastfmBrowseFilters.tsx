@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { AddSelectedToMarkersButton } from '../playlist/AddSelectedToMarkersButton';
+import type { TrackPayload } from '@features/dnd/model/types';
 import type { ImportSource, LastfmPeriod } from '@/lib/importers/types';
 
 const SOURCE_OPTIONS: { value: ImportSource; label: string }[] = [
@@ -41,6 +42,7 @@ interface LastfmBrowseFiltersProps {
   hasAnyMarkers: boolean;
   selectedCount: number;
   getTrackUris: () => Promise<string[]>;
+  getTrackPayloads: () => TrackPayload[];
   inputRef: React.RefObject<HTMLInputElement | null>;
 }
 
@@ -54,6 +56,7 @@ export function LastfmBrowseFilters({
   hasAnyMarkers,
   selectedCount,
   getTrackUris,
+  getTrackPayloads,
   inputRef,
 }: LastfmBrowseFiltersProps) {
   return (
@@ -70,7 +73,7 @@ export function LastfmBrowseFilters({
             className="h-9 pl-9 text-sm"
           />
         </div>
-        
+
         {/* Source selector */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -80,8 +83,8 @@ export function LastfmBrowseFilters({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-[140px]">
             {SOURCE_OPTIONS.map((opt) => (
-              <DropdownMenuItem 
-                key={opt.value} 
+              <DropdownMenuItem
+                key={opt.value}
                 onClick={() => onSourceChange(opt.value)}
                 className={cn("text-xs", lastfmSource === opt.value && "bg-accent")}
               >
@@ -90,7 +93,7 @@ export function LastfmBrowseFilters({
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
-        
+
         {/* Period selector (only for Top) */}
         {lastfmSource === 'lastfm-top' && (
           <DropdownMenu>
@@ -101,8 +104,8 @@ export function LastfmBrowseFilters({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-[100px]">
               {PERIOD_OPTIONS.map((opt) => (
-                <DropdownMenuItem 
-                  key={opt.value} 
+                <DropdownMenuItem
+                  key={opt.value}
                   onClick={() => onPeriodChange(opt.value)}
                   className={cn("text-xs", lastfmPeriod === opt.value && "bg-accent")}
                 >
@@ -112,12 +115,13 @@ export function LastfmBrowseFilters({
             </DropdownMenuContent>
           </DropdownMenu>
         )}
-        
-        {/* Add selected to markers button - always show when markers exist */}
+
+        {/* Add selected to markers button */}
         {hasAnyMarkers && (
           <AddSelectedToMarkersButton
             selectedCount={selectedCount}
             getTrackUris={getTrackUris}
+            getTrackPayloads={getTrackPayloads}
             className="h-9 w-9 shrink-0"
           />
         )}

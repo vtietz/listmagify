@@ -144,8 +144,7 @@ async function addUrisToMarkersAcrossPlaylists(params: {
       const targetProviderId = resolveTargetProviderId(playlistId, params.panelProviderByPlaylistId);
       const shouldUsePendingMatchFlow =
         params.trackPayloads.length > 0
-        && params.sourceProviderId
-        && params.sourceProviderId !== targetProviderId;
+        && (params.uris.length === 0 || (params.sourceProviderId && params.sourceProviderId !== targetProviderId));
 
       let insertedInPlaylist = 0;
 
@@ -283,17 +282,17 @@ export function AddSelectedToMarkersButton({
     setIsAdding(true);
     
     try {
-      // Get track URIs (may be async for Last.fm matching)
       const uris = await getTrackUris();
-      
-      if (uris.length === 0) {
+      const payloads = getTrackPayloads
+        ? await getTrackPayloads()
+        : [];
+
+      // Need either URIs (same-provider add) or payloads (pending match flow)
+      if (uris.length === 0 && payloads.length === 0) {
         toast.error('No tracks to add');
         return;
       }
 
-      const payloads = getTrackPayloads
-        ? await getTrackPayloads()
-        : [];
       const resolvedSourceProviderId = sourceProviderId
         ?? payloads[0]?.sourceProvider
         ?? inferProviderFromTrackUri(uris[0]);

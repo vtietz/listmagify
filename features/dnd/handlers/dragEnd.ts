@@ -4,7 +4,7 @@
  * Handles the completion of a drag operation, including:
  * - Validating the drop target
  * - Executing mutations (copy, move, reorder)
- * - Handling different source types (playlist, browse, Last.fm, player)
+ * - Handling different source types (playlist, browse, player)
  */
 
 import type { DragEndEvent } from '@dnd-kit/core';
@@ -13,7 +13,6 @@ import type { MusicProviderId } from '@/lib/music-provider/types';
 import type { PanelConfig, PanelVirtualizerData, TrackPayload } from '../model/types';
 import type { DropContext, MutationHandlers } from '../services/mutations';
 import {
-  handleLastfmDrop,
   handleSamePanelDrop,
   handleCrossPanelDrop,
 } from '../services/mutations';
@@ -33,6 +32,9 @@ import {
   resolveCrossProviderPayloads,
   resolvePanelProviderId,
 } from './dragEndShared';
+
+/** Virtual panel ID for Last.fm browse (used to detect LastFM drops) */
+const LASTFM_PANEL_ID = 'lastfm-panel';
 
 /**
  * Context required for drag end handling
@@ -66,14 +68,6 @@ type TrackSourceData = Record<string, unknown> & {
   selectedTrackPayloads?: TrackPayload[];
 };
 
-type LastfmTrackSourceData = Record<string, unknown> & {
-  type: 'lastfm-track';
-  matchedTrack: Track;
-  selectedMatchedUris?: string[];
-};
-
-type DragSourceData = TrackSourceData | LastfmTrackSourceData;
-
 type DragTargetData = Record<string, unknown> & {
   type: 'track' | 'panel';
   panelId?: string;
@@ -81,12 +75,12 @@ type DragTargetData = Record<string, unknown> & {
   position?: number;
 };
 
-function isDragSourceData(data: unknown): data is DragSourceData {
+function isDragSourceData(data: unknown): data is TrackSourceData {
   return Boolean(
     data
       && typeof data === 'object'
       && 'type' in data
-      && (((data as { type?: string }).type === 'track') || ((data as { type?: string }).type === 'lastfm-track'))
+      && (data as { type?: string }).type === 'track'
   );
 }
 
@@ -96,47 +90,6 @@ function isDragTargetData(data: unknown): data is DragTargetData {
       && typeof data === 'object'
       && 'type' in data
       && (((data as { type?: string }).type === 'track') || ((data as { type?: string }).type === 'panel'))
-  );
-}
-
-function handleLastfmTrackDrop(
-  sourceData: LastfmTrackSourceData,
-  targetData: DragTargetData,
-  finalDropPosition: number | null,
-  ctx: DragEndContext
-): void {
-  const targetPanelId = targetData.panelId;
-  const targetPlaylistId = targetData.playlistId;
-
-  if (!targetPanelId || !targetPlaylistId) {
-    console.error('Missing target panel or playlist context');
-    return;
-  }
-
-  const targetIndex = finalDropPosition ?? (targetData.position ?? 0);
-  const targetPanel = ctx.panels.find((panel) => panel.id === targetPanelId);
-  if (!targetPanel) {
-    console.error('Missing target panel context');
-    return;
-  }
-
-  const targetProviderId = resolvePanelProviderId(targetPanel, targetPlaylistId);
-  const dropContext: DropContext = {
-    panels: ctx.panels,
-    mutations: ctx.mutations,
-    selectedIndices: [],
-    orderedTracks: [],
-    clearSelection: useBrowsePanelStore.getState().clearLastfmSelection,
-  };
-
-  handleLastfmDrop(
-    sourceData.matchedTrack,
-    sourceData.selectedMatchedUris,
-    targetPanelId,
-    targetPlaylistId,
-    targetProviderId,
-    targetIndex,
-    dropContext
   );
 }
 
@@ -300,6 +253,11 @@ function handleBrowseTrackSourceDrop(
     (input) => ctx.mutations.addTracks.mutate(input),
     ctx.enqueuePendingFromBrowseDrop
   );
+
+  // Clear LastFM selection after drop if the source was the LastFM panel
+  if (sourceData.panelId === LASTFM_PANEL_ID) {
+    useBrowsePanelStore.getState().clearLastfmSelection();
+  }
 }
 
 function handleCrossProviderPlaylistDrop(
@@ -474,17 +432,11 @@ export function createDragEndHandler(ctx: DragEndContext) {
 
     // Handle drop onto player
     if (targetData?.type === 'player') {
-      const track = sourceData.type === 'track' ? sourceData.track : sourceData.matchedTrack;
-      handlePlayerDrop(sourceData, track);
+      handlePlayerDrop(sourceData, sourceData.track);
       return;
     }
 
     if (!isDragTargetData(targetData)) {
-      return;
-    }
-
-    if (sourceData.type === 'lastfm-track') {
-      handleLastfmTrackDrop(sourceData, targetData, finalDropPosition, ctx);
       return;
     }
 

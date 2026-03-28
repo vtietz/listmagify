@@ -16,6 +16,7 @@ import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useBrowsePanelStore, type BrowseTab } from '@features/split-editor/browse/hooks/useBrowsePanelStore';
 import { useSplitGridStore } from '@features/split-editor/stores/useSplitGridStore';
+import { ProviderPanelGuard } from '@/components/auth/ProviderPanelGuard';
 import { parseSelectionKey } from '@/lib/dnd/selection';
 import { cn } from '@/lib/utils';
 import { SearchPanel } from './SearchPanel';
@@ -23,6 +24,7 @@ import { LastfmBrowseTab } from './LastfmBrowseTab';
 import { RecommendationsPanel } from './RecommendationsPanel';
 import { Button } from '@/components/ui/button';
 import { Search, Radio } from 'lucide-react';
+import type { MusicProviderId } from '@/lib/music-provider/types';
 
 /** Re-export panel ID for backwards compatibility */
 export { SEARCH_PANEL_ID as BROWSE_PANEL_ID } from './SearchPanel';
@@ -218,16 +220,22 @@ function BrowsePanelTabContent({
   isOpen,
   isMobileOverlay,
   inputRef,
+  searchProviderId,
 }: {
   activeTab: BrowseTab;
   isOpen: boolean;
   isMobileOverlay: boolean;
   inputRef: React.RefObject<HTMLInputElement | null>;
+  searchProviderId: MusicProviderId;
 }) {
   const isActive = isMobileOverlay || isOpen;
 
   if (activeTab === 'browse') {
-    return <SearchPanel isActive={isActive} inputRef={inputRef} />;
+    return (
+      <ProviderPanelGuard provider={searchProviderId}>
+        <SearchPanel isActive={isActive} inputRef={inputRef} />
+      </ProviderPanelGuard>
+    );
   }
 
   return <LastfmBrowseTab isActive={isActive} />;
@@ -301,6 +309,7 @@ function BrowsePanelLayout({
   playlistId,
   isOpen,
   inputRef,
+  searchProviderId,
 }: {
   isMobileOverlay: boolean;
   width: number;
@@ -322,6 +331,7 @@ function BrowsePanelLayout({
   playlistId?: string;
   isOpen: boolean;
   inputRef: React.RefObject<HTMLInputElement | null>;
+  searchProviderId: MusicProviderId;
 }) {
   return (
     <div
@@ -347,6 +357,7 @@ function BrowsePanelLayout({
           isOpen={isOpen}
           isMobileOverlay={isMobileOverlay}
           inputRef={inputRef}
+          searchProviderId={searchProviderId}
         />
       </div>
 
@@ -370,9 +381,9 @@ function BrowsePanelLayout({
 }
 
 export function BrowsePanel({ defaultTab, isMobileOverlay = false }: BrowsePanelProps = {}) {
-  const { 
-    isOpen, 
-    width, 
+  const {
+    isOpen,
+    width,
     setWidth,
     activeTab,
     setActiveTab,
@@ -381,6 +392,7 @@ export function BrowsePanel({ defaultTab, isMobileOverlay = false }: BrowsePanel
     recsHeight,
     setRecsHeight,
     close: _close,
+    providerId: searchProviderId,
   } = useBrowsePanelStore();
   const panels = useSplitGridStore((state) => state.panels);
   
@@ -438,6 +450,7 @@ export function BrowsePanel({ defaultTab, isMobileOverlay = false }: BrowsePanel
       {...(playlistId ? { playlistId } : {})}
       isOpen={isOpen}
       inputRef={inputRef}
+      searchProviderId={searchProviderId}
     />
   );
 }

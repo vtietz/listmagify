@@ -2,7 +2,6 @@ import type { Track } from '@/lib/music-provider/types';
 import type { MusicProviderId } from '@/lib/music-provider/types';
 import type { PanelConfig, TrackPayload } from '../model/types';
 import { getBrowsePanelDragPayloads, getBrowsePanelDragUris } from '../helpers';
-import { useBrowsePanelStore } from '@features/split-editor/browse/hooks/useBrowsePanelStore';
 import { apiFetch } from '@/lib/api/client';
 import { toast } from '@/lib/ui/toast';
 import { isPlaylistIdCompatibleWithProvider } from '@/lib/providers/playlistIdCompat';
@@ -87,46 +86,6 @@ export function resolveCrossProviderPayloads(
   return dragTracks.map((track) => buildPayloadFromTrack(track, sourceProvider));
 }
 
-export function handleLastfmTrackDrop(
-  sourceData: { matchedTrack: Track; selectedMatchedUris?: string[] },
-  targetPanelId: string,
-  targetPlaylistId: string,
-  targetProviderId: MusicProviderId,
-  targetIndex: number,
-  handler: (params: {
-    matchedTrack: Track;
-    selectedMatchedUris?: string[];
-    targetPanelId: string;
-    targetPlaylistId: string;
-    targetProviderId: MusicProviderId;
-    targetIndex: number;
-    clearSelection: () => void;
-  }) => void,
-): void {
-  const handlerInput: {
-    matchedTrack: Track;
-    selectedMatchedUris?: string[];
-    targetPanelId: string;
-    targetPlaylistId: string;
-    targetProviderId: MusicProviderId;
-    targetIndex: number;
-    clearSelection: () => void;
-  } = {
-    matchedTrack: sourceData.matchedTrack,
-    targetPanelId,
-    targetPlaylistId,
-    targetProviderId,
-    targetIndex,
-    clearSelection: useBrowsePanelStore.getState().clearLastfmSelection,
-  };
-
-  if (sourceData.selectedMatchedUris) {
-    handlerInput.selectedMatchedUris = sourceData.selectedMatchedUris;
-  }
-
-  handler(handlerInput);
-}
-
 export async function handlePlayerDrop(
   sourceData: Record<string, unknown>,
   sourceTrack: Track,
@@ -180,11 +139,15 @@ function maybeEnqueueCrossProviderBrowseDrop(params: {
   targetPlaylistId: string;
   targetIndex: number;
 }): boolean {
-  if (!params.enqueuePendingFromBrowseDrop || params.payloads.length === 0 || !params.sourceProviderId) {
+  if (!params.enqueuePendingFromBrowseDrop || params.payloads.length === 0) {
     return false;
   }
 
-  if (params.sourceProviderId === params.targetProviderId) {
+  // No source provider means provider-less tracks (e.g., LastFM) that always need matching
+  const needsMatching = !params.sourceProviderId
+    || params.sourceProviderId !== params.targetProviderId;
+
+  if (!needsMatching) {
     return false;
   }
 

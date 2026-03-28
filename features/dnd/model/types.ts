@@ -16,7 +16,7 @@ export interface TrackPayload {
   durationSec: number;
   isrc?: string | undefined;
   year?: number | undefined;
-  sourceProvider: MusicProviderId;
+  sourceProvider?: MusicProviderId;
   sourceProviderId?: string | undefined;
   sourceProviderUri?: string | undefined;
   coverUrl?: string | undefined;

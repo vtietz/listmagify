@@ -10,7 +10,6 @@ import type { MusicProviderId } from '@/lib/music-provider/types';
 import type { PanelConfig, TrackWithPositions } from '../model/types';
 import { buildTracksWithPositions, getTrackPositions, isContiguousRange } from '../helpers';
 import { logDebug } from '@/lib/utils/debug';
-import { toast } from '@/lib/ui/toast';
 
 /**
  * Mutation functions passed from the hook
@@ -52,58 +51,6 @@ export interface DropContext {
   orderedTracks: Track[];
   /** Optional callback to clear UI selection after drop (e.g., Last.fm selection) */
   clearSelection?: () => void;
-}
-
-/**
- * Handle Last.fm track drop (copy only - no source playlist)
- * Returns true if handled, false if should continue to next handler
- */
-export function handleLastfmDrop(
-  matchedTrack: Track | null | undefined,
-  selectedMatchedUris: string[] | undefined,
-  targetPanelId: string,
-  targetPlaylistId: string,
-  targetProviderId: MusicProviderId,
-  targetIndex: number,
-  context: DropContext
-): boolean {
-  const { panels, mutations } = context;
-
-  // Find target panel and verify it's editable
-  const targetPanel = panels.find((p) => p.id === targetPanelId);
-  if (!targetPanel || !targetPanel.isEditable) {
-    toast.error('Target playlist is not editable');
-    return true; // Handled (with error)
-  }
-
-  // Determine track URIs to add
-  let trackUris: string[];
-
-  if (selectedMatchedUris && selectedMatchedUris.length > 0) {
-    // Multi-selection: use pre-computed matched URIs from drag data
-    trackUris = selectedMatchedUris;
-
-    // Clear selection after successful drag via context callback
-    context.clearSelection?.();
-  } else if (matchedTrack?.uri) {
-    // Single track: use the matched track from drag data
-    trackUris = [matchedTrack.uri];
-  } else {
-    toast.error('Track not matched to Spotify');
-    return true; // Handled (with error)
-  }
-
-  logDebug('✅ ADD from Last.fm:', trackUris.length, 'tracks →', targetPlaylistId, 'at', targetIndex);
-
-  // Add tracks to target playlist
-  mutations.addTracks.mutate({
-    providerId: targetProviderId,
-    playlistId: targetPlaylistId,
-    trackUris,
-    position: targetIndex,
-  });
-
-  return true;
 }
 
 /**

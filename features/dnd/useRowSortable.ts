@@ -16,31 +16,18 @@ import type { TrackPayload } from '@features/dnd/model/types';
 // Types
 // ============================================================================
 
-interface StandardDragData {
+export interface RowDragData {
   type: 'track';
   trackId: string;
   track: Track;
   panelId?: string | undefined;
   playlistId?: string | undefined;
   position: number;
-  /** Selected tracks for browse panels (search, recommendations) */
+  /** Selected tracks for browse panels (search, recommendations, lastfm) */
   selectedTracks?: Track[] | undefined;
   trackPayload?: TrackPayload | undefined;
   selectedTrackPayloads?: TrackPayload[] | undefined;
 }
-
-interface LastfmDragData {
-  type: 'lastfm-track';
-  track: { artistName: string; trackName: string; albumName?: string | undefined } | undefined;
-  matchedTrack: { id: string; uri: string; name: string; artist?: string | undefined; durationMs?: number | undefined } | null | undefined;
-  selectedMatchedUris?: string[] | undefined;
-  panelId?: string | undefined;
-  position: number;
-  /** Selected matched tracks for Last.fm browse panel */
-  selectedTracks?: Track[] | undefined;
-}
-
-export type RowDragData = StandardDragData | LastfmDragData;
 
 interface UseRowSortableOptions {
   /** The track being rendered */
@@ -53,20 +40,14 @@ interface UseRowSortableOptions {
   playlistId?: string | undefined;
   /** Whether drag is disabled (e.g., panel is locked) */
   disabled: boolean;
-  /** Type of drag data to generate */
-  dragType: 'track' | 'lastfm-track';
-  /** Matched Spotify track for Last.fm drag (required when dragType is 'lastfm-track') */
-  matchedTrack?: { id: string; uri: string; name: string; artist?: string | undefined; durationMs?: number | undefined } | null | undefined;
-  /** Original Last.fm track DTO for drag data */
-  lastfmDto?: { artistName: string; trackName: string; albumName?: string | undefined } | undefined;
-  /** All selected tracks' matched URIs for multi-select Last.fm drag */
-  selectedMatchedUris?: string[] | undefined;
   /** All selected tracks for multi-select drag (browse panels) */
   selectedTracks?: Track[] | undefined;
-  /** Callback when drag starts (used to trigger Last.fm matching) */
-  onDragStart?: (() => void) | undefined;
   /** Source provider for provider-agnostic payload generation */
   providerId?: MusicProviderId | undefined;
+  /** Pre-built track payload (e.g., for LastFM tracks) */
+  trackPayload?: TrackPayload | undefined;
+  /** Pre-built selected track payloads (e.g., for LastFM multi-select) */
+  selectedTrackPayloads?: TrackPayload[] | undefined;
 }
 
 interface UseRowSortableReturn {
@@ -82,7 +63,7 @@ interface UseRowSortableReturn {
   setNodeRef: (node: HTMLElement | null) => void;
   /** Spread these on the draggable element (excluding role) */
   attributes: Omit<ReturnType<typeof useDraggable>['attributes'], 'role'>;
-  /** Spread these on the draggable element for drag events (wrapped with onDragStart if provided) */
+  /** Spread these on the draggable element for drag events */
   listeners: ReturnType<typeof useDraggable>['listeners'];
 }
 
@@ -101,18 +82,23 @@ function parseReleaseYear(releaseDate: string | null | undefined): number | unde
 
 function buildTrackPayload(sourceTrack: Track, providerId?: MusicProviderId): TrackPayload {
   const artists = sourceTrack.artists ?? [];
-  return {
+  const payload: TrackPayload = {
     title: sourceTrack.name,
     artists,
     normalizedArtists: normalizeArtists(artists),
     album: sourceTrack.album?.name ?? null,
     durationSec: Math.max(0, Math.round((sourceTrack.durationMs ?? 0) / 1000)),
-    sourceProvider: providerId ?? 'spotify',
     sourceProviderId: sourceTrack.id ?? undefined,
     sourceProviderUri: sourceTrack.uri || undefined,
     coverUrl: sourceTrack.album?.image?.url,
     year: parseReleaseYear(sourceTrack.album?.releaseDate),
   };
+
+  if (providerId) {
+    payload.sourceProvider = providerId;
+  }
+
+  return payload;
 }
 
 /**
@@ -126,32 +112,16 @@ export function useRowSortable({
   panelId,
   playlistId,
   disabled,
-  dragType,
-  matchedTrack,
-  lastfmDto,
-  selectedMatchedUris,
   selectedTracks,
-  onDragStart,
   providerId,
+  trackPayload: externalTrackPayload,
+  selectedTrackPayloads: externalSelectedTrackPayloads,
 }: UseRowSortableOptions): UseRowSortableReturn {
-  // Create globally unique composite ID scoped by panel and position
   const trackId = track.id || track.uri;
   const position = getTrackPosition(track, index);
   const compositeId = panelId ? makeCompositeId(panelId, trackId, position) : trackId;
 
-  // Build drag data based on type
   const dragData: RowDragData = useMemo((): RowDragData => {
-    if (dragType === 'lastfm-track') {
-      return {
-        type: 'lastfm-track' as const,
-        track: lastfmDto,
-        matchedTrack,
-        selectedMatchedUris,
-        selectedTracks,
-        panelId,
-        position,
-      };
-    }
     return {
       type: 'track' as const,
       trackId,
@@ -160,10 +130,11 @@ export function useRowSortable({
       playlistId,
       position,
       selectedTracks,
-      trackPayload: buildTrackPayload(track, providerId),
-      selectedTrackPayloads: selectedTracks?.map((selectedTrack) => buildTrackPayload(selectedTrack, providerId)),
+      trackPayload: externalTrackPayload ?? buildTrackPayload(track, providerId),
+      selectedTrackPayloads: externalSelectedTrackPayloads
+        ?? selectedTracks?.map((selectedTrack) => buildTrackPayload(selectedTrack, providerId)),
     };
-  }, [dragType, lastfmDto, matchedTrack, selectedMatchedUris, selectedTracks, panelId, position, trackId, track, playlistId, providerId]);
+  }, [selectedTracks, panelId, position, trackId, track, playlistId, providerId, externalTrackPayload, externalSelectedTrackPayloads]);
 
   const {
     attributes,
@@ -176,22 +147,7 @@ export function useRowSortable({
     data: dragData,
   });
 
-  // Remove role from attributes (we manage it ourselves)
   const { role: _attrRole, ...restAttributes } = attributes;
-
-  // Wrap listeners to trigger onDragStart callback (for Last.fm matching)
-  const wrappedListeners = useMemo(() => {
-    if (!onDragStart || !listeners) return listeners;
-    
-    const { onPointerDown, ...rest } = listeners;
-    return {
-      ...rest,
-      onPointerDown: (e: React.PointerEvent) => {
-        onDragStart();
-        onPointerDown?.(e);
-      },
-    };
-  }, [listeners, onDragStart]);
 
   return {
     compositeId,
@@ -200,6 +156,6 @@ export function useRowSortable({
     isDragging,
     setNodeRef,
     attributes: restAttributes,
-    listeners: wrappedListeners,
+    listeners,
   };
 }

@@ -1,9 +1,8 @@
 /**
- * LastfmAddToMarkedButton - Add Last.fm track to insertion markers with matching
- * 
- * Unlike the regular AddToMarkedButton, this component:
- * 1. First matches the Last.fm track to a provider track if not already matched
- * 2. Only then adds to the insertion markers
+ * LastfmAddToMarkedButton - Add Last.fm track to insertion markers via pending match flow
+ *
+ * Builds a TrackPayload from the Last.fm DTO and enqueues it through
+ * enqueuePendingFromBrowseDrop, same as browse search tracks.
  */
 
 'use client';
@@ -17,15 +16,16 @@ import {
   computeInsertionPositions,
   type InsertionPoint,
 } from '@features/split-editor/playlist/hooks/useInsertionPointsStore';
-import { useLastfmMatch, type CachedMatch } from '@features/split-editor/browse/hooks/useLastfmMatchCache';
-import { useAddTracks } from '@/lib/spotify/playlistMutations';
+import { useSplitGridStore } from '@features/split-editor/stores/useSplitGridStore';
+import { usePendingActions } from '@features/split-editor/hooks/usePendingActions';
+import { lastfmDtoToTrackPayload } from '@features/split-editor/browse/hooks/useLastfmTracks';
+import { isPlaylistIdCompatibleWithProvider } from '@/lib/providers/playlistIdCompat';
 import { toast } from '@/lib/ui/toast';
 import type { ImportedTrackDTO } from '@/lib/importers/types';
+import type { MusicProviderId } from '@/lib/music-provider/types';
 
 interface LastfmAddToMarkedButtonProps {
-  /** Last.fm track DTO to match and add */
   lastfmTrack: ImportedTrackDTO;
-  /** Track name for toast messages */
   trackName: string;
 }
 
@@ -39,65 +39,19 @@ function getPlaylistsWithMarkers(playlists: Record<string, PlaylistMarkerData>):
   return Object.entries(playlists).filter(([, data]) => data.markers.length > 0);
 }
 
-function buildMatchFailureMessage(trackName: string, reason: 'not-found' | 'low-confidence'): string {
-  if (reason === 'low-confidence') {
-    return `Low confidence match for "${trackName}" - please verify manually`;
+function resolveTargetProvider(playlistId: string, panels: Array<{ playlistId: string | null; providerId: MusicProviderId }>): MusicProviderId {
+  const panel = panels.find((p) => p.playlistId === playlistId);
+  if (panel?.providerId) {
+    return panel.providerId;
   }
 
-  return `Could not find "${trackName}" from provider search`;
+  if (isPlaylistIdCompatibleWithProvider(playlistId, 'tidal')) {
+    return 'tidal';
+  }
+
+  return 'spotify';
 }
 
-async function ensureMatchedTrackUri(params: {
-  cached: CachedMatch | undefined;
-  matchTrack: (dto: ImportedTrackDTO) => Promise<CachedMatch>;
-  lastfmTrack: ImportedTrackDTO;
-  trackName: string;
-}): Promise<{ trackUri?: string; error?: string }> {
-  let match: CachedMatch | undefined = params.cached;
-
-  if (!match || match.status === 'idle' || match.status === 'pending') {
-    match = await params.matchTrack(params.lastfmTrack);
-  }
-
-  const matchedTrack = match.matchedTrack ?? match.spotifyTrack;
-  if (match.status !== 'matched' || !matchedTrack) {
-    return { error: buildMatchFailureMessage(params.trackName, 'not-found') };
-  }
-
-  if (match.confidence === 'low' || match.confidence === 'none') {
-    return { error: buildMatchFailureMessage(params.trackName, 'low-confidence') };
-  }
-
-  return { trackUri: matchedTrack.uri };
-}
-
-async function addTrackToAllMarkers(params: {
-  playlistsWithMarkers: PlaylistsWithMarkers;
-  trackUri: string;
-  addTracksMutation: ReturnType<typeof useAddTracks>;
-  shiftAfterMultiInsert: (playlistId: string, options?: { tracksPerInsert?: number }) => void;
-}): Promise<void> {
-  for (const [playlistId, data] of params.playlistsWithMarkers) {
-    const positions = computeInsertionPositions(data.markers, 1);
-
-    for (const pos of positions) {
-      await params.addTracksMutation.mutateAsync({
-        playlistId,
-        trackUris: [params.trackUri],
-        position: pos.effectiveIndex,
-      });
-    }
-
-    if (data.markers.length > 1) {
-      params.shiftAfterMultiInsert(playlistId, { tracksPerInsert: 1 });
-    }
-  }
-}
-
-/**
- * Button to add a Last.fm track to all marked insertion points.
- * First matches the track to a provider track, then inserts at all markers.
- */
 export function LastfmAddToMarkedButton({
   lastfmTrack,
   trackName,
@@ -105,50 +59,42 @@ export function LastfmAddToMarkedButton({
   const { isCompact } = useCompactModeStore();
   const playlists = useInsertionPointsStore((s) => s.playlists);
   const shiftAfterMultiInsert = useInsertionPointsStore((s) => s.shiftAfterMultiInsert);
-  const { matchTrack, getCachedMatch } = useLastfmMatch();
-  const addTracksMutation = useAddTracks();
+  const panels = useSplitGridStore((s) => s.panels);
+  const { enqueuePendingFromBrowseDrop } = usePendingActions();
   const [isInserting, setIsInserting] = useState(false);
 
-  // Get all playlists with active markers
   const playlistsWithMarkers = getPlaylistsWithMarkers(playlists);
-
   const hasActiveMarkers = playlistsWithMarkers.length > 0;
   const totalMarkers = playlistsWithMarkers.reduce((sum, [, data]) => sum + data.markers.length, 0);
-
-  // Check current match status
-  const cached = getCachedMatch(lastfmTrack);
-  const isMatching = cached?.status === 'pending';
 
   const handleClick = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
 
-    if (!hasActiveMarkers || isInserting || isMatching) return;
+    if (!hasActiveMarkers || isInserting) return;
 
     setIsInserting(true);
 
     try {
-      const { trackUri, error } = await ensureMatchedTrackUri({
-        cached,
-        matchTrack,
-        lastfmTrack,
-        trackName,
-      });
+      const payload = lastfmDtoToTrackPayload(lastfmTrack);
 
-      if (!trackUri) {
-        toast.error(error ?? `Could not match "${trackName}"`);
-        return;
+      for (const [playlistId, data] of playlistsWithMarkers) {
+        const targetProviderId = resolveTargetProvider(playlistId, panels);
+        const positions = computeInsertionPositions(data.markers, 1);
+
+        for (const pos of positions) {
+          enqueuePendingFromBrowseDrop({
+            targetPlaylistId: playlistId,
+            targetProviderId,
+            insertPosition: pos.effectiveIndex,
+            payloads: [payload],
+          });
+        }
+
+        if (data.markers.length > 1) {
+          shiftAfterMultiInsert(playlistId, { tracksPerInsert: 1 });
+        }
       }
-
-      await addTrackToAllMarkers({
-        playlistsWithMarkers,
-        trackUri,
-        addTracksMutation,
-        shiftAfterMultiInsert,
-      });
-
-      // Success - no toast needed
-
     } catch (error) {
       console.error('[LastfmAddToMarkedButton] Error:', error);
       toast.error(`Failed to add "${trackName}"`);
@@ -158,41 +104,36 @@ export function LastfmAddToMarkedButton({
   }, [
     hasActiveMarkers,
     isInserting,
-    isMatching,
-    cached,
-    matchTrack,
     lastfmTrack,
-    trackName,
     playlistsWithMarkers,
-    addTracksMutation,
+    panels,
+    enqueuePendingFromBrowseDrop,
     shiftAfterMultiInsert,
+    trackName,
   ]);
 
-  // Don't render if no markers
   if (!hasActiveMarkers) {
     return null;
   }
 
-  const isLoading = isInserting || isMatching;
-
   return (
     <button
       onClick={handleClick}
-      disabled={isLoading}
+      disabled={isInserting}
       className={cn(
         'flex items-center justify-center transition-colors',
-        isLoading 
+        isInserting
           ? 'text-muted-foreground cursor-wait'
           : 'text-muted-foreground hover:text-primary hover:scale-110',
       )}
       title={
-        isLoading
-          ? 'Matching and adding...'
+        isInserting
+          ? 'Adding...'
           : `Add to ${totalMarkers} marker${totalMarkers > 1 ? 's' : ''}`
       }
       aria-label={`Add to ${totalMarkers} insertion marker${totalMarkers > 1 ? 's' : ''}`}
     >
-      {isLoading ? (
+      {isInserting ? (
         <Loader2 className={cn(isCompact ? 'h-3 w-3' : 'h-4 w-4', 'animate-spin')} />
       ) : (
         <Plus className={cn(isCompact ? 'h-3 w-3' : 'h-4 w-4')} />

@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useConfigDialogDraft } from '@widgets/shell/config/useConfigDialogDraft';
-import { useMatchingConfigStore } from '@features/split-editor/browse/hooks/useMatchingConfigStore';
+import { useMatchingConfigStore } from '@/lib/matching/useMatchingConfigStore';
 import {
   DEFAULT_MATCH_THRESHOLDS,
   MATCHING_CONFIG_STORAGE_KEY,

@@ -1,5 +1,5 @@
 /**
- * LastfmBrowseList - Virtualized list of Last.fm tracks with matching status
+ * LastfmBrowseList - Virtualized list of Last.fm tracks
  */
 
 'use client';
@@ -13,17 +13,17 @@ import { TrackRow } from '../TrackRow';
 import { TrackContextMenu } from '../TrackContextMenu';
 import { TableHeader } from '@features/split-editor/playlist/ui/TableHeader';
 import { LastfmAddToMarkedButton } from './LastfmAddToMarkedButton';
-import { MatchStatusIndicator } from './MatchStatusIndicator';
 import { TRACK_ROW_HEIGHT, TRACK_ROW_HEIGHT_COMPACT, VIRTUALIZATION_OVERSCAN } from '../constants';
 import { makeCompositeId } from '@/lib/dnd/id';
-import { makeMatchKeyFromDTO } from '@features/split-editor/browse/hooks/useLastfmMatchCache';
+import { lastfmDtoToTrackPayload } from '@features/split-editor/browse/hooks/useLastfmTracks';
 import { LASTFM_PANEL_ID } from './LastfmBrowseTab';
 import type { LastfmTrack, IndexedTrackDTO } from '@features/split-editor/browse/hooks/useLastfmTracks';
+import type { TrackPayload } from '@features/dnd/model/types';
 import type { Track } from '@/lib/music-provider/types';
-import { getCanonicalTrackKey } from '@/lib/music-provider/canonicalKey';
 
 interface LastfmBrowseListProps {
   allTracks: LastfmTrack[];
+  allLastfmTracks: IndexedTrackDTO[];
   sortableIds: string[];
   isLoading: boolean;
   isError: boolean;
@@ -33,11 +33,9 @@ interface LastfmBrowseListProps {
   lastfmSelection: number[];
   isCompact: boolean;
   hasAnyMarkers: boolean;
-  selectedMatchedUris: string[];
   selectedTracks: Track[];
+  selectedTrackPayloads: TrackPayload[];
   isLiked: (trackId: string) => boolean;
-  getCachedMatch: (dto: IndexedTrackDTO) => any;
-  matchTrack: (dto: IndexedTrackDTO) => void;
   isTrackPlaying: (trackId: string | null) => boolean;
   isTrackLoading: (trackUri: string) => boolean;
   playTrack: (trackUri: string) => Promise<void>;
@@ -128,49 +126,8 @@ function renderListViewState(params: {
   }
 }
 
-function buildMatchedTrackPayload(matchedTrack: any) {
-  if (!matchedTrack) {
-    return null;
-  }
-
-  return {
-    id: matchedTrack.id,
-    uri: matchedTrack.uri,
-    name: matchedTrack.name,
-    artist: matchedTrack.artists[0],
-    durationMs: matchedTrack.durationMs,
-  };
-}
-
-function getTrackRowOptionalProps(params: {
-  isMatched: boolean;
-  track: LastfmTrack;
-  isTrackLoading: (trackUri: string) => boolean;
-  handleToggleLiked: (trackId: string, currentlyLiked: boolean) => void;
-  playTrack: (trackUri: string) => void;
-  pausePlayback: () => void;
-  isSelected: boolean;
-  selectedMatchedUris: string[];
-  selectedTracks: Track[];
-}) {
-  const optionalProps: Record<string, unknown> = {};
-
-  if (params.isMatched) {
-    optionalProps.onToggleLiked = params.handleToggleLiked;
-    optionalProps.isPlaybackLoading = params.isTrackLoading(params.track.uri);
-    optionalProps.onPlay = params.playTrack;
-    optionalProps.onPause = params.pausePlayback;
-  }
-
-  if (params.isSelected && params.selectedMatchedUris.length > 0) {
-    optionalProps.selectedMatchedUris = params.selectedMatchedUris;
-  }
-
-  if (params.isSelected && params.selectedTracks.length > 0) {
-    optionalProps.selectedTracks = params.selectedTracks;
-  }
-
-  return optionalProps;
+function makeLastfmCompositeKey(dto: IndexedTrackDTO): string {
+  return `${dto.artistName.toLowerCase().trim()}::${dto.trackName.toLowerCase().trim()}`;
 }
 
 function buildContextMenuOptionalProps(contextMenu: LastfmBrowseListProps['contextMenu']) {
@@ -198,10 +155,9 @@ function buildContextMenuOptionalProps(contextMenu: LastfmBrowseListProps['conte
 function renderVirtualRow(params: {
   virtualRow: ReturnType<ReturnType<typeof useVirtualizer>['getVirtualItems']>[number];
   allTracks: LastfmTrack[];
+  allLastfmTracks: IndexedTrackDTO[];
   lastfmSelection: number[];
   isLiked: (trackId: string) => boolean;
-  getCachedMatch: (dto: IndexedTrackDTO) => any;
-  matchTrack: (dto: IndexedTrackDTO) => void;
   hasAnyMarkers: boolean;
   handleSelect: (selectionKey: string, index: number, event: React.MouseEvent) => void;
   handleClick: (selectionKey: string, index: number) => void;
@@ -211,8 +167,8 @@ function renderVirtualRow(params: {
   pausePlayback: () => void;
   handleToggleLiked: (trackId: string, currentlyLiked: boolean) => void;
   getCompareColorForTrack: (trackUri: string) => string | undefined;
-  selectedMatchedUris: string[];
   selectedTracks: Track[];
+  selectedTrackPayloads: TrackPayload[];
 }): React.ReactNode {
   const track = params.allTracks[params.virtualRow.index];
   if (!track) {
@@ -220,38 +176,14 @@ function renderVirtualRow(params: {
   }
 
   const dto = track._lastfmDto;
-  const isMatched = track._isMatched;
-  const key = makeMatchKeyFromDTO(dto);
+  const key = makeLastfmCompositeKey(dto);
   const compositeId = makeCompositeId(LASTFM_PANEL_ID, key, dto.globalIndex);
   const isSelected = params.lastfmSelection.includes(params.virtualRow.index);
   const liked = track.id ? params.isLiked(track.id) : false;
-  const cached = params.getCachedMatch(dto);
-  const matchStatus = cached?.status ?? 'idle';
-  const matchedTrack = cached?.matchedTrack ?? cached?.spotifyTrack;
-
-  const handleDragStart = () => {
-    if (!cached || cached.status === 'idle') {
-      params.matchTrack(dto);
-    }
-  };
-
-  const optionalProps = getTrackRowOptionalProps({
-    isMatched,
-    track,
-    isTrackLoading: params.isTrackLoading,
-    handleToggleLiked: params.handleToggleLiked,
-    playTrack: params.playTrack,
-    pausePlayback: params.pausePlayback,
-    isSelected,
-    selectedMatchedUris: params.selectedMatchedUris,
-    selectedTracks: params.selectedTracks,
-  });
+  const trackPayload = lastfmDtoToTrackPayload(dto);
 
   const renderPrefixColumns = () => (
     <>
-      <div className="flex items-center justify-center">
-        <MatchStatusIndicator status={matchStatus} />
-      </div>
       {params.hasAnyMarkers && (
         <div className="flex items-center justify-center">
           <LastfmAddToMarkedButton
@@ -262,6 +194,12 @@ function renderVirtualRow(params: {
       )}
     </>
   );
+
+  const optionalProps: Record<string, unknown> = {};
+
+  if (isSelected && params.selectedTracks.length > 0) {
+    optionalProps.selectedTracks = params.selectedTracks;
+  }
 
   return (
     <div
@@ -288,22 +226,15 @@ function renderVirtualRow(params: {
         isDragSourceSelected={false}
         showLikedColumn={true}
         isLiked={liked}
-        isPlaying={isMatched && track.id ? params.isTrackPlaying(track.id) : false}
-        showMatchStatusColumn={true}
+        isPlaying={false}
         showCustomAddColumn={params.hasAnyMarkers}
         renderPrefixColumns={renderPrefixColumns}
         scrobbleTimestamp={dto.playedAt}
         showScrobbleDateColumn={true}
         showCumulativeTime={false}
-        dragType="lastfm-track"
-        matchedTrack={buildMatchedTrackPayload(matchedTrack)}
-        lastfmDto={{
-          artistName: dto.artistName,
-          trackName: dto.trackName,
-          albumName: dto.albumName,
-        }}
-        onDragStart={handleDragStart}
-        compareColor={matchedTrack ? params.getCompareColorForTrack(getCanonicalTrackKey(matchedTrack)) : undefined}
+        trackPayload={trackPayload}
+        selectedTrackPayloads={isSelected ? params.selectedTrackPayloads : undefined}
+        compareColor={params.getCompareColorForTrack(track.uri)}
         isMultiSelect={params.lastfmSelection.length > 1}
         selectedCount={params.lastfmSelection.length}
         {...optionalProps}
@@ -314,6 +245,7 @@ function renderVirtualRow(params: {
 
 export function LastfmBrowseList({
   allTracks,
+  allLastfmTracks,
   sortableIds,
   isLoading,
   isError,
@@ -323,11 +255,9 @@ export function LastfmBrowseList({
   lastfmSelection,
   isCompact,
   hasAnyMarkers,
-  selectedMatchedUris,
   selectedTracks,
+  selectedTrackPayloads,
   isLiked,
-  getCachedMatch,
-  matchTrack,
   isTrackPlaying,
   isTrackLoading,
   playTrack,
@@ -343,7 +273,7 @@ export function LastfmBrowseList({
 }: LastfmBrowseListProps) {
   const rowHeight = isCompact ? TRACK_ROW_HEIGHT_COMPACT : TRACK_ROW_HEIGHT;
   const deferredCount = useDeferredValue(allTracks.length);
-  
+
   // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer({
     count: deferredCount,
@@ -351,13 +281,12 @@ export function LastfmBrowseList({
     estimateSize: () => rowHeight,
     overscan: VIRTUALIZATION_OVERSCAN,
   });
-  
+
   const virtualizerRef = useRef(virtualizer);
   virtualizerRef.current = virtualizer;
-  
+
   const prevCompactRef = useRef(isCompact);
-  
-  // Re-measure when compact mode changes
+
   useEffect(() => {
     if (prevCompactRef.current !== isCompact) {
       prevCompactRef.current = isCompact;
@@ -367,7 +296,7 @@ export function LastfmBrowseList({
       return () => clearTimeout(timeoutId);
     }
   }, [isCompact]);
-  
+
   const shouldShowContextMenu = contextMenu.isOpen && contextMenu.panelId === LASTFM_PANEL_ID;
   const viewState = resolveListViewState({
     isLoading,
@@ -385,7 +314,7 @@ export function LastfmBrowseList({
   }
 
   const contextMenuOptionalProps = buildContextMenuOptionalProps(contextMenu);
-  
+
   return (
     <>
       <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
@@ -396,7 +325,6 @@ export function LastfmBrowseList({
             sortDirection="asc"
             onSort={handleSort}
             showLikedColumn={true}
-            showMatchStatusColumn={true}
             showCustomAddColumn={hasAnyMarkers}
             showScrobbleDateColumn={true}
             showCumulativeTime={false}
@@ -411,10 +339,9 @@ export function LastfmBrowseList({
               return renderVirtualRow({
                 virtualRow,
                 allTracks,
+                allLastfmTracks,
                 lastfmSelection,
                 isLiked,
-                getCachedMatch,
-                matchTrack,
                 hasAnyMarkers,
                 handleSelect,
                 handleClick,
@@ -424,20 +351,20 @@ export function LastfmBrowseList({
                 pausePlayback,
                 handleToggleLiked,
                 getCompareColorForTrack,
-                selectedMatchedUris,
                 selectedTracks,
+                selectedTrackPayloads,
               });
             })}
           </div>
         </div>
-        
+
         {isFetchingNextPage && (
           <div className="flex items-center justify-center py-4">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           </div>
         )}
       </SortableContext>
-      
+
       {shouldShowContextMenu && contextMenu.track && (
         <TrackContextMenu
           track={contextMenu.track}

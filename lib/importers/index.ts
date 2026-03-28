@@ -4,4 +4,3 @@
 
 export * from './types';
 export * from './lastfm';
-export * from './spotifyMatcher';

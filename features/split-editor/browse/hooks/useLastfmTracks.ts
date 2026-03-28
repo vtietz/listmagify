@@ -4,17 +4,14 @@
  * Features:
  * - Infinite query with pagination
  * - Track normalization with global indices
- * - Provider matching integration
  */
 
 import { useMemo } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api/client';
-import { useLastfmMatch, type CachedMatch } from './useLastfmMatchCache';
+import type { TrackPayload } from '@features/dnd/model/types';
 import type { ImportedTrackDTO, ImportSource, LastfmPeriod } from '@/lib/importers/types';
 import type { Track } from '@/lib/music-provider/types';
-
-type TrackAlbum = Exclude<Track['album'], undefined>;
 
 interface LastfmResponse {
   enabled: boolean;
@@ -38,40 +35,26 @@ export interface IndexedTrackDTO extends ImportedTrackDTO {
 /** Extended Track type with Last.fm metadata for rendering */
 export interface LastfmTrack extends Track {
   _lastfmDto: IndexedTrackDTO;
-  _isMatched: boolean;
 }
 
-function mapMatchedTrackAlbum(dto: IndexedTrackDTO, matched: NonNullable<CachedMatch['matchedTrack']>): TrackAlbum {
-  if (matched.album?.name) {
-    return { id: matched.album.id ?? null, name: matched.album.name };
-  }
-
-  if (dto.albumName) {
-    return { name: dto.albumName };
-  }
-
-  return null;
-}
-
-function buildMatchedLastfmTrack(dto: IndexedTrackDTO, matched: NonNullable<CachedMatch['matchedTrack']>): LastfmTrack {
-  const artists = matched.artists.length > 0 ? matched.artists : [dto.artistName];
-
+/**
+ * Build a provider-agnostic TrackPayload from a Last.fm DTO.
+ * Used for DnD drag data and pending match enqueue.
+ */
+export function lastfmDtoToTrackPayload(dto: ImportedTrackDTO): TrackPayload {
   return {
-    id: matched.id,
-    uri: matched.uri,
-    name: matched.name,
-    artists,
-    artistObjects: artists.map((name) => ({ id: null, name })),
-    durationMs: matched.durationMs ?? 0,
-    position: dto.globalIndex,
-    album: mapMatchedTrackAlbum(dto, matched),
-    popularity: matched.popularity ?? null,
-    _lastfmDto: dto,
-    _isMatched: true,
+    title: dto.trackName,
+    artists: [dto.artistName],
+    normalizedArtists: [dto.artistName.trim().toLowerCase()],
+    album: dto.albumName ?? null,
+    durationSec: 0,
   };
 }
 
-function buildUnmatchedLastfmTrack(dto: IndexedTrackDTO): LastfmTrack {
+/**
+ * Convert a Last.fm DTO to a Track for display using raw Last.fm metadata.
+ */
+export function lastfmToTrack(dto: IndexedTrackDTO): LastfmTrack {
   return {
     id: null,
     uri: `lastfm:${dto.artistName}:${dto.trackName}`,
@@ -83,25 +66,7 @@ function buildUnmatchedLastfmTrack(dto: IndexedTrackDTO): LastfmTrack {
     album: dto.albumName ? { name: dto.albumName } : null,
     popularity: null,
     _lastfmDto: dto,
-    _isMatched: false,
   };
-}
-
-/**
- * Convert a Last.fm track to provider track format for display
- * Uses matched provider data when available, otherwise shows Last.fm info as placeholder
- */
-export function lastfmToTrack(
-  dto: IndexedTrackDTO,
-  cachedMatch: CachedMatch | undefined
-): LastfmTrack {
-  const matched = cachedMatch?.matchedTrack ?? cachedMatch?.spotifyTrack;
-
-  if (matched) {
-    return buildMatchedLastfmTrack(dto, matched);
-  }
-
-  return buildUnmatchedLastfmTrack(dto);
 }
 
 interface UseLastfmTracksParams {
@@ -117,9 +82,6 @@ export function useLastfmTracks({
   period,
   enabled = true,
 }: UseLastfmTracksParams) {
-  const { getCachedMatch } = useLastfmMatch();
-
-  // Infinite query for Last.fm tracks
   const query = useInfiniteQuery<LastfmResponse, Error, {pages: LastfmResponse[]}, readonly unknown[], number>({
     queryKey: ['lastfm-browse', source, username, period],
     queryFn: async ({ pageParam }): Promise<LastfmResponse> => {
@@ -154,10 +116,9 @@ export function useLastfmTracks({
       return undefined;
     },
     enabled: enabled && !!username.trim(),
-    staleTime: 2 * 60 * 1000, // 2 minutes
+    staleTime: 2 * 60 * 1000,
   });
 
-  // Flatten pages into indexed track DTOs
   const allLastfmTracks: IndexedTrackDTO[] = useMemo(() => {
     if (!query.data?.pages) return [];
 
@@ -170,22 +131,9 @@ export function useLastfmTracks({
     );
   }, [query.data?.pages]);
 
-  // Convert to Track format with match status
   const allTracks: LastfmTrack[] = useMemo(() => {
-    return allLastfmTracks.map((dto) => {
-      const cached = getCachedMatch(dto);
-      return lastfmToTrack(dto, cached);
-    });
-  }, [allLastfmTracks, getCachedMatch]);
-
-  // Track URIs for playback (only matched tracks)
-  const trackUris = useMemo(
-    () =>
-      allTracks
-        .filter((t) => t._isMatched && t.uri && !t.uri.startsWith('lastfm:'))
-        .map((t) => t.uri),
-    [allTracks]
-  );
+    return allLastfmTracks.map((dto) => lastfmToTrack(dto));
+  }, [allLastfmTracks]);
 
   const totalResults = query.data?.pages[0]?.pagination?.totalItems ?? allTracks.length;
 
@@ -193,7 +141,6 @@ export function useLastfmTracks({
     ...query,
     allLastfmTracks,
     allTracks,
-    trackUris,
     totalResults,
   };
 }

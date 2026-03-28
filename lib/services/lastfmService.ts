@@ -7,19 +7,9 @@ import {
   fetchWeeklyChart,
   isLastfmAvailable,
 } from '@/lib/importers/lastfm';
-import {
-  buildFallbackQuery,
-  buildSearchQuery,
-  createMatchResult,
-} from '@/lib/importers/spotifyMatcher';
 import type {
-  ImportedTrackDTO,
   LastfmPeriod,
-  MatchResult,
-  SpotifyMatchedTrack,
 } from '@/lib/importers/types';
-import { getMusicProvider } from '@/lib/music-provider';
-import type { MusicProviderId } from '@/lib/music-provider/types';
 
 const lastfmBaseSchema = z.object({
   user: z.string().trim().min(1, 'Username is required').transform((value) => value.toLowerCase()),
@@ -99,124 +89,6 @@ export async function getWeeklyTracks(searchParams: URLSearchParams) {
   const { username } = parseLastfmBaseQuery(searchParams);
   const range = parseLastfmWeekRange(searchParams);
   return fetchWeeklyChart({ username, ...range });
-}
-
-interface MatchRequest {
-  tracks: ImportedTrackDTO[];
-  limit?: number;
-}
-
-export function parseMatchRequest(payload: unknown): { tracks: ImportedTrackDTO[]; limit: number } {
-  const parsed = z
-    .object({
-      tracks: z.array(
-        z.object({
-          artistName: z.string(),
-          trackName: z.string(),
-          albumName: z.string().optional(),
-          mbid: z.string().optional(),
-          playedAt: z.number().optional(),
-          playcount: z.number().optional(),
-          sourceUrl: z.string().optional(),
-          nowPlaying: z.boolean().optional(),
-        })
-      ).min(1, 'Tracks array is required'),
-      limit: z.coerce.number().int().min(1).max(10).default(5),
-    })
-    .safeParse(payload);
-
-  if (!parsed.success) {
-    throw routeErrors.validation(parsed.error.issues[0]?.message ?? 'Invalid match payload');
-  }
-
-  const tracks: ImportedTrackDTO[] = parsed.data.tracks.map((track) => ({
-    artistName: track.artistName,
-    trackName: track.trackName,
-    ...(track.albumName ? { albumName: track.albumName } : {}),
-    ...(track.mbid ? { mbid: track.mbid } : {}),
-    ...(typeof track.playedAt === 'number' ? { playedAt: track.playedAt } : {}),
-    ...(typeof track.playcount === 'number' ? { playcount: track.playcount } : {}),
-    ...(track.sourceUrl ? { sourceUrl: track.sourceUrl } : {}),
-    ...(typeof track.nowPlaying === 'boolean' ? { nowPlaying: track.nowPlaying } : {}),
-  }));
-
-  return {
-    tracks,
-    limit: parsed.data.limit,
-  };
-}
-
-async function searchProvider(
-  query: string,
-  limit: number,
-  providerId: MusicProviderId
-): Promise<SpotifyMatchedTrack[]> {
-  const provider = getMusicProvider(providerId);
-  const result = await provider.searchTracks(query, limit, 0);
-
-  return result.tracks.map((track) => {
-    return {
-      id: track.id || '',
-      uri: track.uri,
-      name: track.name,
-      artists: track.artists,
-      album: track.album
-        ? {
-            id: track.album.id,
-            name: track.album.name,
-          }
-        : undefined,
-      durationMs: track.durationMs,
-      popularity: track.popularity || undefined,
-    } as SpotifyMatchedTrack;
-  });
-}
-
-async function matchSingleTrack(
-  track: ImportedTrackDTO,
-  limit: number,
-  providerId: MusicProviderId
-): Promise<MatchResult> {
-  const exact = await searchProvider(buildSearchQuery(track, true), limit, providerId);
-  if (exact.length > 0) {
-    return createMatchResult(track, exact);
-  }
-
-  const relaxed = await searchProvider(buildSearchQuery(track, false), limit, providerId);
-  if (relaxed.length > 0) {
-    return createMatchResult(track, relaxed);
-  }
-
-  const fallback = await searchProvider(buildFallbackQuery(track), limit, providerId);
-  return createMatchResult(track, fallback);
-}
-
-export async function matchTracks(
-  payload: MatchRequest,
-  providerId: MusicProviderId = 'spotify'
-): Promise<{ results: MatchResult[]; matched: number; total: number }> {
-  const { tracks, limit } = parseMatchRequest(payload);
-  const tracksToMatch = tracks.slice(0, 20);
-
-  const results = await Promise.all(
-    tracksToMatch.map(async (track) => {
-      try {
-        return await matchSingleTrack(track, limit, providerId);
-      } catch {
-        return {
-          imported: track,
-          confidence: 'none',
-          score: 0,
-        } as MatchResult;
-      }
-    })
-  );
-
-  return {
-    results,
-    matched: results.filter((result) => result.confidence !== 'none').length,
-    total: results.length,
-  };
 }
 
 export function mapLastfmError(error: unknown): never {

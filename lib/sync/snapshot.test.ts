@@ -99,6 +99,7 @@ describe('canonicalizeSnapshot', () => {
       title: 'Song A',
       artists: ['Artist A', 'Artist B'],
       durationMs: 250000,
+      isrc: null,
     });
   });
 

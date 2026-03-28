@@ -135,7 +135,7 @@ export const usePendingStateStore = create<PendingState>((set, get) => ({
       const created = payloads.map((payload, index) => {
         const pendingTrack: PendingTrack = {
           tempId: generatePendingId(),
-          sourceProvider: payload.sourceProvider,
+          sourceProvider: payload.sourceProvider ?? targetProvider,
           sourceMeta: payload,
           sourcePanel,
           targetPlaylistId,

@@ -47,7 +47,6 @@ export { LastfmBrowseTab, LASTFM_PANEL_ID } from './browse/LastfmBrowseTab';
 // Marker and indicator components
 export { DropIndicator } from '@features/dnd/ui/DropIndicator';
 export { InsertionMarkersOverlay, InsertionMarker } from './InsertionMarker';
-export { MatchStatusIndicator } from './browse/MatchStatusIndicator';
 
 // Action button components
 export { AddToMarkedButton } from './playlist/AddToMarkedButton';

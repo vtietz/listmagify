@@ -47,11 +47,8 @@ export interface TrackRowProps {
   showReleaseYearColumn?: boolean;
   showPopularityColumn?: boolean;
   showCumulativeTime?: boolean;
-  dragType?: 'track' | 'lastfm-track';
-  matchedTrack?: { id: string; uri: string; name: string; artist?: string | undefined; durationMs?: number | undefined } | null;
-  lastfmDto?: { artistName: string; trackName: string; albumName?: string | undefined };
-  selectedMatchedUris?: string[];
-  onDragStart?: () => void;
+  trackPayload?: import('@features/dnd/model/types').TrackPayload | undefined;
+  selectedTrackPayloads?: import('@features/dnd/model/types').TrackPayload[] | undefined;
   isDuplicate?: boolean;
   isSoftDuplicate?: boolean;
   isOtherInstanceSelected?: boolean;

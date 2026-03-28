@@ -148,12 +148,6 @@ describe('DnD Operations', () => {
       expect(validateDropOperation(sourceData, targetData, {})).toBeNull();
     });
 
-    it('should return null for valid lastfm-track to track', () => {
-      const sourceData = { type: 'lastfm-track' };
-      const targetData = { type: 'track' };
-      expect(validateDropOperation(sourceData, targetData, {})).toBeNull();
-    });
-
     it('should return null for valid track to player', () => {
       const sourceData = { type: 'track' };
       const targetData = { type: 'player' };

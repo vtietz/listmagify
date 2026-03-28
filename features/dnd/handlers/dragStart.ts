@@ -52,138 +52,8 @@ export interface DragStartResult {
   cleanup?: () => void;
 }
 
-function resolveLastfmDragTracks(
-  selectedTracksFromData: Track[] | undefined,
-  selectedMatchedUris: string[] | undefined,
-  overlayTrack: Track
-): { dragTracks: Track[]; selectionCount: number } {
-  if (selectedTracksFromData && selectedTracksFromData.length > 0) {
-    return {
-      dragTracks: selectedTracksFromData,
-      selectionCount: selectedTracksFromData.length,
-    };
-  }
-
-  if (selectedMatchedUris && selectedMatchedUris.length > 0) {
-    return {
-      dragTracks: [overlayTrack],
-      selectionCount: selectedMatchedUris.length,
-    };
-  }
-
-  return {
-    dragTracks: [overlayTrack],
-    selectionCount: 1,
-  };
-}
-
-function buildLastfmOverlayTrack(
-  track: { trackName: string; artistName: string },
-  matchedTrack: {
-    id: string;
-    uri: string;
-    name: string;
-    artists?: string[];
-    artist?: string;
-    durationMs?: number;
-  } | undefined
-): Track {
-  if (matchedTrack) {
-    return {
-      id: matchedTrack.id,
-      uri: matchedTrack.uri,
-      name: matchedTrack.name,
-      artists: matchedTrack.artists && matchedTrack.artists.length > 0
-        ? matchedTrack.artists
-        : matchedTrack.artist
-          ? [matchedTrack.artist]
-          : [],
-      artistObjects: matchedTrack.artists && matchedTrack.artists.length > 0
-        ? matchedTrack.artists.map((name) => ({ id: null, name }))
-        : matchedTrack.artist
-          ? [{ id: null, name: matchedTrack.artist }]
-          : [],
-      durationMs: matchedTrack.durationMs ?? 0,
-    };
-  }
-
-  return {
-    id: `lastfm-${track.trackName}`,
-    uri: '',
-    name: track.trackName,
-    artists: [track.artistName],
-    artistObjects: [{ id: null, name: track.artistName }],
-    durationMs: 0,
-  };
-}
-
-function startPointerTracking(ctx: DragStartContext): () => void {
-  ctx.pointerTracker.startTracking();
-  ctx.autoScroller.start(
-    () => ctx.pointerTracker.getPosition(),
-    () => ctx.panelVirtualizersRef.current ?? new Map()
-  );
-
-  return () => {
-    ctx.pointerTracker.stopTracking();
-    ctx.autoScroller.stop();
-  };
-}
-
 /**
- * Handle Last.fm track drag start
- */
-function handleLastfmDragStart(
-  event: DragStartEvent,
-  ctx: DragStartContext
-): DragStartResult {
-  const { active } = event;
-  const track = active.data.current?.track as { trackName: string; artistName: string } | undefined;
-  if (!track) {
-    return { handled: false };
-  }
-  const compositeId = active.id as string;
-  const matchedTrack = active.data.current?.matchedTrack as {
-    id: string;
-    uri: string;
-    name: string;
-    artists?: string[];
-    artist?: string;
-    durationMs?: number;
-  } | undefined;
-  const selectedTracksFromData = active.data.current?.selectedTracks as Track[] | undefined;
-  const selectedMatchedUris = active.data.current?.selectedMatchedUris as string[] | undefined;
-  const overlayTrack = buildLastfmOverlayTrack(track, matchedTrack);
-  const { dragTracks, selectionCount } = resolveLastfmDragTracks(
-    selectedTracksFromData,
-    selectedMatchedUris,
-    overlayTrack
-  );
-
-  ctx.startDrag({
-    track: overlayTrack,
-    id: compositeId,
-    sourcePanelId: null, // No source panel for Last.fm tracks
-    selectionCount,
-    dragTracks,
-    selectedIndices: [],
-    orderedTracks: dragTracks,
-  });
-
-  logDebug('🎵 DRAG START (Last.fm):', {
-    track: track.trackName,
-    artist: track.artistName,
-    hasMatch: !!matchedTrack,
-    selectionCount,
-  });
-
-  const cleanup = startPointerTracking(ctx);
-
-  return { handled: true, cleanup };
-}
-
-/**
- * Handle browse panel drag start (Search, Recommendations)
+ * Handle browse panel drag start (Search, Recommendations, LastFM)
  */
 function handleBrowsePanelDragStart(
   event: DragStartEvent,
@@ -289,28 +159,16 @@ export function createDragStartHandler(ctx: DragStartContext) {
   return (event: DragStartEvent): void => {
     const { active } = event;
     const track = active.data.current?.track;
-    const trackType = active.data.current?.type;
     const sourcePanel = active.data.current?.panelId;
     const selectedTracksFromData = active.data.current?.selectedTracks as Track[] | undefined;
 
-    let result: DragStartResult = { handled: false };
-
-    // Handle Last.fm track drag start
-    if (trackType === 'lastfm-track') {
-      result = handleLastfmDragStart(event, ctx);
-      if (result.cleanup) {
-        document.addEventListener('pointerup', result.cleanup, { once: true });
-      }
-      return;
-    }
-
     // Handle track drags
     if (track) {
-      // Check if selectedTracks is provided (from browse panels)
+      // Check if selectedTracks is provided (from browse panels including LastFM)
       if (selectedTracksFromData && selectedTracksFromData.length > 0) {
-        result = handleBrowsePanelDragStart(event, track, selectedTracksFromData, sourcePanel, ctx);
+        handleBrowsePanelDragStart(event, track, selectedTracksFromData, sourcePanel, ctx);
       } else {
-        result = handlePlaylistDragStart(event, track, sourcePanel, ctx);
+        handlePlaylistDragStart(event, track, sourcePanel, ctx);
       }
     }
 

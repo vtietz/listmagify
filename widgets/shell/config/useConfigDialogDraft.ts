@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useMatchingConfigStore } from '@features/split-editor/browse/hooks/useMatchingConfigStore';
+import { useMatchingConfigStore } from '@/lib/matching/useMatchingConfigStore';
 
 interface UseConfigDialogDraftParams {
   open: boolean;
