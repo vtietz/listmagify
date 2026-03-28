@@ -256,6 +256,7 @@ export interface MusicProvider {
   getPlaylistDetails(playlistId: string, fields?: string): Promise<Playlist>;
   createPlaylist(payload: CreatePlaylistPayload): Promise<Playlist>;
   updatePlaylistDetails(playlistId: string, payload: UpdatePlaylistPayload): Promise<void>;
+  deletePlaylist(playlistId: string): Promise<void>;
   getPlaylistTrackUris(playlistId: string): Promise<string[]>;
   replacePlaylistTracks(playlistId: string, trackUris: string[]): Promise<{ snapshotId: string }>;
   removePlaylistTracks(playlistId: string, trackUris: string[]): Promise<{ snapshotId: string }>;

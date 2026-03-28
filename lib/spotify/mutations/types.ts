@@ -79,5 +79,10 @@ export interface UpdatePlaylistParams {
   isPublic?: boolean;
 }
 
+export interface DeletePlaylistParams {
+  providerId?: MusicProviderId;
+  playlistId: string;
+}
+
 // Type alias for infinite query data structure
 export type InfinitePlaylistData = import('@/lib/dnd/sortUtils').InfiniteData<PlaylistTracksData>;

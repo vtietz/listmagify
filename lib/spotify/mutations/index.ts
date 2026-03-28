@@ -12,6 +12,7 @@ export { useReorderTracks } from './useReorderTracks';
 export { useReorderAllTracks } from './useReorderAllTracks';
 export { useCreatePlaylist } from './useCreatePlaylist';
 export { useUpdatePlaylist } from './useUpdatePlaylist';
+export { useDeletePlaylist } from './useDeletePlaylist';
 
 // Utility functions
 export { checkPlaylistEditable } from './checkPlaylistEditable';
@@ -29,6 +30,7 @@ export type {
   CreatePlaylistParams,
   CreatePlaylistResponse,
   UpdatePlaylistParams,
+  DeletePlaylistParams,
 } from './types';
 
 // Re-export helpers for advanced use cases

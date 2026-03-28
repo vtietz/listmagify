@@ -2,17 +2,19 @@
 
 import Link from "next/link";
 import React, { useState, useCallback } from "react";
-import { Heart, Pencil, Play } from "lucide-react";
+import { Heart, Pencil, Play, Trash2 } from "lucide-react";
 import type { Playlist  } from '@/lib/music-provider/types';
 import type { MusicProviderId } from '@/lib/music-provider/types';
 import { cn } from "@/lib/utils";
 import { isLikedSongsPlaylist } from "@features/playlists/hooks/useLikedVirtualPlaylist";
 import { useSessionUser } from "@features/auth/hooks/useSessionUser";
+import { useProviderUserId } from "@shared/hooks/useProviderUserId";
 import { useSpotifyPlayer } from "@features/player/hooks/useSpotifyPlayer";
 import { usePlayerStore } from "@features/player/hooks/usePlayerStore";
 import { Button } from "@/components/ui/button";
 import { PlaylistDialog } from "@/components/playlist/PlaylistDialog";
-import { useUpdatePlaylist } from "@/lib/spotify/playlistMutations";
+import { DeletePlaylistDialog } from "@/components/playlist/DeletePlaylistDialog";
+import { useUpdatePlaylist, useDeletePlaylist } from "@/lib/spotify/playlistMutations";
 import { ArtworkImage } from "@shared/ui/ArtworkImage";
 
 type PlaylistListItemProps = {
@@ -82,18 +84,22 @@ function PlaylistListCover({
 
 function PlaylistListActions({
   isEditable,
+  isDeletable,
   isPlayerVisible,
   isLiked,
   playlistName,
   onEdit,
   onPlay,
+  onDelete,
 }: {
   isEditable: boolean;
+  isDeletable: boolean;
   isPlayerVisible: boolean;
   isLiked: boolean;
   playlistName: string;
   onEdit: (e: React.MouseEvent) => void;
   onPlay: (e: React.MouseEvent) => void;
+  onDelete: (e: React.MouseEvent) => void;
 }) {
   return (
     <div className="flex items-center gap-1 shrink-0">
@@ -107,6 +113,18 @@ function PlaylistListActions({
           aria-label={`Edit ${playlistName}`}
         >
           <Pencil className="h-3.5 w-3.5" />
+        </Button>
+      )}
+      {isDeletable && (
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onDelete}
+          className="h-7 w-7 text-muted-foreground hover:text-destructive"
+          title="Delete playlist"
+          aria-label={`Delete ${playlistName}`}
+        >
+          <Trash2 className="h-3.5 w-3.5" />
         </Button>
       )}
       {isPlayerVisible && !isLiked && (
@@ -131,20 +149,35 @@ function PlaylistListActions({
  */
 export function PlaylistListItem({ playlist, providerId, className }: PlaylistListItemProps) {
   const { user } = useSessionUser();
+  const providerUserId = useProviderUserId(providerId);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const updatePlaylist = useUpdatePlaylist();
+  const deletePlaylist = useDeletePlaylist();
   const { play } = useSpotifyPlayer({ enableStatePolling: false });
   const isPlayerVisible = usePlayerStore((s) => s.isPlayerVisible);
-  
+
   const cover = playlist.image?.url;
   const isLiked = isLikedSongsPlaylist(playlist.id);
-  const isEditable = canEditPlaylist(playlist, user?.id, isLiked);
-  
+  const isEditable = canEditPlaylist(playlist, providerUserId, isLiked);
+  const isDeletable = Boolean(!isLiked && user?.id && providerId === 'tidal');
+
   const handleEditClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setEditDialogOpen(true);
   }, []);
+
+  const handleDeleteClick = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDeleteDialogOpen(true);
+  }, []);
+
+  const handleDeleteConfirm = useCallback(async () => {
+    await deletePlaylist.mutateAsync({ providerId, playlistId: playlist.id });
+    setDeleteDialogOpen(false);
+  }, [deletePlaylist, providerId, playlist.id]);
 
   const handlePlayClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -195,11 +228,13 @@ export function PlaylistListItem({ playlist, providerId, className }: PlaylistLi
         {/* Action buttons */}
         <PlaylistListActions
           isEditable={Boolean(isEditable)}
+          isDeletable={isDeletable}
           isPlayerVisible={isPlayerVisible && canPlayFromListItem}
           isLiked={isLiked}
           playlistName={playlist.name}
           onEdit={handleEditClick}
           onPlay={handlePlayClick}
+          onDelete={handleDeleteClick}
         />
       </Link>
 
@@ -216,6 +251,19 @@ export function PlaylistListItem({ playlist, providerId, className }: PlaylistLi
           }}
           onSubmit={handleUpdatePlaylist}
           isSubmitting={updatePlaylist.isPending}
+        />
+      )}
+
+      {/* Delete confirmation dialog */}
+      {isDeletable && (
+        <DeletePlaylistDialog
+          open={deleteDialogOpen}
+          onOpenChange={setDeleteDialogOpen}
+          playlistName={playlist.name}
+          playlistId={playlist.id}
+          providerId={providerId}
+          onConfirm={handleDeleteConfirm}
+          isDeleting={deletePlaylist.isPending}
         />
       )}
     </>

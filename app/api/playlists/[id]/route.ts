@@ -5,6 +5,7 @@ import { mapApiErrorToProviderAuthError, toProviderAuthErrorResponse } from '@/l
 import { parsePlaylistId, parsePlaylistUpdatePayload } from '@/lib/services/playlistService';
 import { getPlaylistFieldsQuery, mapPlaylistMetadata } from '@/lib/repositories/playlistRepository';
 import { ProviderApiError } from '@/lib/music-provider/types';
+import { deleteSyncPairsForPlaylist } from '@/lib/sync/syncStore';
 
 function mapPlaylistPutResponseError(status: number, statusText: string): NextResponse {
   if (status === 403) {
@@ -96,6 +97,65 @@ export async function GET(
     }
 
     console.error('[api/playlists] Error:', error);
+
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * DELETE /api/playlists/[id]
+ *
+ * Deletes a playlist (TIDAL) or unfollows it (Spotify).
+ * Spotify: removes the playlist from the user's library (reversible).
+ * TIDAL: permanently deletes the playlist (irreversible, owner only).
+ *
+ * Returns: { success: true }
+ */
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await requireAuth();
+    const { provider, providerId } = resolveMusicProviderFromRequest(request);
+
+    const { id } = await params;
+    const playlistId = parsePlaylistId(id);
+    assertPlaylistProviderCompat(playlistId, providerId);
+
+    await provider.deletePlaylist(playlistId);
+
+    // Clean up any sync pairs referencing this playlist
+    const userId = session.user?.id;
+    const removedSyncPairs = userId
+      ? deleteSyncPairsForPlaylist(providerId, playlistId, userId)
+      : 0;
+
+    return NextResponse.json({ success: true, removedSyncPairs });
+  } catch (error) {
+    const authError = mapApiErrorToProviderAuthError(error, getMusicProviderHintFromRequest(request));
+    if (authError) {
+      return toProviderAuthErrorResponse(authError);
+    }
+
+    if (error instanceof Error && error.message.includes('Invalid playlist ID')) {
+      return NextResponse.json({ error: 'Invalid playlist ID' }, { status: 400 });
+    }
+
+    if (error instanceof ProviderApiError) {
+      if (error.status === 403) {
+        return NextResponse.json({ error: 'You do not have permission to delete this playlist' }, { status: 403 });
+      }
+      if (error.status === 404) {
+        return NextResponse.json({ error: 'Playlist not found' }, { status: 404 });
+      }
+      return NextResponse.json({ error: error.message, details: error.details }, { status: error.status });
+    }
+
+    console.error('[api/playlists] DELETE Error:', error);
 
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Internal server error' },

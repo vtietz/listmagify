@@ -275,6 +275,15 @@ export function createSpotifyProvider(
       }
     },
 
+    async deletePlaylist(playlistId: string): Promise<void> {
+      const path = `/playlists/${encodeURIComponent(playlistId)}/followers`;
+      const response = await executeWithSession(path, { method: 'DELETE' }, undefined, deps);
+
+      if (!response.ok) {
+        throwProviderError(response, await readErrorText(response), 'deletePlaylist');
+      }
+    },
+
     async getPlaylistTrackUris(playlistId: string): Promise<string[]> {
       const trackUris: string[] = [];
       let offset = 0;

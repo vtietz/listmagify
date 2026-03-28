@@ -14,6 +14,7 @@ export {
   useReorderAllTracks,
   useCreatePlaylist,
   useUpdatePlaylist,
+  useDeletePlaylist,
   
   // Utility functions
   checkPlaylistEditable,
@@ -30,5 +31,6 @@ export {
   type CreatePlaylistParams,
   type CreatePlaylistResponse,
   type UpdatePlaylistParams,
+  type DeletePlaylistParams,
 } from './mutations';
 

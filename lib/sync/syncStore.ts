@@ -227,6 +227,59 @@ export function listSyncPairs(createdBy: string): SyncPair[] {
   `).all(createdBy) as SyncPair[];
 }
 
+export function listSyncPairsForPlaylist(
+  providerId: MusicProviderId,
+  playlistId: string,
+  createdBy: string,
+): SyncPair[] {
+  const db = getRecsDb();
+
+  return db.prepare(`
+    SELECT
+      id,
+      source_provider AS sourceProvider,
+      source_playlist_id AS sourcePlaylistId,
+      source_playlist_name AS sourcePlaylistName,
+      target_provider AS targetProvider,
+      target_playlist_id AS targetPlaylistId,
+      target_playlist_name AS targetPlaylistName,
+      direction,
+      created_by AS createdBy,
+      auto_sync AS autoSync,
+      sync_interval AS syncInterval,
+      next_run_at AS nextRunAt,
+      consecutive_failures AS consecutiveFailures,
+      created_at AS createdAt,
+      updated_at AS updatedAt
+    FROM sync_pairs
+    WHERE created_by = ?
+      AND (
+        (source_provider = ? AND source_playlist_id = ?)
+        OR (target_provider = ? AND target_playlist_id = ?)
+      )
+    ORDER BY created_at DESC
+  `).all(createdBy, providerId, playlistId, providerId, playlistId) as SyncPair[];
+}
+
+export function deleteSyncPairsForPlaylist(
+  providerId: MusicProviderId,
+  playlistId: string,
+  createdBy: string,
+): number {
+  const db = getRecsDb();
+
+  const result = db.prepare(`
+    DELETE FROM sync_pairs
+    WHERE created_by = ?
+      AND (
+        (source_provider = ? AND source_playlist_id = ?)
+        OR (target_provider = ? AND target_playlist_id = ?)
+      )
+  `).run(createdBy, providerId, playlistId, providerId, playlistId);
+
+  return result.changes;
+}
+
 export function deleteSyncPair(id: string, createdBy?: string): boolean {
   const db = getRecsDb();
 

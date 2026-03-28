@@ -286,6 +286,18 @@ export function createTidalProvider(dependencies: TidalProviderDependencies = {}
       }
     },
 
+    async deletePlaylist(playlistId: string): Promise<void> {
+      const response = await transport.executeWithSession(
+        '/userCollectionPlaylists/me/relationships/items',
+        { method: 'DELETE', body: buildJsonApiDataPayload([{ id: playlistId, type: 'playlists' }]) },
+        undefined,
+      );
+
+      if (!response.ok) {
+        throwProviderError(response, await readJsonApiErrorDetails(response), 'deletePlaylist');
+      }
+    },
+
     async getPlaylistTrackUris(playlistId: string): Promise<string[]> {
       const references = await transport.fetchAllPlaylistItemReferences(playlistId);
       return references.filter((reference) => reference.type === 'tracks').map((reference) => toTrackUri(reference.id));

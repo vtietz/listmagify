@@ -19,6 +19,8 @@ const nextConfig = {
       { protocol: 'https', hostname: 'mosaic.scdn.co' },
       // Spotify thumbnail CDN
       { protocol: 'https', hostname: 't.scdn.co' },
+      // Spotify image CDN (multiple subdomains: image-cdn-ak, image-cdn-fa, etc.)
+      { protocol: 'https', hostname: '*.spotifycdn.com' },
       // TIDAL image CDN
       { protocol: 'https', hostname: 'resources.tidal.com' },
       // E2E mock playlist artwork host
