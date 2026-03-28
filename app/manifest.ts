@@ -1,8 +1,12 @@
+import { getEnabledMusicProviders } from '@/lib/music-provider/enabledProviders';
+import { formatProviderNames } from '@/lib/music-provider/providerLabels';
+
 export default function manifest() {
+  const providerNames = formatProviderNames(getEnabledMusicProviders());
   return {
-    name: 'Listmagify - Playlist Magic for Spotify',
+    name: `Listmagify - Playlist Magic for ${providerNames}`,
     short_name: 'Listmagify',
-    description: 'Professional playlist management tool for Spotify. Edit multiple playlists side-by-side with drag-and-drop.',
+    description: `Professional playlist management tool for ${providerNames}. Edit multiple playlists side-by-side with drag-and-drop.`,
     start_url: '/',
     display: 'standalone',
     background_color: '#000000',

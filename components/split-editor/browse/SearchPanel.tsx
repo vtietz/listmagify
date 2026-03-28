@@ -2,7 +2,7 @@
 'use no memo';
 
 import { useEffect, useRef, useCallback, useMemo, useDeferredValue } from 'react';
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, type InfiniteData } from '@tanstack/react-query';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useBrowsePanelStore } from '@features/split-editor/browse/hooks/useBrowsePanelStore';
 import { useHydratedCompactMode } from '@features/split-editor/stores/useCompactModeStore';
@@ -57,6 +57,7 @@ type SearchPanelBodyProps = {
   effectiveProviderId: MusicProviderId;
   effectiveSearchFilter: 'all' | 'tracks' | 'artists' | 'albums';
   isLoading: boolean;
+  isFetching: boolean;
   isError: boolean;
   debouncedQuery: string;
   sortedTracks: Track[];
@@ -113,6 +114,7 @@ function SearchPanelBody(props: SearchPanelBodyProps) {
     <>
       <SearchResultsState
         isLoading={props.isLoading}
+        isFetching={props.isFetching}
         isError={props.isError}
         debouncedQuery={props.debouncedQuery}
         hasTracks={props.sortedTracks.length > 0}
@@ -314,6 +316,7 @@ export function SearchPanel({ isActive = true, inputRef: externalInputRef, provi
     hasNextPage,
     isFetchingNextPage,
     isLoading,
+    isFetching,
     isError,
   } = useInfiniteQuery({
     queryKey: ['browse-search', effectiveProviderId, debouncedQuery],
@@ -329,6 +332,10 @@ export function SearchPanel({ isActive = true, inputRef: externalInputRef, provi
     getNextPageParam: (lastPage: SearchResponse) => lastPage.nextOffset,
     enabled: isTrackSearchEnabled,
     staleTime: 5 * 60 * 1000,
+    // Keep previous results visible while new search query loads to prevent flickering
+    ...(debouncedQuery.trim()
+      ? { placeholderData: (prev: InfiniteData<SearchResponse> | undefined) => prev }
+      : {}),
   });
 
   const allTracks = useMemo(() => {
@@ -466,6 +473,7 @@ export function SearchPanel({ isActive = true, inputRef: externalInputRef, provi
           effectiveProviderId={effectiveProviderId}
           effectiveSearchFilter={effectiveSearchFilter}
           isLoading={isLoading}
+          isFetching={isFetching}
           isError={isError}
           debouncedQuery={debouncedQuery}
           sortedTracks={sortedTracks}

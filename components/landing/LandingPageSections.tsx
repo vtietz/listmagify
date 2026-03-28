@@ -1,4 +1,6 @@
 import Image from 'next/image';
+import type { MusicProviderId } from '@/lib/music-provider/types';
+import { formatProviderNames } from '@/lib/music-provider/providerLabels';
 import {
   ArrowUpDown,
   Columns,
@@ -10,6 +12,7 @@ import {
   Minimize2,
   Music2,
   Play,
+  RefreshCw,
   Search,
   Smartphone,
   Sparkles,
@@ -17,7 +20,9 @@ import {
   Trash2,
 } from 'lucide-react';
 
-export function LandingFeaturesGridSection() {
+export function LandingFeaturesGridSection({ availableProviders }: { availableProviders: MusicProviderId[] }) {
+  const providerNames = formatProviderNames(availableProviders);
+  const isMultiProvider = availableProviders.length > 1;
   return (
     <div className="container mx-auto px-4 py-16">
       <h2 className="text-2xl font-semibold text-center mb-12">
@@ -27,22 +32,24 @@ export function LandingFeaturesGridSection() {
         <FeatureCard
           icon={<Columns className="h-6 w-6" />}
           title="Multi-Panel Editor"
-          description="Work with multiple playlists side-by-side. Split panels horizontally or vertically to compare and organize your music."
+          description={`Work with multiple playlists side-by-side${isMultiProvider ? ', even across providers' : ''}. Split panels horizontally or vertically to compare and organize your music.`}
         />
         <FeatureCard
           icon={<GripVertical className="h-6 w-6" />}
           title="Drag & Drop"
-          description="Effortlessly move tracks between playlists or reorder within a playlist. Copy or move mode with visual feedback."
+          description={`Effortlessly move tracks between playlists or reorder within a playlist.${isMultiProvider ? ` Drag across ${providerNames} with automatic track matching.` : ''} Copy or move mode with visual feedback.`}
         />
+        {isMultiProvider && (
+          <FeatureCard
+            icon={<RefreshCw className="h-6 w-6" />}
+            title="Cross-Provider Sync"
+            description={`Keep playlists in sync across ${providerNames}. One-way or bidirectional sync with intelligent track matching, preview changes before applying, and enable auto-sync to stay up to date.`}
+          />
+        )}
         <FeatureCard
           icon={<Copy className="h-6 w-6" />}
           title="Bulk Operations"
           description="Select multiple tracks and move, copy, or delete them at once. Perfect for large playlist reorganization."
-        />
-        <FeatureCard
-          icon={<Search className="h-6 w-6" />}
-          title="Smart Search"
-          description="Instantly filter tracks by title, artist, or album. Find what you're looking for across thousands of tracks."
         />
         <FeatureCard
           icon={<GitCompare className="h-6 w-6" />}
@@ -50,19 +57,9 @@ export function LandingFeaturesGridSection() {
           description="Visualize track distribution across playlists with intelligent color coding. Green shows tracks in all playlists, red shows unique tracks, and yellow indicates partial presence."
         />
         <FeatureCard
-          icon={<Smartphone className="h-6 w-6" />}
-          title="Mobile Optimized"
-          description="Fully responsive design with touch-friendly controls. Install as a PWA for native app experience on phones and tablets."
-        />
-        <FeatureCard
-          icon={<Play className="h-6 w-6" />}
-          title="Integrated Player"
-          description="Preview any track instantly with the built-in Spotify player. No need to switch apps to check a song."
-        />
-        <FeatureCard
-          icon={<Music2 className="h-6 w-6" />}
-          title="Last.fm Import"
-          description="Import tracks from your Last.fm listening history. Browse loved tracks, top tracks, and weekly charts with automatic Spotify matching."
+          icon={<Search className="h-6 w-6" />}
+          title="Browse & Search"
+          description={`Search the ${providerNames} catalog directly from the editor. Browse by artist or album, filter tracks within any playlist, and drag results straight into your playlists.`}
         />
         <FeatureCard
           icon={<ArrowUpDown className="h-6 w-6" />}
@@ -70,9 +67,34 @@ export function LandingFeaturesGridSection() {
           description="Sort by position, title, artist, album, duration, or date added. Save any sorted view permanently as the new playlist order."
         />
         <FeatureCard
+          icon={<Play className="h-6 w-6" />}
+          title="Integrated Player"
+          description="Preview any track instantly with the built-in Spotify player. No need to switch apps to check a song. Currently available for Spotify only."
+        />
+        <FeatureCard
           icon={<MapPin className="h-6 w-6" />}
           title="Insert at Markers"
           description="Mark multiple positions across playlists, then insert selected tracks at all marked locations simultaneously. Perfect for building DJ sets."
+        />
+        <FeatureCard
+          icon={<Music2 className="h-6 w-6" />}
+          title="Last.fm Import"
+          description={`Import tracks from your Last.fm listening history. Browse loved tracks, top tracks, and weekly charts with automatic ${providerNames} matching.`}
+        />
+        <FeatureCard
+          icon={<Sparkles className="h-6 w-6" />}
+          title="Smart Recommendations"
+          description="Get track suggestions based on your playlist patterns. Discover new music that fits the vibe of your existing collections."
+        />
+        <FeatureCard
+          icon={<Trash2 className="h-6 w-6" />}
+          title="Safe Editing"
+          description={`Lock panels to prevent accidental changes. All edits sync directly with ${providerNames} in real-time.`}
+        />
+        <FeatureCard
+          icon={<Smartphone className="h-6 w-6" />}
+          title="Mobile Optimized"
+          description="Fully responsive design with touch-friendly controls. Install as a PWA for native app experience on phones and tablets."
         />
         <FeatureCard
           icon={<Minimize2 className="h-6 w-6" />}
@@ -84,22 +106,14 @@ export function LandingFeaturesGridSection() {
           title="Scroll Text"
           description="Auto-scroll overflowing track labels horizontally for better readability. Hover to pause and click artist or album links."
         />
-        <FeatureCard
-          icon={<Sparkles className="h-6 w-6" />}
-          title="Smart Recommendations"
-          description="Get AI-powered track suggestions based on your playlist patterns. The more you use it, the smarter it gets."
-        />
-        <FeatureCard
-          icon={<Trash2 className="h-6 w-6" />}
-          title="Safe Editing"
-          description="Lock panels to prevent accidental changes. All edits sync directly with Spotify in real-time."
-        />
       </div>
     </div>
   );
 }
 
-export function LandingDetailedFeaturesSection() {
+export function LandingDetailedFeaturesSection({ availableProviders }: { availableProviders: MusicProviderId[] }) {
+  const providerNames = formatProviderNames(availableProviders);
+  const hasSpotify = availableProviders.includes('spotify');
   return (
     <div className="container mx-auto px-4 py-16 border-t border-border">
       <h2 className="text-2xl font-semibold text-center mb-12">
@@ -133,7 +147,7 @@ export function LandingDetailedFeaturesSection() {
           <div className="rounded-xl overflow-hidden border border-border shadow-lg">
             <Image
               src="/screenshot-playlists.png"
-              alt="Playlists - Browse and manage all your Spotify playlists"
+              alt={`Playlists - Browse and manage all your ${providerNames} playlists`}
               width={1920}
               height={1080}
               className="w-full h-auto"
@@ -143,14 +157,16 @@ export function LandingDetailedFeaturesSection() {
           <div>
             <h3 className="text-xl font-semibold mb-3">Playlists Management</h3>
             <p className="text-muted-foreground mb-4">
-              Browse all your Spotify playlists in one organized view. Search,
+              Browse all your {providerNames} playlists in one organized view. Search,
               filter, and quickly access any playlist to start editing. See
               playlist details including track count, duration, and last modified
               date at a glance.
             </p>
-            <p className="text-sm text-muted-foreground/80 italic">
-              Note: The Spotify API does not support playlist folders, so all playlists are displayed in a flat list.
-            </p>
+            {hasSpotify && (
+              <p className="text-sm text-muted-foreground/80 italic">
+                Note: The Spotify API does not support playlist folders, so all playlists are displayed in a flat list.
+              </p>
+            )}
           </div>
         </div>
 

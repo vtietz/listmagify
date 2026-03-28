@@ -5,13 +5,14 @@ type AuthPageLayoutProps = {
   children: React.ReactNode;
   showLogoutLink?: boolean;
   showHeader?: boolean;
+  showFooter?: boolean;
 };
 
 /**
  * Shared layout wrapper for authentication-related pages (landing, login, etc.).
  * Provides consistent header with logo and optional logout link, plus footer.
  */
-export function AuthPageLayout({ children, showLogoutLink = false, showHeader = true }: AuthPageLayoutProps) {
+export function AuthPageLayout({ children, showLogoutLink = false, showHeader = true, showFooter = true }: AuthPageLayoutProps) {
   return (
     <div className="min-h-dvh flex flex-col bg-gradient-to-b from-background to-background/95">
       {/* Header */}
@@ -35,9 +36,11 @@ export function AuthPageLayout({ children, showLogoutLink = false, showHeader = 
       {children}
 
       {/* Footer */}
-      <div className="flex-shrink-0 px-4 py-2 border-t border-border">
-        <AppFooter showSpotifyAttribution={false} />
-      </div>
+      {showFooter && (
+        <div className="flex-shrink-0 px-4 py-2 border-t border-border">
+          <AppFooter showSpotifyAttribution={false} />
+        </div>
+      )}
     </div>
   );
 }

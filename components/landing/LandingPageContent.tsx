@@ -27,6 +27,7 @@ import { useByokCredentials } from '@features/auth/hooks/useByokCredentials';
 import { useAuthSummary } from '@features/auth/hooks/useAuth';
 import { syncProviderAuthStatusWithRetry } from '@/lib/providers/syncProviderAuth';
 import type { MusicProviderId } from '@/lib/music-provider/types';
+import { getProviderDisplayName, formatProviderNames } from '@/lib/music-provider/providerLabels';
 import {
   Check,
   CheckCircle,
@@ -64,9 +65,7 @@ function appendProviderToPath(path: string, providerId: MusicProviderId): string
   return query.length > 0 ? `${pathname}?${query}` : pathname;
 }
 
-function getProviderLabel(provider: MusicProviderId): string {
-  return provider === 'spotify' ? 'Spotify' : 'TIDAL';
-}
+const getProviderLabel = getProviderDisplayName;
 
 function ProviderAuthButton({
   provider,
@@ -321,7 +320,7 @@ export function LandingPageContent({
           )}
           
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            Professional playlist management for Spotify and TIDAL. Edit multiple playlists side-by-side with drag-and-drop.
+            Professional playlist management for {formatProviderNames(availableProviders)}. Edit multiple playlists side-by-side with drag-and-drop.
           </p>
           <p className="text-sm text-muted-foreground">
             Open source • Free to use • Your data stays with your music provider
@@ -378,8 +377,8 @@ export function LandingPageContent({
         </div>
       </div>
 
-      <LandingFeaturesGridSection />
-      <LandingDetailedFeaturesSection />
+      <LandingFeaturesGridSection availableProviders={availableProviders} />
+      <LandingDetailedFeaturesSection availableProviders={availableProviders} />
       <LandingUseCasesSection />
 
       {/* CTA Section */}
@@ -389,21 +388,23 @@ export function LandingPageContent({
             Ready to take control of your playlists?
           </h2>
           <p className="text-muted-foreground">
-            {isAuthenticated 
+            {isAuthenticated
               ? "Jump back into the editor and continue organizing your music."
-              : "Sign in with Spotify to start organizing your music. No account creation needed – just connect and go."
+              : `Sign in with ${formatProviderNames(availableProviders)} to start organizing your music. No account creation needed – just connect and go.`
             }
           </p>
-          {isAuthenticated ? (
-            <button
-              onClick={handleGetStarted}
-              className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-6 py-3 text-sm font-medium hover:bg-primary/90 transition-colors"
-            >
-              Open App
-            </button>
-          ) : (
-            <SignInButton callbackUrl="/split-editor" />
-          )}
+          <div className="flex flex-wrap justify-center gap-4">
+            <LandingAuthActions
+              isAuthenticated={isAuthenticated}
+              availableProviders={availableProviders}
+              providerStatusMap={providerStatusMap}
+              returnTo={returnTo}
+              onOpenApp={handleGetStarted}
+              isAccessRequestEnabled={isAccessRequestEnabled}
+              hasCredentials={hasCredentials}
+              onProviderLogout={handleProviderLogout}
+            />
+          </div>
         </div>
       </div>
 

@@ -2,6 +2,8 @@ import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth/auth";
 import { serverEnv } from "@/lib/env";
+import { getEnabledMusicProviders } from "@/lib/music-provider/enabledProviders";
+import { formatProviderNames } from "@/lib/music-provider/providerLabels";
 import { AuthPageLayout } from "@/components/auth/AuthPageLayout";
 import { LandingPageContent } from "@/components/landing/LandingPageContent";
 import { PageVisitTracker } from "@/components/analytics/PageVisitTracker";
@@ -148,7 +150,7 @@ export default async function Home({ searchParams }: Props) {
       "price": "0",
       "priceCurrency": "USD"
     },
-    "description": "Professional playlist management tool for Spotify. Edit multiple playlists side-by-side with drag-and-drop."
+    "description": `Professional playlist management tool for ${formatProviderNames(getEnabledMusicProviders())}. Edit multiple playlists side-by-side with drag-and-drop.`
   };
 
   const content = (
@@ -175,7 +177,7 @@ export default async function Home({ searchParams }: Props) {
   }
 
   return (
-    <AuthPageLayout showLogoutLink={false} showHeader={false}>
+    <AuthPageLayout showLogoutLink={false} showHeader={false} showFooter={false}>
       {content}
     </AuthPageLayout>
   );
