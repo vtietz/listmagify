@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, type InfiniteData } from '@tanstack/react-query';
 import { Loader2, Disc3 } from 'lucide-react';
 import { apiFetch } from '@/lib/api/client';
 import { useBrowsePanelStore } from '@features/split-editor/browse/hooks/useBrowsePanelStore';
@@ -16,7 +16,7 @@ interface AlbumResultsListProps {
 export function AlbumResultsList({ debouncedQuery, providerId, isActive }: AlbumResultsListProps) {
   const setDrillDown = useBrowsePanelStore((s) => s.setDrillDown);
 
-  const { data, isLoading, isError } = useInfiniteQuery({
+  const { data, isLoading, isFetching, isError } = useInfiniteQuery({
     queryKey: ['browse-search-albums', providerId, debouncedQuery],
     queryFn: async ({ pageParam }: { pageParam: number }): Promise<AlbumSearchResult> => {
       if (!debouncedQuery.trim()) {
@@ -30,6 +30,10 @@ export function AlbumResultsList({ debouncedQuery, providerId, isActive }: Album
     getNextPageParam: (lastPage: AlbumSearchResult) => lastPage.nextOffset,
     enabled: isActive && debouncedQuery.trim().length > 0,
     staleTime: 5 * 60 * 1000,
+    // Keep previous results visible while new search query loads to prevent flickering
+    ...(debouncedQuery.trim()
+      ? { placeholderData: (prev: InfiniteData<AlbumSearchResult> | undefined) => prev }
+      : {}),
   });
 
   const albums = data?.pages.flatMap((p) => p.albums) ?? [];
@@ -50,7 +54,7 @@ export function AlbumResultsList({ debouncedQuery, providerId, isActive }: Album
     return <div className="flex items-center justify-center h-32 text-sm text-muted-foreground">Enter a search term to find albums</div>;
   }
 
-  if (albums.length === 0) {
+  if (albums.length === 0 && !isFetching) {
     return (
       <div className="flex items-center justify-center h-32 text-sm text-muted-foreground">
         No albums found for &quot;{debouncedQuery}&quot;

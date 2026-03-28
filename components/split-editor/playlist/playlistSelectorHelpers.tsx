@@ -45,6 +45,7 @@ export function usePlaylistInfiniteData(
   const {
     data,
     isLoading,
+    isFetching,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
@@ -90,6 +91,7 @@ export function usePlaylistInfiniteData(
   return {
     allPlaylists,
     isLoading,
+    isFetching,
     isFetchingNextPage,
     refetch,
   };
@@ -335,6 +337,7 @@ function PlaylistOption({
 
 function PlaylistOptionsContent({
   isLoading,
+  isFetching,
   allPlaylistsLength,
   showLikedSongs,
   likedPlaylistName,
@@ -345,6 +348,7 @@ function PlaylistOptionsContent({
   isFetchingNextPage,
 }: {
   isLoading: boolean;
+  isFetching: boolean;
   allPlaylistsLength: number;
   showLikedSongs: boolean;
   likedPlaylistName: string;
@@ -357,7 +361,7 @@ function PlaylistOptionsContent({
   if (isLoading && allPlaylistsLength === 0) {
     return <div className="p-2 text-sm text-muted-foreground">Loading...</div>;
   }
-  if (!showLikedSongs && filtered.length === 0) {
+  if (!showLikedSongs && filtered.length === 0 && !isFetching) {
     return <div className="p-2 text-sm text-muted-foreground">No playlists found.</div>;
   }
 
@@ -420,6 +424,7 @@ export function PlaylistSelectorDropdown({
   setQuery,
   handleKeyDown,
   isLoading,
+  isFetching,
   allPlaylists,
   showLikedSongs,
   providerId,
@@ -436,6 +441,7 @@ export function PlaylistSelectorDropdown({
   setQuery: Dispatch<SetStateAction<string>>;
   handleKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void;
   isLoading: boolean;
+  isFetching: boolean;
   allPlaylists: Playlist[];
   showLikedSongs: boolean;
   providerId: MusicProviderId;
@@ -477,6 +483,7 @@ export function PlaylistSelectorDropdown({
       <div className="max-h-64 overflow-auto">
         <PlaylistOptionsContent
           isLoading={isLoading}
+          isFetching={isFetching}
           allPlaylistsLength={allPlaylists.length}
           showLikedSongs={showLikedSongs}
           likedPlaylistName={getLikedPlaylistMetadata(providerId).name}

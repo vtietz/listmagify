@@ -42,7 +42,7 @@ export function PlaylistSelector({
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const dropdownRef = useRef<HTMLDivElement | null>(null);
   const pollIntervalMs = usePlaylistPollIntervalMs();
-  const { allPlaylists, isLoading, isFetchingNextPage, refetch } = usePlaylistInfiniteData(pollIntervalMs, providerId, !disabled);
+  const { allPlaylists, isLoading, isFetching, isFetchingNextPage, refetch } = usePlaylistInfiniteData(pollIntervalMs, providerId, !disabled);
   const dropdownPosition = useDropdownPositionOnOpen(open, buttonRef);
   const filtered = useFilteredPlaylists(allPlaylists, query);
   const showLikedSongs = useShowLikedSongs(query, providerId, !disabled);
@@ -160,6 +160,7 @@ export function PlaylistSelector({
         setQuery={setQuery}
         handleKeyDown={handleKeyDown}
         isLoading={isLoading}
+        isFetching={isFetching}
         allPlaylists={allPlaylists}
         showLikedSongs={showLikedSongs}
         providerId={providerId}

@@ -184,12 +184,14 @@ export function SearchInputBar({
 
 export function SearchResultsState({
   isLoading,
+  isFetching,
   isError,
   debouncedQuery,
   hasTracks,
   children,
 }: {
   isLoading: boolean;
+  isFetching: boolean;
   isError: boolean;
   debouncedQuery: string;
   hasTracks: boolean;
@@ -211,7 +213,7 @@ export function SearchResultsState({
     return <div className="flex items-center justify-center h-32 text-sm text-muted-foreground">Enter a search term to find tracks</div>;
   }
 
-  if (!hasTracks) {
+  if (!hasTracks && !isFetching) {
     return (
       <div className="flex items-center justify-center h-32 text-sm text-muted-foreground">
         No tracks found for &quot;{debouncedQuery}&quot;
