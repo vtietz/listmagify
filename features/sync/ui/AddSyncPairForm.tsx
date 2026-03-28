@@ -90,7 +90,8 @@ export function AddSyncPairForm() {
             selectedPlaylistId={sourcePlaylistId}
             selectedPlaylistName=""
             onSelectPlaylist={(id) => setSourcePlaylistId(id)}
-            disabled={statusMap[sourceProvider] !== 'connected'}
+            disabled={connectedProviders.length === 0}
+
           />
         </div>
       </div>
@@ -115,6 +116,7 @@ export function AddSyncPairForm() {
             selectedPlaylistName=""
             onSelectPlaylist={(id) => setTargetPlaylistId(id)}
             disabled={statusMap[targetProvider] !== 'connected'}
+
           />
         </div>
       </div>

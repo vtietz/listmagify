@@ -460,6 +460,7 @@ export function PlaylistSelectorDropdown({
         zIndex: 99999,
       }}
       className="rounded-md border border-border bg-card p-2 shadow-md pointer-events-auto"
+      data-playlist-dropdown
       onClick={(event) => event.stopPropagation()}
       onMouseDown={(event) => event.stopPropagation()}
     >

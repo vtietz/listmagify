@@ -145,8 +145,16 @@ export function SyncManagementDialog() {
   const { data: pairs, isLoading } = useSyncPairs(isManagementOpen);
 
   return (
-    <Dialog open={isManagementOpen} onOpenChange={(open) => { if (!open) closeManagement(); }}>
-      <DialogContent className="max-w-2xl">
+    <Dialog modal={false} open={isManagementOpen} onOpenChange={(open) => { if (!open) closeManagement(); }}>
+      <DialogContent
+        className="max-w-2xl"
+        onPointerDownOutside={(e) => {
+          // Prevent dialog from closing when clicking in the PlaylistSelector portal dropdown
+          if ((e.target as HTMLElement | null)?.closest('[data-playlist-dropdown]')) {
+            e.preventDefault();
+          }
+        }}
+      >
         <DialogHeader>
           <DialogTitle>Sync Management</DialogTitle>
         </DialogHeader>

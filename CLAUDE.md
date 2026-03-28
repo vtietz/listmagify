@@ -109,4 +109,5 @@ Complexity constraints enforced via ESLint: cyclomatic complexity ≤ 12 and max
 - No `@ts-ignore` without clear justification
 - File size warning at 500 lines (excluding blanks/comments)
 - Commit messages: imperative mood, 50-72 chars
+- After completing code changes, always suggest a commit message at the end of the response
 - Service layers should be provider-agnostic where possible
