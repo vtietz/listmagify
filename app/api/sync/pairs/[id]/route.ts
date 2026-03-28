@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server';
 import { assertAuthenticated } from '@/app/api/_shared/guard';
 import { ok, fromError, notFound, badRequest } from '@/app/api/_shared/http';
-import { getSyncPair, deleteSyncPair, getLatestSyncRun, updateSyncPairAutoSync } from '@/lib/sync/syncStore';
+import { getSyncPair, deleteSyncPair, getLatestSyncRun, updateSyncPairAutoSync, updateSyncPairInterval } from '@/lib/sync/syncStore';
+import type { SyncInterval } from '@/lib/sync/types';
 
 /**
  * GET /api/sync/pairs/[id]
@@ -74,13 +75,28 @@ export async function PATCH(
     const { id } = await params;
     const body = await request.json();
 
-    if (typeof body.autoSync !== 'boolean') {
-      return badRequest('autoSync must be a boolean');
+    const VALID_INTERVALS: Set<string> = new Set(['off', '15m', '30m', '1h', '6h', '12h', '24h']);
+
+    if (body.syncInterval !== undefined) {
+      if (!VALID_INTERVALS.has(body.syncInterval)) {
+        return badRequest('Invalid syncInterval');
+      }
+
+      const updated = updateSyncPairInterval(id, body.syncInterval as SyncInterval, session.user.id);
+      if (!updated) {
+        return notFound('Sync pair not found');
+      }
     }
 
-    const updated = updateSyncPairAutoSync(id, body.autoSync, session.user.id);
-    if (!updated) {
-      return notFound('Sync pair not found');
+    if (body.autoSync !== undefined) {
+      if (typeof body.autoSync !== 'boolean') {
+        return badRequest('autoSync must be a boolean');
+      }
+
+      const updated = updateSyncPairAutoSync(id, body.autoSync, session.user.id);
+      if (!updated) {
+        return notFound('Sync pair not found');
+      }
     }
 
     const pair = getSyncPair(id, session.user.id);

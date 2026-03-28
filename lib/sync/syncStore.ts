@@ -1,7 +1,66 @@
 import { randomUUID } from 'crypto';
 import { getRecsDb } from '@/lib/recs/db';
-import type { SyncPair, SyncRun, SyncDirection, SyncRunStatus } from './types';
+import type { SyncPair, SyncRun, SyncDirection, SyncRunStatus, SyncInterval, SyncTrigger, SyncWarning } from './types';
 import type { MusicProviderId } from '@/lib/music-provider/types';
+
+// -----------------------------------------------------------------------------
+// Constants
+// -----------------------------------------------------------------------------
+
+const INTERVAL_MS: Record<SyncInterval, number> = {
+  'off': 0,
+  '15m': 15 * 60 * 1000,
+  '30m': 30 * 60 * 1000,
+  '1h': 60 * 60 * 1000,
+  '6h': 6 * 60 * 60 * 1000,
+  '12h': 12 * 60 * 60 * 1000,
+  '24h': 24 * 60 * 60 * 1000,
+};
+
+// -----------------------------------------------------------------------------
+// SyncRun row mapper
+// -----------------------------------------------------------------------------
+
+interface SyncRunRow {
+  id: string;
+  syncPairId: string;
+  status: SyncRunStatus;
+  direction: SyncDirection;
+  tracksAdded: number;
+  tracksRemoved: number;
+  tracksUnresolved: number;
+  errorMessage: string | null;
+  warningsJson: string | null;
+  triggeredBy: SyncTrigger;
+  startedAt: string;
+  completedAt: string | null;
+}
+
+function mapSyncRunRow(row: SyncRunRow): SyncRun {
+  let warnings: SyncWarning[] = [];
+  if (row.warningsJson) {
+    try {
+      warnings = JSON.parse(row.warningsJson) as SyncWarning[];
+    } catch {
+      // corrupted JSON — treat as empty
+    }
+  }
+
+  return {
+    id: row.id,
+    syncPairId: row.syncPairId,
+    status: row.status,
+    direction: row.direction,
+    tracksAdded: row.tracksAdded,
+    tracksRemoved: row.tracksRemoved,
+    tracksUnresolved: row.tracksUnresolved,
+    errorMessage: row.errorMessage,
+    warnings,
+    triggeredBy: row.triggeredBy,
+    startedAt: row.startedAt,
+    completedAt: row.completedAt,
+  };
+}
 
 // -----------------------------------------------------------------------------
 // SyncPair CRUD
@@ -63,6 +122,9 @@ export function getSyncPair(id: string, createdBy?: string): SyncPair | null {
         direction,
         created_by AS createdBy,
         auto_sync AS autoSync,
+        sync_interval AS syncInterval,
+        next_run_at AS nextRunAt,
+        consecutive_failures AS consecutiveFailures,
         created_at AS createdAt,
         updated_at AS updatedAt
       FROM sync_pairs
@@ -84,6 +146,9 @@ export function getSyncPair(id: string, createdBy?: string): SyncPair | null {
       direction,
       created_by AS createdBy,
       auto_sync AS autoSync,
+      sync_interval AS syncInterval,
+      next_run_at AS nextRunAt,
+      consecutive_failures AS consecutiveFailures,
       created_at AS createdAt,
       updated_at AS updatedAt
     FROM sync_pairs
@@ -114,6 +179,9 @@ export function getSyncPairByPlaylists(
       direction,
       created_by AS createdBy,
       auto_sync AS autoSync,
+      sync_interval AS syncInterval,
+      next_run_at AS nextRunAt,
+      consecutive_failures AS consecutiveFailures,
       created_at AS createdAt,
       updated_at AS updatedAt
     FROM sync_pairs
@@ -148,6 +216,9 @@ export function listSyncPairs(createdBy: string): SyncPair[] {
       direction,
       created_by AS createdBy,
       auto_sync AS autoSync,
+      sync_interval AS syncInterval,
+      next_run_at AS nextRunAt,
+      consecutive_failures AS consecutiveFailures,
       created_at AS createdAt,
       updated_at AS updatedAt
     FROM sync_pairs
@@ -186,24 +257,115 @@ export function updateSyncPairAutoSync(id: string, autoSync: boolean, createdBy?
 }
 
 // -----------------------------------------------------------------------------
+// SyncPair scheduler helpers
+// -----------------------------------------------------------------------------
+
+export function updateSyncPairInterval(id: string, interval: SyncInterval, createdBy?: string): boolean {
+  const db = getRecsDb();
+
+  const nextRunAt = interval === 'off'
+    ? null
+    : new Date(Date.now() + INTERVAL_MS[interval]).toISOString();
+
+  if (createdBy) {
+    const result = db.prepare(`
+      UPDATE sync_pairs
+      SET sync_interval = ?, next_run_at = ?, consecutive_failures = 0, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND created_by = ?
+    `).run(interval, nextRunAt, id, createdBy);
+    return result.changes > 0;
+  }
+
+  const result = db.prepare(`
+    UPDATE sync_pairs
+    SET sync_interval = ?, next_run_at = ?, consecutive_failures = 0, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `).run(interval, nextRunAt, id);
+  return result.changes > 0;
+}
+
+export function getDueSyncPairs(limit: number): SyncPair[] {
+  const db = getRecsDb();
+
+  return db.prepare(`
+    SELECT
+      id,
+      source_provider AS sourceProvider,
+      source_playlist_id AS sourcePlaylistId,
+      source_playlist_name AS sourcePlaylistName,
+      target_provider AS targetProvider,
+      target_playlist_id AS targetPlaylistId,
+      target_playlist_name AS targetPlaylistName,
+      direction,
+      created_by AS createdBy,
+      auto_sync AS autoSync,
+      sync_interval AS syncInterval,
+      next_run_at AS nextRunAt,
+      consecutive_failures AS consecutiveFailures,
+      created_at AS createdAt,
+      updated_at AS updatedAt
+    FROM sync_pairs
+    WHERE sync_interval != 'off'
+      AND next_run_at IS NOT NULL
+      AND next_run_at <= datetime('now')
+      AND consecutive_failures < 5
+    ORDER BY next_run_at ASC
+    LIMIT ?
+  `).all(limit) as SyncPair[];
+}
+
+export function advanceNextRunAt(id: string): void {
+  const db = getRecsDb();
+
+  const row = db.prepare('SELECT sync_interval FROM sync_pairs WHERE id = ?').get(id) as
+    | { sync_interval: SyncInterval }
+    | undefined;
+
+  if (!row || row.sync_interval === 'off') return;
+
+  const ms = INTERVAL_MS[row.sync_interval];
+  if (ms === 0) return;
+
+  const nextRunAt = new Date(Date.now() + ms).toISOString();
+  db.prepare('UPDATE sync_pairs SET next_run_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(nextRunAt, id);
+}
+
+export function incrementConsecutiveFailures(id: string): void {
+  const db = getRecsDb();
+  db.prepare(
+    'UPDATE sync_pairs SET consecutive_failures = consecutive_failures + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+  ).run(id);
+}
+
+export function resetConsecutiveFailures(id: string): void {
+  const db = getRecsDb();
+  db.prepare(
+    'UPDATE sync_pairs SET consecutive_failures = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+  ).run(id);
+}
+
+// -----------------------------------------------------------------------------
 // SyncRun CRUD
 // -----------------------------------------------------------------------------
 
 export function createSyncRun(input: {
   syncPairId: string;
   direction: SyncDirection;
+  triggeredBy?: SyncTrigger;
 }): SyncRun {
   const db = getRecsDb();
   const id = randomUUID();
+  const triggeredBy = input.triggeredBy ?? 'manual';
 
   db.prepare(`
     INSERT INTO sync_runs (
       id,
       sync_pair_id,
       status,
-      direction
-    ) VALUES (?, ?, 'pending', ?)
-  `).run(id, input.syncPairId, input.direction);
+      direction,
+      triggered_by
+    ) VALUES (?, ?, 'pending', ?, ?)
+  `).run(id, input.syncPairId, input.direction, triggeredBy);
 
   return getLatestSyncRun(input.syncPairId)!;
 }
@@ -216,6 +378,7 @@ export function updateSyncRun(
     tracksRemoved?: number;
     tracksUnresolved?: number;
     errorMessage?: string | null;
+    warningsJson?: string | null;
     completedAt?: string | null;
   },
 ): void {
@@ -244,6 +407,10 @@ export function updateSyncRun(
     setClauses.push('error_message = ?');
     params.push(update.errorMessage);
   }
+  if (update.warningsJson !== undefined) {
+    setClauses.push('warnings_json = ?');
+    params.push(update.warningsJson);
+  }
   if (update.completedAt !== undefined) {
     setClauses.push('completed_at = ?');
     params.push(update.completedAt);
@@ -270,13 +437,41 @@ export function getLatestSyncRun(syncPairId: string): SyncRun | null {
       tracks_removed AS tracksRemoved,
       tracks_unresolved AS tracksUnresolved,
       error_message AS errorMessage,
+      warnings_json AS warningsJson,
+      triggered_by AS triggeredBy,
       started_at AS startedAt,
       completed_at AS completedAt
     FROM sync_runs
     WHERE sync_pair_id = ?
     ORDER BY started_at DESC
     LIMIT 1
-  `).get(syncPairId) as SyncRun | undefined;
+  `).get(syncPairId) as SyncRunRow | undefined;
 
-  return row ?? null;
+  return row ? mapSyncRunRow(row) : null;
+}
+
+export function listSyncRunsForPair(syncPairId: string, limit = 20): SyncRun[] {
+  const db = getRecsDb();
+
+  const rows = db.prepare(`
+    SELECT
+      id,
+      sync_pair_id AS syncPairId,
+      status,
+      direction,
+      tracks_added AS tracksAdded,
+      tracks_removed AS tracksRemoved,
+      tracks_unresolved AS tracksUnresolved,
+      error_message AS errorMessage,
+      warnings_json AS warningsJson,
+      triggered_by AS triggeredBy,
+      started_at AS startedAt,
+      completed_at AS completedAt
+    FROM sync_runs
+    WHERE sync_pair_id = ?
+    ORDER BY started_at DESC
+    LIMIT ?
+  `).all(syncPairId, limit) as SyncRunRow[];
+
+  return rows.map(mapSyncRunRow);
 }

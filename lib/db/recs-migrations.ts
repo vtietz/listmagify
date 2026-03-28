@@ -291,4 +291,16 @@ export const recsMigrations: Migration[] = [
       ALTER TABLE sync_pairs ADD COLUMN auto_sync INTEGER NOT NULL DEFAULT 0;
     `,
   },
+  {
+    version: 9,
+    name: 'add_sync_scheduler_columns',
+    sql: `
+      ALTER TABLE sync_pairs ADD COLUMN sync_interval TEXT NOT NULL DEFAULT 'off';
+      ALTER TABLE sync_pairs ADD COLUMN next_run_at TEXT;
+      ALTER TABLE sync_pairs ADD COLUMN consecutive_failures INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE sync_runs ADD COLUMN warnings_json TEXT;
+      ALTER TABLE sync_runs ADD COLUMN triggered_by TEXT NOT NULL DEFAULT 'manual';
+      CREATE INDEX IF NOT EXISTS idx_sync_pairs_next_run ON sync_pairs(next_run_at);
+    `,
+  },
 ];

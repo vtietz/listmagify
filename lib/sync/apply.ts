@@ -147,8 +147,8 @@ function resolveRemoveUris(
  * Collects errors per batch rather than aborting the entire operation so
  * partial progress is preserved.
  */
-export async function applySyncPlan(plan: SyncPlan): Promise<SyncApplyResult> {
-  const targetProvider = getMusicProvider(plan.targetProvider);
+export async function applySyncPlan(plan: SyncPlan, targetProviderOverride?: MusicProvider): Promise<SyncApplyResult> {
+  const targetProvider = targetProviderOverride ?? getMusicProvider(plan.targetProvider);
 
   const adds = plan.items.filter((item) => item.action === 'add');
   const removes = plan.items.filter((item) => item.action === 'remove');

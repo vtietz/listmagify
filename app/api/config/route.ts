@@ -16,5 +16,7 @@ export async function GET() {
     byokEnabled: serverEnv.SPOTIFY_BYOK_ENABLED ?? false,
     // Enabled music providers (controlled by MUSIC_PROVIDERS env var)
     availableProviders: getEnabledMusicProviders(),
+    // Whether the background sync scheduler is enabled
+    syncSchedulerEnabled: process.env.SYNC_SCHEDULER_ENABLED === 'true',
   });
 }

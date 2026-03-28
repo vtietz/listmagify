@@ -8,11 +8,18 @@ export function useUpdateSyncPair() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, autoSync }: { id: string; autoSync: boolean }) => {
+    mutationFn: async ({ id, autoSync, syncInterval }: {
+      id: string;
+      autoSync?: boolean;
+      syncInterval?: string;
+    }) => {
       return apiFetch<{ pair: unknown }>(`/api/sync/pairs/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ autoSync }),
+        body: JSON.stringify({
+          ...(autoSync !== undefined ? { autoSync } : {}),
+          ...(syncInterval !== undefined ? { syncInterval } : {}),
+        }),
       });
     },
     onSuccess: () => {
