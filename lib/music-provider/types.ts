@@ -247,6 +247,7 @@ export interface MusicProvider {
   containsTracks(payload: TrackSavePayload): Promise<boolean[]>;
   getLikedTracks(limit?: number, nextCursor?: string | null): Promise<LikedTracksPageResult<Track>>;
   searchTracks(query: string, limit?: number, offset?: number): Promise<TrackSearchResult<Track>>;
+  getTrackByIsrc?(isrc: string): Promise<Track | null>;
   searchArtists(query: string, limit?: number, offset?: number): Promise<ArtistSearchResult>;
   searchAlbums(query: string, limit?: number, offset?: number): Promise<AlbumSearchResult>;
   getArtistTopTracks(artistId: string): Promise<Track[]>;

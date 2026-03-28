@@ -76,8 +76,43 @@ async function searchTracks(query: string, targetProvider: MusicProviderId, limi
   return result.tracks ?? [];
 }
 
+async function lookupTrackByIsrc(isrc: string, targetProvider: MusicProviderId): Promise<Track | null> {
+  try {
+    const result = await apiFetch<{ track: Track | null }>('/api/tracks/isrc?' + new URLSearchParams({
+      provider: targetProvider,
+      isrc,
+    }).toString());
+    return result.track ?? null;
+  } catch {
+    return null;
+  }
+}
+
 class ApiSearchProviderAdapter implements ProviderMatchingAdapter {
   async searchCandidates(payload: TrackPayload, targetProvider: MusicProviderId, limit = 3): Promise<MatchCandidate[]> {
+    // Fast-path: ISRC lookup
+    if (payload.isrc) {
+      const isrcTrack = await lookupTrackByIsrc(payload.isrc, targetProvider);
+      if (isrcTrack?.id) {
+        const releaseYear = extractReleaseYear(isrcTrack);
+        return [{
+          provider: targetProvider,
+          trackId: isrcTrack.id,
+          trackUri: isrcTrack.uri,
+          score: 1.0,
+          matchedBy: 'text',
+          previewMetadata: {
+            title: isrcTrack.name,
+            artists: isrcTrack.artists ?? [],
+            album: isrcTrack.album?.name ?? null,
+            durationMs: isrcTrack.durationMs,
+            ...(releaseYear ? { releaseYear } : {}),
+          },
+        }];
+      }
+    }
+
+    // Text search fallback
     const query = buildQuery(payload);
     if (!query) {
       return [];

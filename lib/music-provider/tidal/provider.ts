@@ -136,6 +136,25 @@ export function createTidalProvider(dependencies: TidalProviderDependencies = {}
       return { tracks: page.tracks, total: page.tracks.length, nextOffset: null };
     },
 
+    async getTrackByIsrc(isrc: string): Promise<Track | null> {
+      const params = new URLSearchParams();
+      params.set('filter[isrc]', isrc);
+      params.set('include', 'artists,albums');
+      const path = `/tracks?${params.toString()}`;
+      const response = await transport.executeWithSession(path, { method: 'GET' }, undefined);
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          return null;
+        }
+        throwProviderError(response, await readJsonApiErrorDetails(response), 'getTrackByIsrc');
+      }
+
+      const raw = (await response.json()) as JsonApiDocument<JsonApiIdentifier[]>;
+      const page = mapTrackListDocument(raw);
+      return page.tracks[0] ?? null;
+    },
+
     async searchArtists(query: string, _limit = 20, offset = 0): Promise<ArtistSearchResult> {
       if (offset > 0) {
         return { artists: [], total: 0, nextOffset: null };

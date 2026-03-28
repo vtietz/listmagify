@@ -129,6 +129,19 @@ export function createSpotifyProvider(
       return mapSearchTracks(raw, boundedOffset);
     },
 
+    async getTrackByIsrc(isrc: string): Promise<Track | null> {
+      const path = `/search?q=${encodeURIComponent(`isrc:${isrc}`)}&type=track&limit=1`;
+      const response = await executeWithSession(path, { method: 'GET' }, undefined, deps);
+
+      if (!response.ok) {
+        throwProviderError(response, await readErrorText(response), 'getTrackByIsrc');
+      }
+
+      const raw = await response.json();
+      const result = mapSearchTracks(raw, 0);
+      return result.tracks[0] ?? null;
+    },
+
     async searchArtists(query: string, limit = 50, offset = 0): Promise<ArtistSearchResult> {
       const boundedLimit = Math.min(Math.max(limit, 1), 50);
       const boundedOffset = Math.max(offset, 0);
