@@ -108,7 +108,11 @@ describe("useLikedTracksStatus", () => {
       expect(result.current.isLoading).toBe(false);
     });
 
-    expect(mockApiFetch).toHaveBeenCalledWith("/api/tracks/contains?ids=track1,track2,track3");
+    expect(mockApiFetch).toHaveBeenCalledWith("/api/tracks/contains", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: ["track1", "track2", "track3"] }),
+    });
     expect(result.current.likedMap.get("track1")).toBe(true);
     expect(result.current.likedMap.get("track2")).toBe(false);
     expect(result.current.likedMap.get("track3")).toBe(true);
@@ -139,7 +143,11 @@ describe("useLikedTracksStatus", () => {
     });
 
     // Should only request non-null IDs
-    expect(mockApiFetch).toHaveBeenCalledWith("/api/tracks/contains?ids=track1,track2");
+    expect(mockApiFetch).toHaveBeenCalledWith("/api/tracks/contains", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: ["track1", "track2"] }),
+    });
     expect(result.current.likedMap.has(null as unknown as string)).toBe(false);
   });
 
@@ -177,12 +185,12 @@ describe("useLikedTracksStatus", () => {
     expect(mockApiFetch).toHaveBeenCalledTimes(2);
     
     // First call should have 50 IDs
-    const firstCallIds = (mockApiFetch.mock.calls[0]![0] as string).split("ids=")[1]!.split(",");
-    expect(firstCallIds.length).toBe(50);
-    
+    const firstCallBody = JSON.parse(mockApiFetch.mock.calls[0]![1]!.body as string);
+    expect(firstCallBody.ids.length).toBe(50);
+
     // Second call should have 25 IDs
-    const secondCallIds = (mockApiFetch.mock.calls[1]![0] as string).split("ids=")[1]!.split(",");
-    expect(secondCallIds.length).toBe(25);
+    const secondCallBody = JSON.parse(mockApiFetch.mock.calls[1]![1]!.body as string);
+    expect(secondCallBody.ids.length).toBe(25);
 
     // Verify map contains all tracks
     expect(result.current.likedMap.size).toBe(75);

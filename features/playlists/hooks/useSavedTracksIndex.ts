@@ -402,7 +402,11 @@ export function useSavedTracksIndex(providerId?: MusicProviderId) {
         // Fetch all batches in parallel
         const results = await Promise.all(
           batches.map(batch =>
-            apiFetch<boolean[]>(`/api/tracks/contains?provider=${activeProviderId}&ids=${batch.join(',')}`)
+            apiFetch<boolean[]>(`/api/tracks/contains?provider=${activeProviderId}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ids: batch }),
+            })
           )
         );
         

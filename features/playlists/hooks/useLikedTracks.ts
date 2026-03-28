@@ -94,7 +94,11 @@ export function useLikedTracksStatus({
       // Fetch all batches in parallel
       const results = await Promise.all(
         batches.map(batch =>
-          apiFetch<boolean[]>(`/api/tracks/contains?ids=${batch.join(',')}`)
+          apiFetch<boolean[]>('/api/tracks/contains', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids: batch }),
+          })
         )
       );
 

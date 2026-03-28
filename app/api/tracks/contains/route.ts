@@ -21,24 +21,27 @@ function parseProviderErrorDetails(details?: string): any {
 }
 
 /**
- * GET /api/tracks/contains?ids=id1,id2,...
- * 
+ * POST /api/tracks/contains
+ * Body: { ids: string[] }
+ *
  * Proxy to provider saved-tracks contains endpoint.
  * Returns boolean[] indicating whether each track is saved to user's library.
  * Max 50 IDs per request.
  */
-export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const idsParam = searchParams.get('ids');
-
-  if (!idsParam) {
+export async function POST(request: NextRequest) {
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
     return NextResponse.json(
-      { error: 'Missing ids parameter' },
+      { error: 'Invalid JSON body' },
       { status: 400 }
     );
   }
 
-  const ids = idsParam.split(',').filter(Boolean);
+  const ids = Array.isArray((body as any)?.ids)
+    ? ((body as any).ids as unknown[]).filter((id): id is string => typeof id === 'string' && id !== '')
+    : [];
 
   if (ids.length === 0) {
     return NextResponse.json([]);
@@ -47,14 +50,6 @@ export async function GET(request: NextRequest) {
   if (ids.length > 50) {
     return NextResponse.json(
       { error: 'Maximum 50 IDs per request' },
-      { status: 400 }
-    );
-  }
-
-  // Validate all IDs are strings (no empty values)
-  if (ids.some(id => typeof id !== 'string' || id.trim() === '')) {
-    return NextResponse.json(
-      { error: 'Invalid ID format' },
       { status: 400 }
     );
   }
