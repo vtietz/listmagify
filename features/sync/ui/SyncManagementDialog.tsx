@@ -59,7 +59,8 @@ function SyncPairRow({ pair, bothConnected, showScheduler }: { pair: SyncPairWit
   const sourceName = pair.sourcePlaylistName || fetchedSourceName;
   const targetName = pair.targetPlaylistName || fetchedTargetName;
   const lastSyncTime = pair.latestRun?.completedAt ?? pair.latestRun?.startedAt;
-  const isSyncing = execute.isPending;
+  const isExecutingBackground = pair.latestRun?.status === 'executing' && !pair.latestRun?.completedAt;
+  const isSyncing = execute.isPending || isExecutingBackground;
   const warningCount = pair.latestRun?.warnings?.length ?? 0;
 
   const pairConfig = {

@@ -38,6 +38,39 @@ services:
         pnpm exec next dev --webpack --hostname 0.0.0.0 -p ${PORT:-3000}
     tty: true
 
+  sync-worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: dev
+    image: sbs-web:dev
+    working_dir: /usr/src/app
+    env_file:
+      - ../.env
+    environment:
+      - NODE_ENV=development
+      - SYNC_SCHEDULER_ENABLED=true
+      - TOKEN_KEEPALIVE_ENABLED=true
+    volumes:
+      - ..:/usr/src/app:cached
+      - ../node_modules:/usr/src/app/node_modules:cached
+      - ../data:/usr/src/app/data
+    command:
+      - sh
+      - -lc
+      - >
+        corepack prepare pnpm@latest --activate &&
+        pnpm exec tsx scripts/migrate.ts &&
+        pnpm exec tsx services/sync-worker/index.ts
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+    restart: unless-stopped
+    depends_on:
+      - web
+
   prod:
     build:
       context: ..

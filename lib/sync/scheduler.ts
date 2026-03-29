@@ -6,21 +6,34 @@
  * bounded concurrency.
  *
  * Enabled via the SYNC_SCHEDULER_ENABLED=true environment variable.
+ * Configurable via SYNC_TICK_MS and SYNC_MAX_CONCURRENT env vars.
  */
 
 import { getDueSyncPairs } from '@/lib/sync/syncStore';
 import { executeBackgroundSync } from '@/lib/sync/backgroundRunner';
 
-const TICK_MS = 60_000;
-const MAX_CONCURRENT = 2;
+function getTickMs(): number {
+  return Number(process.env.SYNC_TICK_MS ?? 60_000);
+}
 
-let intervalId: ReturnType<typeof setInterval> | null = null;
+function getMaxConcurrent(): number {
+  return Number(process.env.SYNC_MAX_CONCURRENT ?? 2);
+}
+
+/** Apply ±jitterPct random jitter to a base delay, floored at 1s. */
+function jitteredDelay(baseMs: number, jitterPct: number): number {
+  const jitter = baseMs * jitterPct * (2 * Math.random() - 1);
+  return Math.max(1000, Math.round(baseMs + jitter));
+}
+
+let timeoutId: ReturnType<typeof setTimeout> | null = null;
 let activeSyncs = 0;
 
 async function tick(): Promise<void> {
-  if (activeSyncs >= MAX_CONCURRENT) return;
+  const maxConcurrent = getMaxConcurrent();
+  if (activeSyncs >= maxConcurrent) return;
 
-  const slots = MAX_CONCURRENT - activeSyncs;
+  const slots = maxConcurrent - activeSyncs;
   const duePairs = getDueSyncPairs(slots);
 
   for (const pair of duePairs) {
@@ -33,20 +46,28 @@ async function tick(): Promise<void> {
   }
 }
 
+function scheduleTick(): void {
+  const delay = jitteredDelay(getTickMs(), 0.05);
+  timeoutId = setTimeout(() => {
+    void tick().finally(scheduleTick);
+  }, delay);
+}
+
 export function startScheduler(): void {
-  if (intervalId) return;
+  if (timeoutId) return;
   if (process.env.SYNC_SCHEDULER_ENABLED !== 'true') return;
 
-  console.debug('[sync/scheduler] starting');
-  intervalId = setInterval(() => {
-    void tick();
-  }, TICK_MS);
+  console.debug('[sync/scheduler] starting', {
+    tickMs: getTickMs(),
+    maxConcurrent: getMaxConcurrent(),
+  });
   void tick();
+  scheduleTick();
 }
 
 export function stopScheduler(): void {
-  if (intervalId) {
-    clearInterval(intervalId);
-    intervalId = null;
+  if (timeoutId) {
+    clearTimeout(timeoutId);
+    timeoutId = null;
   }
 }

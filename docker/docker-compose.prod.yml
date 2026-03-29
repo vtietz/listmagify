@@ -22,3 +22,21 @@ services:
     volumes:
       - ../data:/usr/src/app/data
     restart: unless-stopped
+
+  sync-worker:
+    image: ${IMAGE:-ghcr.io/vtietz/listmagify:latest}
+    environment:
+      - NODE_ENV=production
+      - SYNC_SCHEDULER_ENABLED=true
+      - TOKEN_KEEPALIVE_ENABLED=true
+    env_file:
+      - ../.env
+    volumes:
+      - ../data:/usr/src/app/data
+    command: ["sh", "-c", "node scripts/migrate.js && node dist/services/sync-worker/index.js"]
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+    restart: unless-stopped

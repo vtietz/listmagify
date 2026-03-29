@@ -306,6 +306,10 @@ case "${1:-}" in
     echo ""
     echo "✓ Cleanup complete!"
     ;;
+  worker)
+    shift
+    docker compose --env-file .env -f docker/docker-compose.yml up sync-worker "$@"
+    ;;
   *)
     usage; exit 1;;
 esac

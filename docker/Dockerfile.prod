@@ -50,6 +50,10 @@ RUN pnpm build
 RUN pnpm exec esbuild scripts/migrate.ts --bundle --platform=node \
     --external:better-sqlite3 --outfile=dist/scripts/migrate.js --format=cjs --minify
 
+# Bundle sync worker script to standalone JS
+RUN pnpm exec esbuild services/sync-worker/index.ts --bundle --platform=node \
+    --external:better-sqlite3 --outfile=dist/services/sync-worker/index.js --format=cjs --minify
+
 # --- Production Image ---
 FROM base AS prod
 WORKDIR /usr/src/app
@@ -62,6 +66,9 @@ COPY --from=builder /usr/src/app/public ./public
 # Copy bundled migration script and native module it needs
 COPY --from=builder /usr/src/app/dist/scripts/migrate.js ./scripts/migrate.js
 COPY --from=builder /usr/src/app/node_modules/better-sqlite3 ./node_modules/better-sqlite3
+
+# Copy bundled sync worker
+COPY --from=builder /usr/src/app/dist/services/sync-worker/index.js ./dist/services/sync-worker/index.js
 
 # Set hostname to bind to all interfaces (required for Docker networking)
 ENV HOSTNAME=0.0.0.0

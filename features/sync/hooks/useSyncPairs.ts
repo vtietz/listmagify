@@ -33,6 +33,7 @@ export function useSyncPairs(enabled = true) {
     enabled,
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
+    refetchInterval: enabled ? 10_000 : false,
   });
 }
 

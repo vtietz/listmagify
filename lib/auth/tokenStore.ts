@@ -248,3 +248,32 @@ export function getActiveTokensForUser(userId: string): StoredProviderToken[] {
     return [];
   }
 }
+
+/**
+ * Get all active tokens across all users and providers.
+ * Used by the token keepalive loop to proactively refresh expiring tokens.
+ */
+export function getAllActiveTokens(): StoredProviderToken[] {
+  if (!isTokenEncryptionAvailable()) {
+    return [];
+  }
+
+  try {
+    const db = getAuthDb();
+    const rows = db
+      .prepare(`SELECT * FROM user_tokens WHERE status = 'active'`)
+      .all() as TokenRow[];
+
+    const tokens: StoredProviderToken[] = [];
+    for (const row of rows) {
+      const token = rowToStoredToken(row);
+      if (token) {
+        tokens.push(token);
+      }
+    }
+    return tokens;
+  } catch (error) {
+    console.error('[auth-token-store] Failed to get all active tokens:', error);
+    return [];
+  }
+}

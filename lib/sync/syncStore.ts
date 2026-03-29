@@ -316,9 +316,11 @@ export function updateSyncPairAutoSync(id: string, autoSync: boolean, createdBy?
 export function updateSyncPairInterval(id: string, interval: SyncInterval, createdBy?: string): boolean {
   const db = getRecsDb();
 
+  const baseMs = INTERVAL_MS[interval];
+  const jitter = baseMs * 0.10 * (2 * Math.random() - 1);
   const nextRunAt = interval === 'off'
     ? null
-    : new Date(Date.now() + INTERVAL_MS[interval]).toISOString();
+    : new Date(Date.now() + Math.round(baseMs + jitter)).toISOString();
 
   if (createdBy) {
     const result = db.prepare(`
@@ -379,7 +381,8 @@ export function advanceNextRunAt(id: string): void {
   const ms = INTERVAL_MS[row.sync_interval];
   if (ms === 0) return;
 
-  const nextRunAt = new Date(Date.now() + ms).toISOString();
+  const jitter = ms * 0.10 * (2 * Math.random() - 1);
+  const nextRunAt = new Date(Date.now() + Math.round(ms + jitter)).toISOString();
   db.prepare('UPDATE sync_pairs SET next_run_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(nextRunAt, id);
 }
 
