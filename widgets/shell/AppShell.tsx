@@ -271,6 +271,7 @@ function Header({ title: _title }: { title: string }) {
             <AdaptiveNav
               isPhone={isPhone}
               showSecureLinks={authSummary.anyAuthenticated}
+              multipleProvidersConnected={authSummary.spotify.code === 'ok' && authSummary.tidal.code === 'ok'}
               pathname={pathname}
               hasStatsAccess={hasStatsAccess}
               isBrowseOpen={isBrowseOpen}

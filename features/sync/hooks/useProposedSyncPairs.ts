@@ -52,8 +52,8 @@ export function useProposedSyncPairs(
         const b = unique[j];
         if (!b) continue;
 
-        // Guard: skip if both sides are identical (should not happen after dedup)
-        if (a.providerId === b.providerId && a.playlistId === b.playlistId) {
+        // Skip same-provider pairs — sync only makes sense cross-provider
+        if (a.providerId === b.providerId) {
           continue;
         }
 

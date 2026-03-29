@@ -95,6 +95,8 @@ interface AdaptiveNavProps {
   markerStats: MarkerStats;
   /** Clear all markers */
   clearAllMarkers: () => void;
+  /** Whether multiple music providers are connected (enables sync) */
+  multipleProvidersConnected?: boolean;
 }
 
 interface AppConfigResponse {
@@ -246,6 +248,7 @@ export function AdaptiveNav({
   supportsCompare,
   markerStats,
   clearAllMarkers,
+  multipleProvidersConnected = false,
 }: AdaptiveNavProps) {
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [configOpen, setConfigOpen] = useState(false);
@@ -316,7 +319,7 @@ export function AdaptiveNav({
       icon: <RefreshCw className={cn('h-3.5 w-3.5', isSyncing && 'animate-spin')} />,
       label: 'Sync',
       onClick: openManagement,
-      visible: showSecureLinks,
+      visible: showSecureLinks && multipleProvidersConnected,
       group: 'view',
     },
     {
@@ -384,7 +387,7 @@ export function AdaptiveNav({
     supportsBrowse,
     isPlaylistsActive, isSplitEditorActive, isStatsActive, hasStatsAccess,
     isBrowseOpen, toggleBrowse, isPlayerVisible, togglePlayerVisible, supportsPlayer,
-    openManagement, isSyncing,
+    openManagement, isSyncing, multipleProvidersConnected,
     markerStats.totalMarkers, clearAllMarkers,
     isSingleProvider,
     setConfigOpen,

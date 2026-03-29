@@ -78,8 +78,8 @@ export function AddSyncPairForm({
   const sourcePlaylistName = usePlaylistName(sourceProvider, sourcePlaylistId ?? '');
   const targetPlaylistName = usePlaylistName(targetProvider, targetPlaylistId ?? '');
 
-  const isSamePlaylist = sourceProvider === targetProvider && sourcePlaylistId === targetPlaylistId;
-  const canSubmit = sourcePlaylistId && targetPlaylistId && !isSamePlaylist && !createPair.isPending;
+  const isSameProvider = sourceProvider === targetProvider;
+  const canSubmit = sourcePlaylistId && targetPlaylistId && !isSameProvider && !createPair.isPending;
 
   function handleSubmit() {
     if (!sourcePlaylistId || !targetPlaylistId) return;
