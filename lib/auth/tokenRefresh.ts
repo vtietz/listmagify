@@ -136,6 +136,10 @@ export async function refreshSpotifyAccessToken(token: ProviderJwtToken): Promis
 export function buildRefreshedTidalToken(token: ProviderJwtToken, data: any): ProviderJwtToken {
   const expiresInMs = (data.expires_in ?? 3600) * 1000;
   const refreshToken = data.refresh_token ?? token.refreshToken;
+  const rotated = typeof data.refresh_token === 'string' && data.refresh_token !== token.refreshToken;
+  console.debug(
+    `[auth] TIDAL refresh result: expires_in=${data.expires_in ?? 'missing'}s, refresh_token_rotated=${rotated}`,
+  );
   const refreshedToken: ProviderJwtToken = {
     ...token,
     accessToken: data.access_token,

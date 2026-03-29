@@ -181,6 +181,9 @@ function buildProviderTokenFromAccount(
   const expiresAt = extractExpiresAt(accountData);
 
   if (providerId !== 'spotify') {
+    console.debug(
+      `[auth] ${providerId} initial token: expires_at=${expiresAt} (in ${Math.round((expiresAt - Date.now()) / 1000)}s), has_refresh_token=${Boolean(accountData.refresh_token)}, raw_expires_at=${accountData.expires_at}, raw_expires_in=${accountData.expires_in}`,
+    );
     const nextProviderToken: ProviderJwtToken = {
       ...previousToken,
       accessToken: accountData.access_token,
