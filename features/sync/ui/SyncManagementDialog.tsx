@@ -7,8 +7,8 @@ import { useUpdateSyncPair } from '@features/sync/hooks/useUpdateSyncPair';
 import type { SyncPairWithRun } from '@features/sync/hooks/useSyncPairs';
 import { useSyncExecute } from '@features/sync/hooks/useSyncExecute';
 import { usePlaylistName } from '@features/sync/hooks/usePlaylistName';
-import { SyncStatusBadge } from '@features/sync/ui/SyncStatusBadge';
-import { SyncRunHistoryPanel } from '@features/sync/ui/SyncRunHistoryPanel';
+import { SyncRunStatusIcon } from '@features/sync/ui/SyncRunStatusIcon';
+import { SyncRunResultDialog } from '@features/sync/ui/SyncRunResultDialog';
 import { AddSyncPairForm } from '@features/sync/ui/AddSyncPairForm';
 import { ProviderGlyph } from '@/components/auth/ProviderStatusDropdown';
 import { useAuthSummary } from '@features/auth/hooks/useAuth';
@@ -26,9 +26,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Play, Eye, Trash2, ArrowLeftRight, Loader2, Clock } from 'lucide-react';
+import { Play, Eye, Trash2, ArrowLeftRight, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSyncSchedulerEnabled } from '@shared/hooks/useAppConfig';
+import { useProposedSyncPairs } from '@features/sync/hooks/useProposedSyncPairs';
 import type { MusicProviderId } from '@/lib/music-provider/types';
 
 function formatRelativeTime(dateStr: string): string {
@@ -51,7 +52,7 @@ function SyncPairRow({ pair, bothConnected, showScheduler }: { pair: SyncPairWit
   const deletePair = useDeleteSyncPair();
   const execute = useSyncExecute();
   const updatePair = useUpdateSyncPair();
-  const [showHistory, setShowHistory] = useState(false);
+  const [showResultDialog, setShowResultDialog] = useState(false);
 
   const fetchedSourceName = usePlaylistName(pair.sourceProvider, pair.sourcePlaylistId);
   const fetchedTargetName = usePlaylistName(pair.targetProvider, pair.targetPlaylistId);
@@ -89,7 +90,11 @@ function SyncPairRow({ pair, bothConnected, showScheduler }: { pair: SyncPairWit
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
-          <SyncStatusBadge status={isSyncing ? 'executing' : pair.latestRun?.status} />
+          <SyncRunStatusIcon
+            status={isSyncing ? 'executing' : pair.latestRun?.status}
+            hasWarnings={warningCount > 0}
+            onClick={pair.latestRun ? () => setShowResultDialog(true) : undefined}
+          />
           {lastSyncTime && !isSyncing ? (
             <span className="text-[10px] text-muted-foreground whitespace-nowrap" title={lastSyncTime}>
               {formatRelativeTime(lastSyncTime)}
@@ -101,19 +106,6 @@ function SyncPairRow({ pair, bothConnected, showScheduler }: { pair: SyncPairWit
               title={`Next: ${pair.nextRunAt}`}
             >
               next {formatRelativeTime(pair.nextRunAt)}
-            </span>
-          ) : null}
-          {(pair.consecutiveFailures ?? 0) > 0 ? (
-            <span
-              className="text-[10px] text-amber-500"
-              title={`${pair.consecutiveFailures} consecutive failures`}
-            >
-              !
-            </span>
-          ) : null}
-          {warningCount > 0 ? (
-            <span className="text-[10px] text-amber-500 whitespace-nowrap">
-              {warningCount} unmatched
             </span>
           ) : null}
         </div>
@@ -139,15 +131,6 @@ function SyncPairRow({ pair, bothConnected, showScheduler }: { pair: SyncPairWit
               </SelectContent>
             </Select>
           )}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            title="Sync history"
-            onClick={() => setShowHistory(!showHistory)}
-          >
-            <Clock className="h-3.5 w-3.5" />
-          </Button>
           <Button
             variant="ghost"
             size="icon"
@@ -180,11 +163,12 @@ function SyncPairRow({ pair, bothConnected, showScheduler }: { pair: SyncPairWit
           </Button>
         </div>
       </div>
-      {showHistory ? (
-        <div className="px-3 py-2 bg-muted/30 border-t border-border/50">
-          <SyncRunHistoryPanel pairId={pair.id} />
-        </div>
-      ) : null}
+
+      <SyncRunResultDialog
+        run={pair.latestRun ?? null}
+        open={showResultDialog}
+        onClose={() => setShowResultDialog(false)}
+      />
     </div>
   );
 }
@@ -204,6 +188,7 @@ export function SyncManagementDialog() {
   const isManagementOpen = useSyncDialogStore((s) => s.isManagementOpen);
   const closeManagement = useSyncDialogStore((s) => s.closeManagement);
   const { data: pairs, isLoading } = useSyncPairs(isManagementOpen);
+  const proposedPairs = useProposedSyncPairs(pairs);
   const schedulerEnabled = useSyncSchedulerEnabled();
   const [overlayEl, setOverlayEl] = useState<HTMLDivElement | null>(null);
   const overlayRef = useCallback((node: HTMLDivElement | null) => { setOverlayEl(node); }, []);
@@ -215,27 +200,47 @@ export function SyncManagementDialog() {
         <div ref={overlayRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 1 }} />
 
         <DialogHeader>
-          <DialogTitle>Sync Management</DialogTitle>
+          <DialogTitle>Sync Playlists</DialogTitle>
         </DialogHeader>
+
+        <div className="border-b border-border pb-2 space-y-1">
+          {proposedPairs.length > 0
+            ? proposedPairs.map((pair) => (
+                <AddSyncPairForm
+                  key={`${pair.sourceProvider}:${pair.sourcePlaylistId}-${pair.targetProvider}:${pair.targetPlaylistId}`}
+                  popoverContainer={overlayEl}
+                  initialSourceProvider={pair.sourceProvider}
+                  initialSourcePlaylistId={pair.sourcePlaylistId}
+                  initialTargetProvider={pair.targetProvider}
+                  initialTargetPlaylistId={pair.targetPlaylistId}
+                  showSyncActions
+                />
+              ))
+            : <AddSyncPairForm popoverContainer={overlayEl} showSyncActions />
+          }
+        </div>
 
         <div className="max-h-[60vh] overflow-y-auto space-y-1.5">
           {isLoading && (
             <p className="text-sm text-muted-foreground text-center py-4">Loading sync pairs...</p>
           )}
 
-          {!isLoading && (!pairs || pairs.length === 0) && (
-            <p className="text-sm text-muted-foreground text-center py-4">
-              No sync pairs configured yet.
-            </p>
+          {!isLoading && pairs && pairs.length > 0 && (
+            <div className="space-y-1.5">
+              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                Saved sync pairs
+              </h3>
+              {pairs.map((pair: SyncPairWithRun) => (
+                <SyncPairRowWithAuth key={pair.id} pair={pair} showScheduler={schedulerEnabled} />
+              ))}
+            </div>
           )}
 
-          {pairs?.map((pair: SyncPairWithRun) => (
-            <SyncPairRowWithAuth key={pair.id} pair={pair} showScheduler={schedulerEnabled} />
-          ))}
-        </div>
-
-        <div className="border-t border-border pt-2">
-          <AddSyncPairForm popoverContainer={overlayEl} />
+          {!isLoading && (!pairs || pairs.length === 0) && proposedPairs.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              No sync pairs configured yet. Open playlists in the split editor to see suggestions.
+            </p>
+          )}
         </div>
       </DialogContent>
     </Dialog>

@@ -54,6 +54,8 @@ export interface SyncConfig {
   direction: SyncDirection;
 }
 
+export type MaterializeStatus = 'resolved' | 'not_found' | 'unchecked';
+
 export interface SyncDiffItem {
   canonicalTrackId: string;
   action: 'add' | 'remove';
@@ -64,6 +66,10 @@ export interface SyncDiffItem {
   durationMs: number;
   confidence: number;
   providerTrackId?: string | null;
+  /** Target provider track ID resolved during preview materialization check */
+  resolvedTargetTrackId?: string | null;
+  /** Whether the track was found on the target provider during preview */
+  materializeStatus?: MaterializeStatus;
 }
 
 export interface SyncPlan {
@@ -73,6 +79,8 @@ export interface SyncPlan {
   targetPlaylistId: string;
   direction: SyncDirection;
   items: SyncDiffItem[];
+  /** Desired canonical track ID order for each side after sync */
+  targetOrder?: Record<string, string[]>;
   summary: {
     toAdd: number;
     toRemove: number;

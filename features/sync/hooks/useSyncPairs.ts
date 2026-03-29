@@ -1,10 +1,8 @@
 'use client';
 
-import { useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api/client';
 import type { SyncPair, SyncRun } from '@/lib/sync/types';
-import type { MusicProviderId } from '@/lib/music-provider/types';
 
 export const SYNC_PAIRS_KEY = ['sync-pairs'] as const;
 
@@ -77,35 +75,4 @@ export function useDeleteSyncPair() {
       queryClient.invalidateQueries({ queryKey: SYNC_PAIRS_KEY });
     },
   });
-}
-
-/**
- * Finds an existing sync pair matching the given source/target playlists (in either order).
- */
-export function useSyncPairForPlaylists(
-  sourceProvider: MusicProviderId | undefined,
-  sourcePlaylistId: string | null,
-  targetProvider: MusicProviderId | undefined,
-  targetPlaylistId: string | null,
-): SyncPairWithRun | null {
-  const { data: pairs } = useSyncPairs(
-    !!sourceProvider && !!sourcePlaylistId && !!targetProvider && !!targetPlaylistId,
-  );
-
-  return useMemo(() => {
-    if (!pairs || !sourceProvider || !sourcePlaylistId || !targetProvider || !targetPlaylistId) {
-      return null;
-    }
-
-    return pairs.find((pair: SyncPairWithRun) =>
-      (pair.sourceProvider === sourceProvider &&
-        pair.sourcePlaylistId === sourcePlaylistId &&
-        pair.targetProvider === targetProvider &&
-        pair.targetPlaylistId === targetPlaylistId) ||
-      (pair.sourceProvider === targetProvider &&
-        pair.sourcePlaylistId === targetPlaylistId &&
-        pair.targetProvider === sourceProvider &&
-        pair.targetPlaylistId === sourcePlaylistId),
-    ) ?? null;
-  }, [pairs, sourceProvider, sourcePlaylistId, targetProvider, targetPlaylistId]);
 }

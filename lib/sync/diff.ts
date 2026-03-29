@@ -166,6 +166,39 @@ export function computeSyncDiff(
     unresolved: items.filter((i) => i.confidence < manualThreshold).length,
   };
 
+  // Compute desired canonical ID order for each side after sync
+  const removedIds = new Set(
+    items.filter((i) => i.action === 'remove').map((i) => `${i.targetProvider}::${i.canonicalTrackId}`),
+  );
+  const targetOrder: Record<string, string[]> = {};
+
+  if (direction === 'a-to-b') {
+    // Target should match source order (source is authoritative)
+    targetOrder[target.providerId] = source.items
+      .map((i) => i.canonicalTrackId)
+      .filter((id) => !removedIds.has(`${target.providerId}::${id}`));
+  } else if (direction === 'b-to-a') {
+    // Source should match target order (target is authoritative)
+    targetOrder[source.providerId] = target.items
+      .map((i) => i.canonicalTrackId)
+      .filter((id) => !removedIds.has(`${source.providerId}::${id}`));
+  } else {
+    // Bidirectional: source (left panel) is authoritative for order.
+    // Both playlists end up with the same canonical order — source order
+    // with target-only tracks appended at the end.
+    const sourceCanonicalIds = source.items.map((i) => i.canonicalTrackId);
+    const targetCanonicalIds = target.items.map((i) => i.canonicalTrackId);
+    const sourceIdSet = new Set(sourceCanonicalIds);
+
+    const unifiedOrder = [
+      ...sourceCanonicalIds,
+      ...targetCanonicalIds.filter((id) => !sourceIdSet.has(id)),
+    ];
+
+    targetOrder[source.providerId] = unifiedOrder;
+    targetOrder[target.providerId] = unifiedOrder;
+  }
+
   console.debug('[sync/diff] computed sync diff', {
     direction,
     sourcePlaylist: source.playlistId,
@@ -180,6 +213,7 @@ export function computeSyncDiff(
     targetPlaylistId: target.playlistId,
     direction,
     items,
+    targetOrder,
     summary,
   };
 }

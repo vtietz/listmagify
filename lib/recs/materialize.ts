@@ -38,7 +38,9 @@ function isDurationCompatible(
     return true;
   }
 
-  return Math.abs(targetDuration - candidateDuration) <= 2;
+  // Allow up to 10 seconds difference — different masters/providers
+  // often have slight duration variations
+  return Math.abs(targetDuration - candidateDuration) <= 10;
 }
 
 function isLikelyArtistMatch(sourceArtistNorm: string, candidateArtists: string[]): boolean {
@@ -54,7 +56,10 @@ function isLikelyArtistMatch(sourceArtistNorm: string, candidateArtists: string[
     }
   }
 
-  return matched >= Math.max(1, Math.floor(sourceTokens.size / 2));
+  // Require at least one token match; for multi-token artists require
+  // at least a third (rounded up) to account for name variations
+  // across providers (e.g. "DJ Hell" vs "DJ Hell Remix")
+  return matched >= Math.max(1, Math.ceil(sourceTokens.size / 3));
 }
 
 export async function materializeCanonicalTrackIds(

@@ -51,34 +51,54 @@ async function resolveAddUris(
     return { uris: [], unresolved: [], errors: [] };
   }
 
-  const canonicalTrackIds = adds.map((item) => item.canonicalTrackId);
-  const adapter = createSyncMaterializeAdapter(targetProvider, targetProviderId);
+  // Use pre-resolved target track IDs from preview when available
+  const preResolved = adds.filter((i) => i.resolvedTargetTrackId && i.materializeStatus === 'resolved');
+  const preUnresolved = adds.filter((i) => i.materializeStatus === 'not_found');
+  const needsResolution = adds.filter((i) => !i.materializeStatus || i.materializeStatus === 'unchecked');
 
-  try {
-    const result = await materializeCanonicalTrackIds({
-      provider: targetProviderId,
-      canonicalTrackIds,
-      adapter,
-    });
+  // Deduplicate URIs
+  const seenUris = new Set<string>();
+  const uris: string[] = [];
+  for (const item of preResolved) {
+    const uri = toTrackUri(targetProviderId, item.resolvedTargetTrackId!);
+    if (!seenUris.has(uri)) {
+      seenUris.add(uri);
+      uris.push(uri);
+    }
+  }
+  const unresolved: UnresolvedEntry[] = preUnresolved.map((i) => ({
+    canonicalTrackId: i.canonicalTrackId,
+    reason: 'not_found' as const,
+  }));
+  const errors: string[] = [];
 
-    return {
-      uris: result.trackIds.map((id) => toTrackUri(targetProviderId, id)),
-      unresolved: result.unresolvedCanonicalIds.map((id) => ({
+  // Fall back to materialization for any items not pre-validated
+  if (needsResolution.length > 0) {
+    const canonicalTrackIds = needsResolution.map((item) => item.canonicalTrackId);
+    const adapter = createSyncMaterializeAdapter(targetProvider, targetProviderId);
+
+    try {
+      const result = await materializeCanonicalTrackIds({
+        provider: targetProviderId,
+        canonicalTrackIds,
+        adapter,
+      });
+
+      uris.push(...result.trackIds.map((id) => toTrackUri(targetProviderId, id)));
+      unresolved.push(...result.unresolvedCanonicalIds.map((id) => ({
         canonicalTrackId: id,
         reason: 'not_found' as const,
-      })),
-      errors: [],
-    };
-  } catch (err) {
-    return {
-      uris: [],
-      unresolved: canonicalTrackIds.map((id) => ({
+      })));
+    } catch (err) {
+      unresolved.push(...canonicalTrackIds.map((id) => ({
         canonicalTrackId: id,
         reason: 'materialize_failed' as const,
-      })),
-      errors: [`Materialize failed: ${errorMessage(err)}`],
-    };
+      })));
+      errors.push(`Materialize failed: ${errorMessage(err)}`);
+    }
   }
+
+  return { uris, unresolved, errors };
 }
 
 // ---------------------------------------------------------------------------
@@ -151,6 +171,172 @@ function resolveRemoveUris(
 }
 
 // ---------------------------------------------------------------------------
+// Filter out tracks already in a playlist
+// ---------------------------------------------------------------------------
+
+async function filterAlreadyPresent(
+  uris: string[],
+  provider: MusicProvider,
+  playlistId: string,
+): Promise<string[]> {
+  if (uris.length === 0) return uris;
+  try {
+    const existingUris = new Set(await provider.getPlaylistTrackUris(playlistId));
+    const filtered = uris.filter((uri) => !existingUris.has(uri));
+    if (filtered.length < uris.length) {
+      console.debug('[sync/apply] skipping already-present tracks', {
+        total: uris.length,
+        alreadyPresent: uris.length - filtered.length,
+        toAdd: filtered.length,
+      });
+    }
+    return filtered;
+  } catch (err) {
+    console.warn('[sync/apply] failed to fetch existing track URIs, proceeding without dedup', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return uris;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Phase: Reorder playlist to match desired canonical order
+// ---------------------------------------------------------------------------
+
+async function reorderPlaylist(
+  provider: MusicProvider,
+  providerId: MusicProviderId,
+  playlistId: string,
+  desiredCanonicalOrder: string[],
+): Promise<void> {
+  // Fetch current track URIs from the playlist
+  const currentUris = await provider.getPlaylistTrackUris(playlistId);
+  if (currentUris.length <= 1) return;
+
+  // Build a map from canonical ID to provider track URI
+  // We need to resolve canonical IDs to the URIs actually in the playlist.
+  // Use the provider_track_map cache via toProviderTrack.
+  const { toProviderTrack } = await import('@/lib/resolver/canonicalResolver');
+
+  const canonicalToUri = new Map<string, string>();
+  const currentUriSet = new Set(currentUris);
+
+  for (const canonicalId of desiredCanonicalOrder) {
+    const mapping = toProviderTrack(providerId, canonicalId);
+    if (mapping) {
+      const uri = toTrackUri(providerId, mapping.providerTrackId);
+      if (currentUriSet.has(uri)) {
+        canonicalToUri.set(canonicalId, uri);
+      }
+    }
+  }
+
+  // Build desired URI order: canonical order for mapped tracks, then any
+  // remaining URIs that weren't in the canonical order (preserve their position)
+  const orderedUris: string[] = [];
+  const placed = new Set<string>();
+
+  for (const canonicalId of desiredCanonicalOrder) {
+    const uri = canonicalToUri.get(canonicalId);
+    if (uri && !placed.has(uri)) {
+      orderedUris.push(uri);
+      placed.add(uri);
+    }
+  }
+
+  // Append any tracks not in the canonical order (shouldn't happen normally)
+  for (const uri of currentUris) {
+    if (!placed.has(uri)) {
+      orderedUris.push(uri);
+      placed.add(uri);
+    }
+  }
+
+  // Only replace if the order actually changed
+  if (orderedUris.length === currentUris.length &&
+      orderedUris.every((uri, i) => uri === currentUris[i])) {
+    return;
+  }
+
+  console.debug('[sync/apply] reordering playlist', {
+    provider: providerId,
+    playlistId,
+    trackCount: orderedUris.length,
+  });
+
+  await provider.replacePlaylistTracks(playlistId, orderedUris);
+}
+
+// ---------------------------------------------------------------------------
+// Apply mutations for one side (one target provider + playlist)
+// ---------------------------------------------------------------------------
+
+interface SideResult {
+  added: number;
+  removed: number;
+  unresolved: UnresolvedEntry[];
+  errors: string[];
+}
+
+async function applySide(
+  items: SyncDiffItem[],
+  providerId: MusicProviderId,
+  playlistId: string,
+  desiredOrder?: string[],
+  providerOverride?: MusicProvider,
+): Promise<SideResult> {
+  const provider = providerOverride ?? getMusicProvider(providerId);
+
+  const adds = items.filter((i) => i.action === 'add');
+  const removes = items.filter((i) => i.action === 'remove');
+
+  const resolved = await resolveAddUris(adds, provider, providerId);
+  const removeResolved = resolveRemoveUris(removes, providerId);
+
+  const allUnresolved = [...resolved.unresolved, ...removeResolved.unresolved];
+  const allErrors = [...resolved.errors];
+
+  // Filter out tracks already in the playlist
+  const addUris = await filterAlreadyPresent(resolved.uris, provider, playlistId);
+
+  if (addUris.length > 0) {
+    console.debug('[sync/apply] applying additions', {
+      provider: providerId,
+      count: addUris.length,
+      targetPlaylist: playlistId,
+    });
+  }
+  const addResult = await applyBatchedAdds(addUris, provider, playlistId);
+  allErrors.push(...addResult.errors);
+
+  if (removeResolved.uris.length > 0) {
+    console.debug('[sync/apply] applying removals', {
+      provider: providerId,
+      count: removeResolved.uris.length,
+      targetPlaylist: playlistId,
+    });
+  }
+  const removeResult = await applyBatchedRemoves(removeResolved.uris, provider, playlistId);
+  allErrors.push(...removeResult.errors);
+
+  // Reorder to match desired track order if provided
+  if (desiredOrder && desiredOrder.length > 0 && (addResult.count > 0 || removeResult.count > 0)) {
+    try {
+      await reorderPlaylist(provider, providerId, playlistId, desiredOrder);
+    } catch (err) {
+      allErrors.push(`Reorder failed: ${errorMessage(err)}`);
+    }
+  }
+
+  return {
+    added: addResult.count,
+    removed: removeResult.count,
+    unresolved: allUnresolved,
+    errors: allErrors,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
@@ -158,43 +344,51 @@ function resolveRemoveUris(
  * Applies a SyncPlan by materializing canonical IDs to provider-specific
  * track URIs and then executing additions and removals in batches.
  *
+ * For bidirectional sync, items are grouped by their targetProvider and
+ * applied to the correct playlist on each side.
+ *
  * Collects errors per batch rather than aborting the entire operation so
  * partial progress is preserved.
  */
 export async function applySyncPlan(plan: SyncPlan, targetProviderOverride?: MusicProvider): Promise<SyncApplyResult> {
-  const targetProvider = targetProviderOverride ?? getMusicProvider(plan.targetProvider);
-
-  const adds = plan.items.filter((item) => item.action === 'add');
-  const removes = plan.items.filter((item) => item.action === 'remove');
-
-  // Resolve canonical IDs to provider-specific URIs
-  const resolved = await resolveAddUris(adds, targetProvider, plan.targetProvider);
-  const removeResolved = resolveRemoveUris(removes, plan.targetProvider);
-
-  const allUnresolvedEntries = [...resolved.unresolved, ...removeResolved.unresolved];
-  const allErrors = [...resolved.errors];
-
-  // Apply additions
-  if (resolved.uris.length > 0) {
-    console.debug('[sync/apply] applying additions', {
-      count: resolved.uris.length,
-      targetPlaylist: plan.targetPlaylistId,
-    });
+  // Group items by their target provider
+  const itemsByProvider = new Map<MusicProviderId, SyncDiffItem[]>();
+  for (const item of plan.items) {
+    const existing = itemsByProvider.get(item.targetProvider) ?? [];
+    existing.push(item);
+    itemsByProvider.set(item.targetProvider, existing);
   }
-  const addResult = await applyBatchedAdds(resolved.uris, targetProvider, plan.targetPlaylistId);
-  allErrors.push(...addResult.errors);
 
-  // Apply removals
-  if (removeResolved.uris.length > 0) {
-    console.debug('[sync/apply] applying removals', {
-      count: removeResolved.uris.length,
-      targetPlaylist: plan.targetPlaylistId,
-    });
+  // Map provider IDs to playlist IDs
+  const playlistForProvider: Record<string, string> = {
+    [plan.sourceProvider]: plan.sourcePlaylistId,
+    [plan.targetProvider]: plan.targetPlaylistId,
+  };
+
+  let totalAdded = 0;
+  let totalRemoved = 0;
+  const allUnresolved: UnresolvedEntry[] = [];
+  const allErrors: string[] = [];
+
+  for (const [providerId, items] of itemsByProvider) {
+    const playlistId = playlistForProvider[providerId];
+    if (!playlistId) {
+      allErrors.push(`No playlist ID for provider ${providerId}`);
+      continue;
+    }
+
+    // Use the override only for the plan's target provider (background sync passes it)
+    const override = providerId === plan.targetProvider ? targetProviderOverride : undefined;
+    const desiredOrder = plan.targetOrder?.[providerId];
+    const result = await applySide(items, providerId, playlistId, desiredOrder, override);
+
+    totalAdded += result.added;
+    totalRemoved += result.removed;
+    allUnresolved.push(...result.unresolved);
+    allErrors.push(...result.errors);
   }
-  const removeResult = await applyBatchedRemoves(removeResolved.uris, targetProvider, plan.targetPlaylistId);
-  allErrors.push(...removeResult.errors);
 
-  const unresolvedDetails: UnresolvedTrackInfo[] = allUnresolvedEntries.map((entry) => {
+  const unresolvedDetails: UnresolvedTrackInfo[] = allUnresolved.map((entry) => {
     const diffItem = plan.items.find((i) => i.canonicalTrackId === entry.canonicalTrackId);
     return {
       canonicalTrackId: entry.canonicalTrackId,
@@ -206,15 +400,15 @@ export async function applySyncPlan(plan: SyncPlan, targetProviderOverride?: Mus
   });
 
   console.debug('[sync/apply] sync plan applied', {
-    added: addResult.count,
-    removed: removeResult.count,
+    added: totalAdded,
+    removed: totalRemoved,
     unresolved: unresolvedDetails.length,
     errors: allErrors.length,
   });
 
   return {
-    added: addResult.count,
-    removed: removeResult.count,
+    added: totalAdded,
+    removed: totalRemoved,
     unresolved: unresolvedDetails,
     errors: allErrors,
   };

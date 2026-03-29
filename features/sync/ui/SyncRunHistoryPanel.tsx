@@ -5,7 +5,7 @@ import { useSyncRunHistory } from '@features/sync/hooks/useSyncRunHistory';
 import { SyncStatusBadge } from '@features/sync/ui/SyncStatusBadge';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { SyncRun, SyncTrigger, SyncWarning } from '@/lib/sync/types';
+import type { SyncRun, SyncTrigger } from '@/lib/sync/types';
 
 function formatRelativeTime(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -35,29 +35,73 @@ function TriggerBadge({ trigger }: { trigger: SyncTrigger }) {
   );
 }
 
-function WarningList({ warnings }: { warnings: SyncWarning[] }) {
+
+function RunDetail({ run }: { run: SyncRun }) {
+  const hasWarnings = run.warnings.length > 0;
+
   return (
-    <div className="mt-1 ml-4 space-y-0.5">
-      {warnings.map((w) => (
-        <div key={w.canonicalTrackId} className="text-[10px] text-amber-500/80">
-          <span className="mr-1">&#9888;</span>
-          <span className="font-medium">{w.title}</span>
-          <span className="text-muted-foreground"> &mdash; {w.artists.join(', ')}</span>
-          <div className="ml-4 text-muted-foreground">{w.reason}</div>
+    <div className="mt-2 space-y-2">
+      <div className="grid grid-cols-2 gap-2 text-xs">
+        <div className="rounded-md bg-green-500/10 p-2 text-center">
+          <div className="text-sm font-semibold text-green-500">{run.tracksAdded}</div>
+          <div className="text-[10px] text-muted-foreground">Tracks added</div>
         </div>
-      ))}
+        <div className="rounded-md bg-red-500/10 p-2 text-center">
+          <div className="text-sm font-semibold text-red-500">{run.tracksRemoved}</div>
+          <div className="text-[10px] text-muted-foreground">Tracks removed</div>
+        </div>
+      </div>
+
+      {run.errorMessage && (
+        <div className="rounded-md bg-red-500/10 p-2 text-xs text-red-500">
+          {run.errorMessage}
+        </div>
+      )}
+
+      {hasWarnings && (
+        <div className="rounded-md bg-yellow-500/10 p-2 text-xs">
+          <div className="font-medium text-yellow-500">
+            {run.warnings.length} unresolved track(s)
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-0.5">
+            These tracks could not be matched on the target provider.
+          </p>
+          <div className="mt-1.5 max-h-[200px] overflow-y-auto space-y-0.5">
+            {run.warnings.map((track) => (
+              <div
+                key={track.canonicalTrackId}
+                className="flex items-center gap-2 py-0.5 text-[10px] border-l-2 border-yellow-500 pl-2"
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="truncate font-medium">{track.title}</div>
+                  <div className="truncate text-muted-foreground">
+                    {track.artists.join(', ')}
+                  </div>
+                </div>
+                <span className="text-muted-foreground shrink-0">
+                  {track.reason}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 function RunRow({ run }: { run: SyncRun }) {
-  const [showWarnings, setShowWarnings] = useState(false);
+  const [showDetail, setShowDetail] = useState(false);
   const hasWarnings = run.warnings.length > 0;
   const timestamp = run.completedAt ?? run.startedAt;
 
   return (
     <div>
-      <div className="flex items-center gap-2 text-xs">
+      <button
+        type="button"
+        className="flex items-center gap-2 text-xs w-full text-left hover:bg-muted/30 rounded px-1 -mx-1 py-0.5 transition-colors"
+        onClick={() => setShowDetail(!showDetail)}
+      >
         <span
           className="text-[10px] text-muted-foreground whitespace-nowrap w-14 shrink-0"
           title={timestamp}
@@ -70,17 +114,13 @@ function RunRow({ run }: { run: SyncRun }) {
           +{run.tracksAdded} / -{run.tracksRemoved}
         </span>
         {hasWarnings ? (
-          <button
-            type="button"
-            className="inline-flex items-center gap-0.5 text-[10px] text-amber-500 hover:text-amber-400 transition-colors"
-            onClick={() => setShowWarnings(!showWarnings)}
-          >
+          <span className="inline-flex items-center gap-0.5 text-[10px] text-amber-500">
             <AlertTriangle className="h-3 w-3" />
             {run.warnings.length} unmatched
-          </button>
+          </span>
         ) : null}
-      </div>
-      {showWarnings && hasWarnings ? <WarningList warnings={run.warnings} /> : null}
+      </button>
+      {showDetail && <RunDetail run={run} />}
     </div>
   );
 }

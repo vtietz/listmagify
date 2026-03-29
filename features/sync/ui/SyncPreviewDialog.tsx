@@ -13,10 +13,11 @@ import { Button } from '@/components/ui/button';
 import { Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { useSyncDialogStore } from '@features/sync/stores/useSyncDialogStore';
 import { useSyncPreview } from '@features/sync/hooks/useSyncPreview';
-import { useSyncExecute } from '@features/sync/hooks/useSyncExecute';
+import { useSyncApply } from '@features/sync/hooks/useSyncApply';
 import { usePlaylistName } from '@features/sync/hooks/usePlaylistName';
 import { SyncSplitView } from '@features/sync/ui/SyncSplitView';
-import type { SyncPlan, SyncApplyResult, SyncPreviewResult } from '@/lib/sync/types';
+import { SyncRunResultContent } from '@features/sync/ui/SyncRunResultContent';
+import type { SyncApplyResult, SyncPreviewResult } from '@/lib/sync/types';
 
 type Step = 'preview' | 'result';
 
@@ -35,75 +36,17 @@ function ResultStep({
       <div className="flex flex-col items-center gap-2 py-4 text-center">
         {hasErrors ? (
           <AlertTriangle className="h-10 w-10 text-yellow-500" />
+        ) : hasUnresolved ? (
+          <AlertTriangle className="h-10 w-10 text-yellow-500" />
         ) : (
           <CheckCircle2 className="h-10 w-10 text-green-500" />
         )}
         <p className="text-sm font-medium">
-          {hasErrors ? 'Sync completed with issues' : 'Sync completed'}
+          {hasErrors ? 'Sync completed with issues' : hasUnresolved ? 'Sync completed with warnings' : 'Sync completed'}
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 text-sm">
-        <div className="rounded-md bg-green-500/10 p-3 text-center">
-          <div className="text-lg font-semibold text-green-500">
-            {result.added}
-          </div>
-          <div className="text-xs text-muted-foreground">Tracks added</div>
-        </div>
-        <div className="rounded-md bg-red-500/10 p-3 text-center">
-          <div className="text-lg font-semibold text-red-500">
-            {result.removed}
-          </div>
-          <div className="text-xs text-muted-foreground">Tracks removed</div>
-        </div>
-      </div>
-
-      {hasUnresolved && (
-        <div className="rounded-md bg-yellow-500/10 p-3 text-sm">
-          <div className="font-medium text-yellow-500">
-            {result.unresolved.length} unresolved track(s)
-          </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            These tracks could not be matched on the target provider.
-          </p>
-          <div className="mt-2 max-h-[200px] overflow-y-auto space-y-1">
-            {result.unresolved.map((track) => (
-              <div
-                key={track.canonicalTrackId}
-                className="flex items-center gap-2 py-1 text-xs border-l-2 border-yellow-500 pl-2"
-              >
-                <div className="flex-1 min-w-0">
-                  <div className="truncate font-medium">{track.title}</div>
-                  <div className="truncate text-muted-foreground">
-                    {track.artists.join(', ')}
-                  </div>
-                </div>
-                <span className="text-xs text-muted-foreground shrink-0">
-                  {track.reason === 'not_found' && 'Not found'}
-                  {track.reason === 'materialize_failed' && 'Search failed'}
-                  {track.reason === 'no_provider_mapping' && 'No mapping'}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {hasErrors && (
-        <div className="rounded-md bg-red-500/10 p-3 text-sm">
-          <div className="font-medium text-red-500">
-            {result.errors.length} error(s)
-          </div>
-          <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
-            {result.errors.slice(0, 5).map((err, i) => (
-              <li key={i}>{err}</li>
-            ))}
-            {result.errors.length > 5 && (
-              <li>...and {result.errors.length - 5} more</li>
-            )}
-          </ul>
-        </div>
-      )}
+      <SyncRunResultContent source={result} />
 
       <DialogFooter>
         <Button onClick={onDone}>Done</Button>
@@ -112,10 +55,10 @@ function ResultStep({
   );
 }
 
-function PreviewStatusMessage({ isLoading, previewError, executeError }: {
+function PreviewStatusMessage({ isLoading, previewError, applyError }: {
   isLoading: boolean;
   previewError: boolean;
-  executeError: boolean;
+  applyError: boolean;
 }) {
   if (isLoading) {
     return (
@@ -130,8 +73,8 @@ function PreviewStatusMessage({ isLoading, previewError, executeError }: {
     return <div className="rounded-md bg-red-500/10 p-3 text-sm text-red-500">Failed to generate preview. Please try again.</div>;
   }
 
-  if (executeError) {
-    return <div className="rounded-md bg-red-500/10 p-3 text-sm text-red-500">Sync execution failed. Please try again.</div>;
+  if (applyError) {
+    return <div className="rounded-md bg-red-500/10 p-3 text-sm text-red-500">Sync failed. Please try again.</div>;
   }
 
   return null;
@@ -144,9 +87,9 @@ function PreviewStepContent({
   targetPlaylistName,
   isLoading,
   previewError,
-  executeError,
-  isExecuting,
-  onExecute,
+  applyError,
+  isApplying,
+  onApply,
   onCancel,
 }: {
   config: { sourceProvider: string; targetProvider: string } | null;
@@ -155,9 +98,9 @@ function PreviewStepContent({
   targetPlaylistName: string;
   isLoading: boolean;
   previewError: boolean;
-  executeError: boolean;
-  isExecuting: boolean;
-  onExecute: () => void;
+  applyError: boolean;
+  isApplying: boolean;
+  onApply: () => void;
   onCancel: () => void;
 }) {
   const plan = previewData?.plan ?? null;
@@ -171,32 +114,24 @@ function PreviewStepContent({
         </p>
       )}
 
-      <PreviewStatusMessage isLoading={isLoading} previewError={previewError} executeError={executeError} />
+      <PreviewStatusMessage isLoading={isLoading} previewError={previewError} applyError={applyError} />
 
       {plan && previewData && (
-        <>
-          <SyncSplitView
-            plan={plan}
-            sourceTracks={previewData.sourceTracks}
-            targetTracks={previewData.targetTracks}
-            sourcePlaylistName={sourcePlaylistName}
-            targetPlaylistName={targetPlaylistName}
-          />
-          {hasChanges && (
-            <p className="text-xs text-muted-foreground">
-              {plan.summary.toAdd} to add, {plan.summary.toRemove} to remove
-              {plan.summary.unresolved > 0 && `, ${plan.summary.unresolved} unresolved`}
-            </p>
-          )}
-        </>
+        <SyncSplitView
+          plan={plan}
+          sourceTracks={previewData.sourceTracks}
+          targetTracks={previewData.targetTracks}
+          sourcePlaylistName={sourcePlaylistName}
+          targetPlaylistName={targetPlaylistName}
+        />
       )}
 
       <DialogFooter>
         <Button variant="outline" onClick={onCancel}>Cancel</Button>
         {hasChanges && (
-          <Button onClick={onExecute} disabled={isExecuting || isLoading}>
-            {isExecuting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Execute
+          <Button onClick={onApply} disabled={isApplying || isLoading}>
+            {isApplying && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Apply
           </Button>
         )}
       </DialogFooter>
@@ -219,7 +154,7 @@ export function SyncPreviewDialog() {
   );
 
   const preview = useSyncPreview();
-  const execute = useSyncExecute();
+  const apply = useSyncApply();
 
   const direction = 'bidirectional' as const;
 
@@ -228,7 +163,7 @@ export function SyncPreviewDialog() {
       setStep('preview');
       setResult(null);
       preview.reset();
-      execute.reset();
+      apply.reset();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPreviewOpen]);
@@ -239,18 +174,19 @@ export function SyncPreviewDialog() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPreviewOpen]);
 
-  const handleExecute = useCallback(() => {
-    if (!previewConfig) return;
-    execute.mutate(
-      { ...previewConfig, direction },
+  const handleApply = useCallback(() => {
+    const plan = preview.data?.plan;
+    if (!plan) return;
+    apply.mutate(
+      { plan },
       {
-        onSuccess: (data: { plan: SyncPlan; result: SyncApplyResult; runId?: string }) => {
+        onSuccess: (data: { result: SyncApplyResult; runId?: string }) => {
           setResult(data.result);
           setStep('result');
         },
       },
     );
-  }, [previewConfig, execute]);
+  }, [preview.data, apply]);
 
   return (
     <Dialog open={isPreviewOpen} onOpenChange={(open) => { if (!open) closePreview(); }}>
@@ -258,7 +194,7 @@ export function SyncPreviewDialog() {
         <DialogHeader>
           <DialogTitle>{step === 'preview' ? 'Sync preview' : 'Sync result'}</DialogTitle>
           <DialogDescription>
-            {step === 'preview' ? 'Review the changes before syncing.' : 'Summary of the sync operation.'}
+            {step === 'preview' ? 'Review the anticipated result before applying.' : 'Summary of the sync operation.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -270,9 +206,9 @@ export function SyncPreviewDialog() {
             targetPlaylistName={targetPlaylistName}
             isLoading={preview.isPending}
             previewError={preview.isError}
-            executeError={execute.isError}
-            isExecuting={execute.isPending}
-            onExecute={handleExecute}
+            applyError={apply.isError}
+            isApplying={apply.isPending}
+            onApply={handleApply}
             onCancel={closePreview}
           />
         )}

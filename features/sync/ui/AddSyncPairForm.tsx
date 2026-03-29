@@ -2,23 +2,60 @@
 
 import { useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { PlaylistSelector } from '@/components/split-editor/playlist/PlaylistSelector';
 import { ProviderStatusDropdown } from '@/components/auth/ProviderStatusDropdown';
 import { useAvailableProviders } from '@shared/hooks/useAvailableProviders';
 import { useAuthSummary } from '@features/auth/hooks/useAuth';
 import { useCreateSyncPair } from '@features/sync/hooks/useSyncPairs';
 import { usePlaylistName } from '@features/sync/hooks/usePlaylistName';
-import { Plus, ArrowLeftRight } from 'lucide-react';
+import { Save, ArrowLeftRight, Eye, Play, Loader2 } from 'lucide-react';
+import { useSyncDialogStore } from '@features/sync/stores/useSyncDialogStore';
+import { useSyncExecute } from '@features/sync/hooks/useSyncExecute';
+import { useSyncSchedulerEnabled } from '@shared/hooks/useAppConfig';
+import { SyncRunStatusIcon } from '@features/sync/ui/SyncRunStatusIcon';
+import { SyncRunResultContent } from '@features/sync/ui/SyncRunResultContent';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import type { MusicProviderId } from '@/lib/music-provider/types';
-import type { SyncPair } from '@/lib/sync/types';
+import type { SyncPair, SyncInterval, SyncApplyResult } from '@/lib/sync/types';
 
-/** Same grid as SyncPairRow: [left] [↔] [right] [_status_] [actions] */
+/** Same grid as SyncPairRow: [left] [arrow] [right] [status] [actions] */
 const ROW_GRID = 'grid grid-cols-[1fr_auto_1fr_auto_auto] items-center gap-x-2';
 
-export function AddSyncPairForm({ popoverContainer }: { popoverContainer?: HTMLElement | null | undefined }) {
+export interface AddSyncPairFormProps {
+  popoverContainer?: HTMLElement | null | undefined;
+  initialSourceProvider?: MusicProviderId;
+  initialSourcePlaylistId?: string | null;
+  initialTargetProvider?: MusicProviderId;
+  initialTargetPlaylistId?: string | null;
+  /** Show preview/sync-now buttons alongside add */
+  showSyncActions?: boolean;
+}
+
+export function AddSyncPairForm({
+  popoverContainer,
+  initialSourceProvider,
+  initialSourcePlaylistId,
+  initialTargetProvider,
+  initialTargetPlaylistId,
+  showSyncActions,
+}: AddSyncPairFormProps) {
   const allProviders = useAvailableProviders();
   const authSummary = useAuthSummary();
   const createPair = useCreateSyncPair();
+  const schedulerEnabled = useSyncSchedulerEnabled();
 
   const statusMap = useMemo(() => ({
     spotify: authSummary.spotify.code === 'ok' ? 'connected' : 'disconnected',
@@ -32,10 +69,11 @@ export function AddSyncPairForm({ popoverContainer }: { popoverContainer?: HTMLE
 
   const defaultProvider = connectedProviders[0] ?? 'spotify';
 
-  const [sourceProvider, setSourceProvider] = useState<MusicProviderId>(defaultProvider);
-  const [sourcePlaylistId, setSourcePlaylistId] = useState<string | null>(null);
-  const [targetProvider, setTargetProvider] = useState<MusicProviderId>(defaultProvider);
-  const [targetPlaylistId, setTargetPlaylistId] = useState<string | null>(null);
+  const [sourceProvider, setSourceProvider] = useState<MusicProviderId>(initialSourceProvider ?? defaultProvider);
+  const [sourcePlaylistId, setSourcePlaylistId] = useState<string | null>(initialSourcePlaylistId ?? null);
+  const [targetProvider, setTargetProvider] = useState<MusicProviderId>(initialTargetProvider ?? defaultProvider);
+  const [targetPlaylistId, setTargetPlaylistId] = useState<string | null>(initialTargetPlaylistId ?? null);
+  const [syncInterval, setSyncInterval] = useState<SyncInterval>('off');
 
   const sourcePlaylistName = usePlaylistName(sourceProvider, sourcePlaylistId ?? '');
   const targetPlaylistName = usePlaylistName(targetProvider, targetPlaylistId ?? '');
@@ -55,11 +93,16 @@ export function AddSyncPairForm({ popoverContainer }: { popoverContainer?: HTMLE
         targetPlaylistId,
         targetPlaylistName,
         direction: 'bidirectional',
+        autoSync: syncInterval !== 'off',
+        syncInterval,
+        nextRunAt: null,
+        consecutiveFailures: 0,
       },
       {
         onSuccess: (_pair: SyncPair) => {
           setSourcePlaylistId(null);
           setTargetPlaylistId(null);
+          setSyncInterval('off');
         },
       },
     );
@@ -74,9 +117,9 @@ export function AddSyncPairForm({ popoverContainer }: { popoverContainer?: HTMLE
   }
 
   return (
-    <div className={`${ROW_GRID} px-3 py-0.5`}>
+    <div className={`${ROW_GRID} py-1.5`}>
       {/* Left: provider + playlist */}
-      <div className="flex items-center gap-1.5 min-w-0">
+      <div className="flex items-center gap-0.5 min-w-0">
         <ProviderStatusDropdown
           context="panel"
           currentProviderId={sourceProvider}
@@ -101,7 +144,7 @@ export function AddSyncPairForm({ popoverContainer }: { popoverContainer?: HTMLE
       <ArrowLeftRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
 
       {/* Right: provider + playlist */}
-      <div className="flex items-center gap-1.5 min-w-0">
+      <div className="flex items-center gap-0.5 min-w-0">
         <ProviderStatusDropdown
           context="panel"
           currentProviderId={targetProvider}
@@ -122,14 +165,130 @@ export function AddSyncPairForm({ popoverContainer }: { popoverContainer?: HTMLE
         </div>
       </div>
 
-      {/* Status column — empty for the add row */}
-      <div />
+      {/* Status column — scheduling dropdown */}
+      <div className="flex items-center gap-1.5 shrink-0">
+        {schedulerEnabled && (
+          <Select
+            value={syncInterval}
+            onValueChange={(value) => setSyncInterval(value as SyncInterval)}
+          >
+            <SelectTrigger className="h-7 w-[68px] text-xs px-2">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="off">Off</SelectItem>
+              <SelectItem value="15m">15m</SelectItem>
+              <SelectItem value="30m">30m</SelectItem>
+              <SelectItem value="1h">1h</SelectItem>
+              <SelectItem value="6h">6h</SelectItem>
+              <SelectItem value="12h">12h</SelectItem>
+              <SelectItem value="24h">24h</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
+      </div>
 
-      {/* Add button — aligned with the actions column */}
-      <Button size="sm" disabled={!canSubmit} onClick={handleSubmit} className="shrink-0">
-        <Plus className="h-4 w-4 mr-1" />
-        {createPair.isPending ? 'Adding...' : 'Add'}
-      </Button>
+      {/* Actions column */}
+      <div className="flex items-center gap-0.5 shrink-0">
+        {showSyncActions && (
+          <SyncActionButtons
+            sourceProvider={sourceProvider}
+            sourcePlaylistId={sourcePlaylistId}
+            targetProvider={targetProvider}
+            targetPlaylistId={targetPlaylistId}
+            disabled={!canSubmit}
+          />
+        )}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7"
+          title="Save sync pair"
+          disabled={!canSubmit}
+          onClick={handleSubmit}
+        >
+          {createPair.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+        </Button>
+      </div>
     </div>
+  );
+}
+
+function SyncActionButtons({
+  sourceProvider,
+  sourcePlaylistId,
+  targetProvider,
+  targetPlaylistId,
+  disabled,
+}: {
+  sourceProvider: MusicProviderId;
+  sourcePlaylistId: string | null;
+  targetProvider: MusicProviderId;
+  targetPlaylistId: string | null;
+  disabled: boolean;
+}) {
+  const openPreview = useSyncDialogStore((s) => s.openPreview);
+  const execute = useSyncExecute();
+  const isSyncing = execute.isPending;
+  const [lastResult, setLastResult] = useState<SyncApplyResult | null>(null);
+  const [showResultDialog, setShowResultDialog] = useState(false);
+
+  const pairConfig = {
+    sourceProvider,
+    sourcePlaylistId: sourcePlaylistId ?? '',
+    targetProvider,
+    targetPlaylistId: targetPlaylistId ?? '',
+    direction: 'bidirectional' as const,
+  };
+
+  const hasWarnings = (lastResult?.unresolved.length ?? 0) > 0;
+  const hasErrors = (lastResult?.errors.length ?? 0) > 0;
+  const lastStatus = lastResult ? (hasErrors ? 'failed' : 'done') : null;
+
+  return (
+    <>
+      {lastResult && (
+        <SyncRunStatusIcon
+          status={lastStatus as 'done' | 'failed'}
+          hasWarnings={hasWarnings}
+          onClick={() => setShowResultDialog(true)}
+        />
+      )}
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-7 w-7"
+        title="Preview sync"
+        disabled={disabled || isSyncing}
+        onClick={() => openPreview(pairConfig, true)}
+      >
+        <Eye className="h-3.5 w-3.5" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-7 w-7"
+        title="Sync now"
+        disabled={disabled || isSyncing}
+        onClick={() => execute.mutate(pairConfig, {
+          onSuccess: (data: { result: SyncApplyResult }) => setLastResult(data.result),
+        })}
+      >
+        {isSyncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
+      </Button>
+      {lastResult && (
+        <Dialog open={showResultDialog} onOpenChange={(o) => { if (!o) setShowResultDialog(false); }}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Sync result</DialogTitle>
+            </DialogHeader>
+            <SyncRunResultContent source={lastResult} />
+            <DialogFooter>
+              <Button onClick={() => setShowResultDialog(false)}>Done</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+    </>
   );
 }
