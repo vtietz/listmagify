@@ -178,7 +178,7 @@ export function SyncPreviewDialog() {
     const plan = preview.data?.plan;
     if (!plan) return;
     apply.mutate(
-      { plan },
+      { plan, syncPairId: previewConfig?.syncPairId },
       {
         onSuccess: (data: { result: SyncApplyResult; runId?: string }) => {
           setResult(data.result);
@@ -186,7 +186,7 @@ export function SyncPreviewDialog() {
         },
       },
     );
-  }, [preview.data, apply]);
+  }, [preview.data, apply, previewConfig?.syncPairId]);
 
   return (
     <Dialog open={isPreviewOpen} onOpenChange={(open) => { if (!open) closePreview(); }}>

@@ -101,7 +101,7 @@ function SyncPairRow({ pair, bothConnected, showScheduler }: { pair: SyncPairWit
               {formatRelativeTime(lastSyncTime)}
             </span>
           ) : null}
-          {showScheduler && pair.nextRunAt && pair.syncInterval !== 'off' ? (
+          {showScheduler && pair.nextRunAt && pair.syncInterval !== 'off' && formatRelativeTime(pair.nextRunAt).startsWith('in ') ? (
             <span
               className="text-[10px] text-muted-foreground whitespace-nowrap"
               title={`Next: ${pair.nextRunAt}`}

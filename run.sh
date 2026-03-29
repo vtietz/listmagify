@@ -57,7 +57,7 @@ EOF
 case "${1:-}" in
   up)
     shift
-    docker compose --env-file .env -f docker/docker-compose.yml up web "$@"
+    docker compose --env-file .env -f docker/docker-compose.yml up web sync-worker "$@"
     ;;
   down)
     shift
