@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, type PropsWithChildren, useContext, useMemo } from 'react';
-import { useProviderAuth } from '@features/auth/hooks/useAuth';
+import { useAuthRegistryHydrated, useProviderAuth } from '@features/auth/hooks/useAuth';
 import { useEnsureValidToken } from '@features/auth/hooks/useEnsureValidToken';
 import type { ProviderId } from '@/lib/providers/types';
 import { isPerPanelInlineLoginEnabled } from '@/lib/utils';
@@ -43,6 +43,7 @@ function getOverlayReason(code: string): 'unauthenticated' | 'expired' | null {
 
 export function ProviderPanelGuard({ provider, fillHeight = true, children }: ProviderPanelGuardProps) {
   const enabled = isPerPanelInlineLoginEnabled();
+  const hydrated = useAuthRegistryHydrated();
 
   const authState = useProviderAuth(provider);
   const { ensuring } = useEnsureValidToken(provider, {
@@ -50,7 +51,7 @@ export function ProviderPanelGuard({ provider, fillHeight = true, children }: Pr
   });
 
   const reason = getOverlayReason(authState.code);
-  const isOverlayActive = enabled && !ensuring && shouldShowInlineLogin(authState.code) && reason !== null;
+  const isOverlayActive = enabled && hydrated && !ensuring && shouldShowInlineLogin(authState.code) && reason !== null;
 
   const contextValue = useMemo<ProviderPanelGuardState>(
     () => ({

@@ -7,7 +7,7 @@ import type { MusicProviderId } from '@/lib/music-provider/types';
 import { PlaylistsToolbar } from "@/components/playlist/PlaylistsToolbar";
 import { PlaylistsGrid } from "@/components/playlist/PlaylistsGrid";
 import { InlineSignInCard } from '@/components/auth/InlineSignInCard';
-import { useProviderAuth } from '@features/auth/hooks/useAuth';
+import { useAuthRegistryHydrated, useProviderAuth } from '@features/auth/hooks/useAuth';
 import { useAuthSummary } from '@features/auth/hooks/useAuth';
 import { useEnsureValidToken } from '@features/auth/hooks/useEnsureValidToken';
 
@@ -79,8 +79,9 @@ export function PlaylistsContainer({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [newlyCreatedPlaylist, setNewlyCreatedPlaylist] = useState<Playlist | null>(null);
 
+  const hydrated = useAuthRegistryHydrated();
   const isProviderConnected = providerAuth.code === 'ok';
-  const shouldShowProviderCta = providerAuth.code === 'unauthenticated' || providerAuth.code === 'expired' || providerAuth.code === 'invalid';
+  const shouldShowProviderCta = hydrated && (providerAuth.code === 'unauthenticated' || providerAuth.code === 'expired' || providerAuth.code === 'invalid');
 
   const handleRefresh = useCallback(() => {
     setIsRefreshing(true);

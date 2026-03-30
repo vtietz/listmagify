@@ -14,6 +14,7 @@ vi.mock('next/navigation', () => ({
 vi.mock('@features/auth/hooks/useAuth', () => ({
   useProviderAuth: vi.fn(),
   useAuthSummary: vi.fn(),
+  useAuthRegistryHydrated: vi.fn().mockReturnValue(true),
 }));
 
 vi.mock('@features/auth/hooks/useEnsureValidToken', () => ({
