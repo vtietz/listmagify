@@ -495,8 +495,12 @@ export function useSplitUrlSync(): void {
         if (!isLayoutSyncPath(pathnameRef.current)) return;
         
         // If no root (all panels closed), redirect to playlists page
+        // Only redirect from /split-editor; on /playlists/[id],
+        // useRedirectToPlaylistsIfNeeded handles it (with provider query preserved)
         if (!state.root) {
-          router.replace('/playlists', { scroll: false });
+          if (pathnameRef.current === '/split-editor') {
+            router.replace('/playlists', { scroll: false });
+          }
           lastEncodedLayout.current = null;
           return;
         }
