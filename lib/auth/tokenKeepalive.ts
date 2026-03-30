@@ -49,6 +49,27 @@ function storedTokenToJwt(stored: StoredProviderToken): ProviderJwtToken {
   };
 }
 
+function buildPersistParams(
+  original: StoredProviderToken,
+  refreshed: ProviderJwtToken,
+): Parameters<typeof persistProviderTokens>[0] {
+  return {
+    userId: original.userId,
+    provider: original.provider,
+    accessToken: refreshed.accessToken ?? '',
+    refreshToken: refreshed.refreshToken ?? original.refreshToken,
+    accessTokenExpires: refreshed.accessTokenExpires ?? null,
+    isByok: refreshed.isByok ?? false,
+    byokClientId: refreshed.byok?.clientId ?? original.byokClientId ?? null,
+    byokClientSecret: refreshed.byok?.clientSecret ?? original.byokClientSecret ?? null,
+  };
+}
+
+function isTokenUnchanged(original: StoredProviderToken, refreshed: ProviderJwtToken): boolean {
+  return refreshed.accessToken === original.accessToken
+    && refreshed.accessTokenExpires === original.accessTokenExpires;
+}
+
 async function refreshSingleToken(token: StoredProviderToken): Promise<void> {
   const jwtToken = storedTokenToJwt(token);
 
@@ -64,22 +85,13 @@ async function refreshSingleToken(token: StoredProviderToken): Promise<void> {
   }
 
   // Transient failure — token returned unchanged
-  if (refreshed.accessToken === token.accessToken && refreshed.accessTokenExpires === token.accessTokenExpires) {
+  if (isTokenUnchanged(token, refreshed)) {
     console.debug(`[token-keepalive] transient failure or no change for ${token.provider}/${token.userId}, skipping`);
     return;
   }
 
   // Persist refreshed token
-  persistProviderTokens({
-    userId: token.userId,
-    provider: token.provider,
-    accessToken: refreshed.accessToken ?? '',
-    refreshToken: refreshed.refreshToken ?? token.refreshToken,
-    accessTokenExpires: refreshed.accessTokenExpires ?? null,
-    isByok: refreshed.isByok ?? false,
-    byokClientId: refreshed.byok?.clientId ?? token.byokClientId ?? null,
-    byokClientSecret: refreshed.byok?.clientSecret ?? token.byokClientSecret ?? null,
-  });
+  persistProviderTokens(buildPersistParams(token, refreshed));
 
   console.debug(`[token-keepalive] refreshed ${token.provider}/${token.userId}`);
 }

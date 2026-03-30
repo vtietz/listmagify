@@ -68,6 +68,18 @@ async function refreshTokensWithDedup(
 // successfully refreshed and persisted by an earlier request.
 // ---------------------------------------------------------------------------
 
+function dbTokenToProviderJwt(dbToken: NonNullable<ReturnType<typeof getDbProviderTokens>>): ProviderJwtToken {
+  return {
+    accessToken: dbToken.accessToken,
+    refreshToken: dbToken.refreshToken,
+    ...(dbToken.accessTokenExpires != null ? { accessTokenExpires: dbToken.accessTokenExpires } : {}),
+    isByok: dbToken.isByok,
+    ...(dbToken.byokClientId && dbToken.byokClientSecret ? {
+      byok: { clientId: dbToken.byokClientId, clientSecret: dbToken.byokClientSecret },
+    } : {}),
+  };
+}
+
 function tryRecoverFromDb(
   userId: string,
   providerTokens: ProviderTokenStore,
@@ -87,15 +99,7 @@ function tryRecoverFromDb(
       if (dbToken.refreshToken === pt.refreshToken) continue;
 
       console.debug(`[auth] Recovering ${pid} token from DB after refresh failure`);
-      providerTokens[pid] = {
-        accessToken: dbToken.accessToken,
-        refreshToken: dbToken.refreshToken,
-        ...(dbToken.accessTokenExpires != null ? { accessTokenExpires: dbToken.accessTokenExpires } : {}),
-        isByok: dbToken.isByok,
-        ...(dbToken.byokClientId && dbToken.byokClientSecret ? {
-          byok: { clientId: dbToken.byokClientId, clientSecret: dbToken.byokClientSecret },
-        } : {}),
-      };
+      providerTokens[pid] = dbTokenToProviderJwt(dbToken);
       providerErrors[pid] = undefined;
     } catch {
       // DB read failure should never break auth flow
