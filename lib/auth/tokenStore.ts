@@ -163,6 +163,37 @@ export function getProviderTokens(
 }
 
 /**
+ * Get any active token for a provider, regardless of user ID.
+ * Used as a fallback when multi-provider auth stores tokens under
+ * different user IDs (e.g. Spotify username vs TIDAL numeric ID).
+ */
+export function getProviderTokensByProvider(
+  provider: MusicProviderId
+): StoredProviderToken | null {
+  if (!isTokenEncryptionAvailable()) {
+    return null;
+  }
+
+  try {
+    const db = getAuthDb();
+    const row = db
+      .prepare(
+        `SELECT * FROM user_tokens WHERE provider = ? AND status = 'active' ORDER BY updated_at DESC LIMIT 1`
+      )
+      .get(provider) as TokenRow | undefined;
+
+    if (!row) {
+      return null;
+    }
+
+    return rowToStoredToken(row);
+  } catch (error) {
+    console.error('[auth-token-store] Failed to get tokens by provider:', error);
+    return null;
+  }
+}
+
+/**
  * Delete provider tokens for a user/provider pair.
  */
 export function deleteProviderTokens(

@@ -12,6 +12,7 @@ import type { MusicProviderId } from '@/lib/music-provider/types';
 import type { AuthenticatedSession } from '@/lib/auth/requireAuth';
 import {
   getProviderTokens,
+  getProviderTokensByProvider,
   persistProviderTokens,
   markTokenStatus,
   type StoredProviderToken,
@@ -188,6 +189,21 @@ async function getSessionFromDbInner(
   } catch (error) {
     console.error(`[sessionFromDb] Failed to read tokens from DB for ${providerId}, user=${userId}`, error);
     return null;
+  }
+
+  // Fallback: if no token found for this userId, try finding any active
+  // token for this provider. This handles the case where multi-provider
+  // auth stores tokens under different user IDs (e.g. Spotify username
+  // vs TIDAL numeric ID).
+  if (!stored) {
+    try {
+      stored = getProviderTokensByProvider(providerId);
+      if (stored) {
+        console.debug(`[sessionFromDb] Fallback: found ${providerId} token under different userId`);
+      }
+    } catch {
+      // Ignore fallback errors
+    }
   }
 
   if (!stored) {
