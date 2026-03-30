@@ -81,17 +81,6 @@ const eslintConfig = [
     },
   },
 
-  // Discourage importing from the legacy hooks/ root — prefer feature-sliced paths
-  {
-    files: ['**/*.ts', '**/*.tsx'],
-    rules: {
-      'no-restricted-imports': ['warn', {
-        patterns: [
-          { group: ['@/hooks/*'], message: 'Use @/features/*, @/shared/*, or @/widgets/* instead of @/hooks/*' },
-        ],
-      }],
-    },
-  },
 ];
 
 export default eslintConfig;
