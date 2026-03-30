@@ -31,6 +31,7 @@ import { cn } from '@/lib/utils';
 import { useSyncSchedulerEnabled } from '@shared/hooks/useAppConfig';
 import { useProposedSyncPairs } from '@features/sync/hooks/useProposedSyncPairs';
 import type { MusicProviderId } from '@/lib/music-provider/types';
+import type { SyncRunStatus } from '@/lib/sync/types';
 
 function formatRelativeTime(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -47,23 +48,8 @@ function formatRelativeTime(dateStr: string): string {
 
 const ROW_GRID = 'grid grid-cols-[1fr_auto_1fr_auto_auto] items-center gap-x-2';
 
-function SyncPairRow({ pair, bothConnected, showScheduler }: { pair: SyncPairWithRun; bothConnected: boolean; showScheduler: boolean }) {
-  const openPreview = useSyncDialogStore((s) => s.openPreview);
-  const deletePair = useDeleteSyncPair();
-  const execute = useSyncExecute();
-  const updatePair = useUpdateSyncPair();
-  const [showResultDialog, setShowResultDialog] = useState(false);
-
-  const fetchedSourceName = usePlaylistName(pair.sourceProvider, pair.sourcePlaylistId);
-  const fetchedTargetName = usePlaylistName(pair.targetProvider, pair.targetPlaylistId);
-  const sourceName = pair.sourcePlaylistName || fetchedSourceName;
-  const targetName = pair.targetPlaylistName || fetchedTargetName;
-  const lastSyncTime = pair.latestRun?.completedAt ?? pair.latestRun?.startedAt;
-  const isExecutingBackground = pair.latestRun?.status === 'executing' && !pair.latestRun?.completedAt;
-  const isSyncing = execute.isPending || isExecutingBackground;
-  const warningCount = pair.latestRun?.warnings?.length ?? 0;
-
-  const pairConfig = {
+function buildPairConfig(pair: SyncPairWithRun) {
+  return {
     sourceProvider: pair.sourceProvider,
     sourcePlaylistId: pair.sourcePlaylistId,
     targetProvider: pair.targetProvider,
@@ -71,6 +57,139 @@ function SyncPairRow({ pair, bothConnected, showScheduler }: { pair: SyncPairWit
     direction: pair.direction as 'bidirectional',
     syncPairId: pair.id,
   };
+}
+
+function isNextRunScheduled(pair: SyncPairWithRun, showScheduler: boolean): boolean {
+  if (!showScheduler || !pair.nextRunAt || pair.syncInterval === 'off') return false;
+  return formatRelativeTime(pair.nextRunAt).startsWith('in ');
+}
+
+function getDisplayedStatus(isSyncing: boolean, runStatus: SyncRunStatus | undefined): SyncRunStatus | undefined {
+  return isSyncing ? 'executing' : runStatus;
+}
+
+function LastSyncTimeLabel({ time }: { time: string }) {
+  return (
+    <span className="text-[10px] text-muted-foreground whitespace-nowrap" title={time}>
+      {formatRelativeTime(time)}
+    </span>
+  );
+}
+
+function NextRunLabel({ nextRunAt }: { nextRunAt: string }) {
+  return (
+    <span
+      className="text-[10px] text-muted-foreground whitespace-nowrap"
+      title={`Next: ${nextRunAt}`}
+    >
+      next {formatRelativeTime(nextRunAt)}
+    </span>
+  );
+}
+
+function SyncPairStatusCell({ pair, isSyncing, showScheduler, onShowResult }: {
+  pair: SyncPairWithRun;
+  isSyncing: boolean;
+  showScheduler: boolean;
+  onShowResult: () => void;
+}) {
+  const lastSyncTime = pair.latestRun?.completedAt ?? pair.latestRun?.startedAt;
+  const warningCount = pair.latestRun?.warnings?.length ?? 0;
+  const showLastSync = !!lastSyncTime && !isSyncing;
+  const showNextRun = isNextRunScheduled(pair, showScheduler);
+
+  return (
+    <div className="flex items-center gap-1.5 shrink-0">
+      <SyncRunStatusIcon
+        status={getDisplayedStatus(isSyncing, pair.latestRun?.status)}
+        hasWarnings={warningCount > 0}
+        onClick={pair.latestRun ? onShowResult : undefined}
+      />
+      {showLastSync && <LastSyncTimeLabel time={lastSyncTime} />}
+      {showNextRun && <NextRunLabel nextRunAt={pair.nextRunAt!} />}
+    </div>
+  );
+}
+
+function SyncPairActions({ pair, bothConnected, isSyncing, showScheduler }: {
+  pair: SyncPairWithRun;
+  bothConnected: boolean;
+  isSyncing: boolean;
+  showScheduler: boolean;
+}) {
+  const openPreview = useSyncDialogStore((s) => s.openPreview);
+  const deletePair = useDeleteSyncPair();
+  const execute = useSyncExecute();
+  const updatePair = useUpdateSyncPair();
+  const pairConfig = buildPairConfig(pair);
+  const actionsDisabled = !bothConnected || isSyncing;
+
+  return (
+    <div className="flex items-center gap-0.5 shrink-0">
+      {showScheduler && (
+        <Select
+          value={pair.syncInterval ?? 'off'}
+          onValueChange={(value) => updatePair.mutate({ id: pair.id, syncInterval: value })}
+          disabled={!bothConnected}
+        >
+          <SelectTrigger className="h-7 w-[68px] text-xs px-2">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="off">Off</SelectItem>
+            <SelectItem value="15m">15m</SelectItem>
+            <SelectItem value="30m">30m</SelectItem>
+            <SelectItem value="1h">1h</SelectItem>
+            <SelectItem value="6h">6h</SelectItem>
+            <SelectItem value="12h">12h</SelectItem>
+            <SelectItem value="24h">24h</SelectItem>
+          </SelectContent>
+        </Select>
+      )}
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-7 w-7"
+        title="Preview sync"
+        disabled={actionsDisabled}
+        onClick={() => openPreview(pairConfig, true)}
+      >
+        <Eye className="h-3.5 w-3.5" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-7 w-7"
+        title="Sync now"
+        disabled={actionsDisabled}
+        onClick={() => execute.mutate(pairConfig)}
+      >
+        {isSyncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-7 w-7 text-destructive hover:text-destructive"
+        title="Delete sync pair"
+        onClick={() => deletePair.mutate(pair.id)}
+        disabled={deletePair.isPending}
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+      </Button>
+    </div>
+  );
+}
+
+function SyncPairRow({ pair, bothConnected, showScheduler }: { pair: SyncPairWithRun; bothConnected: boolean; showScheduler: boolean }) {
+  const execute = useSyncExecute();
+  const [showResultDialog, setShowResultDialog] = useState(false);
+
+  const fetchedSourceName = usePlaylistName(pair.sourceProvider, pair.sourcePlaylistId);
+  const fetchedTargetName = usePlaylistName(pair.targetProvider, pair.targetPlaylistId);
+  const sourceName = pair.sourcePlaylistName || fetchedSourceName;
+  const targetName = pair.targetPlaylistName || fetchedTargetName;
+  const isExecutingBackground = pair.latestRun?.status === 'executing' && !pair.latestRun?.completedAt;
+  const isSyncing = execute.isPending || isExecutingBackground;
 
   return (
     <div className={cn(
@@ -90,79 +209,19 @@ function SyncPairRow({ pair, bothConnected, showScheduler }: { pair: SyncPairWit
           <span className="text-sm truncate" title={targetName}>{targetName}</span>
         </div>
 
-        <div className="flex items-center gap-1.5 shrink-0">
-          <SyncRunStatusIcon
-            status={isSyncing ? 'executing' : pair.latestRun?.status}
-            hasWarnings={warningCount > 0}
-            onClick={pair.latestRun ? () => setShowResultDialog(true) : undefined}
-          />
-          {lastSyncTime && !isSyncing ? (
-            <span className="text-[10px] text-muted-foreground whitespace-nowrap" title={lastSyncTime}>
-              {formatRelativeTime(lastSyncTime)}
-            </span>
-          ) : null}
-          {showScheduler && pair.nextRunAt && pair.syncInterval !== 'off' && formatRelativeTime(pair.nextRunAt).startsWith('in ') ? (
-            <span
-              className="text-[10px] text-muted-foreground whitespace-nowrap"
-              title={`Next: ${pair.nextRunAt}`}
-            >
-              next {formatRelativeTime(pair.nextRunAt)}
-            </span>
-          ) : null}
-        </div>
+        <SyncPairStatusCell
+          pair={pair}
+          isSyncing={isSyncing}
+          showScheduler={showScheduler}
+          onShowResult={() => setShowResultDialog(true)}
+        />
 
-        <div className="flex items-center gap-0.5 shrink-0">
-          {showScheduler && (
-            <Select
-              value={pair.syncInterval ?? 'off'}
-              onValueChange={(value) => updatePair.mutate({ id: pair.id, syncInterval: value })}
-              disabled={!bothConnected}
-            >
-              <SelectTrigger className="h-7 w-[68px] text-xs px-2">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="off">Off</SelectItem>
-                <SelectItem value="15m">15m</SelectItem>
-                <SelectItem value="30m">30m</SelectItem>
-                <SelectItem value="1h">1h</SelectItem>
-                <SelectItem value="6h">6h</SelectItem>
-                <SelectItem value="12h">12h</SelectItem>
-                <SelectItem value="24h">24h</SelectItem>
-              </SelectContent>
-            </Select>
-          )}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            title="Preview sync"
-            disabled={!bothConnected || isSyncing}
-            onClick={() => openPreview(pairConfig, true)}
-          >
-            <Eye className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            title="Sync now"
-            disabled={!bothConnected || isSyncing}
-            onClick={() => execute.mutate(pairConfig)}
-          >
-            {isSyncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 text-destructive hover:text-destructive"
-            title="Delete sync pair"
-            onClick={() => deletePair.mutate(pair.id)}
-            disabled={deletePair.isPending}
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
-        </div>
+        <SyncPairActions
+          pair={pair}
+          bothConnected={bothConnected}
+          isSyncing={isSyncing}
+          showScheduler={showScheduler}
+        />
       </div>
 
       <SyncRunResultDialog

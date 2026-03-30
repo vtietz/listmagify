@@ -34,6 +34,57 @@ import type { SyncPair, SyncInterval, SyncApplyResult } from '@/lib/sync/types';
 /** Same grid as SyncPairRow: [left] [arrow] [right] [status] [actions] */
 const ROW_GRID = 'grid grid-cols-[1fr_auto_1fr_auto_auto] items-center gap-x-2';
 
+function buildStatusMap(authSummary: ReturnType<typeof useAuthSummary>) {
+  return {
+    spotify: authSummary.spotify.code === 'ok' ? 'connected' : 'disconnected',
+    tidal: authSummary.tidal.code === 'ok' ? 'connected' : 'disconnected',
+  } satisfies Record<MusicProviderId, 'connected' | 'disconnected'>;
+}
+
+/** Provider picker + playlist selector combo used on each side of the form */
+function ProviderPlaylistPicker({
+  providerId,
+  selectedPlaylistId,
+  connectedProviders,
+  statusMap,
+  disabled,
+  popoverContainer,
+  onProviderChange,
+  onPlaylistChange,
+}: {
+  providerId: MusicProviderId;
+  selectedPlaylistId: string | null;
+  connectedProviders: MusicProviderId[];
+  statusMap: Record<MusicProviderId, 'connected' | 'disconnected'>;
+  disabled: boolean;
+  popoverContainer?: HTMLElement | null | undefined;
+  onProviderChange: (id: MusicProviderId) => void;
+  onPlaylistChange: (id: string | null) => void;
+}) {
+  return (
+    <div className="flex items-center gap-0.5 min-w-0">
+      <ProviderStatusDropdown
+        context="panel"
+        currentProviderId={providerId}
+        providers={connectedProviders}
+        statusMap={statusMap}
+        hideWhenSingleConnected={false}
+        onProviderChange={onProviderChange}
+      />
+      <div className="flex-1 min-w-0">
+        <PlaylistSelector
+          providerId={providerId}
+          selectedPlaylistId={selectedPlaylistId}
+          selectedPlaylistName=""
+          onSelectPlaylist={(id) => onPlaylistChange(id)}
+          disabled={disabled}
+          popoverContainer={popoverContainer}
+        />
+      </div>
+    </div>
+  );
+}
+
 export interface AddSyncPairFormProps {
   popoverContainer?: HTMLElement | null | undefined;
   initialSourceProvider?: MusicProviderId;
@@ -44,42 +95,73 @@ export interface AddSyncPairFormProps {
   showSyncActions?: boolean;
 }
 
-export function AddSyncPairForm({
-  popoverContainer,
-  initialSourceProvider,
-  initialSourcePlaylistId,
-  initialTargetProvider,
-  initialTargetPlaylistId,
-  showSyncActions,
-}: AddSyncPairFormProps) {
+function resolveDefaults(
+  connectedProviders: MusicProviderId[],
+  props: AddSyncPairFormProps,
+) {
+  const defaultProvider = connectedProviders[0] ?? ('spotify' as MusicProviderId);
+  return {
+    sourceProvider: props.initialSourceProvider ?? defaultProvider,
+    sourcePlaylistId: props.initialSourcePlaylistId ?? null,
+    targetProvider: props.initialTargetProvider ?? defaultProvider,
+    targetPlaylistId: props.initialTargetPlaylistId ?? null,
+  };
+}
+
+function canSubmitForm(
+  sourcePlaylistId: string | null,
+  targetPlaylistId: string | null,
+  sourceProvider: MusicProviderId,
+  targetProvider: MusicProviderId,
+  isPending: boolean,
+): boolean {
+  return !!sourcePlaylistId && !!targetPlaylistId && sourceProvider !== targetProvider && !isPending;
+}
+
+function SyncIntervalSelect({ value, onChange }: { value: SyncInterval; onChange: (v: SyncInterval) => void }) {
+  return (
+    <Select value={value} onValueChange={(v) => onChange(v as SyncInterval)}>
+      <SelectTrigger className="h-7 w-[68px] text-xs px-2">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="off">Off</SelectItem>
+        <SelectItem value="15m">15m</SelectItem>
+        <SelectItem value="30m">30m</SelectItem>
+        <SelectItem value="1h">1h</SelectItem>
+        <SelectItem value="6h">6h</SelectItem>
+        <SelectItem value="12h">12h</SelectItem>
+        <SelectItem value="24h">24h</SelectItem>
+      </SelectContent>
+    </Select>
+  );
+}
+
+export function AddSyncPairForm(props: AddSyncPairFormProps) {
+  const { popoverContainer, showSyncActions } = props;
   const allProviders = useAvailableProviders();
   const authSummary = useAuthSummary();
   const createPair = useCreateSyncPair();
   const schedulerEnabled = useSyncSchedulerEnabled();
 
-  const statusMap = useMemo(() => ({
-    spotify: authSummary.spotify.code === 'ok' ? 'connected' : 'disconnected',
-    tidal: authSummary.tidal.code === 'ok' ? 'connected' : 'disconnected',
-  } satisfies Record<MusicProviderId, 'connected' | 'disconnected'>), [authSummary]);
-
+  const statusMap = useMemo(() => buildStatusMap(authSummary), [authSummary]);
   const connectedProviders = useMemo(
     () => allProviders.filter((p) => statusMap[p] === 'connected'),
     [allProviders, statusMap],
   );
 
-  const defaultProvider = connectedProviders[0] ?? 'spotify';
+  const defaults = useMemo(() => resolveDefaults(connectedProviders, props), [connectedProviders, props]);
 
-  const [sourceProvider, setSourceProvider] = useState<MusicProviderId>(initialSourceProvider ?? defaultProvider);
-  const [sourcePlaylistId, setSourcePlaylistId] = useState<string | null>(initialSourcePlaylistId ?? null);
-  const [targetProvider, setTargetProvider] = useState<MusicProviderId>(initialTargetProvider ?? defaultProvider);
-  const [targetPlaylistId, setTargetPlaylistId] = useState<string | null>(initialTargetPlaylistId ?? null);
+  const [sourceProvider, setSourceProvider] = useState<MusicProviderId>(defaults.sourceProvider);
+  const [sourcePlaylistId, setSourcePlaylistId] = useState<string | null>(defaults.sourcePlaylistId);
+  const [targetProvider, setTargetProvider] = useState<MusicProviderId>(defaults.targetProvider);
+  const [targetPlaylistId, setTargetPlaylistId] = useState<string | null>(defaults.targetPlaylistId);
   const [syncInterval, setSyncInterval] = useState<SyncInterval>('off');
 
   const sourcePlaylistName = usePlaylistName(sourceProvider, sourcePlaylistId ?? '');
   const targetPlaylistName = usePlaylistName(targetProvider, targetPlaylistId ?? '');
 
-  const isSameProvider = sourceProvider === targetProvider;
-  const canSubmit = sourcePlaylistId && targetPlaylistId && !isSameProvider && !createPair.isPending;
+  const canSubmit = canSubmitForm(sourcePlaylistId, targetPlaylistId, sourceProvider, targetProvider, createPair.isPending);
 
   function handleSubmit() {
     if (!sourcePlaylistId || !targetPlaylistId) return;
@@ -118,74 +200,33 @@ export function AddSyncPairForm({
 
   return (
     <div className={`${ROW_GRID} py-1.5`}>
-      {/* Left: provider + playlist */}
-      <div className="flex items-center gap-0.5 min-w-0">
-        <ProviderStatusDropdown
-          context="panel"
-          currentProviderId={sourceProvider}
-          providers={connectedProviders}
-          statusMap={statusMap}
-          hideWhenSingleConnected={false}
-          onProviderChange={(id) => { setSourceProvider(id); setSourcePlaylistId(null); }}
-        />
-        <div className="flex-1 min-w-0">
-          <PlaylistSelector
-            providerId={sourceProvider}
-            selectedPlaylistId={sourcePlaylistId}
-            selectedPlaylistName=""
-            onSelectPlaylist={(id) => setSourcePlaylistId(id)}
-            disabled={connectedProviders.length === 0}
-            popoverContainer={popoverContainer}
-          />
-        </div>
-      </div>
+      <ProviderPlaylistPicker
+        providerId={sourceProvider}
+        selectedPlaylistId={sourcePlaylistId}
+        connectedProviders={connectedProviders}
+        statusMap={statusMap}
+        disabled={connectedProviders.length === 0}
+        popoverContainer={popoverContainer}
+        onProviderChange={(id) => { setSourceProvider(id); setSourcePlaylistId(null); }}
+        onPlaylistChange={setSourcePlaylistId}
+      />
 
-      {/* Arrow */}
       <ArrowLeftRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
 
-      {/* Right: provider + playlist */}
-      <div className="flex items-center gap-0.5 min-w-0">
-        <ProviderStatusDropdown
-          context="panel"
-          currentProviderId={targetProvider}
-          providers={connectedProviders}
-          statusMap={statusMap}
-          hideWhenSingleConnected={false}
-          onProviderChange={(id) => { setTargetProvider(id); setTargetPlaylistId(null); }}
-        />
-        <div className="flex-1 min-w-0">
-          <PlaylistSelector
-            providerId={targetProvider}
-            selectedPlaylistId={targetPlaylistId}
-            selectedPlaylistName=""
-            onSelectPlaylist={(id) => setTargetPlaylistId(id)}
-            disabled={statusMap[targetProvider] !== 'connected'}
-            popoverContainer={popoverContainer}
-          />
-        </div>
-      </div>
+      <ProviderPlaylistPicker
+        providerId={targetProvider}
+        selectedPlaylistId={targetPlaylistId}
+        connectedProviders={connectedProviders}
+        statusMap={statusMap}
+        disabled={statusMap[targetProvider] !== 'connected'}
+        popoverContainer={popoverContainer}
+        onProviderChange={(id) => { setTargetProvider(id); setTargetPlaylistId(null); }}
+        onPlaylistChange={setTargetPlaylistId}
+      />
 
       {/* Status column — scheduling dropdown */}
       <div className="flex items-center gap-1.5 shrink-0">
-        {schedulerEnabled && (
-          <Select
-            value={syncInterval}
-            onValueChange={(value) => setSyncInterval(value as SyncInterval)}
-          >
-            <SelectTrigger className="h-7 w-[68px] text-xs px-2">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="off">Off</SelectItem>
-              <SelectItem value="15m">15m</SelectItem>
-              <SelectItem value="30m">30m</SelectItem>
-              <SelectItem value="1h">1h</SelectItem>
-              <SelectItem value="6h">6h</SelectItem>
-              <SelectItem value="12h">12h</SelectItem>
-              <SelectItem value="24h">24h</SelectItem>
-            </SelectContent>
-          </Select>
-        )}
+        {schedulerEnabled && <SyncIntervalSelect value={syncInterval} onChange={setSyncInterval} />}
       </div>
 
       {/* Actions column */}
@@ -212,6 +253,10 @@ export function AddSyncPairForm({
       </div>
     </div>
   );
+}
+
+function deriveResultStatus(result: SyncApplyResult): 'done' | 'failed' {
+  return result.errors.length > 0 ? 'failed' : 'done';
 }
 
 function SyncActionButtons({
@@ -241,16 +286,14 @@ function SyncActionButtons({
     direction: 'bidirectional' as const,
   };
 
-  const hasWarnings = (lastResult?.unresolved.length ?? 0) > 0;
-  const hasErrors = (lastResult?.errors.length ?? 0) > 0;
-  const lastStatus = lastResult ? (hasErrors ? 'failed' : 'done') : null;
+  const buttonsDisabled = disabled || isSyncing;
 
   return (
     <>
       {lastResult && (
         <SyncRunStatusIcon
-          status={lastStatus as 'done' | 'failed'}
-          hasWarnings={hasWarnings}
+          status={deriveResultStatus(lastResult)}
+          hasWarnings={lastResult.unresolved.length > 0}
           onClick={() => setShowResultDialog(true)}
         />
       )}
@@ -259,7 +302,7 @@ function SyncActionButtons({
         size="icon"
         className="h-7 w-7"
         title="Preview sync"
-        disabled={disabled || isSyncing}
+        disabled={buttonsDisabled}
         onClick={() => openPreview(pairConfig, true)}
       >
         <Eye className="h-3.5 w-3.5" />
@@ -269,7 +312,7 @@ function SyncActionButtons({
         size="icon"
         className="h-7 w-7"
         title="Sync now"
-        disabled={disabled || isSyncing}
+        disabled={buttonsDisabled}
         onClick={() => execute.mutate(pairConfig, {
           onSuccess: (data: { result: SyncApplyResult }) => setLastResult(data.result),
         })}

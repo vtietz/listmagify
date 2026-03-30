@@ -7,7 +7,7 @@
 
 'use client';
 
-import { Plus, Loader2, AlertTriangle, ArrowRight } from 'lucide-react';
+import { Plus, Loader2 } from 'lucide-react';
 import {
   useInsertionPointsStore,
   computeInsertionPositions,
@@ -20,19 +20,9 @@ import { useCompactModeStore } from '@features/split-editor/stores/useCompactMod
 import { usePlaylistTrackCheck, type DuplicateCheckResult } from '@features/playlists/hooks/usePlaylistTrackCheck';
 import { isPlaylistIdCompatibleWithProvider } from '@/lib/providers/playlistIdCompat';
 import { AddToPlaylistDialog } from '@/components/playlist/AddToPlaylistDialog';
+import { ConfirmHiddenDialog, DuplicateWarningDialog } from './AddToMarkedDialogs';
 import { cn } from '@/lib/utils';
 import { useState, useCallback, useMemo } from 'react';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { Button } from '@/components/ui/button';
 import { toast } from '@/lib/ui/toast';
 import type { MusicProviderId } from '@/lib/music-provider/types';
 import type { TrackPayload } from '@features/dnd/model/types';
@@ -168,19 +158,74 @@ function buildButtonClassName(
 }
 
 function buildButtonTitle(hasActiveMarkers: boolean, totalMarkers: number): string {
-  if (!hasActiveMarkers) {
-    return 'Add to playlist';
-  }
-
-  return `Add to ${totalMarkers} marked ${pluralize(totalMarkers, 'position')}`;
+  return hasActiveMarkers
+    ? `Add to ${totalMarkers} marked ${pluralize(totalMarkers, 'position')}`
+    : 'Add to playlist';
 }
 
 function buildButtonAriaLabel(hasActiveMarkers: boolean, totalMarkers: number, trackName: string): string {
-  if (!hasActiveMarkers) {
-    return 'Add to playlist';
+  return hasActiveMarkers
+    ? `Add ${trackName} to ${totalMarkers} marked insertion points`
+    : 'Add to playlist';
+}
+
+async function insertTrackAtPlaylistMarkers(params: {
+  playlistId: string;
+  data: PlaylistMarkerData;
+  trackUri: string;
+  sourceProviderId: MusicProviderId;
+  sourcePayload: TrackPayload;
+  panelProviderByPlaylistId: Map<string, MusicProviderId>;
+  addTracksMutation: ReturnType<typeof useAddTracks>;
+  enqueuePendingFromBrowseDrop: (opts: {
+    targetPlaylistId: string;
+    targetProviderId: MusicProviderId;
+    insertPosition: number;
+    payloads: TrackPayload[];
+  }) => boolean;
+  shiftAfterMultiInsert: (playlistId: string, options?: { tracksPerInsert?: number }) => void;
+}): Promise<number> {
+  const targetProviderId = resolveTargetProviderId(params.playlistId, params.panelProviderByPlaylistId);
+  const positions = computeInsertionPositions(params.data.markers, 1);
+  let insertedCount = 0;
+
+  if (params.sourceProviderId !== targetProviderId) {
+    for (const pos of positions) {
+      const enqueued = params.enqueuePendingFromBrowseDrop({
+        targetPlaylistId: params.playlistId,
+        targetProviderId,
+        insertPosition: pos.effectiveIndex,
+        payloads: [params.sourcePayload],
+      });
+
+      if (enqueued) {
+        insertedCount++;
+      }
+    }
+  } else {
+    for (const pos of positions) {
+      await params.addTracksMutation.mutateAsync({
+        playlistId: params.playlistId,
+        providerId: targetProviderId,
+        trackUris: [params.trackUri],
+        position: pos.effectiveIndex,
+      });
+      insertedCount++;
+    }
   }
 
-  return `Add ${trackName} to ${totalMarkers} marked insertion points`;
+  params.shiftAfterMultiInsert(params.playlistId, { tracksPerInsert: 1 });
+  return insertedCount;
+}
+
+function showInsertionResultToast(insertedCount: number, skippedCount: number): void {
+  if (insertedCount > 0) {
+    return;
+  }
+
+  if (skippedCount > 0) {
+    toast.info(`Skipped all ${skippedCount} position${skippedCount > 1 ? 's' : ''} (track already exists)`);
+  }
 }
 
 async function addTrackToMarkerPositions(params: {
@@ -389,54 +434,26 @@ export function AddToMarkedButton({
       let insertedCount = 0;
       let skippedCount = 0;
 
-      // Process each playlist's markers
       for (const [playlistId, data] of playlistsWithMarkers) {
-        // Skip playlists if requested (user chose to skip duplicates)
         if (skipPlaylistIds?.has(playlistId)) {
           skippedCount += data.markers.length;
           continue;
         }
 
-        const targetProviderId = resolveTargetProviderId(playlistId, panelProviderByPlaylistId);
-        const positions = computeInsertionPositions(data.markers, 1);
-
-        if (sourceProviderId !== targetProviderId) {
-          for (const pos of positions) {
-            const enqueued = enqueuePendingFromBrowseDrop({
-              targetPlaylistId: playlistId,
-              targetProviderId,
-              insertPosition: pos.effectiveIndex,
-              payloads: [sourcePayload],
-            });
-
-            if (enqueued) {
-              insertedCount++;
-            }
-          }
-        } else {
-          // Insert at each position in order (positions are already adjusted for cumulative inserts)
-          for (const pos of positions) {
-            await addTracksMutation.mutateAsync({
-              playlistId,
-              providerId: targetProviderId,
-              trackUris: [trackUri],
-              position: pos.effectiveIndex,
-            });
-            insertedCount++;
-          }
-        }
-
-        // Update marker indices after all insertions for this playlist
-        shiftAfterMultiInsert(playlistId, { tracksPerInsert: 1 });
+        insertedCount += await insertTrackAtPlaylistMarkers({
+          playlistId,
+          data,
+          trackUri,
+          sourceProviderId,
+          sourcePayload,
+          panelProviderByPlaylistId,
+          addTracksMutation,
+          enqueuePendingFromBrowseDrop,
+          shiftAfterMultiInsert,
+        });
       }
 
-      if (skippedCount > 0 && insertedCount > 0) {
-        // Success - no toast needed
-      } else if (skippedCount > 0) {
-        toast.info(`Skipped all ${skippedCount} position${skippedCount > 1 ? 's' : ''} (track already exists)`);
-      } else {
-        // Success - no toast needed
-      }
+      showInsertionResultToast(insertedCount, skippedCount);
     } catch (error) {
       toast.error(`Failed to add track: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
@@ -516,29 +533,17 @@ export function AddToMarkedButton({
   };
 
   // Move existing tracks to marker positions (reorder instead of duplicate)
-  // For playlists without the track, add it normally
   const handleMoveExisting = async () => {
     setShowDuplicateDialog(false);
     setIsInserting(true);
 
     try {
       const { movedCount, addedCount } = await moveOrAddAcrossPlaylists({
-        playlistsWithMarkers,
-        duplicateInfo,
-        trackUri,
-        panelProviderByPlaylistId,
-        addTracksMutation,
-        reorderTracksMutation,
-        shiftAfterMultiInsert,
+        playlistsWithMarkers, duplicateInfo, trackUri, panelProviderByPlaylistId,
+        addTracksMutation, reorderTracksMutation, shiftAfterMultiInsert,
       });
 
-      if (movedCount > 0 && addedCount > 0) {
-        // Success - no toast needed
-      } else if (movedCount > 0) {
-        // Success - no toast needed
-      } else if (addedCount > 0) {
-        // Success - no toast needed
-      } else {
+      if (movedCount === 0 && addedCount === 0) {
         toast.info('Tracks are already at the marker positions');
       }
     } catch (error) {
@@ -571,71 +576,26 @@ export function AddToMarkedButton({
         currentPlaylistId={excludePlaylistId ?? null}
       />
 
-      <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Add to hidden playlists?</AlertDialogTitle>
-            <AlertDialogDescription>
-              You are about to add &quot;{trackName}&quot; to{' '}
-              <strong>{totalMarkers} marker {pluralize(totalMarkers, 'position')}</strong>.
-              <br /><br />
-              <span className="text-orange-500 font-medium">
-                {hiddenMarkerCount} {pluralize(hiddenMarkerCount, 'marker')} in{' '}
-                {hiddenPlaylistCount} {pluralize(hiddenPlaylistCount, 'playlist')}{' '}
-                {hiddenPlaylistCount > 1 ? 'are' : 'is'} not currently visible.
-              </span>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirm}>
-              Add to all {totalMarkers} positions
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmHiddenDialog
+        open={showConfirmDialog}
+        onOpenChange={setShowConfirmDialog}
+        trackName={trackName}
+        totalMarkers={totalMarkers}
+        hiddenMarkerCount={hiddenMarkerCount}
+        hiddenPlaylistCount={hiddenPlaylistCount}
+        onConfirm={handleConfirm}
+      />
 
-      {/* Duplicate track warning dialog */}
-      <AlertDialog open={showDuplicateDialog} onOpenChange={setShowDuplicateDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-yellow-500" />
-              Track already exists
-            </AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div className="space-y-2">
-                <p>
-                  &quot;{trackName}&quot; already exists in{' '}
-                  <strong>
-                    {duplicateInfo?.playlistsWithDuplicates.length ?? 0}{' '}
-                    {pluralize(duplicateInfo?.playlistsWithDuplicates.length ?? 0, 'playlist')}
-                  </strong>
-                  .
-                </p>
-                <p className="text-muted-foreground">
-                  Choose an action:
-                </p>
-              </div>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="flex-col gap-2 sm:flex-row">
-            <Button variant="outline" onClick={handleAbort}>
-              Cancel
-            </Button>
-            <Button variant="secondary" onClick={handleSkipDuplicates}>
-              Skip duplicates
-            </Button>
-            <Button variant="secondary" onClick={handleMoveExisting} className="gap-1">
-              <ArrowRight className="h-4 w-4" />
-              Move existing
-            </Button>
-            <Button onClick={handleAddAnyway}>
-              Add anyway
-            </Button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DuplicateWarningDialog
+        open={showDuplicateDialog}
+        onOpenChange={setShowDuplicateDialog}
+        trackName={trackName}
+        duplicatePlaylistCount={duplicateInfo?.playlistsWithDuplicates.length ?? 0}
+        onAbort={handleAbort}
+        onSkipDuplicates={handleSkipDuplicates}
+        onMoveExisting={handleMoveExisting}
+        onAddAnyway={handleAddAnyway}
+      />
     </>
   );
 }

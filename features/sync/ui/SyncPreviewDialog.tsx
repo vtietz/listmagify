@@ -12,6 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { useSyncDialogStore } from '@features/sync/stores/useSyncDialogStore';
+import type { SyncDialogConfig } from '@features/sync/stores/useSyncDialogStore';
 import { useSyncPreview } from '@features/sync/hooks/useSyncPreview';
 import { useSyncApply } from '@features/sync/hooks/useSyncApply';
 import { usePlaylistName } from '@features/sync/hooks/usePlaylistName';
@@ -139,6 +140,57 @@ function PreviewStepContent({
   );
 }
 
+const STEP_TITLES: Record<Step, string> = {
+  preview: 'Sync preview',
+  result: 'Sync result',
+};
+
+const STEP_DESCRIPTIONS: Record<Step, string> = {
+  preview: 'Review the anticipated result before applying.',
+  result: 'Summary of the sync operation.',
+};
+
+function SyncPreviewDialogContent({
+  step,
+  result,
+  preview,
+  apply,
+  previewConfig,
+  sourcePlaylistName,
+  targetPlaylistName,
+  onApply,
+  onClose,
+}: {
+  step: Step;
+  result: SyncApplyResult | null;
+  preview: ReturnType<typeof useSyncPreview>;
+  apply: ReturnType<typeof useSyncApply>;
+  previewConfig: SyncDialogConfig | null;
+  sourcePlaylistName: string;
+  targetPlaylistName: string;
+  onApply: () => void;
+  onClose: () => void;
+}) {
+  if (step === 'result' && result) {
+    return <ResultStep result={result} onDone={onClose} />;
+  }
+
+  return (
+    <PreviewStepContent
+      config={previewConfig}
+      previewData={preview.data ?? null}
+      sourcePlaylistName={sourcePlaylistName}
+      targetPlaylistName={targetPlaylistName}
+      isLoading={preview.isPending}
+      previewError={preview.isError}
+      applyError={apply.isError}
+      isApplying={apply.isPending}
+      onApply={onApply}
+      onCancel={onClose}
+    />
+  );
+}
+
 export function SyncPreviewDialog() {
   const { isPreviewOpen, previewConfig, closePreview } = useSyncDialogStore();
   const [step, setStep] = useState<Step>('preview');
@@ -156,21 +208,14 @@ export function SyncPreviewDialog() {
   const preview = useSyncPreview();
   const apply = useSyncApply();
 
-  const direction = 'bidirectional' as const;
-
-  useEffect(() => {
-    if (isPreviewOpen && previewConfig) {
-      setStep('preview');
-      setResult(null);
-      preview.reset();
-      apply.reset();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPreviewOpen]);
-
+  // Reset state and fetch preview when dialog opens
   useEffect(() => {
     if (!isPreviewOpen || !previewConfig) return;
-    preview.mutate({ ...previewConfig, direction });
+    setStep('preview');
+    setResult(null);
+    preview.reset();
+    apply.reset();
+    preview.mutate({ ...previewConfig, direction: 'bidirectional' });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPreviewOpen]);
 
@@ -192,30 +237,21 @@ export function SyncPreviewDialog() {
     <Dialog open={isPreviewOpen} onOpenChange={(open) => { if (!open) closePreview(); }}>
       <DialogContent className="max-w-3xl">
         <DialogHeader>
-          <DialogTitle>{step === 'preview' ? 'Sync preview' : 'Sync result'}</DialogTitle>
-          <DialogDescription>
-            {step === 'preview' ? 'Review the anticipated result before applying.' : 'Summary of the sync operation.'}
-          </DialogDescription>
+          <DialogTitle>{STEP_TITLES[step]}</DialogTitle>
+          <DialogDescription>{STEP_DESCRIPTIONS[step]}</DialogDescription>
         </DialogHeader>
 
-        {step === 'preview' && (
-          <PreviewStepContent
-            config={previewConfig}
-            previewData={preview.data ?? null}
-            sourcePlaylistName={sourcePlaylistName}
-            targetPlaylistName={targetPlaylistName}
-            isLoading={preview.isPending}
-            previewError={preview.isError}
-            applyError={apply.isError}
-            isApplying={apply.isPending}
-            onApply={handleApply}
-            onCancel={closePreview}
-          />
-        )}
-
-        {step === 'result' && result && (
-          <ResultStep result={result} onDone={closePreview} />
-        )}
+        <SyncPreviewDialogContent
+          step={step}
+          result={result}
+          preview={preview}
+          apply={apply}
+          previewConfig={previewConfig}
+          sourcePlaylistName={sourcePlaylistName}
+          targetPlaylistName={targetPlaylistName}
+          onApply={handleApply}
+          onClose={closePreview}
+        />
       </DialogContent>
     </Dialog>
   );

@@ -29,17 +29,13 @@ function snapshotToPreviewTracks(snapshot: PlaylistSnapshot): SyncPreviewTrack[]
 }
 
 /**
- * Validate which "add" items can actually be materialized on the target
- * provider. Performs ISRC lookup + text search without saving anything.
- * Enriches each item with `resolvedTargetTrackId` and `materializeStatus`.
+ * Group "add" items by target provider. Non-add items are marked as 'unchecked'.
  */
-async function validateMaterialization(
-  plan: SyncPlan,
-  providers: Map<MusicProviderId, MusicProvider>,
-): Promise<void> {
-  // Group add items by target provider
+function groupAddItemsByProvider(
+  items: SyncDiffItem[],
+): Map<MusicProviderId, SyncDiffItem[]> {
   const addsByProvider = new Map<MusicProviderId, SyncDiffItem[]>();
-  for (const item of plan.items) {
+  for (const item of items) {
     if (item.action !== 'add') {
       item.materializeStatus = 'unchecked';
       continue;
@@ -48,61 +44,111 @@ async function validateMaterialization(
     existing.push(item);
     addsByProvider.set(item.targetProvider, existing);
   }
+  return addsByProvider;
+}
+
+/**
+ * Build a map from canonical track ID to resolved provider track ID using
+ * the positional mapping from the materialization result.
+ */
+function buildResolvedMap(
+  canonicalIds: string[],
+  result: { trackIds: string[]; unresolvedCanonicalIds: string[] },
+): Map<string, string> {
+  const unresolvedSet = new Set(result.unresolvedCanonicalIds);
+  const resolvedMap = new Map<string, string>();
+
+  let resolvedIdx = 0;
+  for (const canonicalId of canonicalIds) {
+    if (!unresolvedSet.has(canonicalId) && resolvedIdx < result.trackIds.length) {
+      resolvedMap.set(canonicalId, result.trackIds[resolvedIdx]!);
+      resolvedIdx++;
+    }
+  }
+
+  return resolvedMap;
+}
+
+/**
+ * Apply materialization results to diff items: set `resolvedTargetTrackId`
+ * and `materializeStatus` on each item.
+ */
+function applyResolutionToItems(
+  items: SyncDiffItem[],
+  resolvedMap: Map<string, string>,
+): void {
+  for (const item of items) {
+    const resolved = resolvedMap.get(item.canonicalTrackId);
+    if (resolved) {
+      item.resolvedTargetTrackId = resolved;
+      item.materializeStatus = 'resolved';
+    } else {
+      item.materializeStatus = 'not_found';
+    }
+  }
+}
+
+/**
+ * Mark all items in the list with `materializeStatus = 'not_found'`.
+ */
+function markAllNotFound(items: SyncDiffItem[]): void {
+  for (const item of items) {
+    item.materializeStatus = 'not_found';
+  }
+}
+
+/**
+ * Validate which "add" items can actually be materialized on the target
+ * provider. Performs ISRC lookup + text search without saving anything.
+ * Enriches each item with `resolvedTargetTrackId` and `materializeStatus`.
+ */
+async function validateMaterialization(
+  plan: SyncPlan,
+  providers: Map<MusicProviderId, MusicProvider>,
+): Promise<void> {
+  const addsByProvider = groupAddItemsByProvider(plan.items);
 
   for (const [providerId, items] of addsByProvider) {
     const provider = providers.get(providerId);
     if (!provider) {
-      for (const item of items) {
-        item.materializeStatus = 'not_found';
-      }
+      markAllNotFound(items);
       continue;
     }
 
-    const adapter = createSyncMaterializeAdapter(provider, providerId);
-    const canonicalIds = items.map((i) => i.canonicalTrackId);
-
-    try {
-      const result = await materializeCanonicalTrackIds({
-        provider: providerId,
-        canonicalTrackIds: canonicalIds,
-        adapter,
-      });
-
-      const unresolvedSet = new Set(result.unresolvedCanonicalIds);
-      const resolvedMap = new Map<string, string>();
-
-      // Map canonical IDs to resolved provider track IDs by position
-      let resolvedIdx = 0;
-      for (const canonicalId of canonicalIds) {
-        if (!unresolvedSet.has(canonicalId)) {
-          if (resolvedIdx < result.trackIds.length) {
-            resolvedMap.set(canonicalId, result.trackIds[resolvedIdx]!);
-            resolvedIdx++;
-          }
-        }
-      }
-
-      for (const item of items) {
-        const resolved = resolvedMap.get(item.canonicalTrackId);
-        if (resolved) {
-          item.resolvedTargetTrackId = resolved;
-          item.materializeStatus = 'resolved';
-        } else {
-          item.materializeStatus = 'not_found';
-        }
-      }
-    } catch (error) {
-      console.warn('[sync/runner] materialization validation failed', { providerId, error });
-      for (const item of items) {
-        item.materializeStatus = 'not_found';
-      }
-    }
+    await resolveProviderItems(providerId, provider, items);
   }
 
   // Update summary unresolved count based on actual materialization
   plan.summary.unresolved = plan.items.filter(
     (i) => i.action === 'add' && i.materializeStatus === 'not_found',
   ).length;
+}
+
+/**
+ * Materialize canonical track IDs against a single provider and apply
+ * resolution results to the given diff items.
+ */
+async function resolveProviderItems(
+  providerId: MusicProviderId,
+  provider: MusicProvider,
+  items: SyncDiffItem[],
+): Promise<void> {
+  const adapter = createSyncMaterializeAdapter(provider, providerId);
+  const canonicalIds = items.map((i) => i.canonicalTrackId);
+
+  try {
+    const result = await materializeCanonicalTrackIds({
+      provider: providerId,
+      canonicalTrackIds: canonicalIds,
+      adapter,
+    });
+
+    const resolvedMap = buildResolvedMap(canonicalIds, result);
+    applyResolutionToItems(items, resolvedMap);
+  } catch (error) {
+    console.warn('[sync/runner] materialization validation failed', { providerId, error });
+    markAllNotFound(items);
+  }
 }
 
 /**
@@ -150,6 +196,78 @@ export async function previewSync(
 }
 
 // ---------------------------------------------------------------------------
+// Sync run tracking helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Map an unresolved reason code to a human-readable message.
+ */
+function formatUnresolvedReason(reason: string): string {
+  if (reason === 'not_found') return 'Not found on target provider';
+  if (reason === 'materialize_failed') return 'Search on target provider failed';
+  return 'No track mapping for target provider';
+}
+
+/**
+ * Build the run-completion update payload from a `SyncApplyResult`.
+ */
+function buildRunUpdate(result: SyncApplyResult): Record<string, unknown> {
+  const hasErrors = result.errors.length > 0;
+  const warnings = result.unresolved.map((info) => ({
+    canonicalTrackId: info.canonicalTrackId,
+    title: info.title,
+    artists: info.artists,
+    reason: formatUnresolvedReason(info.reason),
+  }));
+
+  return {
+    status: hasErrors ? 'failed' : 'done',
+    tracksAdded: result.added,
+    tracksRemoved: result.removed,
+    tracksUnresolved: result.unresolved.length,
+    errorMessage: hasErrors ? result.errors.join('; ') : null,
+    warningsJson: warnings.length > 0 ? JSON.stringify(warnings) : null,
+    completedAt: new Date().toISOString(),
+  };
+}
+
+/**
+ * Execute an async operation with optional sync-run lifecycle tracking.
+ *
+ * When `syncPairId` is provided, creates a `SyncRun`, marks it executing,
+ * updates it on success/failure, and returns the `runId`. Otherwise the
+ * operation runs without tracking.
+ */
+async function withSyncRunTracking<T>(
+  syncPairId: string | undefined,
+  direction: SyncConfig['direction'],
+  operation: () => Promise<{ result: SyncApplyResult } & T>,
+): Promise<{ runId?: string } & { result: SyncApplyResult } & T> {
+  if (!syncPairId) {
+    const outcome = await operation();
+    return outcome;
+  }
+
+  const run = createSyncRun({ syncPairId, direction });
+  const runId = run.id;
+  updateSyncRun(runId, { status: 'executing' });
+
+  try {
+    const outcome = await operation();
+    updateSyncRun(runId, buildRunUpdate(outcome.result));
+    return { ...outcome, runId };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    updateSyncRun(runId, {
+      status: 'failed',
+      errorMessage: message,
+      completedAt: new Date().toISOString(),
+    });
+    throw error;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Execute
 // ---------------------------------------------------------------------------
 
@@ -171,63 +289,25 @@ export async function executeSync(
   config: ExecuteSyncConfig,
   matchThresholds?: SyncMatchThresholds,
 ): Promise<ExecuteSyncResult> {
-  let runId: string | undefined;
+  const outcome = await withSyncRunTracking(
+    config.syncPairId,
+    config.direction,
+    async () => {
+      const previewResult = await previewSync(config, matchThresholds);
+      const plan = previewResult.plan;
+      const result = await applySyncPlan(plan);
+      return { plan, result };
+    },
+  );
 
-  try {
-    if (config.syncPairId) {
-      const run = createSyncRun({
-        syncPairId: config.syncPairId,
-        direction: config.direction,
-      });
-      runId = run.id;
-      updateSyncRun(runId, { status: 'executing' });
-    }
+  console.debug('[sync/runner] execute complete', {
+    runId: outcome.runId,
+    added: outcome.result.added,
+    removed: outcome.result.removed,
+    errors: outcome.result.errors.length,
+  });
 
-    const previewResult = await previewSync(config, matchThresholds);
-    const plan = previewResult.plan;
-    const result = await applySyncPlan(plan);
-
-    if (runId) {
-      const hasErrors = result.errors.length > 0;
-      const warnings = result.unresolved.map((info) => ({
-        canonicalTrackId: info.canonicalTrackId,
-        title: info.title,
-        artists: info.artists,
-        reason: info.reason === 'not_found' ? 'Not found on target provider'
-          : info.reason === 'materialize_failed' ? 'Search on target provider failed'
-          : 'No track mapping for target provider',
-      }));
-      updateSyncRun(runId, {
-        status: hasErrors ? 'failed' : 'done',
-        tracksAdded: result.added,
-        tracksRemoved: result.removed,
-        tracksUnresolved: result.unresolved.length,
-        errorMessage: hasErrors ? result.errors.join('; ') : null,
-        warningsJson: warnings.length > 0 ? JSON.stringify(warnings) : null,
-        completedAt: new Date().toISOString(),
-      });
-    }
-
-    console.debug('[sync/runner] execute complete', {
-      runId,
-      added: result.added,
-      removed: result.removed,
-      errors: result.errors.length,
-    });
-
-    const base = { plan, result };
-    return runId !== undefined ? { ...base, runId } : base;
-  } catch (error) {
-    if (runId) {
-      const message = error instanceof Error ? error.message : String(error);
-      updateSyncRun(runId, {
-        status: 'failed',
-        errorMessage: message,
-        completedAt: new Date().toISOString(),
-      });
-    }
-    throw error;
-  }
+  return outcome;
 }
 
 // ---------------------------------------------------------------------------
@@ -243,53 +323,14 @@ export async function applySyncPlanWithRun(
   syncPairId?: string,
   _matchThresholds?: SyncMatchThresholds,
 ): Promise<{ result: SyncApplyResult; runId?: string }> {
-  let runId: string | undefined;
-
-  try {
-    if (syncPairId) {
-      const run = createSyncRun({
-        syncPairId,
-        direction: plan.direction,
-      });
-      runId = run.id;
-      updateSyncRun(runId, { status: 'executing' });
-    }
-
-    const result = await applySyncPlan(plan);
-
-    if (runId) {
-      const hasErrors = result.errors.length > 0;
-      const warnings = result.unresolved.map((info) => ({
-        canonicalTrackId: info.canonicalTrackId,
-        title: info.title,
-        artists: info.artists,
-        reason: info.reason === 'not_found' ? 'Not found on target provider'
-          : info.reason === 'materialize_failed' ? 'Search on target provider failed'
-          : 'No track mapping for target provider',
-      }));
-      updateSyncRun(runId, {
-        status: hasErrors ? 'failed' : 'done',
-        tracksAdded: result.added,
-        tracksRemoved: result.removed,
-        tracksUnresolved: result.unresolved.length,
-        errorMessage: hasErrors ? result.errors.join('; ') : null,
-        warningsJson: warnings.length > 0 ? JSON.stringify(warnings) : null,
-        completedAt: new Date().toISOString(),
-      });
-    }
-
-    return runId !== undefined ? { result, runId } : { result };
-  } catch (error) {
-    if (runId) {
-      const message = error instanceof Error ? error.message : String(error);
-      updateSyncRun(runId, {
-        status: 'failed',
-        errorMessage: message,
-        completedAt: new Date().toISOString(),
-      });
-    }
-    throw error;
-  }
+  return withSyncRunTracking(
+    syncPairId,
+    plan.direction,
+    async () => {
+      const result = await applySyncPlan(plan);
+      return { result };
+    },
+  );
 }
 
 // ---------------------------------------------------------------------------

@@ -1,5 +1,4 @@
 import {
-  ProviderApiError,
   type AddTracksPayload,
   type CreatePlaylistPayload,
   type CurrentUserResult,
@@ -24,7 +23,6 @@ import {
 import { mapDevice, mapPlaybackState } from '@/lib/spotify/playerTypes';
 import { mapPlaylist, mapPlaylistItemToTrack, pageFromSpotify } from '@/lib/spotify/types';
 import {
-  DEFAULT_PROVIDER_ID,
   executeWithAccessToken,
   executeWithSession,
   readErrorText,
@@ -45,6 +43,12 @@ import {
   mapSearchArtists,
   mapSearchTracks,
 } from '@/lib/music-provider/spotify/searchMappers';
+import {
+  batchAddTracks,
+  batchRemovePlaylistTracks,
+  batchReplacePlaylistTracks,
+  fetchPlaylistTrackUris,
+} from '@/lib/music-provider/spotify/batchOperations';
 
 export function createSpotifyProvider(
   dependencies: SpotifyProviderDependencies = {}
@@ -298,134 +302,15 @@ export function createSpotifyProvider(
     },
 
     async getPlaylistTrackUris(playlistId: string): Promise<string[]> {
-      const trackUris: string[] = [];
-      let offset = 0;
-      const limit = 100;
-
-      while (true) {
-        const path = `/playlists/${encodeURIComponent(playlistId)}/tracks?offset=${offset}&limit=${limit}&fields=items(track(uri)),total`;
-        const response = await executeWithSession(path, { method: 'GET' }, undefined, deps);
-
-        if (!response.ok) {
-          throwProviderError(response, await readErrorText(response), 'getPlaylistTrackUris');
-        }
-
-        const raw = await response.json();
-        const items = Array.isArray(raw?.items) ? raw.items : [];
-        const uris = items
-          .map((item: any) => item?.track?.uri)
-          .filter((uri: unknown): uri is string => typeof uri === 'string');
-        trackUris.push(...uris);
-
-        const total = typeof raw?.total === 'number' ? raw.total : trackUris.length;
-        if (items.length < limit || trackUris.length >= total) {
-          break;
-        }
-
-        offset += limit;
-      }
-
-      return trackUris;
+      return fetchPlaylistTrackUris(playlistId, deps);
     },
 
     async replacePlaylistTracks(playlistId: string, trackUris: string[]): Promise<{ snapshotId: string }> {
-      const path = `/playlists/${encodeURIComponent(playlistId)}/tracks`;
-
-      if (trackUris.length <= 100) {
-        const response = await executeWithSession(
-          path,
-          {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ uris: trackUris }),
-          },
-          undefined,
-          deps
-        );
-
-        if (!response.ok) {
-          throwProviderError(response, await readErrorText(response), 'replacePlaylistTracks');
-        }
-
-        return requireSnapshotId(response, 'replacePlaylistTracks');
-      }
-
-      const clearResponse = await executeWithSession(
-        path,
-        {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ uris: [] }),
-        },
-        undefined,
-        deps
-      );
-
-      if (!clearResponse.ok) {
-        throwProviderError(clearResponse, await readErrorText(clearResponse), 'replacePlaylistTracks');
-      }
-
-      let snapshotId: string | null = null;
-      for (let i = 0; i < trackUris.length; i += 100) {
-        const batch = trackUris.slice(i, i + 100);
-        const addResponse = await executeWithSession(
-          path,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ uris: batch }),
-          },
-          undefined,
-          deps
-        );
-
-        if (!addResponse.ok) {
-          throwProviderError(addResponse, await readErrorText(addResponse), 'replacePlaylistTracks');
-        }
-
-        const result = await addResponse.json();
-        snapshotId = result?.snapshot_id ?? snapshotId;
-      }
-
-      if (!snapshotId) {
-        throw new ProviderApiError('replacePlaylistTracks failed: missing snapshot_id', 500, DEFAULT_PROVIDER_ID);
-      }
-
-      return { snapshotId };
+      return batchReplacePlaylistTracks(playlistId, trackUris, deps);
     },
 
     async removePlaylistTracks(playlistId: string, trackUris: string[]): Promise<{ snapshotId: string }> {
-      const path = `/playlists/${encodeURIComponent(playlistId)}/tracks`;
-      let snapshotId: string | null = null;
-
-      for (let i = 0; i < trackUris.length; i += 100) {
-        const batch = trackUris.slice(i, i + 100);
-        const response = await executeWithSession(
-          path,
-          {
-            method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              tracks: batch.map((uri) => ({ uri })),
-            }),
-          },
-          undefined,
-          deps
-        );
-
-        if (!response.ok) {
-          throwProviderError(response, await readErrorText(response), 'removePlaylistTracks');
-        }
-
-        const result = await response.json();
-        snapshotId = result?.snapshot_id ?? snapshotId;
-      }
-
-      if (!snapshotId) {
-        throw new ProviderApiError('removePlaylistTracks failed: missing snapshot_id', 500, DEFAULT_PROVIDER_ID);
-      }
-
-      return { snapshotId };
+      return batchRemovePlaylistTracks(playlistId, trackUris, deps);
     },
 
     async getPlaybackState(): Promise<PlaybackState | null> {
@@ -453,49 +338,7 @@ export function createSpotifyProvider(
     },
 
     async addTracks(payload: AddTracksPayload): Promise<{ snapshotId: string }> {
-      const path = `/playlists/${encodeURIComponent(payload.playlistId)}/tracks`;
-      let snapshotId: string | null = null;
-      let currentPosition = payload.position;
-
-      for (let i = 0; i < payload.trackUris.length; i += 100) {
-        const batch = payload.trackUris.slice(i, i + 100);
-        const requestBody: Record<string, unknown> = { uris: batch };
-
-        if (typeof currentPosition === 'number') {
-          requestBody.position = currentPosition;
-          currentPosition += batch.length;
-        }
-
-        if (snapshotId) {
-          requestBody.snapshot_id = snapshotId;
-        } else if (payload.snapshotId) {
-          requestBody.snapshot_id = payload.snapshotId;
-        }
-
-        const response = await executeWithSession(
-          path,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(requestBody),
-          },
-          undefined,
-          deps
-        );
-
-        if (!response.ok) {
-          throwProviderError(response, await readErrorText(response), 'addTracks');
-        }
-
-        const result = await response.json();
-        snapshotId = result?.snapshot_id ?? snapshotId;
-      }
-
-      if (!snapshotId) {
-        throw new ProviderApiError('addTracks failed: missing snapshot_id', 500, DEFAULT_PROVIDER_ID);
-      }
-
-      return { snapshotId };
+      return batchAddTracks(payload, deps);
     },
 
     async reorderTracks(payload: ReorderTracksPayload): Promise<{ snapshotId: string }> {

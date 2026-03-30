@@ -7,57 +7,32 @@ import { cn } from '@/lib/utils';
 import { useDeviceType } from '@shared/hooks/useDeviceType';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 
-import type { TrackContextMenuProps } from './types';
+import type { TrackContextMenuProps, MenuContentProps } from './types';
 import { MenuContent } from './MenuContent';
 import { phonePrimitives, tabletPrimitives } from './MenuPrimitives';
 import { useContextMenuPosition } from './useContextMenuPosition';
 
-export function TrackContextMenu({
-  track,
-  isOpen,
-  onClose,
-  position,
-  reorderActions,
-  markerActions,
-  trackActions,
-  recActions,
-  pendingActions,
-  isMultiSelect = false,
-  selectedCount = 1,
-  isEditable = false,
-}: TrackContextMenuProps) {
-  const { isPhone } = useDeviceType();
-  const { mounted, menuPosition } = useContextMenuPosition(position);
-  const menuRef = React.useRef<HTMLDivElement | null>(null);
-  const [measuredTop, setMeasuredTop] = React.useState<number | null>(null);
-
-  // Title format: "Track Name - Artist" or "Track Name - Artist +N" for multi-select
+function buildMenuTitle(
+  track: { name: string; artists: string[] },
+  isMultiSelect: boolean,
+  selectedCount: number,
+): string {
   const artistsText = track.artists.join(', ');
   const baseTitle = artistsText ? `${track.name} - ${artistsText}` : track.name;
-  const title = isMultiSelect && selectedCount > 1
-    ? `${baseTitle} +${selectedCount - 1}`
-    : baseTitle;
 
-  // Action wrapper that closes menu after action
-  const withClose = React.useCallback((action?: () => void) => {
-    return () => {
-      action?.();
-      onClose();
-    };
-  }, [onClose]);
+  if (isMultiSelect && selectedCount > 1) {
+    return `${baseTitle} +${selectedCount - 1}`;
+  }
 
-  const menuProps = {
-    title,
-    withClose,
-    reorderActions,
-    markerActions,
-    trackActions,
-    recActions,
-    pendingActions,
-    isMultiSelect,
-    selectedCount,
-    isEditable,
-  };
+  return baseTitle;
+}
+
+function useMenuTopMeasurement(
+  isOpen: boolean,
+  menuPosition: { top: number; left: number } | null,
+  menuRef: React.RefObject<HTMLDivElement | null>,
+): number | null {
+  const [measuredTop, setMeasuredTop] = React.useState<number | null>(null);
 
   React.useLayoutEffect(() => {
     if (!isOpen || !menuPosition || !menuRef.current) {
@@ -69,27 +44,30 @@ export function TrackContextMenu({
     const viewportHeight = window.innerHeight;
     const menuHeight = menuRef.current.getBoundingClientRect().height;
     const maxTop = Math.max(padding, viewportHeight - menuHeight - padding);
-    const nextTop = Math.min(menuPosition.top, maxTop);
+    setMeasuredTop(Math.min(menuPosition.top, maxTop));
+  }, [isOpen, menuPosition, menuRef]);
 
-    setMeasuredTop(nextTop);
-  }, [isOpen, menuPosition]);
+  return measuredTop;
+}
 
-  // Phone: Use BottomSheet
-  if (isPhone) {
-    return (
-      <BottomSheet isOpen={isOpen} onClose={onClose} title={title}>
-        <MenuContent {...menuProps} primitives={phonePrimitives} />
-      </BottomSheet>
-    );
-  }
+interface DesktopPopoverProps {
+  isOpen: boolean;
+  onClose: () => void;
+  menuRef: React.RefObject<HTMLDivElement | null>;
+  menuPosition: { top: number; left: number };
+  measuredTop: number | null;
+  menuProps: MenuContentProps;
+}
 
-  // Don't render until mounted (SSR safety) or if no position
-  if (!mounted || !menuPosition) {
-    return null;
-  }
-
-  // Tablet and Desktop: Use Popover rendered via portal
-  const popoverContent = (
+function DesktopPopover({
+  isOpen,
+  onClose,
+  menuRef,
+  menuPosition,
+  measuredTop,
+  menuProps,
+}: DesktopPopoverProps) {
+  return (
     <>
       {isOpen && (
         <div
@@ -118,6 +96,70 @@ export function TrackContextMenu({
       </div>
     </>
   );
+}
 
-  return createPortal(popoverContent, document.body);
+export function TrackContextMenu({
+  track,
+  isOpen,
+  onClose,
+  position,
+  reorderActions,
+  markerActions,
+  trackActions,
+  recActions,
+  pendingActions,
+  isMultiSelect = false,
+  selectedCount = 1,
+  isEditable = false,
+}: TrackContextMenuProps) {
+  const { isPhone } = useDeviceType();
+  const { mounted, menuPosition } = useContextMenuPosition(position);
+  const menuRef = React.useRef<HTMLDivElement | null>(null);
+  const measuredTop = useMenuTopMeasurement(isOpen, menuPosition, menuRef);
+
+  const title = buildMenuTitle(track, isMultiSelect, selectedCount);
+
+  const withClose = React.useCallback((action?: () => void) => {
+    return () => {
+      action?.();
+      onClose();
+    };
+  }, [onClose]);
+
+  const menuProps = {
+    title,
+    withClose,
+    reorderActions,
+    markerActions,
+    trackActions,
+    recActions,
+    pendingActions,
+    isMultiSelect,
+    selectedCount,
+    isEditable,
+  };
+
+  if (isPhone) {
+    return (
+      <BottomSheet isOpen={isOpen} onClose={onClose} title={title}>
+        <MenuContent {...menuProps} primitives={phonePrimitives} />
+      </BottomSheet>
+    );
+  }
+
+  if (!mounted || !menuPosition) {
+    return null;
+  }
+
+  return createPortal(
+    <DesktopPopover
+      isOpen={isOpen}
+      onClose={onClose}
+      menuRef={menuRef}
+      menuPosition={menuPosition}
+      measuredTop={measuredTop}
+      menuProps={menuProps}
+    />,
+    document.body,
+  );
 }

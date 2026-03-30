@@ -104,6 +104,94 @@ function computeOneway(
 }
 
 /**
+ * Flatten a one-way diff result into a single array.
+ */
+function flattenOneway(diff: { toAdd: SyncDiffItem[]; toRemove: SyncDiffItem[] }): SyncDiffItem[] {
+  return [...diff.toAdd, ...diff.toRemove];
+}
+
+/**
+ * Compute diff items for a bidirectional merge. Missing tracks are added
+ * to the side that lacks them — no removals.
+ */
+function computeBidirectional(
+  source: PlaylistSnapshot,
+  target: PlaylistSnapshot,
+): SyncDiffItem[] {
+  const sourceIndex = buildSnapshotIndex(source);
+  const targetIndex = buildSnapshotIndex(target);
+  const sourceIds = new Set(sourceIndex.keys());
+  const targetIds = new Set(targetIndex.keys());
+
+  const items: SyncDiffItem[] = [];
+
+  // Tracks in source missing from target -> add to target
+  for (const id of sourceIds) {
+    if (!targetIds.has(id)) {
+      items.push(buildDiffItem(id, 'add', target.providerId, sourceIndex.get(id)));
+    }
+  }
+
+  // Tracks in target missing from source -> add to source
+  for (const id of targetIds) {
+    if (!sourceIds.has(id)) {
+      items.push(buildDiffItem(id, 'add', source.providerId, targetIndex.get(id)));
+    }
+  }
+
+  return items;
+}
+
+/**
+ * Compute the desired canonical ID order for each side after sync.
+ */
+function computeTargetOrder(
+  source: PlaylistSnapshot,
+  target: PlaylistSnapshot,
+  direction: SyncDirection,
+  items: SyncDiffItem[],
+): Record<string, string[]> {
+  const removedIds = new Set(
+    items.filter((i) => i.action === 'remove').map((i) => `${i.targetProvider}::${i.canonicalTrackId}`),
+  );
+
+  if (direction === 'a-to-b') {
+    // Target should match source order (source is authoritative)
+    return {
+      [target.providerId]: source.items
+        .map((i) => i.canonicalTrackId)
+        .filter((id) => !removedIds.has(`${target.providerId}::${id}`)),
+    };
+  }
+
+  if (direction === 'b-to-a') {
+    // Source should match target order (target is authoritative)
+    return {
+      [source.providerId]: target.items
+        .map((i) => i.canonicalTrackId)
+        .filter((id) => !removedIds.has(`${source.providerId}::${id}`)),
+    };
+  }
+
+  // Bidirectional: source (left panel) is authoritative for order.
+  // Both playlists end up with the same canonical order — source order
+  // with target-only tracks appended at the end.
+  const sourceCanonicalIds = source.items.map((i) => i.canonicalTrackId);
+  const targetCanonicalIds = target.items.map((i) => i.canonicalTrackId);
+  const sourceIdSet = new Set(sourceCanonicalIds);
+
+  const unifiedOrder = [
+    ...sourceCanonicalIds,
+    ...targetCanonicalIds.filter((id) => !sourceIdSet.has(id)),
+  ];
+
+  return {
+    [source.providerId]: unifiedOrder,
+    [target.providerId]: unifiedOrder,
+  };
+}
+
+/**
  * Compute the diff between two playlist snapshots and return a `SyncPlan`.
  *
  * - `a-to-b`: source is authoritative; tracks in source but not target
@@ -119,46 +207,13 @@ export function computeSyncDiff(
   options?: SyncDiffOptions,
 ): SyncPlan {
   const manualThreshold = options?.thresholds?.manual ?? DEFAULT_MATCH_THRESHOLDS.manual;
-  let items: SyncDiffItem[];
 
-  switch (direction) {
-    case 'a-to-b': {
-      const { toAdd, toRemove } = computeOneway(source, target);
-      items = [...toAdd, ...toRemove];
-      break;
-    }
-
-    case 'b-to-a': {
-      const { toAdd, toRemove } = computeOneway(target, source);
-      items = [...toAdd, ...toRemove];
-      break;
-    }
-
-    case 'bidirectional': {
-      const sourceIndex = buildSnapshotIndex(source);
-      const targetIndex = buildSnapshotIndex(target);
-      const sourceIds = new Set(sourceIndex.keys());
-      const targetIds = new Set(targetIndex.keys());
-
-      items = [];
-
-      // Tracks in source missing from target -> add to target
-      for (const id of sourceIds) {
-        if (!targetIds.has(id)) {
-          items.push(buildDiffItem(id, 'add', target.providerId, sourceIndex.get(id)));
-        }
-      }
-
-      // Tracks in target missing from source -> add to source
-      for (const id of targetIds) {
-        if (!sourceIds.has(id)) {
-          items.push(buildDiffItem(id, 'add', source.providerId, targetIndex.get(id)));
-        }
-      }
-
-      break;
-    }
-  }
+  const items = direction === 'bidirectional'
+    ? computeBidirectional(source, target)
+    : flattenOneway(computeOneway(
+        direction === 'a-to-b' ? source : target,
+        direction === 'a-to-b' ? target : source,
+      ));
 
   const summary = {
     toAdd: items.filter((i) => i.action === 'add').length,
@@ -166,38 +221,7 @@ export function computeSyncDiff(
     unresolved: items.filter((i) => i.confidence < manualThreshold).length,
   };
 
-  // Compute desired canonical ID order for each side after sync
-  const removedIds = new Set(
-    items.filter((i) => i.action === 'remove').map((i) => `${i.targetProvider}::${i.canonicalTrackId}`),
-  );
-  const targetOrder: Record<string, string[]> = {};
-
-  if (direction === 'a-to-b') {
-    // Target should match source order (source is authoritative)
-    targetOrder[target.providerId] = source.items
-      .map((i) => i.canonicalTrackId)
-      .filter((id) => !removedIds.has(`${target.providerId}::${id}`));
-  } else if (direction === 'b-to-a') {
-    // Source should match target order (target is authoritative)
-    targetOrder[source.providerId] = target.items
-      .map((i) => i.canonicalTrackId)
-      .filter((id) => !removedIds.has(`${source.providerId}::${id}`));
-  } else {
-    // Bidirectional: source (left panel) is authoritative for order.
-    // Both playlists end up with the same canonical order — source order
-    // with target-only tracks appended at the end.
-    const sourceCanonicalIds = source.items.map((i) => i.canonicalTrackId);
-    const targetCanonicalIds = target.items.map((i) => i.canonicalTrackId);
-    const sourceIdSet = new Set(sourceCanonicalIds);
-
-    const unifiedOrder = [
-      ...sourceCanonicalIds,
-      ...targetCanonicalIds.filter((id) => !sourceIdSet.has(id)),
-    ];
-
-    targetOrder[source.providerId] = unifiedOrder;
-    targetOrder[target.providerId] = unifiedOrder;
-  }
+  const targetOrder = computeTargetOrder(source, target, direction, items);
 
   console.debug('[sync/diff] computed sync diff', {
     direction,

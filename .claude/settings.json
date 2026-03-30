@@ -32,6 +32,7 @@
       "Bash(rg *)",
       "Bash(chmod *)",
       "Bash(docker compose *)",
+      "Bash(cd *)",
       "WebSearch",
       "WebFetch(domain:developer.spotify.com)",
       "WebFetch(domain:developer.tidal.com)",

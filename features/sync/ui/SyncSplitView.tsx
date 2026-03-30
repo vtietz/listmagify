@@ -74,6 +74,64 @@ function TrackCell({ cell }: { cell: CellData }) {
   );
 }
 
+/** Indexes plan items into add/remove maps keyed by `provider::canonicalTrackId` */
+function indexPlanItems(items: SyncDiffItem[]) {
+  const adds = new Map<string, SyncDiffItem>();
+  const removes = new Map<string, SyncDiffItem>();
+  for (const item of items) {
+    const key = `${item.targetProvider}::${item.canonicalTrackId}`;
+    if (item.action === 'add') adds.set(key, item);
+    else removes.set(key, item);
+  }
+  return { adds, removes };
+}
+
+/** Determine the cell state for a track on one side of the split view */
+function cellForSide(
+  provider: MusicProviderId,
+  id: string,
+  currentMap: Map<string, SyncPreviewTrack>,
+  adds: Map<string, SyncDiffItem>,
+  removes: Map<string, SyncDiffItem>,
+): CellData {
+  const key = `${provider}::${id}`;
+  const existing = currentMap.get(id);
+
+  if (existing) {
+    const state = removes.has(key) ? 'removed' : 'present';
+    return { track: existing, state };
+  }
+
+  const addItem = adds.get(key);
+  if (addItem) {
+    const state = addItem.materializeStatus === 'not_found' ? 'unresolved' : 'added';
+    return { track: { title: addItem.title, artists: addItem.artists }, state };
+  }
+
+  return { track: null, state: 'empty' };
+}
+
+/** Count how many rows have each change state on each side */
+function countChanges(rows: AlignedRow[]) {
+  let sourceAdded = 0, sourceRemoved = 0, sourceUnresolved = 0;
+  let targetAdded = 0, targetRemoved = 0, targetUnresolved = 0;
+
+  for (const row of rows) {
+    if (row.left.state === 'added') sourceAdded++;
+    if (row.left.state === 'removed') sourceRemoved++;
+    if (row.left.state === 'unresolved') sourceUnresolved++;
+    if (row.right.state === 'added') targetAdded++;
+    if (row.right.state === 'removed') targetRemoved++;
+    if (row.right.state === 'unresolved') targetUnresolved++;
+  }
+
+  return { sourceAdded, sourceRemoved, sourceUnresolved, targetAdded, targetRemoved, targetUnresolved };
+}
+
+function isVisibleOnSide(state: CellState): boolean {
+  return state !== 'empty' && state !== 'removed';
+}
+
 /**
  * Build aligned rows showing the anticipated result of both playlists
  * side-by-side. Every track appears on both sides — present, added,
@@ -85,113 +143,35 @@ function useAlignedAnticipatedResult(
   plan: SyncPlan,
 ) {
   return useMemo(() => {
-    // Index current tracks by canonical ID
     const sourceMap = new Map(sourceTracks.map((t) => [t.canonicalTrackId, t]));
     const targetMap = new Map(targetTracks.map((t) => [t.canonicalTrackId, t]));
-
-    // Index plan items by canonical ID
-    const addsByTarget = new Map<string, SyncDiffItem>();
-    const removesByTarget = new Map<string, SyncDiffItem>();
-    for (const item of plan.items) {
-      const key = `${item.targetProvider}::${item.canonicalTrackId}`;
-      if (item.action === 'add') addsByTarget.set(key, item);
-      else removesByTarget.set(key, item);
-    }
-
-    const getAddItem = (provider: MusicProviderId, id: string) =>
-      addsByTarget.get(`${provider}::${id}`);
-    const isRemovingFrom = (provider: MusicProviderId, id: string) =>
-      removesByTarget.has(`${provider}::${id}`);
+    const { adds, removes } = indexPlanItems(plan.items);
 
     const rows: AlignedRow[] = [];
     const seen = new Set<string>();
 
-    let sourceAdded = 0;
-    let sourceRemoved = 0;
-    let sourceUnresolved = 0;
-    let targetAdded = 0;
-    let targetRemoved = 0;
-    let targetUnresolved = 0;
-
-    // Helper to determine cell state for a side
-    function cellForSide(
-      provider: MusicProviderId,
-      id: string,
-      currentMap: Map<string, SyncPreviewTrack>,
-    ): CellData {
-      const existing = currentMap.get(id);
-
-      // Track already on this side
-      if (existing) {
-        if (isRemovingFrom(provider, id)) {
-          return { track: existing, state: 'removed' };
-        }
-        return { track: existing, state: 'present' };
-      }
-
-      // Track being added to this side
-      const addItem = getAddItem(provider, id);
-      if (addItem) {
-        const isUnresolved = addItem.materializeStatus === 'not_found';
-        return {
-          track: { title: addItem.title, artists: addItem.artists },
-          state: isUnresolved ? 'unresolved' : 'added',
-        };
-      }
-
-      return { track: null, state: 'empty' };
-    }
-
-    // Walk source tracks first (preserves source ordering)
-    for (const track of sourceTracks) {
+    // Walk source tracks first (preserves source ordering), then target-only tracks
+    const allTracks = [...sourceTracks, ...targetTracks];
+    for (const track of allTracks) {
       const id = track.canonicalTrackId;
       if (seen.has(id)) continue;
       seen.add(id);
 
-      const left = cellForSide(plan.sourceProvider, id, sourceMap);
-      const right = cellForSide(plan.targetProvider, id, targetMap);
+      const left = cellForSide(plan.sourceProvider, id, sourceMap, adds, removes);
+      const right = cellForSide(plan.targetProvider, id, targetMap, adds, removes);
       rows.push({ id, left, right });
     }
 
-    // Then target-only tracks (not in source)
-    for (const track of targetTracks) {
-      const id = track.canonicalTrackId;
-      if (seen.has(id)) continue;
-      seen.add(id);
-
-      const left = cellForSide(plan.sourceProvider, id, sourceMap);
-      const right = cellForSide(plan.targetProvider, id, targetMap);
-      rows.push({ id, left, right });
-    }
-
-    // Count changes
-    for (const row of rows) {
-      if (row.left.state === 'added') sourceAdded++;
-      if (row.left.state === 'removed') sourceRemoved++;
-      if (row.left.state === 'unresolved') sourceUnresolved++;
-      if (row.right.state === 'added') targetAdded++;
-      if (row.right.state === 'removed') targetRemoved++;
-      if (row.right.state === 'unresolved') targetUnresolved++;
-    }
-
-    const sourceResultCount = rows.filter(
-      (r) => r.left.state !== 'empty' && r.left.state !== 'removed',
-    ).length;
-    const targetResultCount = rows.filter(
-      (r) => r.right.state !== 'empty' && r.right.state !== 'removed',
-    ).length;
+    const changes = countChanges(rows);
+    const sourceResultCount = rows.filter((r) => isVisibleOnSide(r.left.state)).length;
+    const targetResultCount = rows.filter((r) => isVisibleOnSide(r.right.state)).length;
 
     return {
       rows,
-      sourceAdded,
-      sourceRemoved,
-      sourceUnresolved,
-      targetAdded,
-      targetRemoved,
-      targetUnresolved,
+      ...changes,
       sourceResultCount,
       targetResultCount,
-      hasChanges: sourceAdded + sourceRemoved + targetAdded + targetRemoved > 0,
+      hasChanges: changes.sourceAdded + changes.sourceRemoved + changes.targetAdded + changes.targetRemoved > 0,
     };
   }, [sourceTracks, targetTracks, plan]);
 }

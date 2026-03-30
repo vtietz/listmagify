@@ -1,7 +1,7 @@
 import { apiFetch } from '@/lib/api/client';
 import type { MusicProviderId, Track } from '@/lib/music-provider/types';
 import type { TrackPayload } from '@features/dnd/model/types';
-import { pickTopCandidates } from './scoring';
+import { pickTopCandidates, type ScoredCandidate } from './scoring';
 import { getConfiguredMatchThresholds } from './config';
 import { buildProviderSearchQuery, buildProviderFallbackQuery } from './searchQuery';
 
@@ -93,72 +93,114 @@ async function lookupTrackByIsrc(isrc: string, targetProvider: MusicProviderId):
   }
 }
 
+/** Build a MatchCandidate from an ISRC-matched track. */
+function buildIsrcCandidate(track: Track, targetProvider: MusicProviderId): MatchCandidate {
+  return {
+    provider: targetProvider,
+    trackId: track.id,
+    trackUri: track.uri,
+    score: 1.0,
+    matchedBy: 'text',
+    previewMetadata: buildPreviewMetadata(track),
+  };
+}
+
+/** Try ISRC lookup and return a single-element array on hit, or null to continue. */
+async function tryIsrcLookup(
+  payload: TrackPayload,
+  targetProvider: MusicProviderId
+): Promise<MatchCandidate[] | null> {
+  if (!payload.isrc) {
+    return null;
+  }
+
+  const isrcTrack = await lookupTrackByIsrc(payload.isrc, targetProvider);
+  if (!isrcTrack?.id) {
+    return null;
+  }
+
+  return [buildIsrcCandidate(isrcTrack, targetProvider)];
+}
+
+/** Determine whether a fallback (album-less) search should run. */
+function shouldRunFallbackSearch(
+  payload: TrackPayload,
+  fallbackQuery: string,
+  primaryQuery: string,
+  primaryBestScore: number | undefined
+): boolean {
+  if (!payload.album || fallbackQuery.length === 0 || fallbackQuery === primaryQuery) {
+    return false;
+  }
+
+  const thresholds = getConfiguredMatchThresholds();
+  return primaryBestScore === undefined || primaryBestScore < thresholds.manual;
+}
+
+/** Search with primary query, optionally augmented by a fallback query. */
+async function searchWithFallback(
+  payload: TrackPayload,
+  targetProvider: MusicProviderId,
+  limit: number
+): Promise<Track[]> {
+  const query = buildQuery(payload, targetProvider);
+  if (!query) {
+    return [];
+  }
+
+  const primaryTracks = await searchTracks(query, targetProvider, limit);
+  const fallbackQuery = buildFallbackQuery(payload, targetProvider);
+  const primaryBestScore = pickTopCandidates(payload, primaryTracks, 1)[0]?.score;
+
+  if (!shouldRunFallbackSearch(payload, fallbackQuery, query, primaryBestScore)) {
+    return primaryTracks;
+  }
+
+  const fallbackTracks = await searchTracks(fallbackQuery, targetProvider, limit);
+  return dedupeTracksByUri([...primaryTracks, ...fallbackTracks]);
+}
+
+/** Build preview metadata from a Track. */
+function buildPreviewMetadata(track: Track): MatchCandidate['previewMetadata'] {
+  const releaseYear = extractReleaseYear(track);
+  return {
+    title: track.name,
+    artists: track.artists ?? [],
+    album: track.album?.name ?? null,
+    durationMs: track.durationMs,
+    ...(releaseYear ? { releaseYear } : {}),
+  };
+}
+
+/** Map scored candidates to MatchCandidate results. */
+function mapScoredToMatchCandidates(
+  scored: ScoredCandidate[],
+  targetProvider: MusicProviderId
+): MatchCandidate[] {
+  return scored.map((candidate) => ({
+    provider: targetProvider,
+    trackId: candidate.track.id,
+    trackUri: candidate.track.uri,
+    score: candidate.score,
+    matchedBy: candidate.matchedBy,
+    previewMetadata: buildPreviewMetadata(candidate.track),
+  }));
+}
+
 class ApiSearchProviderAdapter implements ProviderMatchingAdapter {
   async searchCandidates(payload: TrackPayload, targetProvider: MusicProviderId, limit = 3): Promise<MatchCandidate[]> {
-    // Fast-path: ISRC lookup
-    if (payload.isrc) {
-      const isrcTrack = await lookupTrackByIsrc(payload.isrc, targetProvider);
-      if (isrcTrack?.id) {
-        const releaseYear = extractReleaseYear(isrcTrack);
-        return [{
-          provider: targetProvider,
-          trackId: isrcTrack.id,
-          trackUri: isrcTrack.uri,
-          score: 1.0,
-          matchedBy: 'text',
-          previewMetadata: {
-            title: isrcTrack.name,
-            artists: isrcTrack.artists ?? [],
-            album: isrcTrack.album?.name ?? null,
-            durationMs: isrcTrack.durationMs,
-            ...(releaseYear ? { releaseYear } : {}),
-          },
-        }];
-      }
+    const isrcResult = await tryIsrcLookup(payload, targetProvider);
+    if (isrcResult) {
+      return isrcResult;
     }
 
-    // Text search fallback
-    const query = buildQuery(payload, targetProvider);
-    if (!query) {
+    const combinedTracks = await searchWithFallback(payload, targetProvider, limit);
+    if (combinedTracks.length === 0) {
       return [];
     }
 
-    const thresholds = getConfiguredMatchThresholds();
-    const primaryTracks = await searchTracks(query, targetProvider, limit);
-    let combinedTracks = primaryTracks;
-
-    const fallbackQuery = buildFallbackQuery(payload, targetProvider);
-    const primaryBest = pickTopCandidates(payload, primaryTracks, 1)[0];
-    const shouldRunFallback = Boolean(payload.album)
-      && fallbackQuery.length > 0
-      && fallbackQuery !== query
-      && (!primaryBest || primaryBest.score < thresholds.manual);
-
-    if (shouldRunFallback) {
-      const fallbackTracks = await searchTracks(fallbackQuery, targetProvider, limit);
-      combinedTracks = dedupeTracksByUri([...primaryTracks, ...fallbackTracks]);
-    }
-
     const scored = pickTopCandidates(payload, combinedTracks, limit);
-
-    return scored.map((candidate) => {
-      const releaseYear = extractReleaseYear(candidate.track);
-
-      return {
-        provider: targetProvider,
-        trackId: candidate.track.id,
-        trackUri: candidate.track.uri,
-        score: candidate.score,
-        matchedBy: candidate.matchedBy,
-        previewMetadata: {
-          title: candidate.track.name,
-          artists: candidate.track.artists ?? [],
-          album: candidate.track.album?.name ?? null,
-          durationMs: candidate.track.durationMs,
-          ...(releaseYear ? { releaseYear } : {}),
-        },
-      };
-    });
+    return mapScoredToMatchCandidates(scored, targetProvider);
   }
 
   async searchBestMatch(payload: TrackPayload, targetProvider: MusicProviderId): Promise<MatchCandidate | null> {

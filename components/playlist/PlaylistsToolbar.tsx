@@ -26,15 +26,38 @@ export interface PlaylistsToolbarProps {
   disableActions?: boolean;
 }
 
+const providerDisplayNames: Record<MusicProviderId, string> = {
+  spotify: 'Spotify',
+  tidal: 'TIDAL',
+};
+
+function deriveProviderStatus(code: string): 'connected' | 'disconnected' {
+  return code === 'ok' ? 'connected' : 'disconnected';
+}
+
+function getRefreshTitle(isRefreshing: boolean, providerId: MusicProviderId): string {
+  if (isRefreshing) {
+    return "Refreshing...";
+  }
+
+  return `Refresh playlists from ${providerDisplayNames[providerId]}`;
+}
+
+function getRefreshAriaLabel(isRefreshing: boolean): string {
+  return isRefreshing ? "Refreshing playlists" : "Refresh playlists";
+}
+
+function useShowImportButton(
+  summary: ReturnType<typeof useAuthSummary>,
+  syncSchedulerEnabled: boolean,
+): boolean {
+  const connectedCount = [summary.spotify, summary.tidal].filter(s => s.code === 'ok').length;
+
+  return syncSchedulerEnabled && connectedCount >= 2;
+}
+
 /**
  * Toolbar for playlists index with debounced search, refresh, and create playlist button.
- *
- * Features:
- * - Debounced search input (300ms delay)
- * - Refresh button with loading state
- * - Create new playlist button with dialog
- * - Import playlists from another provider
- * - Keyboard accessible controls
  */
 export function PlaylistsToolbar({
   providerId,
@@ -52,15 +75,15 @@ export function PlaylistsToolbar({
   const summary = useAuthSummary();
 
   const statusMap = {
-    spotify: summary.spotify.code === 'ok' ? 'connected' : 'disconnected',
-    tidal: summary.tidal.code === 'ok' ? 'connected' : 'disconnected',
+    spotify: deriveProviderStatus(summary.spotify.code),
+    tidal: deriveProviderStatus(summary.tidal.code),
   } as const;
 
   const createPlaylist = useCreatePlaylist();
   const openImportDialog = useImportDialogStore((s) => s.open);
   const syncSchedulerEnabled = useSyncSchedulerEnabled();
-  const connectedCount = [summary.spotify, summary.tidal].filter(s => s.code === 'ok').length;
-  const showImport = syncSchedulerEnabled && connectedCount >= 2;
+  const showImport = useShowImportButton(summary, syncSchedulerEnabled);
+  const actionsDisabled = isRefreshing || disableActions;
 
   // Sync with external searchTerm changes
   useEffect(() => {
@@ -89,18 +112,16 @@ export function PlaylistsToolbar({
       description: values.description,
       isPublic: values.isPublic,
     });
-    // Immediately add the new playlist to the list for instant feedback
-    if (onPlaylistCreated) {
-      onPlaylistCreated({
-        id: result.id,
-        name: result.name,
-        description: result.description,
-        isPublic: result.isPublic,
-        ownerName: result.ownerName,
-        image: result.image,
-        tracksTotal: result.tracksTotal,
-      });
-    }
+
+    onPlaylistCreated?.({
+      id: result.id,
+      name: result.name,
+      description: result.description,
+      isPublic: result.isPublic,
+      ownerName: result.ownerName,
+      image: result.image,
+      tracksTotal: result.tracksTotal,
+    });
   }, [createPlaylist, onPlaylistCreated, providerId]);
 
   return (
@@ -109,7 +130,7 @@ export function PlaylistsToolbar({
         value={inputValue}
         onChange={setInputValue}
         placeholder="Search playlists..."
-        disabled={isRefreshing || disableActions}
+        disabled={actionsDisabled}
         ariaLabel="Search playlists"
         breakpoint={200}
       />
@@ -128,7 +149,7 @@ export function PlaylistsToolbar({
         variant="default"
         size="sm"
         onClick={() => setCreateDialogOpen(true)}
-        disabled={isRefreshing || disableActions}
+        disabled={actionsDisabled}
         title="Create new playlist"
         aria-label="Create new playlist"
         className="shrink-0"
@@ -142,7 +163,7 @@ export function PlaylistsToolbar({
           variant="outline"
           size="sm"
           onClick={() => openImportDialog(providerId)}
-          disabled={isRefreshing || disableActions}
+          disabled={actionsDisabled}
           title="Import playlists from another provider"
           aria-label="Import playlists"
           className="shrink-0"
@@ -156,9 +177,9 @@ export function PlaylistsToolbar({
         variant="outline"
         size="icon"
         onClick={handleRefresh}
-        disabled={isRefreshing || disableActions}
-        title={isRefreshing ? "Refreshing..." : `Refresh playlists from ${providerId === 'spotify' ? 'Spotify' : 'TIDAL'}`}
-        aria-label={isRefreshing ? "Refreshing playlists" : "Refresh playlists"}
+        disabled={actionsDisabled}
+        title={getRefreshTitle(isRefreshing, providerId)}
+        aria-label={getRefreshAriaLabel(isRefreshing)}
         className="shrink-0"
       >
         <RefreshCw

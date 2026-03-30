@@ -117,6 +117,103 @@ async function addUrisToPlaylistMarkers(
   return markers.length;
 }
 
+function shouldUsePendingMatchFlow(
+  trackPayloads: TrackPayload[],
+  uris: string[],
+  sourceProviderId: MusicProviderId | null,
+  targetProviderId: MusicProviderId,
+): boolean {
+  if (trackPayloads.length === 0) {
+    return false;
+  }
+
+  if (uris.length === 0) {
+    return true;
+  }
+
+  return !!sourceProviderId && sourceProviderId !== targetProviderId;
+}
+
+function enqueuePendingForPlaylist(
+  playlistId: string,
+  markers: InsertionPoint[],
+  trackPayloads: TrackPayload[],
+  targetProviderId: MusicProviderId,
+  enqueueFn: (params: {
+    targetPlaylistId: string;
+    targetProviderId: MusicProviderId;
+    insertPosition: number;
+    payloads: TrackPayload[];
+  }) => boolean,
+): number {
+  const positions = computeInsertionPositions(markers, trackPayloads.length);
+  let enqueuedMarkers = 0;
+
+  for (const position of positions) {
+    if (enqueueFn({
+      targetPlaylistId: playlistId,
+      targetProviderId,
+      insertPosition: position.effectiveIndex,
+      payloads: trackPayloads,
+    })) {
+      enqueuedMarkers += 1;
+    }
+  }
+
+  return enqueuedMarkers;
+}
+
+async function processPlaylistMarkerEntry(params: {
+  playlistId: string;
+  playlistData: PlaylistMarkerData;
+  uris: string[];
+  sourceProviderId: MusicProviderId | null;
+  trackPayloads: TrackPayload[];
+  panelProviderByPlaylistId: Map<string, MusicProviderId>;
+  enqueuePendingFromBrowseDrop: (params: {
+    targetPlaylistId: string;
+    targetProviderId: MusicProviderId;
+    insertPosition: number;
+    payloads: TrackPayload[];
+  }) => boolean;
+  addTracksMutation: AddTracksMutationLike;
+  shiftAfterMultiInsert: (playlistId: string, options?: { tracksPerInsert?: number }) => void;
+}): Promise<number> {
+  const targetProviderId = resolveTargetProviderId(params.playlistId, params.panelProviderByPlaylistId);
+  const usePending = shouldUsePendingMatchFlow(
+    params.trackPayloads, params.uris, params.sourceProviderId, targetProviderId,
+  );
+
+  let insertedInPlaylist: number;
+
+  if (usePending) {
+    insertedInPlaylist = enqueuePendingForPlaylist(
+      params.playlistId, params.playlistData.markers, params.trackPayloads,
+      targetProviderId, params.enqueuePendingFromBrowseDrop,
+    );
+
+    if (insertedInPlaylist === 0) {
+      return -1; // Signal error
+    }
+  } else {
+    if (params.uris.length === 0) {
+      return -1; // Signal error
+    }
+
+    insertedInPlaylist = await addUrisToPlaylistMarkers(
+      params.playlistId, params.playlistData.markers, params.uris,
+      params.addTracksMutation, targetProviderId,
+    );
+  }
+
+  if (params.playlistData.markers.length > 1) {
+    const tracksPerInsert = usePending ? params.trackPayloads.length : params.uris.length;
+    params.shiftAfterMultiInsert(params.playlistId, { tracksPerInsert });
+  }
+
+  return insertedInPlaylist;
+}
+
 async function addUrisToMarkersAcrossPlaylists(params: {
   playlistsWithMarkers: PlaylistMarkerEntry[];
   uris: string[];
@@ -141,59 +238,23 @@ async function addUrisToMarkersAcrossPlaylists(params: {
     }
 
     try {
-      const targetProviderId = resolveTargetProviderId(playlistId, params.panelProviderByPlaylistId);
-      const shouldUsePendingMatchFlow =
-        params.trackPayloads.length > 0
-        && (params.uris.length === 0 || (params.sourceProviderId && params.sourceProviderId !== targetProviderId));
+      const result = await processPlaylistMarkerEntry({
+        playlistId,
+        playlistData,
+        uris: params.uris,
+        sourceProviderId: params.sourceProviderId,
+        trackPayloads: params.trackPayloads,
+        panelProviderByPlaylistId: params.panelProviderByPlaylistId,
+        enqueuePendingFromBrowseDrop: params.enqueuePendingFromBrowseDrop,
+        addTracksMutation: params.addTracksMutation,
+        shiftAfterMultiInsert: params.shiftAfterMultiInsert,
+      });
 
-      let insertedInPlaylist = 0;
-
-      if (shouldUsePendingMatchFlow) {
-        const positions = computeInsertionPositions(playlistData.markers, params.trackPayloads.length);
-        let enqueuedMarkers = 0;
-
-        for (const position of positions) {
-          const enqueued = params.enqueuePendingFromBrowseDrop({
-            targetPlaylistId: playlistId,
-            targetProviderId,
-            insertPosition: position.effectiveIndex,
-            payloads: params.trackPayloads,
-          });
-
-          if (enqueued) {
-            enqueuedMarkers += 1;
-          }
-        }
-
-        if (enqueuedMarkers === 0) {
-          errorCount++;
-          continue;
-        }
-
-        insertedInPlaylist = enqueuedMarkers;
+      if (result < 0) {
+        errorCount++;
       } else {
-        if (params.uris.length === 0) {
-          errorCount++;
-          continue;
-        }
-
-        insertedInPlaylist = await addUrisToPlaylistMarkers(
-          playlistId,
-          playlistData.markers,
-          params.uris,
-          params.addTracksMutation,
-          targetProviderId,
-        );
+        successCount += result;
       }
-
-      if (playlistData.markers.length > 1) {
-        const tracksPerInsert = shouldUsePendingMatchFlow
-          ? params.trackPayloads.length
-          : params.uris.length;
-        params.shiftAfterMultiInsert(playlistId, { tracksPerInsert });
-      }
-
-      successCount += insertedInPlaylist;
     } catch {
       errorCount++;
     }
