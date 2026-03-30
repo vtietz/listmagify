@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { Playlist } from '@/lib/music-provider/types';
 import type { MusicProviderId } from '@/lib/music-provider/types';
@@ -10,6 +10,7 @@ import { InlineSignInCard } from '@/components/auth/InlineSignInCard';
 import { useAuthRegistryHydrated, useProviderAuth } from '@features/auth/hooks/useAuth';
 import { useAuthSummary } from '@features/auth/hooks/useAuth';
 import { useEnsureValidToken } from '@features/auth/hooks/useEnsureValidToken';
+import { useImportDialogStore } from '@/features/import/stores/useImportDialogStore';
 
 function parseProviderFromQuery(value: string | null | undefined): MusicProviderId {
   if (value === 'spotify' || value === 'tidal') {
@@ -112,6 +113,16 @@ export function PlaylistsContainer({
   const handleRefreshComplete = useCallback(() => {
     setIsRefreshing(false);
   }, []);
+
+  // Refresh the grid when the import dialog closes after a completed job
+  const importDialogOpen = useImportDialogStore((s) => s.isOpen);
+  const prevImportOpenRef = useRef(false);
+  useEffect(() => {
+    if (prevImportOpenRef.current && !importDialogOpen) {
+      handleRefresh();
+    }
+    prevImportOpenRef.current = importDialogOpen;
+  }, [importDialogOpen, handleRefresh]);
 
   // Called when a new playlist is created - store it for immediate display
   const handlePlaylistCreated = useCallback((playlist: Playlist) => {

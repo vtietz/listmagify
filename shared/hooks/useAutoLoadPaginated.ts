@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { apiFetch } from "@/lib/api/client";
 import type { QueryClient } from "@tanstack/react-query";
 
@@ -104,7 +104,7 @@ interface UseAutoLoadPaginatedResult<T> {
   /** Whether auto-loading is in progress */
   isAutoLoading: boolean;
   /** Manually set items (for refresh) */
-  setItems: (items: T[]) => void;
+  setItems: React.Dispatch<React.SetStateAction<T[]>>;
   /** Manually set cursor (for refresh) */
   setNextCursor: (cursor: string | null) => void;
 }

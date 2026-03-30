@@ -21,6 +21,7 @@ type PlaylistListItemProps = {
   playlist: Playlist;
   providerId: MusicProviderId;
   className?: string;
+  onDeleted?: (playlistId: string) => void;
 };
 
 function canEditPlaylist(
@@ -147,7 +148,7 @@ function PlaylistListActions({
  * Compact list item view for playlists.
  * Shows playlist cover, name, and track count in a horizontal row.
  */
-export function PlaylistListItem({ playlist, providerId, className }: PlaylistListItemProps) {
+export function PlaylistListItem({ playlist, providerId, className, onDeleted }: PlaylistListItemProps) {
   const { user } = useSessionUser();
   const providerUserId = useProviderUserId(providerId);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -177,7 +178,8 @@ export function PlaylistListItem({ playlist, providerId, className }: PlaylistLi
   const handleDeleteConfirm = useCallback(async () => {
     await deletePlaylist.mutateAsync({ providerId, playlistId: playlist.id });
     setDeleteDialogOpen(false);
-  }, [deletePlaylist, providerId, playlist.id]);
+    onDeleted?.(playlist.id);
+  }, [deletePlaylist, providerId, playlist.id, onDeleted]);
 
   const handlePlayClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();

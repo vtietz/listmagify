@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { Playlist } from '@/lib/music-provider/types';
 import type { MusicProviderId } from '@/lib/music-provider/types';
 import { PlaylistCard } from "@/components/playlist/PlaylistCard";
@@ -125,6 +125,10 @@ export function PlaylistsGrid({
     tracksTotal: likedSongsTotal,
   }), [likedSongsTotal, likedPlaylistMetadata]);
 
+  const handlePlaylistDeleted = useCallback((playlistId: string) => {
+    setItems((prev) => prev.filter((p) => p.id !== playlistId));
+  }, [setItems]);
+
   // Filter items by search term (case-insensitive, name and owner, words in any order)
   const filteredItems = useMemo(() => {
     const query = searchTerm.trim();
@@ -166,14 +170,14 @@ export function PlaylistsGrid({
         /* Compact mode: List view with 1-3 columns */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-1">
           {filteredItems.map((playlist) => (
-            <PlaylistListItem key={playlist.id} playlist={playlist} providerId={providerId} />
+            <PlaylistListItem key={playlist.id} playlist={playlist} providerId={providerId} onDeleted={handlePlaylistDeleted} />
           ))}
         </div>
       ) : (
         /* Normal mode: Card grid */
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
           {filteredItems.map((playlist) => (
-            <PlaylistCard key={playlist.id} playlist={playlist} providerId={providerId} />
+            <PlaylistCard key={playlist.id} playlist={playlist} providerId={providerId} onDeleted={handlePlaylistDeleted} />
           ))}
         </div>
       )}

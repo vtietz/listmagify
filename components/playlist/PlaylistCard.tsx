@@ -22,6 +22,7 @@ type PlaylistCardProps = {
   playlist: Playlist;
   providerId: MusicProviderId;
   className?: string;
+  onDeleted?: (playlistId: string) => void;
 };
 
 function canEditPlaylist(
@@ -166,7 +167,7 @@ function PlaylistCardActions({
   );
 }
 
-export function PlaylistCard({ playlist, providerId, className }: PlaylistCardProps) {
+export function PlaylistCard({ playlist, providerId, className, onDeleted }: PlaylistCardProps) {
   const { isCompact } = useCompactModeStore();
   const { user } = useSessionUser();
   const providerUserId = useProviderUserId(providerId);
@@ -197,7 +198,8 @@ export function PlaylistCard({ playlist, providerId, className }: PlaylistCardPr
   const handleDeleteConfirm = useCallback(async () => {
     await deletePlaylist.mutateAsync({ providerId, playlistId: playlist.id });
     setDeleteDialogOpen(false);
-  }, [deletePlaylist, providerId, playlist.id]);
+    onDeleted?.(playlist.id);
+  }, [deletePlaylist, providerId, playlist.id, onDeleted]);
 
   const handlePlayClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();

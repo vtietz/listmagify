@@ -306,15 +306,34 @@ export function createTidalProvider(dependencies: TidalProviderDependencies = {}
     },
 
     async deletePlaylist(playlistId: string): Promise<void> {
-      const response = await transport.executeWithSession(
-        '/userCollectionPlaylists/me/relationships/items',
-        { method: 'DELETE', body: buildJsonApiDataPayload([{ id: playlistId, type: 'playlists' }]) },
+      // First try to permanently delete the playlist resource.
+      // This works for playlists owned by the current user.
+      const deleteResponse = await transport.executeWithSession(
+        `/playlists/${encodeURIComponent(playlistId)}`,
+        { method: 'DELETE' },
         undefined,
       );
 
-      if (!response.ok) {
-        throwProviderError(response, await readJsonApiErrorDetails(response), 'deletePlaylist');
+      if (deleteResponse.ok) {
+        return;
       }
+
+      // If resource deletion fails (e.g. 403 for non-owned playlists),
+      // fall back to removing it from the user's collection (unfollow).
+      if (deleteResponse.status === 403 || deleteResponse.status === 405) {
+        const collectionResponse = await transport.executeWithSession(
+          '/userCollectionPlaylists/me/relationships/items',
+          { method: 'DELETE', body: buildJsonApiDataPayload([{ id: playlistId, type: 'playlists' }]) },
+          undefined,
+        );
+
+        if (!collectionResponse.ok) {
+          throwProviderError(collectionResponse, await readJsonApiErrorDetails(collectionResponse), 'deletePlaylist');
+        }
+        return;
+      }
+
+      throwProviderError(deleteResponse, await readJsonApiErrorDetails(deleteResponse), 'deletePlaylist');
     },
 
     async getPlaylistTrackUris(playlistId: string): Promise<string[]> {
