@@ -1,4 +1,4 @@
-import type { CurrentUserResult, Image, Playlist, PlaylistTracksPageResult, SearchArtistResult, SearchAlbumResult, Track } from '@/lib/music-provider/types';
+import type { Artist, CurrentUserResult, Image, Playlist, PlaylistTracksPageResult, SearchArtistResult, SearchAlbumResult, Track } from '@/lib/music-provider/types';
 import type {
   JsonApiDocument,
   JsonApiIdentifier,
@@ -240,6 +240,27 @@ function getTrackArtists(trackResource: JsonApiResource, includedIndex: Map<stri
     .filter((name): name is string => typeof name === 'string' && name.length > 0);
 }
 
+function getTrackArtistObjects(trackResource: JsonApiResource, includedIndex: Map<string, JsonApiResource>): Artist[] {
+  const artistIdentifiers = toIdentifierArray(trackResource.relationships?.artists);
+  const artists: Artist[] = [];
+
+  for (const artistIdentifier of artistIdentifiers) {
+    const resource = getIncludedResource(includedIndex, artistIdentifier);
+    if (!resource) {
+      continue;
+    }
+
+    const name = resource.attributes?.name;
+    if (typeof name !== 'string' || name.length === 0) {
+      continue;
+    }
+
+    artists.push({ id: artistIdentifier.id, name });
+  }
+
+  return artists;
+}
+
 function mapAlbumResource(
   albumResource: JsonApiResource | null,
   includedIndex: Map<string, JsonApiResource>,
@@ -278,6 +299,7 @@ function mapTrackResource(
     uri: toTrackUri(id),
     name: asOptionalString(attributes.title) ?? id,
     artists: getTrackArtists(trackResource, includedIndex),
+    artistObjects: getTrackArtistObjects(trackResource, includedIndex),
     durationMs: parseDurationToMs(attributes.duration),
     position,
     album: mapAlbumResource(albumResource, includedIndex),

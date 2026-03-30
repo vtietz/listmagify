@@ -17,7 +17,7 @@ import type { TrackRowProps, TrackRowSharedContext } from './types';
 export function TrackRowWithHooks(props: TrackRowProps) {
   const { isCompact } = useCompactModeStore();
   const { isEnabled: isAutoScrollEnabled } = useAutoScrollTextStore();
-  const { open: openBrowsePanel, setActiveTab, setSearchQuery, setSearchFilter, providerId } = useBrowsePanelStore();
+  const { open: openBrowsePanel, setActiveTab, setSearchQuery, setSearchFilter, setDrillDown, setProviderId, providerId } = useBrowsePanelStore();
   const togglePoint = useInsertionPointsStore((s) => s.togglePoint);
   const hasActiveMarkers = useInsertionPointsStore((s) => s.hasActiveMarkers);
   const { isPhone } = useDeviceType();
@@ -44,6 +44,8 @@ export function TrackRowWithHooks(props: TrackRowProps) {
     setMobileOverlay,
     isDndActive,
     openContextMenu,
+    setDrillDown,
+    setProviderId,
     showHandle,
     handleOnlyDrag,
   };

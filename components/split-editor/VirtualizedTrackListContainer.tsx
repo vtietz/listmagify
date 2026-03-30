@@ -239,7 +239,7 @@ export function VirtualizedTrackListContainer({
     setSearchQuery,
     setSearchFilter,
     togglePoint, hasAnyMarkersGlobal: hasAnyMarkersGlobal, isPhone,
-    setMobileOverlay, isDndActive, openContextMenu, showHandle, handleOnlyDrag,
+    setMobileOverlay, isDndActive, openContextMenu, setProviderId, showHandle, handleOnlyDrag,
   }), [
     isCompact,
     isAutoScrollEnabled,
@@ -248,7 +248,7 @@ export function VirtualizedTrackListContainer({
     setSearchQuery,
     setSearchFilter,
     togglePoint, hasAnyMarkersGlobal, isPhone, setMobileOverlay,
-    isDndActive, openContextMenu, showHandle, handleOnlyDrag,
+    isDndActive, openContextMenu, setProviderId, showHandle, handleOnlyDrag,
   ]);
 
   const showInsertionMarkers = shouldRenderInsertionMarkers(

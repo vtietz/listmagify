@@ -160,6 +160,7 @@ describe('tidal jsonApi and mappers', () => {
       uri: 'tidal:track:track-1',
       name: 'Song A',
       artists: ['Artist A'],
+      artistObjects: [{ id: 'artist-1', name: 'Artist A' }],
       durationMs: 210000,
       addedAt: '2024-01-01T00:00:00Z',
       position: 0,

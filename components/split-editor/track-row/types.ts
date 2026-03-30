@@ -78,6 +78,8 @@ export interface TrackRowSharedContext {
   setMobileOverlay: (overlay: MobileOverlay) => void;
   isDndActive: boolean;
   openContextMenu: ReturnType<typeof useContextMenuStore.getState>['openMenu'];
+  setDrillDown?: (target: { type: 'artist' | 'album'; id: string; name: string }) => void;
+  setProviderId: (providerId: MusicProviderId) => void;
   showHandle: boolean;
   handleOnlyDrag: boolean;
 }

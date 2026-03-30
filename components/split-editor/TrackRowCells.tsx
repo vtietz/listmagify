@@ -101,19 +101,19 @@ export function TitleCell({ isCompact, track, moreButton, statusIndicator, isAut
 
 interface ClickableArtistButtonProps {
   artistName: string;
-  onArtistClick?: (e: React.MouseEvent, artistName: string) => void;
+  artistId?: string | null;
+  onArtistClick?: (e: React.MouseEvent, artistName: string, artistId?: string | null) => void;
 }
 
-function ClickableArtistButton({ artistName, onArtistClick }: ClickableArtistButtonProps) {
+function ClickableArtistButton({ artistName, artistId, onArtistClick }: ClickableArtistButtonProps) {
   const tapHandlers = useTapHandler({
     onTap: () => {
       if (onArtistClick) {
-        // Create a synthetic event for consistency with onClick handler
-        const syntheticEvent = { 
-          stopPropagation: () => {}, 
-          preventDefault: () => {} 
+        const syntheticEvent = {
+          stopPropagation: () => {},
+          preventDefault: () => {}
         } as React.MouseEvent;
-        onArtistClick(syntheticEvent, artistName);
+        onArtistClick(syntheticEvent, artistName, artistId);
       }
     },
   });
@@ -121,7 +121,7 @@ function ClickableArtistButton({ artistName, onArtistClick }: ClickableArtistBut
   return (
     <button
       className="hover:underline hover:text-green-500 text-left cursor-pointer"
-      onClick={(e) => onArtistClick?.(e, artistName)}
+      onClick={(e) => onArtistClick?.(e, artistName, artistId)}
       onTouchStart={tapHandlers.onTouchStart}
       onTouchMove={tapHandlers.onTouchMove}
       onTouchEnd={tapHandlers.onTouchEnd}
@@ -135,8 +135,7 @@ function ClickableArtistButton({ artistName, onArtistClick }: ClickableArtistBut
 
 interface ArtistCellProps extends CellProps {
   track: Track;
-  /** Handler for clicking on an artist name to search */
-  onArtistClick?: (e: React.MouseEvent, artistName: string) => void;
+  onArtistClick?: (e: React.MouseEvent, artistName: string, artistId?: string | null) => void;
 }
 
 export function ArtistCell({ isCompact, track, onArtistClick, isAutoScrollEnabled = false }: ArtistCellProps) {
@@ -147,8 +146,9 @@ export function ArtistCell({ isCompact, track, onArtistClick, isAutoScrollEnable
   const artistsContent = track.artistObjects && track.artistObjects.length > 0 ? (
     track.artistObjects.map((artist, idx) => (
       <span key={artist.id || artist.name}>
-        <ClickableArtistButton 
+        <ClickableArtistButton
           artistName={artist.name}
+          artistId={artist.id}
           {...(onArtistClick ? { onArtistClick } : {})}
         />
         {idx < track.artistObjects!.length - 1 && ', '}
@@ -191,22 +191,21 @@ export function ArtistCell({ isCompact, track, onArtistClick, isAutoScrollEnable
 
 interface AlbumCellProps extends CellProps {
   track: Track;
-  /** Handler for clicking on an album name to search */
-  onAlbumClick?: (e: React.MouseEvent, albumName: string) => void;
+  onAlbumClick?: (e: React.MouseEvent, albumName: string, albumId?: string | null) => void;
 }
 
 export function AlbumCell({ isCompact, track, onAlbumClick, isAutoScrollEnabled = false }: AlbumCellProps) {
   const albumName = track.album?.name;
-  
+  const albumId = track.album?.id;
+
   const tapHandlers = useTapHandler({
     onTap: () => {
       if (albumName && onAlbumClick) {
-        // Create a synthetic event for consistency with onClick handler
-        const syntheticEvent = { 
-          stopPropagation: () => {}, 
-          preventDefault: () => {} 
+        const syntheticEvent = {
+          stopPropagation: () => {},
+          preventDefault: () => {}
         } as React.MouseEvent;
-        onAlbumClick(syntheticEvent, albumName);
+        onAlbumClick(syntheticEvent, albumName, albumId);
       }
     },
   });
@@ -222,7 +221,7 @@ export function AlbumCell({ isCompact, track, onAlbumClick, isAutoScrollEnabled 
           >
             <button
               className="hover:underline hover:text-green-500 text-left cursor-pointer"
-              onClick={(e) => onAlbumClick?.(e, albumName)}
+              onClick={(e) => onAlbumClick?.(e, albumName, albumId)}
               onTouchStart={tapHandlers.onTouchStart}
               onTouchMove={tapHandlers.onTouchMove}
               onTouchEnd={tapHandlers.onTouchEnd}
@@ -236,7 +235,7 @@ export function AlbumCell({ isCompact, track, onAlbumClick, isAutoScrollEnabled 
           <div className={cn('text-muted-foreground truncate', isCompact ? 'text-xs' : 'text-sm')}>
             <button
               className="hover:underline hover:text-green-500 text-left cursor-pointer truncate max-w-full"
-              onClick={(e) => onAlbumClick?.(e, albumName)}
+              onClick={(e) => onAlbumClick?.(e, albumName, albumId)}
               onTouchStart={tapHandlers.onTouchStart}
               onTouchMove={tapHandlers.onTouchMove}
               onTouchEnd={tapHandlers.onTouchEnd}

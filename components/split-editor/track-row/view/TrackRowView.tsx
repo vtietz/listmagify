@@ -61,8 +61,8 @@ interface TrackRowViewProps {
   onPlayClick: (e: React.MouseEvent) => void;
   onMoreButtonClick: (e: React.MouseEvent) => void;
   onRemovePending?: (() => void) | undefined;
-  onArtistClick: (e: React.MouseEvent, artistName: string) => void;
-  onAlbumClick: (e: React.MouseEvent, albumName: string) => void;
+  onArtistClick: (e: React.MouseEvent, artistName: string, artistId?: string | null) => void;
+  onAlbumClick: (e: React.MouseEvent, albumName: string, albumId?: string | null) => void;
   dragListeners: SyntheticListenerMap | undefined;
   pendingStatus?: 'matching' | 'unresolved' | undefined;
   pendingMessage?: string | undefined;

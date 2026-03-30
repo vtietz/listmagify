@@ -156,6 +156,8 @@ function TrackRowInnerComponent(props: TrackRowInnerProps) {
     setMobileOverlay,
     isDndActive,
     openContextMenu,
+    setDrillDown,
+    setProviderId,
     showHandle,
     handleOnlyDrag,
   } = ctx;
@@ -265,6 +267,8 @@ function TrackRowInnerComponent(props: TrackRowInnerProps) {
     setSearchQuery,
     setSearchFilter,
     openBrowsePanel,
+    ...(setDrillDown ? { setDrillDown } : {}),
+    setProviderId,
     isPhone,
     setMobileOverlay,
     openContextMenu,

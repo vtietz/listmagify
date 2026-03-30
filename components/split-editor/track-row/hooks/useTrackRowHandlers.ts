@@ -23,6 +23,8 @@ interface UseTrackRowHandlersInput {
   setSearchQuery: (q: string) => void;
   setSearchFilter: (filter: SearchFilterType) => void;
   openBrowsePanel: () => void;
+  setDrillDown?: (target: { type: 'artist' | 'album'; id: string; name: string }) => void;
+  setProviderId: (providerId: MusicProviderId) => void;
   isPhone: boolean;
   setMobileOverlay: (overlay: MobileOverlay) => void;
   openContextMenu: ReturnType<typeof useContextMenuStore.getState>['openMenu'];
@@ -54,6 +56,8 @@ export function useTrackRowHandlers({
   setSearchQuery,
   setSearchFilter,
   openBrowsePanel,
+  setDrillDown,
+  setProviderId,
   isPhone,
   setMobileOverlay,
   openContextMenu,
@@ -76,10 +80,16 @@ export function useTrackRowHandlers({
   });
 
   const handleArtistClick = useCallback(
-    (e: React.MouseEvent, artistName: string) => {
+    (e: React.MouseEvent, artistName: string, artistId?: string | null) => {
       e.stopPropagation();
       e.preventDefault();
-      if (providerId === 'spotify') {
+      const trackProvider: MusicProviderId = track.uri.startsWith('spotify:') ? 'spotify' : 'tidal';
+      if (providerId !== trackProvider) {
+        setProviderId(trackProvider);
+      }
+      if (artistId && trackProvider !== 'spotify' && setDrillDown) {
+        setDrillDown({ type: 'artist', id: artistId, name: artistName });
+      } else if (trackProvider === 'spotify') {
         setSearchQuery(`artist:"${artistName}"`);
       } else {
         setSearchFilter('artists');
@@ -91,14 +101,20 @@ export function useTrackRowHandlers({
         openBrowsePanel();
       }
     },
-    [providerId, setSearchQuery, setSearchFilter, isPhone, setMobileOverlay, openBrowsePanel],
+    [track.uri, providerId, setProviderId, setSearchQuery, setSearchFilter, setDrillDown, isPhone, setMobileOverlay, openBrowsePanel],
   );
 
   const handleAlbumClick = useCallback(
-    (e: React.MouseEvent, albumName: string) => {
+    (e: React.MouseEvent, albumName: string, albumId?: string | null) => {
       e.stopPropagation();
       e.preventDefault();
-      if (providerId === 'spotify') {
+      const trackProvider: MusicProviderId = track.uri.startsWith('spotify:') ? 'spotify' : 'tidal';
+      if (providerId !== trackProvider) {
+        setProviderId(trackProvider);
+      }
+      if (albumId && trackProvider !== 'spotify' && setDrillDown) {
+        setDrillDown({ type: 'album', id: albumId, name: albumName });
+      } else if (trackProvider === 'spotify') {
         setSearchQuery(`album:"${albumName}"`);
       } else {
         setSearchFilter('albums');
@@ -110,7 +126,7 @@ export function useTrackRowHandlers({
         openBrowsePanel();
       }
     },
-    [providerId, setSearchQuery, setSearchFilter, isPhone, setMobileOverlay, openBrowsePanel],
+    [track.uri, providerId, setProviderId, setSearchQuery, setSearchFilter, setDrillDown, isPhone, setMobileOverlay, openBrowsePanel],
   );
 
   const handleClick = useCallback(

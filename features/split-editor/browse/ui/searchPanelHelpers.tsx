@@ -284,6 +284,7 @@ export function SearchTracksVirtualList({
             sortDirection={sortDirection}
             onSort={onSort}
             showLikedColumn={true}
+            showCumulativeTime={false}
             providerId={providerId}
           />
           <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
@@ -326,6 +327,7 @@ export function SearchTracksVirtualList({
                     dndMode="copy"
                     isDragSourceSelected={false}
                     showLikedColumn={true}
+                    showCumulativeTime={false}
                     isLiked={liked}
                     onToggleLiked={onToggleLiked}
                     isPlaying={track.id ? isTrackPlaying(track.id) : false}
