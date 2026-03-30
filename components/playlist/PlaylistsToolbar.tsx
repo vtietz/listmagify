@@ -2,12 +2,15 @@
 
 import { AdaptiveSearch } from "@/components/ui/adaptive-search";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, Plus } from "lucide-react";
+import { RefreshCw, Plus, Import } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { PlaylistDialog } from "@/components/playlist/PlaylistDialog";
 import { useCreatePlaylist } from "@/lib/spotify/playlistMutations";
 import { ProviderStatusDropdown } from '@/components/auth/ProviderStatusDropdown';
 import { useAuthSummary } from '@features/auth/hooks/useAuth';
+import { ImportPlaylistsDialog } from "@/features/import/ui/ImportPlaylistsDialog";
+import { useImportDialogStore } from "@/features/import/stores/useImportDialogStore";
+import { useSyncSchedulerEnabled } from '@shared/hooks/useAppConfig';
 import type { Playlist } from '@/lib/music-provider/types';
 import type { MusicProviderId } from '@/lib/music-provider/types';
 
@@ -25,11 +28,12 @@ export interface PlaylistsToolbarProps {
 
 /**
  * Toolbar for playlists index with debounced search, refresh, and create playlist button.
- * 
+ *
  * Features:
  * - Debounced search input (300ms delay)
  * - Refresh button with loading state
  * - Create new playlist button with dialog
+ * - Import playlists from another provider
  * - Keyboard accessible controls
  */
 export function PlaylistsToolbar({
@@ -53,6 +57,10 @@ export function PlaylistsToolbar({
   } as const;
 
   const createPlaylist = useCreatePlaylist();
+  const openImportDialog = useImportDialogStore((s) => s.open);
+  const syncSchedulerEnabled = useSyncSchedulerEnabled();
+  const connectedCount = [summary.spotify, summary.tidal].filter(s => s.code === 'ok').length;
+  const showImport = syncSchedulerEnabled && connectedCount >= 2;
 
   // Sync with external searchTerm changes
   useEffect(() => {
@@ -129,6 +137,21 @@ export function PlaylistsToolbar({
         New Playlist
       </Button>
 
+      {showImport && (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => openImportDialog(providerId)}
+          disabled={isRefreshing || disableActions}
+          title="Import playlists from another provider"
+          aria-label="Import playlists"
+          className="shrink-0"
+        >
+          <Import className="h-4 w-4 mr-1" />
+          Import
+        </Button>
+      )}
+
       <Button
         variant="outline"
         size="icon"
@@ -151,6 +174,8 @@ export function PlaylistsToolbar({
         onSubmit={handleCreatePlaylist}
         isSubmitting={createPlaylist.isPending}
       />
+
+      <ImportPlaylistsDialog />
     </div>
   );
 }

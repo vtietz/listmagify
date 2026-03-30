@@ -303,4 +303,37 @@ export const recsMigrations: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_sync_pairs_next_run ON sync_pairs(next_run_at);
     `,
   },
+  {
+    version: 10,
+    name: 'add_import_jobs',
+    sql: `
+      CREATE TABLE IF NOT EXISTS import_jobs (
+        id TEXT PRIMARY KEY,
+        source_provider TEXT NOT NULL,
+        target_provider TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        created_by TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        completed_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_import_jobs_created_by ON import_jobs(created_by);
+      CREATE INDEX IF NOT EXISTS idx_import_jobs_status ON import_jobs(status);
+
+      CREATE TABLE IF NOT EXISTS import_job_playlists (
+        id TEXT PRIMARY KEY,
+        job_id TEXT NOT NULL REFERENCES import_jobs(id) ON DELETE CASCADE,
+        source_playlist_id TEXT NOT NULL,
+        source_playlist_name TEXT NOT NULL,
+        target_playlist_id TEXT,
+        status TEXT NOT NULL DEFAULT 'queued',
+        track_count INTEGER NOT NULL DEFAULT 0,
+        tracks_resolved INTEGER NOT NULL DEFAULT 0,
+        tracks_added INTEGER NOT NULL DEFAULT 0,
+        tracks_unresolved INTEGER NOT NULL DEFAULT 0,
+        error_message TEXT,
+        position INTEGER NOT NULL DEFAULT 0
+      );
+      CREATE INDEX IF NOT EXISTS idx_import_job_playlists_job ON import_job_playlists(job_id);
+    `,
+  },
 ];

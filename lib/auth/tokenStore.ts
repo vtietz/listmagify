@@ -277,3 +277,31 @@ export function getAllActiveTokens(): StoredProviderToken[] {
     return [];
   }
 }
+
+/**
+ * Find the user_id that has an active token for a given provider.
+ *
+ * In multi-provider setups, each provider may store tokens under a
+ * different user_id (e.g. Spotify username vs TIDAL numeric ID).
+ * This helper resolves the correct user_id for background operations
+ * that need to call createBackgroundProvider().
+ */
+export function findUserIdForProvider(provider: MusicProviderId): string | null {
+  if (!isTokenEncryptionAvailable()) {
+    return null;
+  }
+
+  try {
+    const db = getAuthDb();
+    const row = db
+      .prepare(
+        `SELECT user_id FROM user_tokens WHERE provider = ? AND status = 'active' LIMIT 1`
+      )
+      .get(provider) as { user_id: string } | undefined;
+
+    return row?.user_id ?? null;
+  } catch (error) {
+    console.error('[auth-token-store] Failed to find userId for provider:', error);
+    return null;
+  }
+}

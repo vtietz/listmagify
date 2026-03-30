@@ -8,6 +8,7 @@ import {
   Github,
   GitCompare,
   GripVertical,
+  Import,
   MapPin,
   Minimize2,
   Music2,
@@ -39,6 +40,13 @@ export function LandingFeaturesGridSection({ availableProviders }: { availablePr
           title="Drag & Drop"
           description={`Effortlessly move tracks between playlists or reorder within a playlist.${isMultiProvider ? ` Drag across ${providerNames} with automatic track matching.` : ''} Copy or move mode with visual feedback.`}
         />
+        {isMultiProvider && (
+          <FeatureCard
+            icon={<Import className="h-6 w-6" />}
+            title="Import & Transfer"
+            description={`Bulk-import playlists from one provider to another. Select playlists, resolve tracks automatically via ISRC and search matching, and transfer your library across ${providerNames} with a single click.`}
+          />
+        )}
         {isMultiProvider && (
           <FeatureCard
             icon={<RefreshCw className="h-6 w-6" />}

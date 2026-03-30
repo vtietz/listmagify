@@ -9,6 +9,7 @@ Playlist magic for Spotify. Edit multiple playlists side-by-side with drag-and-d
 ## Features
 
 - **Multi-Panel Editor** – Work with multiple playlists simultaneously in split views
+- **Import & Transfer** – Bulk-import playlists from one provider to another with automatic track matching via ISRC and search. Monitor per-playlist progress in real time
 - **Drag & Drop** – Move or copy tracks between playlists with visual feedback
 - **Bulk Operations** – Select and move/copy/delete multiple tracks at once
 - **Smart Search** – Filter tracks instantly by title, artist, or album
