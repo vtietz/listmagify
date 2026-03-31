@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
 @custom-variant dark (&:is(.dark *));
+@custom-variant compact (&:is(.compact *));
 
 @theme inline {
   --color-background: var(--background);

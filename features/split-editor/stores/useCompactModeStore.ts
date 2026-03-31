@@ -38,6 +38,16 @@ export const useCompactModeStore = create<CompactModeStore>()(
   )
 );
 
+// Keep the `compact` CSS class on <html> and a cookie in sync with the store.
+// The class enables CSS-only variants (e.g. `compact:hidden`) at runtime.
+// The cookie allows server components to read the preference during SSR.
+if (typeof window !== 'undefined') {
+  useCompactModeStore.subscribe((state) => {
+    document.documentElement.classList.toggle('compact', state.isCompact);
+    document.cookie = `compact=${state.isCompact ? '1' : '0'}; path=/; max-age=31536000; SameSite=Lax`;
+  });
+}
+
 /**
  * Read compact mode directly from localStorage (synchronous).
  * This avoids the flash by reading the persisted value before React hydration.

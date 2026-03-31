@@ -132,6 +132,19 @@ export default function RootLayout({
             `,
           }}
         />
+        <script
+          id="compact-mode-init"
+          dangerouslySetInnerHTML={{
+            __html: `
+              try {
+                var s = localStorage.getItem('compact-mode-storage');
+                if (s && JSON.parse(s).state.isCompact) {
+                  document.documentElement.classList.add('compact');
+                }
+              } catch (e) {}
+            `,
+          }}
+        />
         <Providers>
           <SessionErrorHandler />
           <AppShell>

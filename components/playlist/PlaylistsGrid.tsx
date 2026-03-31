@@ -5,11 +5,12 @@ import type { Playlist } from '@/lib/music-provider/types';
 import type { MusicProviderId } from '@/lib/music-provider/types';
 import { PlaylistCard } from "@/components/playlist/PlaylistCard";
 import { PlaylistListItem } from "@/components/playlist/PlaylistListItem";
+import { Skeleton } from "@/components/ui/skeleton";
 import { apiFetch, ApiError } from "@/lib/api/client";
 import { useAutoLoadPaginated } from "@shared/hooks/useAutoLoadPaginated";
 import { getLikedPlaylistMetadata } from "@features/playlists/hooks/useLikedVirtualPlaylist";
 import { useLikedSongsTotal } from "@features/playlists/hooks/useSavedTracksIndex";
-import { useCompactModeStore } from "@features/split-editor/stores/useCompactModeStore";
+import { useCompactModeStore, useHydratedCompactMode } from "@features/split-editor/stores/useCompactModeStore";
 import { matchesAllWords } from "@/lib/utils";
 
 export interface PlaylistsGridProps {
@@ -42,7 +43,10 @@ export function PlaylistsGrid({
   newlyCreatedPlaylist,
   onNewPlaylistAdded,
 }: PlaylistsGridProps) {
-  const { isCompact } = useCompactModeStore();
+  const clientCompact = useHydratedCompactMode();
+  const hasHydrated = useCompactModeStore((s) => s._hasHydrated);
+  // Real content is gated behind hasHydrated, so clientCompact is always reliable here
+  const isCompact = clientCompact;
   const handledPlaylistIdRef = useRef<string | null>(null);
   const refreshInFlightRef = useRef(false);
   
@@ -153,6 +157,44 @@ export function PlaylistsGrid({
     // Prepend Liked Songs if it matches
     return likedMatches ? [likedSongsPlaylist, ...filtered] : filtered;
   }, [items, searchTerm, likedSongsPlaylist]);
+
+  // Wait for compact mode store to hydrate before rendering real content.
+  // Until then, show a CSS-based skeleton that uses the `compact:` variant
+  // so the blocking <script> in layout.tsx picks the right shape instantly.
+  if (!hasHydrated) {
+    return (
+      <div className="space-y-6">
+        {/* Compact skeleton — visible only when html.compact */}
+        <div className="hidden compact:block">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-1">
+            {Array.from({ length: 15 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3 p-2">
+                <Skeleton className="w-10 h-10 flex-shrink-0 rounded" />
+                <div className="flex-1 min-w-0 space-y-1">
+                  <Skeleton className="h-3.5 w-full" />
+                  <Skeleton className="h-3 w-16" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        {/* Normal skeleton — hidden when html.compact */}
+        <div className="block compact:hidden">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            {Array.from({ length: 10 }).map((_, i) => (
+              <div key={i} className="space-y-2">
+                <Skeleton className="aspect-square rounded-t-lg" />
+                <div className="space-y-1 px-3 pb-3">
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-3 w-2/3" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (filteredItems.length === 0) {
     return (
