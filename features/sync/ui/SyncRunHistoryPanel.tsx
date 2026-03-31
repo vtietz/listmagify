@@ -6,19 +6,7 @@ import { SyncStatusBadge } from '@features/sync/ui/SyncStatusBadge';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { SyncRun, SyncTrigger } from '@/lib/sync/types';
-
-function formatRelativeTime(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const absDiff = Math.abs(diff);
-  const isFuture = diff < 0;
-  const minutes = Math.floor(absDiff / 60000);
-  if (minutes < 1) return isFuture ? 'in <1m' : 'just now';
-  if (minutes < 60) return isFuture ? `in ${minutes}m` : `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return isFuture ? `in ${hours}h` : `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return isFuture ? `in ${days}d` : `${days}d ago`;
-}
+import { formatRelativeTime } from '@shared/utils/formatRelativeTime';
 
 const TRIGGER_LABELS: Record<SyncTrigger, { label: string; className: string }> = {
   manual: { label: 'manual', className: 'text-blue-400' },

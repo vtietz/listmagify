@@ -21,8 +21,10 @@ export function createImportJob(input: CreateImportJobInput): ImportJob {
       source_provider,
       target_provider,
       status,
-      created_by
-    ) VALUES (?, ?, ?, 'pending', ?)
+      created_by,
+      create_sync_pair,
+      sync_interval
+    ) VALUES (?, ?, ?, 'pending', ?, ?, ?)
   `);
 
   const insertPlaylist = db.prepare(`
@@ -37,7 +39,14 @@ export function createImportJob(input: CreateImportJobInput): ImportJob {
   `);
 
   const transaction = db.transaction(() => {
-    insertJob.run(jobId, input.sourceProvider, input.targetProvider, input.createdBy);
+    insertJob.run(
+      jobId,
+      input.sourceProvider,
+      input.targetProvider,
+      input.createdBy,
+      input.createSyncPair ? 1 : 0,
+      input.syncInterval ?? 'off',
+    );
 
     for (let i = 0; i < input.playlists.length; i++) {
       const playlist = input.playlists[i]!;
@@ -61,12 +70,16 @@ function getImportJob(jobId: string): ImportJob | null {
       status,
       created_by AS createdBy,
       created_at AS createdAt,
-      completed_at AS completedAt
+      completed_at AS completedAt,
+      create_sync_pair AS createSyncPair,
+      sync_interval AS syncInterval
     FROM import_jobs
     WHERE id = ?
   `).get(jobId) as ImportJob | undefined;
 
-  return row ?? null;
+  if (!row) return null;
+  row.createSyncPair = Boolean(row.createSyncPair);
+  return row;
 }
 
 export function getImportJobWithPlaylists(
@@ -84,7 +97,9 @@ export function getImportJobWithPlaylists(
           status,
           created_by AS createdBy,
           created_at AS createdAt,
-          completed_at AS completedAt
+          completed_at AS completedAt,
+          create_sync_pair AS createSyncPair,
+          sync_interval AS syncInterval
         FROM import_jobs
         WHERE id = ? AND created_by = ?
       `)
@@ -96,13 +111,16 @@ export function getImportJobWithPlaylists(
           status,
           created_by AS createdBy,
           created_at AS createdAt,
-          completed_at AS completedAt
+          completed_at AS completedAt,
+          create_sync_pair AS createSyncPair,
+          sync_interval AS syncInterval
         FROM import_jobs
         WHERE id = ?
       `);
 
   const job = (createdBy ? jobQuery.get(jobId, createdBy) : jobQuery.get(jobId)) as ImportJob | undefined;
   if (!job) return null;
+  job.createSyncPair = Boolean(job.createSyncPair);
 
   const playlists = db.prepare(`
     SELECT
@@ -214,7 +232,9 @@ export function getActiveImportJob(createdBy: string): ImportJob | null {
       status,
       created_by AS createdBy,
       created_at AS createdAt,
-      completed_at AS completedAt
+      completed_at AS completedAt,
+      create_sync_pair AS createSyncPair,
+      sync_interval AS syncInterval
     FROM import_jobs
     WHERE created_by = ?
       AND status IN ('pending', 'running')
@@ -222,5 +242,74 @@ export function getActiveImportJob(createdBy: string): ImportJob | null {
     LIMIT 1
   `).get(createdBy) as ImportJob | undefined;
 
-  return row ?? null;
+  if (!row) return null;
+  row.createSyncPair = Boolean(row.createSyncPair);
+  return row;
+}
+
+// -----------------------------------------------------------------------------
+// Import History
+// -----------------------------------------------------------------------------
+
+export function getImportHistory(createdBy: string, limit = 20): ImportJobWithPlaylists[] {
+  const db = getRecsDb();
+
+  const jobs = db.prepare(`
+    SELECT
+      id,
+      source_provider AS sourceProvider,
+      target_provider AS targetProvider,
+      status,
+      created_by AS createdBy,
+      created_at AS createdAt,
+      completed_at AS completedAt,
+      create_sync_pair AS createSyncPair,
+      sync_interval AS syncInterval
+    FROM import_jobs
+    WHERE created_by = ?
+    ORDER BY created_at DESC
+    LIMIT ?
+  `).all(createdBy, limit) as ImportJob[];
+
+  return jobs.map((job) => {
+    job.createSyncPair = Boolean(job.createSyncPair);
+
+    const playlists = db.prepare(`
+      SELECT
+        id, job_id AS jobId, source_playlist_id AS sourcePlaylistId,
+        source_playlist_name AS sourcePlaylistName,
+        target_playlist_id AS targetPlaylistId,
+        status, track_count AS trackCount,
+        tracks_resolved AS tracksResolved, tracks_added AS tracksAdded,
+        tracks_unresolved AS tracksUnresolved,
+        error_message AS errorMessage, position
+      FROM import_job_playlists
+      WHERE job_id = ?
+      ORDER BY position ASC
+    `).all(job.id) as ImportJobPlaylist[];
+
+    const completedPlaylists = playlists.filter(
+      (p) => p.status === 'done' || p.status === 'partial',
+    ).length;
+
+    return { ...job, playlists, totalPlaylists: playlists.length, completedPlaylists };
+  });
+}
+
+// -----------------------------------------------------------------------------
+// Cancel a queued playlist entry
+// -----------------------------------------------------------------------------
+
+export function cancelImportPlaylist(playlistEntryId: string, createdBy: string): boolean {
+  const db = getRecsDb();
+
+  const result = db.prepare(`
+    UPDATE import_job_playlists
+    SET status = 'cancelled'
+    WHERE id = ?
+      AND status = 'queued'
+      AND job_id IN (SELECT id FROM import_jobs WHERE created_by = ?)
+  `).run(playlistEntryId, createdBy);
+
+  return result.changes > 0;
 }

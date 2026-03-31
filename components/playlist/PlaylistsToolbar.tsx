@@ -8,7 +8,6 @@ import { PlaylistDialog } from "@/components/playlist/PlaylistDialog";
 import { useCreatePlaylist } from "@/lib/spotify/playlistMutations";
 import { ProviderStatusDropdown } from '@/components/auth/ProviderStatusDropdown';
 import { useAuthSummary } from '@features/auth/hooks/useAuth';
-import { ImportPlaylistsDialog } from "@/features/import/ui/ImportPlaylistsDialog";
 import { useImportDialogStore } from "@/features/import/stores/useImportDialogStore";
 import { useSyncSchedulerEnabled } from '@shared/hooks/useAppConfig';
 import type { Playlist } from '@/lib/music-provider/types';
@@ -197,7 +196,6 @@ export function PlaylistsToolbar({
         isSubmitting={createPlaylist.isPending}
       />
 
-      <ImportPlaylistsDialog />
     </div>
   );
 }

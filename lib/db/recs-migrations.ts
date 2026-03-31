@@ -336,4 +336,12 @@ export const recsMigrations: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_import_job_playlists_job ON import_job_playlists(job_id);
     `,
   },
+  {
+    version: 11,
+    name: 'import_jobs_sync_fields',
+    sql: `
+      ALTER TABLE import_jobs ADD COLUMN create_sync_pair INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE import_jobs ADD COLUMN sync_interval TEXT NOT NULL DEFAULT 'off';
+    `,
+  },
 ];

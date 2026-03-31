@@ -29,6 +29,7 @@ import {
   MessageSquarePlus,
   Settings2,
   RefreshCw,
+  Import,
   // Github brand icon is deprecated in lucide-react but still functional
   // TODO: Consider migrating to SimpleIcons in the future
   Github,
@@ -45,6 +46,8 @@ import { ConfigDialog } from '@widgets/shell/config/ConfigDialog';
 import { cn } from '@/lib/utils';
 import { useSyncDialogStore } from '@features/sync/stores/useSyncDialogStore';
 import { useSyncActivityStore } from '@features/sync/stores/useSyncActivityStore';
+import { useImportManagementStore } from '@features/import/stores/useImportManagementStore';
+import { useImportActivityStore } from '@features/import/stores/useImportActivityStore';
 
 // ============================================================================
 // Types
@@ -254,6 +257,8 @@ export function AdaptiveNav({
   const [configOpen, setConfigOpen] = useState(false);
   const openManagement = useSyncDialogStore((s) => s.openManagement);
   const isSyncing = useSyncActivityStore((s) => s.activeSyncCount > 0);
+  const openImportManagement = useImportManagementStore((s) => s.openManagement);
+  const isImporting = useImportActivityStore((s) => s.isImportActive);
   const headerProviders = useHeaderProviders();
   const isSingleProvider = headerProviders.length <= 1;
   
@@ -261,7 +266,65 @@ export function AdaptiveNav({
   const isSplitEditorActive = pathname === '/split-editor';
   const isStatsActive = pathname === '/admin' || pathname.startsWith('/admin/');
 
-  // Build navigation items array with groups
+  // Build view-group items separately to keep each useMemo under complexity limit
+  const viewItems: NavItem[] = useMemo(() => {
+    const items: NavItem[] = [];
+    if (!isPhone && supportsBrowse) {
+      items.push({
+        id: 'browse',
+        icon: <Search className="h-3.5 w-3.5" />,
+        label: 'Browse',
+        onClick: toggleBrowse,
+        isActive: isBrowseOpen,
+        showCheckmark: true,
+        visible: showSecureLinks,
+        group: 'view',
+      });
+    }
+    if (!isPhone && supportsPlayer) {
+      items.push({
+        id: 'player',
+        icon: <Music2 className="h-3.5 w-3.5" />,
+        label: 'Player',
+        onClick: togglePlayerVisible,
+        isActive: isPlayerVisible,
+        showCheckmark: true,
+        group: 'view',
+      });
+    }
+    items.push({
+      id: 'import',
+      icon: <Import className={cn('h-3.5 w-3.5', isImporting && 'animate-spin')} />,
+      label: 'Import',
+      onClick: openImportManagement,
+      visible: showSecureLinks && multipleProvidersConnected,
+      group: 'view',
+    });
+    items.push({
+      id: 'sync',
+      icon: <RefreshCw className={cn('h-3.5 w-3.5', isSyncing && 'animate-spin')} />,
+      label: 'Sync',
+      onClick: openManagement,
+      visible: showSecureLinks && multipleProvidersConnected,
+      group: 'view',
+    });
+    items.push({
+      id: 'config',
+      icon: <Settings2 className="h-3.5 w-3.5" />,
+      label: 'Config',
+      onClick: () => setConfigOpen(true),
+      visible: showSecureLinks,
+      group: 'view',
+    });
+    return items;
+  }, [
+    isPhone, showSecureLinks, supportsBrowse,
+    isBrowseOpen, toggleBrowse, isPlayerVisible, togglePlayerVisible, supportsPlayer,
+    openManagement, isSyncing, openImportManagement, isImporting, multipleProvidersConnected,
+    setConfigOpen,
+  ]);
+
+  // Build full navigation items array by combining groups
   const navItems: NavItem[] = useMemo(() => [
     // Group 1: Main navigation
     {
@@ -293,43 +356,8 @@ export function AdaptiveNav({
       visible: showSecureLinks,
       group: 'main',
     }] : []),
-    // Group 2: View controls (Player not shown on phone - handled by bottom nav)
-    // Browse not shown on phone - browse panel doesn't work well on small screens
-    ...(!isPhone && supportsBrowse ? [{
-      id: 'browse',
-      icon: <Search className="h-3.5 w-3.5" />,
-      label: 'Browse',
-      onClick: toggleBrowse,
-      isActive: isBrowseOpen,
-      showCheckmark: true,
-      visible: showSecureLinks,
-      group: 'view',
-    }] : []),
-    ...(!isPhone && supportsPlayer ? [{
-      id: 'player',
-      icon: <Music2 className="h-3.5 w-3.5" />,
-      label: 'Player',
-      onClick: togglePlayerVisible,
-      isActive: isPlayerVisible,
-      showCheckmark: true,
-      group: 'view',
-    }] : []),
-    {
-      id: 'sync',
-      icon: <RefreshCw className={cn('h-3.5 w-3.5', isSyncing && 'animate-spin')} />,
-      label: 'Sync',
-      onClick: openManagement,
-      visible: showSecureLinks && multipleProvidersConnected,
-      group: 'view',
-    },
-    {
-      id: 'config',
-      icon: <Settings2 className="h-3.5 w-3.5" />,
-      label: 'Config',
-      onClick: () => setConfigOpen(true),
-      visible: showSecureLinks,
-      group: 'view',
-    },
+    // Group 2: View controls (built separately)
+    ...viewItems,
     // Group 3: Actions (markers)
     ...(markerStats.totalMarkers > 0 ? [{
       id: 'markers',
@@ -384,13 +412,10 @@ export function AdaptiveNav({
   ], [
     isPhone,
     showSecureLinks,
-    supportsBrowse,
     isPlaylistsActive, isSplitEditorActive, isStatsActive, hasStatsAccess,
-    isBrowseOpen, toggleBrowse, isPlayerVisible, togglePlayerVisible, supportsPlayer,
-    openManagement, isSyncing, multipleProvidersConnected,
+    viewItems,
     markerStats.totalMarkers, clearAllMarkers,
     isSingleProvider,
-    setConfigOpen,
   ]);
 
   return (

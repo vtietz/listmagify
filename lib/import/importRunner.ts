@@ -6,6 +6,7 @@ import {
   updateImportJobPlaylist,
 } from './importStore';
 import { createBackgroundProvider } from '@/lib/sync/backgroundProvider';
+import { createSyncPair } from '@/lib/sync/syncStore';
 import { fetchFullPlaylistTracks, canonicalizeSnapshot } from '@/lib/sync/snapshot';
 import { createSyncMaterializeAdapter } from '@/lib/sync/materializeAdapter';
 import { materializeCanonicalTrackIds } from '@/lib/recs/materialize';
@@ -135,6 +136,95 @@ async function importPlaylist(
 }
 
 // ---------------------------------------------------------------------------
+// Job helpers
+// ---------------------------------------------------------------------------
+
+interface InitializedProviders {
+  sourceProvider: MusicProvider;
+  targetProvider: MusicProvider;
+  targetProviderUserId: string;
+}
+
+type ImportJobWithPlaylists = NonNullable<ReturnType<typeof getImportJobWithPlaylists>>;
+
+async function initializeProviders(
+  job: ImportJobWithPlaylists,
+  jobId: string,
+): Promise<InitializedProviders | null> {
+  const sourceProviderId = job.sourceProvider as MusicProviderId;
+  const targetProviderId = job.targetProvider as MusicProviderId;
+
+  const sourceUserId = findUserIdForProvider(sourceProviderId) ?? job.createdBy;
+  const targetUserId = findUserIdForProvider(targetProviderId) ?? job.createdBy;
+
+  let sourceProvider: MusicProvider;
+  let targetProvider: MusicProvider;
+
+  try {
+    [sourceProvider, targetProvider] = await Promise.all([
+      createBackgroundProvider(sourceUserId, sourceProviderId),
+      createBackgroundProvider(targetUserId, targetProviderId),
+    ]);
+  } catch (err) {
+    console.error('[import/runner] failed to create providers', {
+      jobId,
+      error: errorMessage(err),
+    });
+    return null;
+  }
+
+  try {
+    const user = await targetProvider.getCurrentUser();
+    return { sourceProvider, targetProvider, targetProviderUserId: user.id };
+  } catch (err) {
+    console.error('[import/runner] failed to get target user', {
+      jobId,
+      error: errorMessage(err),
+    });
+    return null;
+  }
+}
+
+function createSyncPairsForJob(
+  jobId: string,
+  playlists: ImportJobPlaylist[],
+  sourceProviderId: MusicProviderId,
+  targetProviderId: MusicProviderId,
+  createdBy: string,
+): void {
+  for (const playlist of playlists) {
+    if (
+      (playlist.status === 'done' || playlist.status === 'partial') &&
+      playlist.targetPlaylistId
+    ) {
+      try {
+        createSyncPair({
+          sourceProvider: sourceProviderId,
+          sourcePlaylistId: playlist.sourcePlaylistId,
+          sourcePlaylistName: playlist.sourcePlaylistName,
+          targetProvider: targetProviderId,
+          targetPlaylistId: playlist.targetPlaylistId,
+          targetPlaylistName: playlist.sourcePlaylistName,
+          direction: 'a-to-b',
+          createdBy,
+        });
+        console.debug('[import/runner] sync pair created', {
+          jobId,
+          sourcePlaylistId: playlist.sourcePlaylistId,
+          targetPlaylistId: playlist.targetPlaylistId,
+        });
+      } catch (err) {
+        console.error('[import/runner] failed to create sync pair', {
+          jobId,
+          playlistId: playlist.sourcePlaylistId,
+          error: errorMessage(err),
+        });
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
@@ -158,25 +248,8 @@ export async function executeImportJob(jobId: string): Promise<void> {
   const sourceProviderId = job.sourceProvider as MusicProviderId;
   const targetProviderId = job.targetProvider as MusicProviderId;
 
-  // Each provider may store tokens under a different user_id
-  // (e.g. Spotify username vs TIDAL numeric ID), so we resolve
-  // the correct user_id per provider from the token DB.
-  const sourceUserId = findUserIdForProvider(sourceProviderId) ?? job.createdBy;
-  const targetUserId = findUserIdForProvider(targetProviderId) ?? job.createdBy;
-
-  let sourceProvider: MusicProvider;
-  let targetProvider: MusicProvider;
-
-  try {
-    [sourceProvider, targetProvider] = await Promise.all([
-      createBackgroundProvider(sourceUserId, sourceProviderId),
-      createBackgroundProvider(targetUserId, targetProviderId),
-    ]);
-  } catch (err) {
-    console.error('[import/runner] failed to create providers', {
-      jobId,
-      error: errorMessage(err),
-    });
+  const providers = await initializeProviders(job, jobId);
+  if (!providers) {
     updateImportJob(jobId, {
       status: 'failed',
       completedAt: new Date().toISOString(),
@@ -184,26 +257,16 @@ export async function executeImportJob(jobId: string): Promise<void> {
     return;
   }
 
-  // Get target user info for playlist creation
-  let targetProviderUserId: string;
-  try {
-    const user = await targetProvider.getCurrentUser();
-    targetProviderUserId = user.id;
-  } catch (err) {
-    console.error('[import/runner] failed to get target user', {
-      jobId,
-      error: errorMessage(err),
-    });
-    updateImportJob(jobId, {
-      status: 'failed',
-      completedAt: new Date().toISOString(),
-    });
-    return;
-  }
+  const { sourceProvider, targetProvider, targetProviderUserId } = providers;
 
   let allFailed = true;
 
   for (const playlist of job.playlists) {
+    // Skip cancelled playlists
+    if (playlist.status === 'cancelled') {
+      continue;
+    }
+
     try {
       await importPlaylist(
         playlist,
@@ -228,9 +291,22 @@ export async function executeImportJob(jobId: string): Promise<void> {
     }
   }
 
-  // If at least one playlist did not completely fail, mark as done
-  // (individual playlists may be 'partial' or 'failed')
-  const finalStatus = allFailed && job.playlists.length > 0 ? 'failed' : 'done';
+  // Re-fetch to get updated playlist statuses after processing
+  const updatedJob = getImportJobWithPlaylists(jobId);
+  const updatedPlaylists = updatedJob?.playlists ?? job.playlists;
+
+  // Create sync pairs for successfully imported playlists if requested
+  if (updatedJob?.createSyncPair) {
+    createSyncPairsForJob(jobId, updatedPlaylists, sourceProviderId, targetProviderId, job.createdBy);
+  }
+
+  // If at least one non-cancelled playlist did not completely fail, mark as done.
+  // If all playlists were cancelled (none remain), treat as done not failed.
+  const nonCancelledPlaylists = updatedPlaylists.filter(
+    (p) => p.status !== 'cancelled',
+  );
+  const finalStatus =
+    allFailed && nonCancelledPlaylists.length > 0 ? 'failed' : 'done';
 
   updateImportJob(jobId, {
     status: finalStatus,

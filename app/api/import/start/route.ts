@@ -51,6 +51,8 @@ export async function POST(request: NextRequest) {
         id: String(p.id),
         name: String(p.name),
       })),
+      createSyncPair: Boolean(body.createSyncPair),
+      syncInterval: body.syncInterval ? String(body.syncInterval) : 'off',
     });
 
     // Fire and forget -- execute in background

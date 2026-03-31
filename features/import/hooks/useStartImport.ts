@@ -1,12 +1,14 @@
 import { useMutation } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api/client';
 import { toast } from '@/lib/ui/toast';
-import { useImportDialogStore } from '@/features/import/stores/useImportDialogStore';
+import { useImportActivityStore } from '@/features/import/stores/useImportActivityStore';
 
 interface StartImportParams {
   sourceProvider: string;
   targetProvider: string;
   playlists: Array<{ id: string; name: string }>;
+  createSyncPair?: boolean;
+  syncInterval?: string;
 }
 
 interface StartImportResponse {
@@ -14,7 +16,7 @@ interface StartImportResponse {
 }
 
 export function useStartImport() {
-  const setActiveJobId = useImportDialogStore((s) => s.setActiveJobId);
+  const setActiveImport = useImportActivityStore((s) => s.setActiveImport);
 
   return useMutation({
     mutationFn: async (params: StartImportParams): Promise<StartImportResponse> => {
@@ -25,11 +27,13 @@ export function useStartImport() {
           sourceProvider: params.sourceProvider,
           targetProvider: params.targetProvider,
           playlists: params.playlists,
+          createSyncPair: params.createSyncPair ?? false,
+          syncInterval: params.syncInterval ?? 'off',
         }),
       });
     },
     onSuccess: (data: StartImportResponse) => {
-      setActiveJobId(data.jobId);
+      setActiveImport(data.jobId);
     },
     onError: (error: Error) => {
       toast.error(error.message || 'Failed to start import');

@@ -1,5 +1,5 @@
 export type ImportJobStatus = 'pending' | 'running' | 'done' | 'failed';
-export type ImportPlaylistStatus = 'queued' | 'creating' | 'resolving_tracks' | 'adding_tracks' | 'done' | 'failed' | 'partial';
+export type ImportPlaylistStatus = 'queued' | 'creating' | 'resolving_tracks' | 'adding_tracks' | 'done' | 'failed' | 'partial' | 'cancelled';
 
 export interface ImportJob {
   id: string;
@@ -9,6 +9,8 @@ export interface ImportJob {
   createdBy: string;
   createdAt: string;
   completedAt: string | null;
+  createSyncPair: boolean;
+  syncInterval: string;
 }
 
 export interface ImportJobPlaylist {
@@ -31,6 +33,8 @@ export interface CreateImportJobInput {
   targetProvider: string;
   createdBy: string;
   playlists: { id: string; name: string }[];
+  createSyncPair?: boolean;
+  syncInterval?: string;
 }
 
 export interface ImportJobWithPlaylists extends ImportJob {
