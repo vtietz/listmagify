@@ -82,7 +82,24 @@ export function PlaylistsContainer({
 
   const hydrated = useAuthRegistryHydrated();
   const isProviderConnected = providerAuth.code === 'ok';
-  const shouldShowProviderCta = hydrated && (providerAuth.code === 'unauthenticated' || providerAuth.code === 'expired' || providerAuth.code === 'invalid');
+  const noProvidersConnected = hydrated && connectedProviders.length === 0;
+  const shouldShowProviderCta = !noProvidersConnected && hydrated && (providerAuth.code === 'unauthenticated' || providerAuth.code === 'expired' || providerAuth.code === 'invalid');
+
+  // Redirect to landing page when all providers are disconnected
+  useEffect(() => {
+    if (noProvidersConnected) {
+      router.replace('/');
+    }
+  }, [noProvidersConnected, router]);
+
+  // Trigger a data refresh when the active provider changes (e.g. after logout fallback)
+  const prevProviderRef = useRef(activeProviderId);
+  useEffect(() => {
+    if (prevProviderRef.current !== activeProviderId) {
+      prevProviderRef.current = activeProviderId;
+      setIsRefreshing(true);
+    }
+  }, [activeProviderId]);
 
   const handleRefresh = useCallback(() => {
     setIsRefreshing(true);
