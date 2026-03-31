@@ -153,8 +153,11 @@ function isPlayingProviderInPanel(
   return context === 'panel' && playingProviderInPanel === providerId;
 }
 
-function getTriggerClassName(context: 'header' | 'panel', isSingleConnectedInHeader: boolean): string {
+function getTriggerClassName(context: 'header' | 'panel', isSingleConnectedInHeader: boolean, showProviderLabel: boolean): string {
   if (context === 'panel') {
+    if (showProviderLabel) {
+      return 'h-7 px-1.5 border-0 shadow-none hover:bg-muted/50 gap-1';
+    }
     return 'h-7 w-7 p-0 border-0 shadow-none hover:bg-muted/50 ml-1';
   }
 
@@ -169,7 +172,10 @@ function getTriggerVariant(context: 'header' | 'panel'): 'ghost' | 'outline' {
   return context === 'panel' ? 'ghost' : 'outline';
 }
 
-function getTriggerSize(context: 'header' | 'panel'): 'icon' | 'sm' {
+function getTriggerSize(context: 'header' | 'panel', showProviderLabel: boolean): 'icon' | 'sm' {
+  if (context === 'panel' && showProviderLabel) {
+    return 'sm';
+  }
   return context === 'panel' ? 'icon' : 'sm';
 }
 
@@ -397,8 +403,8 @@ export function ProviderStatusDropdown({
       <DropdownMenuTrigger asChild>
         <Button
           variant={getTriggerVariant(context)}
-          size={getTriggerSize(context)}
-          className={getTriggerClassName(context, isSingleConnectedInHeader)}
+          size={getTriggerSize(context, showProviderLabelInPanelTrigger)}
+          className={getTriggerClassName(context, isSingleConnectedInHeader, showProviderLabelInPanelTrigger)}
           data-testid={dataTestId}
           role={triggerRole}
           aria-label={triggerAriaLabel ?? getTriggerAriaLabel(context, currentProviderId)}

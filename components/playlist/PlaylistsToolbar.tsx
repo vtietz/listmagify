@@ -126,6 +126,17 @@ export function PlaylistsToolbar({
 
   return (
     <div className="flex items-center gap-3">
+      <ProviderStatusDropdown
+        context="panel"
+        currentProviderId={providerId}
+        providers={availableProviders}
+        statusMap={statusMap}
+        hideWhenSingleConnected={true}
+        showProviderLabelInPanelTrigger={true}
+        onProviderChange={onProviderChange}
+        data-testid="playlists-provider-status-dropdown"
+      />
+
       <AdaptiveSearch
         value={inputValue}
         onChange={setInputValue}
@@ -133,16 +144,6 @@ export function PlaylistsToolbar({
         disabled={actionsDisabled}
         ariaLabel="Search playlists"
         breakpoint={200}
-      />
-
-      <ProviderStatusDropdown
-        context="panel"
-        currentProviderId={providerId}
-        providers={availableProviders}
-        statusMap={statusMap}
-        hideWhenSingleConnected={true}
-        onProviderChange={onProviderChange}
-        data-testid="playlists-provider-status-dropdown"
       />
 
       <Button
