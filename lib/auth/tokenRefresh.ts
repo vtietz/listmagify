@@ -9,6 +9,7 @@
 import { serverEnv } from '@/lib/env';
 import { TIDAL_TOKEN_URL } from '@/lib/auth/authProviderFactories';
 import type { MusicProviderId } from '@/lib/music-provider/types';
+import { isRefreshBlocked, recordPermanentFailure } from '@/lib/auth/refreshCircuitBreaker';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -229,6 +230,11 @@ export async function refreshProviderTokenIfNeeded(
     return;
   }
 
+  if (isRefreshBlocked(providerId)) {
+    providerErrors[providerId] = TOKEN_REFRESH_ERROR;
+    return;
+  }
+
   if (!shouldRefreshProviderToken(providerToken)) {
     providerErrors[providerId] = providerErrors[providerId] ?? undefined;
     return;
@@ -251,6 +257,7 @@ export async function refreshProviderTokenIfNeeded(
     // Provider functions return an error token for permanent failures,
     // or the unchanged token for transient failures (no error flag).
     if (refreshedToken.error === TOKEN_REFRESH_ERROR) {
+      recordPermanentFailure(providerId, 'invalid_grant');
       providerErrors[providerId] = TOKEN_REFRESH_ERROR;
     } else {
       providerErrors[providerId] = undefined;

@@ -14,6 +14,7 @@ import {
 } from '@/lib/auth/tokenRefresh';
 import { persistProviderTokens, deleteProviderTokens, markTokenStatus, getProviderTokens as getDbProviderTokens } from '@/lib/auth/tokenStore';
 import { isTokenEncryptionAvailable } from '@/lib/auth/tokenEncryption';
+import { resetCircuitBreaker } from '@/lib/auth/refreshCircuitBreaker';
 
 const FALLBACK_PROVIDER_ID = getFallbackMusicProviderId();
 
@@ -342,6 +343,9 @@ export const authOptions: AuthOptions = {
 
       if (account) {
         await restoreProviderTokensFromBackup(providerTokens, accountProviderId, toMusicProviderId);
+        if (accountProviderId) {
+          resetCircuitBreaker(accountProviderId);
+        }
       }
 
       // Persist tokens from initial sign-in to DB

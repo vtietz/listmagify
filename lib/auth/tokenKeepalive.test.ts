@@ -21,6 +21,11 @@ vi.mock('./tokenRefresh', () => ({
   TOKEN_REFRESH_ERROR: 'RefreshAccessTokenError',
 }));
 
+vi.mock('./refreshCircuitBreaker', () => ({
+  isRefreshBlocked: vi.fn().mockReturnValue(false),
+  recordPermanentFailure: vi.fn(),
+}));
+
 import { startTokenKeepaliveLoop, stopTokenKeepaliveLoop } from './tokenKeepalive';
 import { getAllActiveTokens, persistProviderTokens, markTokenStatus } from './tokenStore';
 import {

@@ -18,6 +18,7 @@ import {
   TOKEN_REFRESH_ERROR,
   type ProviderJwtToken,
 } from './tokenRefresh';
+import { isRefreshBlocked, recordPermanentFailure } from './refreshCircuitBreaker';
 
 const DEFAULT_INTERVAL_MS = 30 * 60 * 1000;
 const DEFAULT_AHEAD_MS = 15 * 60 * 1000;
@@ -71,6 +72,11 @@ function isTokenUnchanged(original: StoredProviderToken, refreshed: ProviderJwtT
 }
 
 async function refreshSingleToken(token: StoredProviderToken): Promise<void> {
+  if (isRefreshBlocked(token.provider)) {
+    console.debug(`[token-keepalive] circuit breaker open for ${token.provider}/${token.userId}, skipping`);
+    return;
+  }
+
   const jwtToken = storedTokenToJwt(token);
 
   const refreshed = token.provider === 'spotify'
@@ -79,6 +85,7 @@ async function refreshSingleToken(token: StoredProviderToken): Promise<void> {
 
   // Permanent auth failure
   if (refreshed.error === TOKEN_REFRESH_ERROR) {
+    recordPermanentFailure(token.provider, 'invalid_grant');
     console.warn(`[token-keepalive] permanent auth error for ${token.provider}/${token.userId}, marking needs_reauth`);
     markTokenStatus(token.userId, token.provider, 'needs_reauth');
     return;

@@ -23,6 +23,7 @@ import {
   refreshTidalAccessToken,
   type ProviderJwtToken,
 } from '@/lib/auth/tokenRefresh';
+import { isRefreshBlocked, recordPermanentFailure } from '@/lib/auth/refreshCircuitBreaker';
 
 // ---------------------------------------------------------------------------
 // Single-flight guard — prevents concurrent refreshes for the same
@@ -150,6 +151,10 @@ async function refreshAndPersist(
   providerId: MusicProviderId,
   stored: StoredProviderToken,
 ): Promise<AuthenticatedSession | null> {
+  if (isRefreshBlocked(providerId)) {
+    return null;
+  }
+
   const jwtToken = storedTokenToProviderJwtToken(stored);
 
   try {
@@ -158,6 +163,7 @@ async function refreshAndPersist(
       : await refreshTidalAccessToken(jwtToken);
 
     if (refreshed.error) {
+      recordPermanentFailure(providerId, 'refresh_error');
       console.debug(`[sessionFromDb] Token refresh returned error for ${providerId}, user=${userId}`);
       safeMarkStatus(userId, providerId, 'needs_reauth');
       return null;

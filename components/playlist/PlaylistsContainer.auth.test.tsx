@@ -18,7 +18,7 @@ vi.mock('@features/auth/hooks/useAuth', () => ({
 }));
 
 vi.mock('@features/auth/hooks/useEnsureValidToken', () => ({
-  useEnsureValidToken: vi.fn(),
+  useEnsureValidToken: vi.fn().mockReturnValue({ ensuring: false }),
 }));
 
 vi.mock('@/components/playlist/PlaylistsToolbar', () => ({
@@ -36,18 +36,17 @@ vi.mock('@/components/auth/InlineSignInCard', () => ({
 }));
 
 import { useAuthSummary, useProviderAuth } from '@features/auth/hooks/useAuth';
-import { useEnsureValidToken } from '@features/auth/hooks/useEnsureValidToken';
 
 describe('PlaylistsContainer auth behavior', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('calls useEnsureValidToken with provider id and enabled=true for expired provider', () => {
+  it('shows inline sign-in card for expired provider', () => {
     vi.mocked(useAuthSummary).mockReturnValue({
       spotify: { provider: 'spotify', code: 'expired', canAttemptRefresh: true, updatedAt: Date.now() },
-      tidal: { provider: 'tidal', code: 'unauthenticated', canAttemptRefresh: false, updatedAt: Date.now() },
-      anyAuthenticated: false,
+      tidal: { provider: 'tidal', code: 'ok', canAttemptRefresh: false, updatedAt: Date.now() },
+      anyAuthenticated: true,
     });
     vi.mocked(useProviderAuth).mockReturnValue({
       provider: 'spotify',
@@ -55,7 +54,6 @@ describe('PlaylistsContainer auth behavior', () => {
       canAttemptRefresh: true,
       updatedAt: Date.now(),
     });
-    vi.mocked(useEnsureValidToken).mockReturnValue({ ensuring: false });
 
     render(
       <PlaylistsContainer
@@ -66,7 +64,6 @@ describe('PlaylistsContainer auth behavior', () => {
       />,
     );
 
-    expect(useEnsureValidToken).toHaveBeenCalledWith('spotify', { enabled: true });
     expect(screen.getByTestId('inline-signin-card')).toBeInTheDocument();
   });
 
@@ -82,7 +79,6 @@ describe('PlaylistsContainer auth behavior', () => {
       canAttemptRefresh: true,
       updatedAt: Date.now(),
     });
-    vi.mocked(useEnsureValidToken).mockReturnValue({ ensuring: false });
 
     render(
       <PlaylistsContainer
@@ -93,7 +89,6 @@ describe('PlaylistsContainer auth behavior', () => {
       />,
     );
 
-    expect(useEnsureValidToken).toHaveBeenCalledWith('spotify', { enabled: false });
     expect(screen.getByTestId('playlists-grid')).toBeInTheDocument();
     expect(screen.queryByTestId('inline-signin-card')).not.toBeInTheDocument();
   });

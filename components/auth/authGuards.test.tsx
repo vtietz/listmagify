@@ -3,7 +3,6 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { ProviderPanelGuard, useProviderPanelGuardState } from '@/components/auth/ProviderPanelGuard';
 import { AnyAuthGuard } from '@/components/auth/AnyAuthGuard';
 import { useProviderAuth, useAuthRegistryHydrated, useAuthSummary } from '@features/auth/hooks/useAuth';
-import { useEnsureValidToken } from '@features/auth/hooks/useEnsureValidToken';
 import { isPerPanelInlineLoginEnabled } from '@/lib/utils';
 
 vi.mock('next/navigation', () => ({
@@ -19,10 +18,6 @@ vi.mock('@features/auth/hooks/useAuth', () => ({
   useProviderAuth: vi.fn(),
   useAuthSummary: vi.fn(),
   useAuthRegistryHydrated: vi.fn(),
-}));
-
-vi.mock('@features/auth/hooks/useEnsureValidToken', () => ({
-  useEnsureValidToken: vi.fn(),
 }));
 
 vi.mock('@/lib/utils', async () => {
@@ -49,7 +44,6 @@ describe('Auth guards', () => {
 
   beforeEach(() => {
     vi.mocked(isPerPanelInlineLoginEnabled).mockReturnValue(true);
-    vi.mocked(useEnsureValidToken).mockReturnValue({ ensuring: false });
     vi.mocked(useProviderAuth).mockReturnValue({
       provider: 'spotify',
       code: 'ok',
