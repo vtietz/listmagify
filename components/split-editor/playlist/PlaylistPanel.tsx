@@ -25,6 +25,7 @@ import {
   EmptyTrackList,
   ConfirmDeleteDialog,
 } from '../panel';
+import { SaveOrderDialog } from '../panel/SaveOrderDialog';
 import { cn } from '@/lib/utils';
 import type { Track } from '@/lib/music-provider/types';
 
@@ -279,6 +280,38 @@ function PlaylistTrackListState({
   );
 }
 
+function MoveProgressBar({
+  current,
+  total,
+  onCancel,
+}: {
+  current: number;
+  total: number;
+  onCancel: () => void;
+}) {
+  const percentage = total > 0 ? Math.round((current / total) * 100) : 0;
+  return (
+    <div className="flex items-center gap-2 border-b border-border bg-muted/50 px-3 py-1.5 text-xs text-muted-foreground">
+      <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+        <div
+          className="h-full rounded-full bg-primary transition-all duration-200"
+          style={{ width: `${percentage}%` }}
+        />
+      </div>
+      <span className="whitespace-nowrap">
+        Moving tracks: {current} / {total}
+      </span>
+      <button
+        type="button"
+        onClick={onCancel}
+        className="ml-1 rounded px-1.5 py-0.5 text-xs hover:bg-muted"
+      >
+        Cancel
+      </button>
+    </div>
+  );
+}
+
 function PlaylistPanelBody({
   panelId,
   state,
@@ -310,6 +343,8 @@ function PlaylistPanelBody({
   guardProvider: 'spotify' | 'tidal';
   guardReason: 'unauthenticated' | 'expired' | null;
 }) {
+  const isSequentialMoving = state.sequentialMoveState.isMoving;
+  const panelBlocked = isInteractionBlocked || isSequentialMoving;
   return (
     <div
       data-testid="playlist-panel"
@@ -367,11 +402,19 @@ function PlaylistPanelBody({
           onDeleteDuplicates={state.handleDeleteAllDuplicates}
         />
 
+        {isSequentialMoving && state.sequentialMoveState.progress && (
+          <MoveProgressBar
+            current={state.sequentialMoveState.progress.current}
+            total={state.sequentialMoveState.progress.total}
+            onCancel={state.handleCancelMoves}
+          />
+        )}
+
         <div
           ref={scrollDroppableRef}
           data-testid="track-list-scroll"
-          className={cn('flex-1 overflow-auto focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0', isInteractionBlocked && 'pointer-events-none')}
-          aria-hidden={isInteractionBlocked ? true : undefined}
+          className={cn('flex-1 overflow-auto focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0', panelBlocked && 'pointer-events-none')}
+          aria-hidden={panelBlocked ? true : undefined}
           style={{
             paddingBottom: TRACK_ROW_HEIGHT * 2,
             overscrollBehaviorX: 'none',
@@ -381,11 +424,11 @@ function PlaylistPanelBody({
             WebkitOverflowScrolling: 'touch',
           }}
           role="listbox"
-          aria-disabled={isInteractionBlocked}
+          aria-disabled={panelBlocked}
           aria-multiselectable="true"
           aria-activedescendant={state.focusedIndex !== null ? `option-${panelId}-${state.focusedIndex}` : undefined}
-          tabIndex={isInteractionBlocked ? -1 : 0}
-          onKeyDown={isInteractionBlocked ? undefined : state.handleKeyDownNavigation}
+          tabIndex={panelBlocked ? -1 : 0}
+          onKeyDown={panelBlocked ? undefined : state.handleKeyDownNavigation}
         >
           <PlaylistTrackListState
             panelId={panelId}
@@ -395,7 +438,7 @@ function PlaylistPanelBody({
             hasActiveMarkers={hasActiveMarkers}
             handleAddToAllMarkers={handleAddToAllMarkers}
             activePlayPosition={activePlayPosition}
-            isInteractionBlocked={isInteractionBlocked}
+            isInteractionBlocked={panelBlocked}
           />
 
           {state.isAutoLoading && (
@@ -410,6 +453,14 @@ function PlaylistPanelBody({
           count={state.selection.size}
           onOpenChange={state.setShowDeleteConfirmation}
           onConfirm={state.handleConfirmMultiDelete}
+        />
+
+        <SaveOrderDialog
+          open={state.saveOrderDialogOpen}
+          onOpenChange={state.setSaveOrderDialogOpen}
+          moveCount={state.movePlan?.totalMoves ?? 0}
+          onReplace={state.handleSaveWithReplace}
+          onPreserveDates={state.handleSaveWithPreserveDates}
         />
       </div>
     </div>

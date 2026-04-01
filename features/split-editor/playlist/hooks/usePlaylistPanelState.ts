@@ -267,6 +267,13 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
     handleSaveCurrentOrder,
     buildReorderActions,
     isSavingOrder,
+    saveOrderDialogOpen,
+    setSaveOrderDialogOpen,
+    movePlan,
+    sequentialMoveState,
+    handleSaveWithReplace,
+    handleSaveWithPreserveDates,
+    handleCancelMoves,
   } = usePlaylistMutations({
     playlistId,
     providerId,
@@ -462,6 +469,13 @@ export function usePlaylistPanelState({ panelId, isDragSource }: UsePlaylistPane
     isSavingOrder,
     getSortedTrackUris,
     handleSaveCurrentOrder,
+    saveOrderDialogOpen,
+    setSaveOrderDialogOpen,
+    movePlan,
+    sequentialMoveState,
+    handleSaveWithReplace,
+    handleSaveWithPreserveDates,
+    handleCancelMoves,
 
     // Delete with confirmation for multi-track (keyboard DEL)
     showDeleteConfirmation: selectionMgmt.showDeleteConfirmation,

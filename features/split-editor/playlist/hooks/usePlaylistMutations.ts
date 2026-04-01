@@ -4,7 +4,7 @@
 
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { getTrackSelectionKey } from '@/lib/dnd/selection';
 import {
@@ -13,6 +13,8 @@ import {
   useReorderTracks,
 } from '@/lib/spotify/playlistMutations';
 import { getSortedValidTrackUris } from './panelUtils';
+import { useSequentialMoves } from './useSequentialMoves';
+import { computeMovePlan, type MovePlan } from '@/lib/utils/reorderMoves';
 import type { Track } from '@/lib/music-provider/types';
 import type { MusicProviderId } from '@/lib/music-provider/types';
 import type { SortKey, SortDirection } from '@features/split-editor/playlist/hooks/usePlaylistSort';
@@ -114,6 +116,11 @@ export function usePlaylistMutations({
   const removeTracks = useRemoveTracks();
   const reorderAllTracks = useReorderAllTracks();
   const reorderTracks = useReorderTracks();
+  const sequentialMoves = useSequentialMoves();
+
+  // Save order dialog state
+  const [saveOrderDialogOpen, setSaveOrderDialogOpen] = useState(false);
+  const [movePlan, setMovePlan] = useState<MovePlan | null>(null);
 
   // Delete selected tracks
   const handleDeleteSelected = useCallback(() => {
@@ -231,20 +238,21 @@ export function usePlaylistMutations({
     [sortedTracks]
   );
 
-  // Save current sorted order as the new playlist order
-  const handleSaveCurrentOrder = useCallback(async () => {
+  // Replace all tracks (fast, resets added_at)
+  const handleSaveWithReplace = useCallback(async () => {
     if (!playlistId || !isEditable) return;
+    setSaveOrderDialogOpen(false);
 
     const trackUris = getSortedTrackUris();
     if (trackUris.length === 0) {
-      console.warn('[handleSaveCurrentOrder] No valid track URIs found to save');
+      console.warn('[handleSaveWithReplace] No valid track URIs found to save');
       return;
     }
 
     const totalTracks = sortedTracks.length;
     if (trackUris.length < totalTracks) {
       console.warn(
-        `[handleSaveCurrentOrder] ${totalTracks - trackUris.length} track(s) filtered out ` +
+        `[handleSaveWithReplace] ${totalTracks - trackUris.length} track(s) filtered out ` +
           `(local files, episodes, or tracks without valid URIs). Saving ${trackUris.length} valid tracks.`
       );
     }
@@ -253,7 +261,7 @@ export function usePlaylistMutations({
       await reorderAllTracks.mutateAsync({ playlistId, providerId, trackUris });
       setSort(panelId, 'position', 'asc');
     } catch (error) {
-      console.error('[handleSaveCurrentOrder] Failed to save playlist order:', error);
+      console.error('[handleSaveWithReplace] Failed to save playlist order:', error);
       throw error;
     }
   }, [
@@ -266,6 +274,68 @@ export function usePlaylistMutations({
     reorderAllTracks,
     setSort,
   ]);
+
+  // Sequential moves (slower, preserves added_at) — uses current movePlan state
+  const handleSaveWithPreserveDates = useCallback(async () => {
+    if (!playlistId || !isEditable || !movePlan || !snapshotId) return;
+    setSaveOrderDialogOpen(false);
+
+    const success = await sequentialMoves.execute({
+      playlistId,
+      providerId,
+      snapshotId,
+      moves: movePlan.moves,
+    });
+
+    if (success) {
+      setSort(panelId, 'position', 'asc');
+      setMovePlan(null);
+    }
+  }, [playlistId, providerId, panelId, isEditable, snapshotId, movePlan, sequentialMoves, setSort]);
+
+  // Cancel in-progress sequential moves
+  const handleCancelMoves = useCallback(() => {
+    sequentialMoves.cancel();
+  }, [sequentialMoves]);
+
+  // Save current sorted order — auto-detect whether to show dialog
+  const handleSaveCurrentOrder = useCallback(() => {
+    if (!playlistId || !isEditable) return;
+
+    // For non-Spotify providers, always use replace (no snapshotId chaining)
+    if (providerId !== 'spotify') {
+      handleSaveWithReplace();
+      return;
+    }
+
+    const plan = computeMovePlan(sortedTracks);
+    setMovePlan(plan);
+
+    if (plan.totalMoves === 0) {
+      // Already in target order
+      return;
+    }
+
+    if (plan.totalMoves <= 2 && snapshotId) {
+      // Few moves — auto-preserve dates without dialog
+      // Execute directly with the just-computed plan via sequentialMoves
+      sequentialMoves.execute({
+        playlistId,
+        providerId,
+        snapshotId,
+        moves: plan.moves,
+      }).then((success) => {
+        if (success) {
+          setSort(panelId, 'position', 'asc');
+          setMovePlan(null);
+        }
+      });
+      return;
+    }
+
+    // Show dialog for user choice
+    setSaveOrderDialogOpen(true);
+  }, [playlistId, providerId, panelId, isEditable, sortedTracks, snapshotId, handleSaveWithReplace, sequentialMoves, setSort]);
 
   // Build reorder actions for context menu
   const buildReorderActions = useCallback(
@@ -352,6 +422,15 @@ export function usePlaylistMutations({
     getSortedTrackUris,
     handleSaveCurrentOrder,
     buildReorderActions,
-    isSavingOrder: reorderAllTracks.isPending,
+    isSavingOrder: reorderAllTracks.isPending || sequentialMoves.state.isMoving,
+
+    // Preserve dates flow
+    saveOrderDialogOpen,
+    setSaveOrderDialogOpen,
+    movePlan,
+    sequentialMoveState: sequentialMoves.state,
+    handleSaveWithReplace,
+    handleSaveWithPreserveDates,
+    handleCancelMoves,
   };
 }
