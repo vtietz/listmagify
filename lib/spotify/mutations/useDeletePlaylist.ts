@@ -26,6 +26,7 @@ export function useDeletePlaylist() {
       const { playlistId, providerId = 'spotify' } = params;
       return apiFetch(`/api/playlists/${playlistId}?provider=${providerId}`, {
         method: 'DELETE',
+        suppressErrorDialog: true,
       });
     },
     onMutate: async (params: DeletePlaylistParams): Promise<DeletePlaylistMutationContext> => {
@@ -58,13 +59,14 @@ export function useDeletePlaylist() {
       queryClient.invalidateQueries({ queryKey: SYNC_PAIRS_KEY });
       toast.success('Playlist removed');
     },
-    onError: (error: Error, params: DeletePlaylistParams, context: DeletePlaylistMutationContext | undefined) => {
+    onError: (_error: Error, params: DeletePlaylistParams, context: DeletePlaylistMutationContext | undefined) => {
       const providerId = params.providerId ?? 'spotify';
       if (context?.previousUserPlaylists !== undefined) {
         queryClient.setQueryData(userPlaylistsByProvider(providerId), context.previousUserPlaylists);
       }
 
-      toast.error(error instanceof Error ? error.message : 'Failed to delete playlist');
+      const label = providerId === 'tidal' ? 'delete' : 'remove';
+      toast.error(`Failed to ${label} playlist. Please try again.`);
     },
   });
 }

@@ -16,7 +16,13 @@ import {
 } from '@/lib/providers/errors';
 import type { ProviderAuthCode } from '@/lib/providers/types';
 
-interface FetchOptions extends RequestInit {}
+interface FetchOptions extends RequestInit {
+  /**
+   * When true, suppresses the generic error dialog for non-OK responses.
+   * Use this in mutations that handle their own error UI (e.g. toast in onError).
+   */
+  suppressErrorDialog?: boolean;
+}
 
 const PROVIDER_STORAGE_KEY = 'music-provider-id';
 const PROVIDER_MISMATCH_RELOAD_KEY = 'provider-mismatch-reload-attempted';
@@ -433,21 +439,22 @@ export async function apiFetch<T = any>(
   options: FetchOptions = {}
 ): Promise<T> {
   const perPanelInlineLoginEnabled = isPerPanelInlineLoginEnabled();
+  const { suppressErrorDialog, ...fetchOptions } = options;
 
   try {
     const providerId = getCurrentProviderId();
     const resolvedUrl = withProviderOnApiUrl(url, providerId);
-    const headers = new Headers(options.headers ?? {});
+    const headers = new Headers(fetchOptions.headers ?? {});
     if (resolvedUrl.startsWith('/api/') && !headers.has('x-music-provider')) {
       headers.set('x-music-provider', providerId);
     }
 
-    const response = await fetch(resolvedUrl, { ...options, headers });
+    const response = await fetch(resolvedUrl, { ...fetchOptions, headers });
     const data = await parseJsonSafely(response);
 
     // split()[0] is always defined at runtime; ?? needed for noUncheckedIndexedAccess
     const requestPath = url.split("?")[0] ?? url;
-    const shouldOpenErrorDialog = process.env.NEXT_PUBLIC_E2E_MODE !== '1';
+    const shouldOpenErrorDialog = !suppressErrorDialog && process.env.NEXT_PUBLIC_E2E_MODE !== '1';
 
     return handleApiResponse<T>(response, data, {
       perPanelInlineLoginEnabled,

@@ -175,10 +175,10 @@ export function PlaylistListItem({ playlist, providerId, className, onDeleted }:
     setDeleteDialogOpen(true);
   }, []);
 
-  const handleDeleteConfirm = useCallback(async () => {
-    await deletePlaylist.mutateAsync({ providerId, playlistId: playlist.id });
+  const handleDeleteConfirm = useCallback(() => {
     setDeleteDialogOpen(false);
     onDeleted?.(playlist.id);
+    deletePlaylist.mutate({ providerId, playlistId: playlist.id });
   }, [deletePlaylist, providerId, playlist.id, onDeleted]);
 
   const handlePlayClick = useCallback((e: React.MouseEvent) => {
