@@ -313,3 +313,51 @@ export function cancelImportPlaylist(playlistEntryId: string, createdBy: string)
 
   return result.changes > 0;
 }
+
+// -----------------------------------------------------------------------------
+// Admin queries
+// -----------------------------------------------------------------------------
+
+export function getRecentImportJobsAdmin(limit = 20): ImportJobWithPlaylists[] {
+  const db = getRecsDb();
+
+  const jobs = db.prepare(`
+    SELECT
+      id, source_provider AS sourceProvider, target_provider AS targetProvider,
+      status, created_by AS createdBy, created_at AS createdAt,
+      completed_at AS completedAt, create_sync_pair AS createSyncPair,
+      sync_interval AS syncInterval
+    FROM import_jobs
+    ORDER BY created_at DESC
+    LIMIT ?
+  `).all(limit) as ImportJob[];
+
+  return jobs.map((job) => {
+    job.createSyncPair = Boolean(job.createSyncPair);
+
+    const playlists = db.prepare(`
+      SELECT
+        id, job_id AS jobId, source_playlist_id AS sourcePlaylistId,
+        source_playlist_name AS sourcePlaylistName,
+        target_playlist_id AS targetPlaylistId,
+        status, track_count AS trackCount,
+        tracks_resolved AS tracksResolved, tracks_added AS tracksAdded,
+        tracks_unresolved AS tracksUnresolved,
+        error_message AS errorMessage, position
+      FROM import_job_playlists
+      WHERE job_id = ?
+      ORDER BY position ASC
+    `).all(job.id) as ImportJobPlaylist[];
+
+    const completed = playlists.filter((p) =>
+      p.status === 'done' || p.status === 'failed' || p.status === 'partial' || p.status === 'cancelled'
+    ).length;
+
+    return {
+      ...job,
+      playlists,
+      totalPlaylists: playlists.length,
+      completedPlaylists: completed,
+    };
+  });
+}

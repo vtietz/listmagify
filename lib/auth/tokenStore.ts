@@ -336,3 +336,51 @@ export function findUserIdForProvider(provider: MusicProviderId): string | null 
     return null;
   }
 }
+
+// -----------------------------------------------------------------------------
+// Admin queries
+// -----------------------------------------------------------------------------
+
+export interface TokenStatusInfo {
+  userId: string;
+  provider: MusicProviderId;
+  status: TokenStatus;
+  isByok: boolean;
+  updatedAt: string;
+  expiresAt: number | null;
+}
+
+export function getAllTokenStatuses(): TokenStatusInfo[] {
+  if (!isTokenEncryptionAvailable()) {
+    return [];
+  }
+
+  try {
+    const db = getAuthDb();
+    const rows = db.prepare(`
+      SELECT
+        user_id, provider, status, is_byok, updated_at, access_token_expires
+      FROM user_tokens
+      ORDER BY updated_at DESC
+    `).all() as Array<{
+      user_id: string;
+      provider: string;
+      status: string;
+      is_byok: number;
+      updated_at: string;
+      access_token_expires: number | null;
+    }>;
+
+    return rows.map((row) => ({
+      userId: row.user_id,
+      provider: row.provider as MusicProviderId,
+      status: row.status as TokenStatus,
+      isByok: Boolean(row.is_byok),
+      updatedAt: row.updated_at,
+      expiresAt: row.access_token_expires,
+    }));
+  } catch (error) {
+    console.error('[auth-token-store] Failed to get token statuses:', error);
+    return [];
+  }
+}

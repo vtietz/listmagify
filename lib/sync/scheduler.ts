@@ -9,7 +9,7 @@
  * Configurable via SYNC_TICK_MS and SYNC_MAX_CONCURRENT env vars.
  */
 
-import { getDueSyncPairs } from '@/lib/sync/syncStore';
+import { getDueSyncPairs, pruneOldSyncRuns } from '@/lib/sync/syncStore';
 import { executeBackgroundSync } from '@/lib/sync/backgroundRunner';
 
 function getTickMs(): number {
@@ -43,6 +43,12 @@ async function tick(): Promise<void> {
       .finally(() => {
         activeSyncs--;
       });
+  }
+
+  try {
+    pruneOldSyncRuns(50);
+  } catch {
+    // Pruning failure should never break the scheduler
   }
 }
 

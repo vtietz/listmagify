@@ -531,3 +531,62 @@ export function listSyncRunsForPair(syncPairId: string, limit = 20): SyncRun[] {
 
   return rows.map(mapSyncRunRow);
 }
+
+// -----------------------------------------------------------------------------
+// Admin queries
+// -----------------------------------------------------------------------------
+
+export function getAllSyncPairsWithLatestRun(): Array<SyncPair & { latestRun: SyncRun | null }> {
+  const db = getRecsDb();
+
+  const pairs = db.prepare(`
+    SELECT
+      id, source_provider AS sourceProvider, source_playlist_id AS sourcePlaylistId,
+      source_playlist_name AS sourcePlaylistName, target_provider AS targetProvider,
+      target_playlist_id AS targetPlaylistId, target_playlist_name AS targetPlaylistName,
+      direction, created_by AS createdBy, auto_sync AS autoSync,
+      sync_interval AS syncInterval, next_run_at AS nextRunAt,
+      consecutive_failures AS consecutiveFailures,
+      created_at AS createdAt, updated_at AS updatedAt
+    FROM sync_pairs
+    ORDER BY updated_at DESC
+  `).all() as SyncPair[];
+
+  // For each pair, fetch the latest run
+  const latestRunStmt = db.prepare(`
+    SELECT
+      id, sync_pair_id AS syncPairId, status, direction,
+      tracks_added AS tracksAdded, tracks_removed AS tracksRemoved,
+      tracks_unresolved AS tracksUnresolved, error_message AS errorMessage,
+      warnings_json AS warningsJson, triggered_by AS triggeredBy,
+      started_at AS startedAt, completed_at AS completedAt
+    FROM sync_runs
+    WHERE sync_pair_id = ?
+    ORDER BY started_at DESC
+    LIMIT 1
+  `);
+
+  return pairs.map((pair) => {
+    const runRow = latestRunStmt.get(pair.id) as SyncRunRow | undefined;
+    return {
+      ...pair,
+      latestRun: runRow ? mapSyncRunRow(runRow) : null,
+    };
+  });
+}
+
+export function pruneOldSyncRuns(keepPerPair: number): number {
+  const db = getRecsDb();
+
+  const result = db.prepare(`
+    DELETE FROM sync_runs
+    WHERE id IN (
+      SELECT id FROM (
+        SELECT id, ROW_NUMBER() OVER (PARTITION BY sync_pair_id ORDER BY started_at DESC) AS rn
+        FROM sync_runs
+      ) WHERE rn > ?
+    )
+  `).run(keepPerPair);
+
+  return result.changes;
+}

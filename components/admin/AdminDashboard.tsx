@@ -4,15 +4,18 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import {
   Shield,
   BarChart3,
+  Cog,
 } from 'lucide-react';
 
 // Import section components
 import { AdminSection } from './sections/AdminSection';
+import { BackgroundTasksSection } from './sections/BackgroundTasksSection';
 import { StatsSection } from './sections/StatsSection';
 
 // Section navigation items
 const sections = [
   { id: 'admin', label: 'Admin', icon: Shield },
+  { id: 'background-tasks', label: 'Tasks', icon: Cog },
   { id: 'stats', label: 'Statistics', icon: BarChart3 },
 ];
 
@@ -43,6 +46,12 @@ export function AdminDashboard() {
         {/* Shows all data (no time filtering)          */}
         {/* ============================================ */}
         <AdminSection />
+
+        {/* ============================================ */}
+        {/* BACKGROUND TASKS SECTION                    */}
+        {/* Sync scheduler, import jobs, token status   */}
+        {/* ============================================ */}
+        <BackgroundTasksSection />
 
         {/* ============================================ */}
         {/* STATS SECTION - Analytics & Metrics         */}

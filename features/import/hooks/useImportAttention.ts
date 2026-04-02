@@ -21,11 +21,12 @@ function jobNeedsAttention(job: ImportJobWithPlaylists): boolean {
  */
 export function useImportAttention(enabled = true) {
   const { data } = useImportHistory(enabled);
+  const jobs = data?.jobs;
 
   const attentionCount = useMemo(() => {
-    if (!data?.jobs) return 0;
-    return data.jobs.filter(jobNeedsAttention).length;
-  }, [data?.jobs]);
+    if (!jobs) return 0;
+    return jobs.filter(jobNeedsAttention).length;
+  }, [jobs]);
 
   return { attentionCount };
 }
