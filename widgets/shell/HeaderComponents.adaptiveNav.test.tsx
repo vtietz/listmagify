@@ -12,6 +12,10 @@ vi.mock('@features/sync/hooks/useSyncAttention', () => ({
   useSyncAttention: () => ({ attentionCount: 0 }),
 }));
 
+vi.mock('@features/import/hooks/useImportAttention', () => ({
+  useImportAttention: () => ({ attentionCount: 0 }),
+}));
+
 vi.mock('@/components/ui/adaptive-nav', () => ({
   AdaptiveNav: ({ items }: { items: Array<{ id: string; label: string; visible?: boolean; hidden?: boolean }> }) => (
     <div>

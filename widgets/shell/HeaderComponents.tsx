@@ -49,6 +49,7 @@ import { useSyncActivityStore } from '@features/sync/stores/useSyncActivityStore
 import { useImportManagementStore } from '@features/import/stores/useImportManagementStore';
 import { useImportActivityStore } from '@features/import/stores/useImportActivityStore';
 import { useSyncAttention } from '@features/sync/hooks/useSyncAttention';
+import { useImportAttention } from '@features/import/hooks/useImportAttention';
 
 // ============================================================================
 // Types
@@ -261,6 +262,7 @@ export function AdaptiveNav({
   const { attentionCount: syncAttentionCount } = useSyncAttention(showSecureLinks && multipleProvidersConnected);
   const openImportManagement = useImportManagementStore((s) => s.openManagement);
   const isImporting = useImportActivityStore((s) => s.isImportActive);
+  const { attentionCount: importAttentionCount } = useImportAttention(showSecureLinks && multipleProvidersConnected);
   const headerProviders = useHeaderProviders();
   const isSingleProvider = headerProviders.length <= 1;
   
@@ -301,6 +303,13 @@ export function AdaptiveNav({
       onClick: openImportManagement,
       visible: showSecureLinks && multipleProvidersConnected,
       group: 'view',
+      ...(importAttentionCount > 0 ? {
+        badge: (
+          <span className="ml-1 text-xs bg-red-500 text-white px-1.5 py-0.5 rounded-full">
+            {importAttentionCount}
+          </span>
+        ),
+      } : {}),
     });
     items.push({
       id: 'sync',
@@ -329,7 +338,7 @@ export function AdaptiveNav({
   }, [
     isPhone, showSecureLinks, supportsBrowse,
     isBrowseOpen, toggleBrowse, isPlayerVisible, togglePlayerVisible, supportsPlayer,
-    openManagement, isSyncing, syncAttentionCount, openImportManagement, isImporting, multipleProvidersConnected,
+    openManagement, isSyncing, syncAttentionCount, openImportManagement, isImporting, importAttentionCount, multipleProvidersConnected,
     setConfigOpen,
   ]);
 
@@ -435,7 +444,7 @@ export function AdaptiveNav({
         burgerIcon={
           <span className="relative">
             <Menu className="h-4 w-4" />
-            {syncAttentionCount > 0 && (
+            {(syncAttentionCount > 0 || importAttentionCount > 0) && (
               <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-red-500" />
             )}
           </span>
