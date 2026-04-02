@@ -73,7 +73,7 @@ function isTokenUnchanged(original: StoredProviderToken, refreshed: ProviderJwtT
 
 async function refreshSingleToken(token: StoredProviderToken): Promise<void> {
   if (isRefreshBlocked(token.provider)) {
-    console.debug(`[token-keepalive] circuit breaker open for ${token.provider}/${token.userId}, skipping`);
+    console.debug(`[token-keepalive] circuit breaker open for ${token.provider}, skipping`);
     return;
   }
 
@@ -86,21 +86,21 @@ async function refreshSingleToken(token: StoredProviderToken): Promise<void> {
   // Permanent auth failure
   if (refreshed.error === TOKEN_REFRESH_ERROR) {
     recordPermanentFailure(token.provider, 'invalid_grant');
-    console.warn(`[token-keepalive] permanent auth error for ${token.provider}/${token.userId}, marking needs_reauth`);
+    console.warn(`[token-keepalive] permanent auth error for ${token.provider}, marking needs_reauth`);
     markTokenStatus(token.userId, token.provider, 'needs_reauth');
     return;
   }
 
   // Transient failure — token returned unchanged
   if (isTokenUnchanged(token, refreshed)) {
-    console.debug(`[token-keepalive] transient failure or no change for ${token.provider}/${token.userId}, skipping`);
+    console.debug(`[token-keepalive] transient failure or no change for ${token.provider}, skipping`);
     return;
   }
 
   // Persist refreshed token
   persistProviderTokens(buildPersistParams(token, refreshed));
 
-  console.debug(`[token-keepalive] refreshed ${token.provider}/${token.userId}`);
+  console.debug(`[token-keepalive] refreshed 1 ${token.provider} token`);
 }
 
 async function runKeepalivePass(): Promise<void> {
@@ -118,7 +118,7 @@ async function runKeepalivePass(): Promise<void> {
     try {
       await refreshSingleToken(token);
     } catch (error) {
-      console.error(`[token-keepalive] unexpected error refreshing ${token.provider}/${token.userId}`, error);
+      console.error(`[token-keepalive] unexpected error refreshing ${token.provider} token`, error);
     }
   }
 }
