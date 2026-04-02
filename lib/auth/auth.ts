@@ -111,6 +111,7 @@ function tryRecoverFromDb(
 type AuthJwtToken = Record<string, any> & {
   musicProviderTokens?: ProviderTokenStore;
   providerErrors?: Partial<Record<MusicProviderId, string | undefined>>;
+  providerAccountIds?: Partial<Record<MusicProviderId, string>>;
 };
 
 function toMusicProviderId(value: unknown): MusicProviderId | null {
@@ -234,6 +235,14 @@ function applyAccountToken(
   const previousToken = providerTokens[providerId] ?? {};
   providerTokens[providerId] = buildProviderTokenFromAccount(nextToken, previousToken, accountData, providerId);
   providerErrors[providerId] = undefined;
+
+  // Store provider account ID so stats allowlist can check all connected providers
+  if (accountData.providerAccountId) {
+    nextToken.providerAccountIds = {
+      ...(nextToken.providerAccountIds ?? {}),
+      [providerId]: String(accountData.providerAccountId),
+    };
+  }
 }
 
 
@@ -417,6 +426,7 @@ export const authOptions: AuthOptions = {
         {} as Record<string, { accessToken?: string; accessTokenExpires?: number; error?: string; isByok?: boolean }>
       );
       (session as any).providerErrors = providerErrors;
+      (session as any).providerAccountIds = typedToken.providerAccountIds ?? {};
       (session as any).accessToken = sessionProviderToken?.accessToken;
       (session as any).accessTokenExpires = sessionProviderToken?.accessTokenExpires;
       (session as any).error = sessionProviderId ? providerErrors[sessionProviderId] : undefined;

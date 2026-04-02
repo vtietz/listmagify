@@ -8,7 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/auth';
-import { isUserAllowedForStats } from '@/lib/metrics/env';
+import { isUserAllowedForStats, getAllSessionUserIds } from '@/lib/metrics/env';
 import { getTrafficStats } from '@/lib/metrics/traffic';
 
 export async function GET(req: NextRequest) {
@@ -22,9 +22,8 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Check stats access
-    const userId = session.user?.id;
-    if (!isUserAllowedForStats(userId)) {
+    // Check stats access (checks all connected provider account IDs)
+    if (!isUserAllowedForStats(getAllSessionUserIds(session))) {
       return NextResponse.json(
         { error: 'Forbidden' },
         { status: 403 }

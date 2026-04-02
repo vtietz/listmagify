@@ -7,13 +7,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/auth';
-import { isUserAllowedForStats } from '@/lib/metrics/env';
+import { isUserAllowedForStats, getAllSessionUserIds } from '@/lib/metrics/env';
 import { getRegisteredUsersPerDay } from '@/lib/metrics';
 
 export async function GET(request: NextRequest) {
   // Check authentication and authorization
   const session = await getServerSession(authOptions);
-  if (!session || !isUserAllowedForStats(session.user?.id)) {
+  if (!session || !isUserAllowedForStats(getAllSessionUserIds(session))) {
     return NextResponse.json(
       { success: false, error: 'Unauthorized' },
       { status: 403 }

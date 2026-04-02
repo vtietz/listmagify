@@ -1,14 +1,14 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/auth';
-import { isUserAllowedForStats } from '@/lib/metrics/env';
+import { isUserAllowedForStats, getAllSessionUserIds } from '@/lib/metrics/env';
 import { getAllSyncPairsWithLatestRun } from '@/lib/sync/syncStore';
 import { getRecentImportJobsAdmin } from '@/lib/import/importStore';
 import { getAllTokenStatuses } from '@/lib/auth/tokenStore';
 
 export async function GET() {
   const session = await getServerSession(authOptions);
-  if (!session || !isUserAllowedForStats(session.user?.id)) {
+  if (!session || !isUserAllowedForStats(getAllSessionUserIds(session))) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 403 });
   }
 

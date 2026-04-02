@@ -241,7 +241,7 @@ export function markTokenStatus(
       .run(status, userId, provider);
 
     console.debug(
-      `[auth-token-store] Marked ${provider}/${userId} as ${status}: ${result.changes} row(s)`
+      `[auth-token-store] Marked ${provider} token as ${status}: ${result.changes} row(s)`
     );
     return result.changes > 0;
   } catch (error) {

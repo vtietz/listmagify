@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/auth';
-import { isUserAllowedForStats } from '@/lib/metrics/env';
+import { isUserAllowedForStats, getAllSessionUserIds } from '@/lib/metrics/env';
 import { getDb } from '@/lib/metrics/db';
 
 export const dynamic = 'force-dynamic';
@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (!isUserAllowedForStats(session.user.id)) {
+    if (!isUserAllowedForStats(getAllSessionUserIds(session))) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

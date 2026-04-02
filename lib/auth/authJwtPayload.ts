@@ -17,6 +17,7 @@ type ProviderTokenStore = Partial<Record<MusicProviderId, ProviderJwtToken>>;
 type AuthJwtToken = Record<string, any> & {
   musicProviderTokens?: ProviderTokenStore;
   providerErrors?: Partial<Record<MusicProviderId, string | undefined>>;
+  providerAccountIds?: Partial<Record<MusicProviderId, string>>;
 };
 
 export function stripJwtPayloadBloat(nextToken: AuthJwtToken): AuthJwtToken {

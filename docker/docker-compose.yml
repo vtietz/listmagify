@@ -35,7 +35,7 @@ services:
         node scripts/show-config.js &&
         echo "[startup] Running database migrations..." &&
         pnpm exec tsx scripts/migrate.ts &&
-        pnpm exec next dev --webpack --hostname 0.0.0.0 -p ${PORT:-3000}
+        pnpm exec next dev --hostname 0.0.0.0 -p ${PORT:-3000}
     tty: true
 
   sync-worker:
@@ -120,7 +120,7 @@ services:
       - >
         corepack prepare pnpm@latest --activate &&
         echo "[E2E Mode] Starting test server on port 3100" &&
-        pnpm exec next dev --webpack --hostname 0.0.0.0 -p 3100
+        pnpm exec next dev --hostname 0.0.0.0 -p 3100
     depends_on:
       - spotify-mock
       - tidal-mock

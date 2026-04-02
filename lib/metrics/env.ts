@@ -41,10 +41,32 @@ export function getMetricsConfig(): MetricsConfig {
 }
 
 /**
- * Check if a provider user ID is in the stats allowlist.
+ * Collect all user IDs from a session — includes `session.user.id` (token.sub)
+ * plus any per-provider account IDs stored in `session.providerAccountIds`.
+ *
+ * This is useful because `token.sub` is set by whichever provider the user
+ * signed in with *first*, and may not match the ID the admin put in the
+ * allowlist. Checking all connected provider IDs avoids that ambiguity.
  */
-export function isUserAllowedForStats(userId: string | undefined | null): boolean {
+export function getAllSessionUserIds(
+  session: { user?: { id?: string }; providerAccountIds?: Record<string, string> },
+): string[] {
+  const ids: string[] = [];
+  if (session?.user?.id) ids.push(session.user.id);
+  if (session?.providerAccountIds) {
+    for (const id of Object.values(session.providerAccountIds)) {
+      if (id && !ids.includes(id)) ids.push(id);
+    }
+  }
+  return ids;
+}
+
+/**
+ * Check if a provider user ID (or array of IDs) is in the stats allowlist.
+ */
+export function isUserAllowedForStats(userId: string | string[] | undefined | null): boolean {
   if (!userId) return false;
   const config = getMetricsConfig();
-  return config.allowedUserIds.includes(userId);
+  const ids = Array.isArray(userId) ? userId : [userId];
+  return ids.some(id => config.allowedUserIds.includes(id));
 }

@@ -16,7 +16,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/auth';
-import { isUserAllowedForStats } from '@/lib/metrics/env';
+import { isUserAllowedForStats, getAllSessionUserIds } from '@/lib/metrics/env';
 import { getDailySummaries, getActionDistribution, getTopPlaylists, getDailyUsers, getDailyActions } from '@/lib/metrics';
 import { logPageView } from '@/lib/metrics';
 import { getToken } from 'next-auth/jwt';
@@ -24,7 +24,7 @@ import { getToken } from 'next-auth/jwt';
 export async function GET(request: NextRequest) {
   // Check authentication and authorization
   const session = await getServerSession(authOptions);
-  if (!session || !isUserAllowedForStats(session.user?.id)) {
+  if (!session || !isUserAllowedForStats(getAllSessionUserIds(session))) {
     return NextResponse.json(
       { success: false, error: 'Unauthorized' },
       { status: 403 }

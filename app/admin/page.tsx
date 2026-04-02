@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import { authOptions } from '@/lib/auth/auth';
 import { AdminDashboard } from '@/components/admin';
 import { Shield } from 'lucide-react';
-import { isUserAllowedForStats } from '@/lib/metrics/env';
+import { isUserAllowedForStats, getAllSessionUserIds } from '@/lib/metrics/env';
 
 export const metadata = {
   title: 'Admin',
@@ -22,9 +22,8 @@ export default async function AdminPage() {
     redirect('/login');
   }
 
-  // Check if user is in the allowlist
-  const userId = session.user?.id;
-  if (!isUserAllowedForStats(userId)) {
+  // Check if user is in the allowlist (checks all connected provider account IDs)
+  if (!isUserAllowedForStats(getAllSessionUserIds(session))) {
     redirect('/playlists?reason=unauthorized');
   }
 

@@ -10,7 +10,7 @@
  * ```
  */
 
-export { getMetricsConfig, isUserAllowedForStats } from './env';
+export { getMetricsConfig, isUserAllowedForStats, getAllSessionUserIds } from './env';
 export { getDb, closeDb, runRetentionCleanup } from './db';
 export {
   insertEvent,
