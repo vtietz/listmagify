@@ -48,6 +48,7 @@ import { useSyncDialogStore } from '@features/sync/stores/useSyncDialogStore';
 import { useSyncActivityStore } from '@features/sync/stores/useSyncActivityStore';
 import { useImportManagementStore } from '@features/import/stores/useImportManagementStore';
 import { useImportActivityStore } from '@features/import/stores/useImportActivityStore';
+import { useSyncAttention } from '@features/sync/hooks/useSyncAttention';
 
 // ============================================================================
 // Types
@@ -257,6 +258,7 @@ export function AdaptiveNav({
   const [configOpen, setConfigOpen] = useState(false);
   const openManagement = useSyncDialogStore((s) => s.openManagement);
   const isSyncing = useSyncActivityStore((s) => s.activeSyncCount > 0);
+  const { attentionCount: syncAttentionCount } = useSyncAttention(showSecureLinks && multipleProvidersConnected);
   const openImportManagement = useImportManagementStore((s) => s.openManagement);
   const isImporting = useImportActivityStore((s) => s.isImportActive);
   const headerProviders = useHeaderProviders();
@@ -307,6 +309,13 @@ export function AdaptiveNav({
       onClick: openManagement,
       visible: showSecureLinks && multipleProvidersConnected,
       group: 'view',
+      ...(syncAttentionCount > 0 ? {
+        badge: (
+          <span className="ml-1 text-xs bg-red-500 text-white px-1.5 py-0.5 rounded-full">
+            {syncAttentionCount}
+          </span>
+        ),
+      } : {}),
     });
     items.push({
       id: 'config',
@@ -320,7 +329,7 @@ export function AdaptiveNav({
   }, [
     isPhone, showSecureLinks, supportsBrowse,
     isBrowseOpen, toggleBrowse, isPlayerVisible, togglePlayerVisible, supportsPlayer,
-    openManagement, isSyncing, openImportManagement, isImporting, multipleProvidersConnected,
+    openManagement, isSyncing, syncAttentionCount, openImportManagement, isImporting, multipleProvidersConnected,
     setConfigOpen,
   ]);
 
@@ -423,7 +432,14 @@ export function AdaptiveNav({
       <AdaptiveNavComponent
         items={navItems}
         layoutMode={isPhone ? 'burger' : 'horizontal'}
-        burgerIcon={<Menu className="h-4 w-4" />}
+        burgerIcon={
+          <span className="relative">
+            <Menu className="h-4 w-4" />
+            {syncAttentionCount > 0 && (
+              <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-red-500" />
+            )}
+          </span>
+        }
       />
       <FeedbackDialog trigger={null} open={feedbackOpen} onOpenChange={setFeedbackOpen} />
       <ConfigDialog
