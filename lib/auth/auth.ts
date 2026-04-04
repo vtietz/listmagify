@@ -21,8 +21,7 @@ const FALLBACK_PROVIDER_ID = getFallbackMusicProviderId();
 
 // ---------------------------------------------------------------------------
 // Single-flight refresh lock — prevents concurrent JWT callbacks from racing
-// on the same refresh token (Spotify rotates refresh tokens, so the second
-// concurrent call would get "revoked").
+// on the same refresh token.
 // ---------------------------------------------------------------------------
 
 type RefreshResult = {
@@ -66,8 +65,9 @@ async function refreshTokensWithDedup(
 }
 
 // ---------------------------------------------------------------------------
-// DB fallback — when refresh fails, try to recover from a token that was
-// successfully refreshed and persisted by an earlier request.
+// DB sync — before refresh, pick up tokens that the keepalive loop may have
+// already refreshed.  After refresh failure, try to recover from a DB token
+// that was persisted by another successful refresh.
 // ---------------------------------------------------------------------------
 
 function dbTokenToProviderJwt(dbToken: NonNullable<ReturnType<typeof getDbProviderTokens>>): ProviderJwtToken {
@@ -82,6 +82,45 @@ function dbTokenToProviderJwt(dbToken: NonNullable<ReturnType<typeof getDbProvid
   };
 }
 
+function readDbToken(token: AuthJwtToken, pid: MusicProviderId): ProviderJwtToken | null {
+  try {
+    const userId = resolveTokenUserId(token, pid);
+    if (!userId) return null;
+    const dbToken = getDbProviderTokens(userId, pid);
+    if (!dbToken?.accessToken || !dbToken.refreshToken) return null;
+    return dbTokenToProviderJwt(dbToken);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Pre-refresh sync: if the keepalive (or another request) has already
+ * refreshed a token in the DB, adopt the fresher DB version instead of
+ * attempting a refresh with the stale JWT cookie token — which may hold
+ * a rotated-away refresh token that Spotify will reject.
+ */
+function syncFresherTokensFromDb(
+  token: AuthJwtToken,
+  providerTokens: ProviderTokenStore,
+): void {
+  if (!isTokenEncryptionAvailable()) return;
+
+  for (const pid of Object.keys(providerTokens) as MusicProviderId[]) {
+    if (!providerTokens[pid]?.accessToken) continue;
+    const dbJwt = readDbToken(token, pid);
+    if (!dbJwt) continue;
+
+    const dbExpiry = dbJwt.accessTokenExpires ?? 0;
+    const jwtExpiry = providerTokens[pid]!.accessTokenExpires ?? 0;
+
+    if (dbExpiry > jwtExpiry) {
+      console.debug(`[auth] ${pid}: adopting fresher token from DB (DB expires ${new Date(dbExpiry).toISOString()}, JWT expires ${new Date(jwtExpiry).toISOString()})`);
+      providerTokens[pid] = dbJwt;
+    }
+  }
+}
+
 function tryRecoverFromDb(
   token: AuthJwtToken,
   providerTokens: ProviderTokenStore,
@@ -93,21 +132,12 @@ function tryRecoverFromDb(
     const pt = providerTokens[pid];
     if (pt?.error !== TOKEN_REFRESH_ERROR) continue;
 
-    try {
-      const userId = resolveTokenUserId(token, pid);
-      if (!userId) continue;
-      const dbToken = getDbProviderTokens(userId, pid);
-      if (!dbToken?.accessToken || !dbToken.refreshToken) continue;
+    const dbJwt = readDbToken(token, pid);
+    if (!dbJwt || dbJwt.refreshToken === pt.refreshToken) continue;
 
-      // Only use DB token if it's different (i.e. a newer successful refresh)
-      if (dbToken.refreshToken === pt.refreshToken) continue;
-
-      console.debug(`[auth] Recovering ${pid} token from DB after refresh failure`);
-      providerTokens[pid] = dbTokenToProviderJwt(dbToken);
-      providerErrors[pid] = undefined;
-    } catch {
-      // DB read failure should never break auth flow
-    }
+    console.debug(`[auth] Recovering ${pid} token from DB after refresh failure`);
+    providerTokens[pid] = dbJwt;
+    providerErrors[pid] = undefined;
   }
 }
 
@@ -413,6 +443,12 @@ export const authOptions: AuthOptions = {
           }
         }
       }
+
+      // Before refreshing, adopt any fresher tokens that the keepalive loop
+      // (or a parallel request) already refreshed and persisted to the DB.
+      // This avoids using a stale JWT-cookie refresh token that may have been
+      // rotated away, which would cause an unnecessary invalid_grant failure.
+      syncFresherTokensFromDb(nextToken, providerTokens);
 
       if (nextToken.sub) {
         await refreshTokensWithDedup(nextToken.sub, providerTokens, providerErrors);

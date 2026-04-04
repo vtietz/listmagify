@@ -60,7 +60,7 @@ export function createSpotifyAuthProvider() {
         show_dialog: true,
       },
     },
-    checks: ['pkce', 'state'],
+    checks: ['state'],
   });
 }
 
