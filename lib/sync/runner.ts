@@ -359,7 +359,7 @@ function buildConfigFromPair(pair: {
  */
 export async function previewSyncFromPair(
   syncPairId: string,
-  createdBy?: string,
+  createdBy?: string | string[],
   matchThresholds?: SyncMatchThresholds,
 ): Promise<SyncPreviewResult> {
   const pair = getSyncPair(syncPairId, createdBy);
@@ -376,7 +376,7 @@ export async function previewSyncFromPair(
  */
 export async function executeSyncFromPair(
   syncPairId: string,
-  createdBy?: string,
+  createdBy?: string | string[],
   matchThresholds?: SyncMatchThresholds,
 ): Promise<{ plan: SyncPlan; result: SyncApplyResult; runId: string }> {
   const pair = getSyncPair(syncPairId, createdBy);

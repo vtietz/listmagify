@@ -3,6 +3,7 @@ import { assertAuthenticated } from '@/app/api/_shared/guard';
 import { ok, created, badRequest, fromError } from '@/app/api/_shared/http';
 import { parseMusicProviderId } from '@/lib/music-provider';
 import { createSyncPair, listSyncPairs, getLatestSyncRun } from '@/lib/sync/syncStore';
+import { getAllSessionUserIds, getCreatorUserId } from '@/lib/auth/sessionUserIds';
 import type { SyncDirection } from '@/lib/sync/types';
 
 const VALID_DIRECTIONS = new Set<SyncDirection>(['a-to-b', 'b-to-a', 'bidirectional']);
@@ -19,7 +20,7 @@ function isValidDirection(value: unknown): value is SyncDirection {
 export async function GET() {
   try {
     const session = await assertAuthenticated();
-    const pairs = listSyncPairs(session.user.id);
+    const pairs = listSyncPairs(getAllSessionUserIds(session));
     const pairsWithLatestRun = pairs.map((pair) => ({
       ...pair,
       latestRun: getLatestSyncRun(pair.id),
@@ -65,7 +66,7 @@ export async function POST(request: NextRequest) {
       targetPlaylistId: String(body.targetPlaylistId),
       targetPlaylistName: String(body.targetPlaylistName ?? ''),
       direction: body.direction as SyncDirection,
-      createdBy: session.user.id,
+      createdBy: getCreatorUserId(session),
     });
 
     return created({ pair });

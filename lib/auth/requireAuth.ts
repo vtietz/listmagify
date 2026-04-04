@@ -187,14 +187,22 @@ async function tryRestoreFromDb(): Promise<any | null> {
     if (!uidCookie?.value) return null;
 
     const { getSessionFromDb } = await import('./sessionFromDb');
-    const userId = uidCookie.value;
 
-    // Try each provider
-    const providers: MusicProviderId[] = ['spotify', 'tidal'];
+    // Parse UID cookie — JSON map of provider → prefixed user ID
+    let uidMap: Record<string, string>;
+    try {
+      uidMap = JSON.parse(uidCookie.value);
+    } catch {
+      return null;
+    }
+
     const tokenResults: Record<string, any> = {};
+    let firstUserId: string | undefined;
 
-    for (const pid of providers) {
-      const dbSession = await getSessionFromDb(userId, pid);
+    for (const [pid, userId] of Object.entries(uidMap)) {
+      if (!userId) continue;
+      if (!firstUserId) firstUserId = userId;
+      const dbSession = await getSessionFromDb(userId, pid as MusicProviderId);
       if (dbSession) {
         tokenResults[pid] = {
           accessToken: dbSession.accessToken,
@@ -205,9 +213,8 @@ async function tryRestoreFromDb(): Promise<any | null> {
 
     if (Object.keys(tokenResults).length === 0) return null;
 
-    // Build a session-like object compatible with the existing session parsing
     return {
-      user: { id: userId },
+      user: { id: firstUserId },
       musicProviderTokens: tokenResults,
     };
   } catch {

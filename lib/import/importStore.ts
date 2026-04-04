@@ -84,12 +84,17 @@ function getImportJob(jobId: string): ImportJob | null {
 
 export function getImportJobWithPlaylists(
   jobId: string,
-  createdBy?: string,
+  createdBy?: string | string[],
 ): ImportJobWithPlaylists | null {
   const db = getRecsDb();
 
-  const jobQuery = createdBy
-    ? db.prepare(`
+  let job: ImportJob | undefined;
+
+  if (createdBy) {
+    const userIds = Array.isArray(createdBy) ? createdBy : [createdBy];
+    if (userIds.length === 0) return null;
+    const placeholders = userIds.map(() => '?').join(', ');
+    job = db.prepare(`
         SELECT
           id,
           source_provider AS sourceProvider,
@@ -101,9 +106,10 @@ export function getImportJobWithPlaylists(
           create_sync_pair AS createSyncPair,
           sync_interval AS syncInterval
         FROM import_jobs
-        WHERE id = ? AND created_by = ?
-      `)
-    : db.prepare(`
+        WHERE id = ? AND created_by IN (${placeholders})
+      `).get(jobId, ...userIds) as ImportJob | undefined;
+  } else {
+    job = db.prepare(`
         SELECT
           id,
           source_provider AS sourceProvider,
@@ -116,9 +122,8 @@ export function getImportJobWithPlaylists(
           sync_interval AS syncInterval
         FROM import_jobs
         WHERE id = ?
-      `);
-
-  const job = (createdBy ? jobQuery.get(jobId, createdBy) : jobQuery.get(jobId)) as ImportJob | undefined;
+      `).get(jobId) as ImportJob | undefined;
+  }
   if (!job) return null;
   job.createSyncPair = Boolean(job.createSyncPair);
 
@@ -221,8 +226,11 @@ export function updateImportJob(
   db.prepare(`UPDATE import_jobs SET ${setClauses.join(', ')} WHERE id = ?`).run(...params);
 }
 
-export function getActiveImportJob(createdBy: string): ImportJob | null {
+export function getActiveImportJob(createdBy: string | string[]): ImportJob | null {
   const db = getRecsDb();
+  const userIds = Array.isArray(createdBy) ? createdBy : [createdBy];
+  if (userIds.length === 0) return null;
+  const placeholders = userIds.map(() => '?').join(', ');
 
   const row = db.prepare(`
     SELECT
@@ -236,11 +244,11 @@ export function getActiveImportJob(createdBy: string): ImportJob | null {
       create_sync_pair AS createSyncPair,
       sync_interval AS syncInterval
     FROM import_jobs
-    WHERE created_by = ?
+    WHERE created_by IN (${placeholders})
       AND status IN ('pending', 'running')
     ORDER BY created_at DESC
     LIMIT 1
-  `).get(createdBy) as ImportJob | undefined;
+  `).get(...userIds) as ImportJob | undefined;
 
   if (!row) return null;
   row.createSyncPair = Boolean(row.createSyncPair);
@@ -251,8 +259,11 @@ export function getActiveImportJob(createdBy: string): ImportJob | null {
 // Import History
 // -----------------------------------------------------------------------------
 
-export function getImportHistory(createdBy: string, limit = 20): ImportJobWithPlaylists[] {
+export function getImportHistory(createdBy: string | string[], limit = 20): ImportJobWithPlaylists[] {
   const db = getRecsDb();
+  const userIds = Array.isArray(createdBy) ? createdBy : [createdBy];
+  if (userIds.length === 0) return [];
+  const placeholders = userIds.map(() => '?').join(', ');
 
   const jobs = db.prepare(`
     SELECT
@@ -266,10 +277,10 @@ export function getImportHistory(createdBy: string, limit = 20): ImportJobWithPl
       create_sync_pair AS createSyncPair,
       sync_interval AS syncInterval
     FROM import_jobs
-    WHERE created_by = ?
+    WHERE created_by IN (${placeholders})
     ORDER BY created_at DESC
     LIMIT ?
-  `).all(createdBy, limit) as ImportJob[];
+  `).all(...userIds, limit) as ImportJob[];
 
   return jobs.map((job) => {
     job.createSyncPair = Boolean(job.createSyncPair);
@@ -300,16 +311,19 @@ export function getImportHistory(createdBy: string, limit = 20): ImportJobWithPl
 // Cancel a queued playlist entry
 // -----------------------------------------------------------------------------
 
-export function cancelImportPlaylist(playlistEntryId: string, createdBy: string): boolean {
+export function cancelImportPlaylist(playlistEntryId: string, createdBy: string | string[]): boolean {
   const db = getRecsDb();
+  const userIds = Array.isArray(createdBy) ? createdBy : [createdBy];
+  if (userIds.length === 0) return false;
+  const placeholders = userIds.map(() => '?').join(', ');
 
   const result = db.prepare(`
     UPDATE import_job_playlists
     SET status = 'cancelled'
     WHERE id = ?
       AND status = 'queued'
-      AND job_id IN (SELECT id FROM import_jobs WHERE created_by = ?)
-  `).run(playlistEntryId, createdBy);
+      AND job_id IN (SELECT id FROM import_jobs WHERE created_by IN (${placeholders}))
+  `).run(playlistEntryId, ...userIds);
 
   return result.changes > 0;
 }

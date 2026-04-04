@@ -20,6 +20,7 @@ interface SessionProviderToken {
 
 interface SessionWithTokens {
   musicProviderTokens?: Partial<Record<MusicProviderId, SessionProviderToken>>;
+  providerAccountIds?: Partial<Record<MusicProviderId, string>>;
 }
 
 /**
@@ -48,8 +49,13 @@ export async function POST() {
       return NextResponse.json({ preserved: false });
     }
 
+    // Also preserve providerAccountIds so the second sign-in doesn't lose
+    // the first provider's account ID (needed for admin allowlist, data scoping)
+    const providerAccountIds = typedSession?.providerAccountIds ?? {};
+    const payload = { tokens: backup, providerAccountIds };
+
     const cookieStore = await cookies();
-    cookieStore.set(BACKUP_COOKIE_NAME, JSON.stringify(backup), {
+    cookieStore.set(BACKUP_COOKIE_NAME, JSON.stringify(payload), {
       httpOnly: true,
       sameSite: 'lax',
       path: '/',

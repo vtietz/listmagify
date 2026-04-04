@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { assertAuthenticated } from '@/app/api/_shared/guard';
 import { ok, badRequest, notFound, fromError } from '@/app/api/_shared/http';
 import { getImportJobWithPlaylists } from '@/lib/import/importStore';
+import { getAllSessionUserIds } from '@/lib/auth/sessionUserIds';
 
 /**
  * GET /api/import/status?jobId=<id>
@@ -17,7 +18,7 @@ export async function GET(request: NextRequest) {
       return badRequest('Missing required query parameter: jobId');
     }
 
-    const job = getImportJobWithPlaylists(jobId, session.user.id);
+    const job = getImportJobWithPlaylists(jobId, getAllSessionUserIds(session));
     if (!job) {
       return notFound('Import job not found');
     }

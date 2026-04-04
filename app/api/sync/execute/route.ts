@@ -3,6 +3,7 @@ import { assertAuthenticated } from '@/app/api/_shared/guard';
 import { ok, badRequest, fromError } from '@/app/api/_shared/http';
 import { parseMusicProviderId } from '@/lib/music-provider';
 import { executeSync, executeSyncFromPair } from '@/lib/sync/runner';
+import { getAllSessionUserIds } from '@/lib/auth/sessionUserIds';
 import type { SyncDirection } from '@/lib/sync/types';
 import type { SyncMatchThresholds } from '@/lib/sync/runner';
 import { normalizeConvertThreshold, deriveManualThreshold } from '@/lib/matching/config';
@@ -49,7 +50,7 @@ export async function POST(request: NextRequest) {
       if (typeof body.syncPairId !== 'string') {
         return badRequest('syncPairId must be a string');
       }
-      const outcome = await executeSyncFromPair(body.syncPairId, session.user.id, matchThresholds);
+      const outcome = await executeSyncFromPair(body.syncPairId, getAllSessionUserIds(session), matchThresholds);
       return ok(outcome);
     }
 

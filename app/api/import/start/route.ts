@@ -3,6 +3,7 @@ import { assertAuthenticated } from '@/app/api/_shared/guard';
 import { created, badRequest, conflict, fromError } from '@/app/api/_shared/http';
 import { createImportJob, getActiveImportJob } from '@/lib/import/importStore';
 import { executeImportJob } from '@/lib/import/importRunner';
+import { getAllSessionUserIds, getCreatorUserId } from '@/lib/auth/sessionUserIds';
 
 /**
  * POST /api/import/start
@@ -37,7 +38,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check for existing active import job
-    const activeJob = getActiveImportJob(session.user.id);
+    const activeJob = getActiveImportJob(getAllSessionUserIds(session));
     if (activeJob) {
       return conflict('An import job is already in progress', `Active job: ${activeJob.id}`);
     }
@@ -46,7 +47,7 @@ export async function POST(request: NextRequest) {
     const job = createImportJob({
       sourceProvider: String(body.sourceProvider),
       targetProvider: String(body.targetProvider),
-      createdBy: session.user.id,
+      createdBy: getCreatorUserId(session),
       playlists: body.playlists.map((p: { id: string; name: string }) => ({
         id: String(p.id),
         name: String(p.name),

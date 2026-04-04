@@ -15,6 +15,7 @@ import {
 import { persistProviderTokens, deleteProviderTokens, markTokenStatus, getProviderTokens as getDbProviderTokens } from '@/lib/auth/tokenStore';
 import { isTokenEncryptionAvailable } from '@/lib/auth/tokenEncryption';
 import { resetCircuitBreaker } from '@/lib/auth/refreshCircuitBreaker';
+import { prefixedUserId } from '@/lib/auth/sessionUserIds';
 
 const FALLBACK_PROVIDER_ID = getFallbackMusicProviderId();
 
@@ -82,7 +83,7 @@ function dbTokenToProviderJwt(dbToken: NonNullable<ReturnType<typeof getDbProvid
 }
 
 function tryRecoverFromDb(
-  userId: string,
+  token: AuthJwtToken,
   providerTokens: ProviderTokenStore,
   providerErrors: Partial<Record<MusicProviderId, string | undefined>>,
 ): void {
@@ -93,6 +94,8 @@ function tryRecoverFromDb(
     if (pt?.error !== TOKEN_REFRESH_ERROR) continue;
 
     try {
+      const userId = resolveTokenUserId(token, pid);
+      if (!userId) continue;
       const dbToken = getDbProviderTokens(userId, pid);
       if (!dbToken?.accessToken || !dbToken.refreshToken) continue;
 
@@ -251,6 +254,20 @@ function applyAccountToken(
 // failure never breaks the auth flow.
 // ---------------------------------------------------------------------------
 
+/**
+ * Resolve the prefixed user ID for a provider from the JWT token.
+ * Uses providerAccountIds["spotify"] → "spotify:simsonoo".
+ * Falls back to token.sub for providers without an explicit account ID.
+ */
+function resolveTokenUserId(
+  token: AuthJwtToken,
+  providerId: MusicProviderId,
+): string | undefined {
+  const accountId = token.providerAccountIds?.[providerId];
+  if (accountId) return prefixedUserId(providerId, accountId);
+  return token.sub;
+}
+
 function safePersistSingleProvider(
   userId: string,
   providerId: MusicProviderId,
@@ -273,22 +290,26 @@ function safePersistSingleProvider(
 }
 
 function persistSignInTokens(
-  userId: string | undefined,
+  token: AuthJwtToken,
   accountProviderId: MusicProviderId | null,
   providerTokens: ProviderTokenStore,
 ): void {
-  if (!userId || !accountProviderId || !isTokenEncryptionAvailable()) return;
+  if (!accountProviderId || !isTokenEncryptionAvailable()) return;
   const providerToken = providerTokens[accountProviderId];
   if (!providerToken?.accessToken || !providerToken?.refreshToken) return;
+  const userId = resolveTokenUserId(token, accountProviderId);
+  if (!userId) return;
   safePersistSingleProvider(userId, accountProviderId, providerToken);
 }
 
 function persistRefreshedTokens(
-  userId: string | undefined,
+  token: AuthJwtToken,
   providerTokens: ProviderTokenStore,
 ): void {
-  if (!userId || !isTokenEncryptionAvailable()) return;
+  if (!isTokenEncryptionAvailable()) return;
   for (const [pid, pt] of Object.entries(providerTokens) as [MusicProviderId, ProviderJwtToken | undefined][]) {
+    const userId = resolveTokenUserId(token, pid);
+    if (!userId) continue;
     if (pt?.accessToken && pt?.refreshToken && !pt.error) {
       safePersistSingleProvider(userId, pid, pt);
     }
@@ -302,12 +323,20 @@ function persistRefreshedTokens(
   }
 }
 
-async function setUidCookie(userId: string | undefined): Promise<void> {
-  if (!userId) return;
+async function setUidCookie(token: AuthJwtToken): Promise<void> {
+  if (!token.providerAccountIds) return;
   try {
     const { cookies } = await import('next/headers');
     const cookieStore = await cookies();
-    cookieStore.set('__listmagify_uid', userId, {
+    // Store provider-prefixed user IDs as JSON so tryRestoreFromDb can
+    // look up the correct token for each provider.
+    const uidMap: Record<string, string> = {};
+    for (const [pid, accountId] of Object.entries(token.providerAccountIds)) {
+      if (accountId) {
+        uidMap[pid] = prefixedUserId(pid, accountId as string);
+      }
+    }
+    cookieStore.set('__listmagify_uid', JSON.stringify(uidMap), {
       httpOnly: false,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
@@ -351,14 +380,14 @@ export const authOptions: AuthOptions = {
       applyAccountToken(nextToken, account, providerTokens, providerErrors);
 
       if (account) {
-        await restoreProviderTokensFromBackup(providerTokens, accountProviderId, toMusicProviderId);
+        await restoreProviderTokensFromBackup(providerTokens, accountProviderId, toMusicProviderId, nextToken);
         if (accountProviderId) {
           resetCircuitBreaker(accountProviderId);
         }
       }
 
       // Persist tokens from initial sign-in to DB
-      persistSignInTokens(nextToken.sub, accountProviderId, providerTokens);
+      persistSignInTokens(nextToken, accountProviderId, providerTokens);
 
       if (trigger === 'update' && session?.providerAuthAction === 'logout-provider') {
         const providerId = toMusicProviderId(session.providerId);
@@ -367,9 +396,10 @@ export const authOptions: AuthOptions = {
           providerErrors[providerId] = undefined;
 
           // Remove tokens from persistent DB
-          if (nextToken.sub) {
+          const logoutUserId = resolveTokenUserId(nextToken, providerId);
+          if (logoutUserId) {
             try {
-              deleteProviderTokens(nextToken.sub, providerId);
+              deleteProviderTokens(logoutUserId, providerId);
             } catch {
               // DB failure should never break auth flow
             }
@@ -385,15 +415,13 @@ export const authOptions: AuthOptions = {
 
       // If refresh failed, try to recover from DB (another request may have
       // already refreshed successfully and persisted the new token).
-      if (nextToken.sub) {
-        tryRecoverFromDb(nextToken.sub, providerTokens, providerErrors);
-      }
+      tryRecoverFromDb(nextToken, providerTokens, providerErrors);
 
       // Persist refreshed tokens to DB
-      persistRefreshedTokens(nextToken.sub, providerTokens);
+      persistRefreshedTokens(nextToken, providerTokens);
 
       // Set UID cookie for DB session restoration fallback
-      await setUidCookie(nextToken.sub);
+      await setUidCookie(nextToken);
 
       return buildJwtCallbackResult(nextToken, providerTokens, providerErrors);
     },

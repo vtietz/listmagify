@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { assertAuthenticated } from '@/app/api/_shared/guard';
 import { ok, fromError, notFound } from '@/app/api/_shared/http';
 import { getSyncPair, listSyncRunsForPair } from '@/lib/sync/syncStore';
+import { getAllSessionUserIds } from '@/lib/auth/sessionUserIds';
 
 /**
  * GET /api/sync/pairs/[id]/runs
@@ -20,7 +21,7 @@ export async function GET(
     const session = await assertAuthenticated();
     const { id } = await params;
 
-    const pair = getSyncPair(id, session.user.id);
+    const pair = getSyncPair(id, getAllSessionUserIds(session));
     if (!pair) {
       return notFound('Sync pair not found');
     }

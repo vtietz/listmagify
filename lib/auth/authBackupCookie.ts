@@ -15,10 +15,33 @@ type ProviderJwtToken = {
 
 export const BACKUP_COOKIE_NAME = '__listmagify_provider_backup';
 
+type BackupPayload = {
+  tokens: Partial<Record<string, ProviderJwtToken>>;
+  providerAccountIds?: Partial<Record<string, string>>;
+};
+
+/**
+ * Parse backup cookie value. Handles both:
+ * - Legacy format: `{ spotify: { accessToken: ... } }` (flat token map)
+ * - New format: `{ tokens: { ... }, providerAccountIds: { ... } }`
+ */
+function parseBackup(raw: string): BackupPayload {
+  const parsed = JSON.parse(raw);
+
+  // New format has a `tokens` key
+  if (parsed.tokens && typeof parsed.tokens === 'object') {
+    return parsed as BackupPayload;
+  }
+
+  // Legacy format: the entire object is the token map
+  return { tokens: parsed as Partial<Record<string, ProviderJwtToken>> };
+}
+
 export async function restoreProviderTokensFromBackup(
   providerTokens: Partial<Record<MusicProviderId, ProviderJwtToken>>,
   accountProviderId: MusicProviderId | null,
   toMusicProviderId: (value: unknown) => MusicProviderId | null,
+  jwtToken?: Record<string, any>,
 ): Promise<void> {
   try {
     const cookieStore = await cookies();
@@ -27,9 +50,10 @@ export async function restoreProviderTokensFromBackup(
       return;
     }
 
-    const backup = JSON.parse(raw) as Partial<Record<string, ProviderJwtToken>>;
+    const backup = parseBackup(raw);
 
-    for (const [key, token] of Object.entries(backup)) {
+    // Restore provider tokens
+    for (const [key, token] of Object.entries(backup.tokens)) {
       const pid = toMusicProviderId(key);
       if (!pid || !token?.accessToken) {
         continue;
@@ -42,6 +66,13 @@ export async function restoreProviderTokensFromBackup(
       if (!providerTokens[pid]?.accessToken) {
         providerTokens[pid] = token;
       }
+    }
+
+    // Restore providerAccountIds into the JWT token so admin checks
+    // and data scoping can see all connected provider IDs
+    if (jwtToken && backup.providerAccountIds) {
+      const existing = (jwtToken.providerAccountIds ?? {}) as Partial<Record<string, string>>;
+      jwtToken.providerAccountIds = { ...backup.providerAccountIds, ...existing };
     }
 
     cookieStore.delete(BACKUP_COOKIE_NAME);

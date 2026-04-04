@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { assertAuthenticated } from '@/app/api/_shared/guard';
 import { ok, fromError, notFound, badRequest } from '@/app/api/_shared/http';
 import { getSyncPair, deleteSyncPair, getLatestSyncRun, updateSyncPairAutoSync, updateSyncPairInterval } from '@/lib/sync/syncStore';
+import { getAllSessionUserIds } from '@/lib/auth/sessionUserIds';
 import type { SyncInterval } from '@/lib/sync/types';
 
 /**
@@ -18,7 +19,7 @@ export async function GET(
     const session = await assertAuthenticated();
 
     const { id } = await params;
-    const pair = getSyncPair(id, session.user.id);
+    const pair = getSyncPair(id, getAllSessionUserIds(session));
 
     if (!pair) {
       return notFound('Sync pair not found');
@@ -47,7 +48,7 @@ export async function DELETE(
     const session = await assertAuthenticated();
 
     const { id } = await params;
-    const deleted = deleteSyncPair(id, session.user.id);
+    const deleted = deleteSyncPair(id, getAllSessionUserIds(session));
 
     if (!deleted) {
       return notFound('Sync pair not found');
@@ -82,7 +83,7 @@ export async function PATCH(
         return badRequest('Invalid syncInterval');
       }
 
-      const updated = updateSyncPairInterval(id, body.syncInterval as SyncInterval, session.user.id);
+      const updated = updateSyncPairInterval(id, body.syncInterval as SyncInterval, getAllSessionUserIds(session));
       if (!updated) {
         return notFound('Sync pair not found');
       }
@@ -93,13 +94,13 @@ export async function PATCH(
         return badRequest('autoSync must be a boolean');
       }
 
-      const updated = updateSyncPairAutoSync(id, body.autoSync, session.user.id);
+      const updated = updateSyncPairAutoSync(id, body.autoSync, getAllSessionUserIds(session));
       if (!updated) {
         return notFound('Sync pair not found');
       }
     }
 
-    const pair = getSyncPair(id, session.user.id);
+    const pair = getSyncPair(id, getAllSessionUserIds(session));
     const latestRun = pair ? getLatestSyncRun(pair.id) : null;
     return ok({ pair: pair ? { ...pair, latestRun } : null });
   } catch (error) {

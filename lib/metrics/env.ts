@@ -41,25 +41,10 @@ export function getMetricsConfig(): MetricsConfig {
 }
 
 /**
- * Collect all user IDs from a session — includes `session.user.id` (token.sub)
- * plus any per-provider account IDs stored in `session.providerAccountIds`.
- *
- * This is useful because `token.sub` is set by whichever provider the user
- * signed in with *first*, and may not match the ID the admin put in the
- * allowlist. Checking all connected provider IDs avoids that ambiguity.
+ * @deprecated Use getAllSessionUserIds from '@/lib/auth/sessionUserIds' instead.
+ * Re-exported here for backward compat with existing stats imports.
  */
-export function getAllSessionUserIds(
-  session: { user?: { id?: string }; providerAccountIds?: Record<string, string> },
-): string[] {
-  const ids: string[] = [];
-  if (session?.user?.id) ids.push(session.user.id);
-  if (session?.providerAccountIds) {
-    for (const id of Object.values(session.providerAccountIds)) {
-      if (id && !ids.includes(id)) ids.push(id);
-    }
-  }
-  return ids;
-}
+export { getAllSessionUserIds } from '@/lib/auth/sessionUserIds';
 
 /**
  * Check if a provider user ID (or array of IDs) is in the stats allowlist.

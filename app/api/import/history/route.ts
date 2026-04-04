@@ -1,6 +1,7 @@
 import { assertAuthenticated } from '@/app/api/_shared/guard';
 import { ok, fromError } from '@/app/api/_shared/http';
 import { getImportHistory, getActiveImportJob } from '@/lib/import/importStore';
+import { getAllSessionUserIds } from '@/lib/auth/sessionUserIds';
 import { NextRequest } from 'next/server';
 
 /**
@@ -14,8 +15,9 @@ export async function GET(request: NextRequest) {
     const limitParam = request.nextUrl.searchParams.get('limit');
     const limit = limitParam ? Math.min(Math.max(1, Number(limitParam)), 50) : 20;
 
-    const jobs = getImportHistory(session.user.id, limit);
-    const activeJob = getActiveImportJob(session.user.id);
+    const userIds = getAllSessionUserIds(session);
+    const jobs = getImportHistory(userIds, limit);
+    const activeJob = getActiveImportJob(userIds);
 
     return ok({ jobs, activeJobId: activeJob?.id ?? null });
   } catch (error) {

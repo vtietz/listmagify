@@ -106,10 +106,14 @@ export function createSyncPair(input: {
   return getSyncPair(id)!;
 }
 
-export function getSyncPair(id: string, createdBy?: string): SyncPair | null {
+export function getSyncPair(id: string, createdBy?: string | string[]): SyncPair | null {
   const db = getRecsDb();
 
   if (createdBy) {
+    const userIds = Array.isArray(createdBy) ? createdBy : [createdBy];
+    if (userIds.length === 0) return null;
+    const placeholders = userIds.map(() => '?').join(', ');
+
     const row = db.prepare(`
       SELECT
         id,
@@ -128,8 +132,8 @@ export function getSyncPair(id: string, createdBy?: string): SyncPair | null {
         created_at AS createdAt,
         updated_at AS updatedAt
       FROM sync_pairs
-      WHERE id = ? AND created_by = ?
-    `).get(id, createdBy) as SyncPair | undefined;
+      WHERE id = ? AND created_by IN (${placeholders})
+    `).get(id, ...userIds) as SyncPair | undefined;
 
     return row ?? null;
   }
@@ -201,8 +205,12 @@ export function getSyncPairByPlaylists(
   return row ?? null;
 }
 
-export function listSyncPairs(createdBy: string): SyncPair[] {
+export function listSyncPairs(createdBy: string | string[]): SyncPair[] {
   const db = getRecsDb();
+  const userIds = Array.isArray(createdBy) ? createdBy : [createdBy];
+  if (userIds.length === 0) return [];
+
+  const placeholders = userIds.map(() => '?').join(', ');
 
   return db.prepare(`
     SELECT
@@ -222,9 +230,9 @@ export function listSyncPairs(createdBy: string): SyncPair[] {
       created_at AS createdAt,
       updated_at AS updatedAt
     FROM sync_pairs
-    WHERE created_by = ?
+    WHERE created_by IN (${placeholders})
     ORDER BY created_at DESC
-  `).all(createdBy) as SyncPair[];
+  `).all(...userIds) as SyncPair[];
 }
 
 export function listSyncPairsForPlaylist(
@@ -280,11 +288,14 @@ export function deleteSyncPairsForPlaylist(
   return result.changes;
 }
 
-export function deleteSyncPair(id: string, createdBy?: string): boolean {
+export function deleteSyncPair(id: string, createdBy?: string | string[]): boolean {
   const db = getRecsDb();
 
   if (createdBy) {
-    const result = db.prepare('DELETE FROM sync_pairs WHERE id = ? AND created_by = ?').run(id, createdBy);
+    const userIds = Array.isArray(createdBy) ? createdBy : [createdBy];
+    if (userIds.length === 0) return false;
+    const placeholders = userIds.map(() => '?').join(', ');
+    const result = db.prepare(`DELETE FROM sync_pairs WHERE id = ? AND created_by IN (${placeholders})`).run(id, ...userIds);
     return result.changes > 0;
   }
 
@@ -292,14 +303,17 @@ export function deleteSyncPair(id: string, createdBy?: string): boolean {
   return result.changes > 0;
 }
 
-export function updateSyncPairAutoSync(id: string, autoSync: boolean, createdBy?: string): boolean {
+export function updateSyncPairAutoSync(id: string, autoSync: boolean, createdBy?: string | string[]): boolean {
   const db = getRecsDb();
   const value = autoSync ? 1 : 0;
 
   if (createdBy) {
+    const userIds = Array.isArray(createdBy) ? createdBy : [createdBy];
+    if (userIds.length === 0) return false;
+    const placeholders = userIds.map(() => '?').join(', ');
     const result = db.prepare(
-      'UPDATE sync_pairs SET auto_sync = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND created_by = ?',
-    ).run(value, id, createdBy);
+      `UPDATE sync_pairs SET auto_sync = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND created_by IN (${placeholders})`,
+    ).run(value, id, ...userIds);
     return result.changes > 0;
   }
 
@@ -313,7 +327,7 @@ export function updateSyncPairAutoSync(id: string, autoSync: boolean, createdBy?
 // SyncPair scheduler helpers
 // -----------------------------------------------------------------------------
 
-export function updateSyncPairInterval(id: string, interval: SyncInterval, createdBy?: string): boolean {
+export function updateSyncPairInterval(id: string, interval: SyncInterval, createdBy?: string | string[]): boolean {
   const db = getRecsDb();
 
   const baseMs = INTERVAL_MS[interval];
@@ -323,11 +337,14 @@ export function updateSyncPairInterval(id: string, interval: SyncInterval, creat
     : new Date(Date.now() + Math.round(baseMs + jitter)).toISOString();
 
   if (createdBy) {
+    const userIds = Array.isArray(createdBy) ? createdBy : [createdBy];
+    if (userIds.length === 0) return false;
+    const placeholders = userIds.map(() => '?').join(', ');
     const result = db.prepare(`
       UPDATE sync_pairs
       SET sync_interval = ?, next_run_at = ?, consecutive_failures = 0, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ? AND created_by = ?
-    `).run(interval, nextRunAt, id, createdBy);
+      WHERE id = ? AND created_by IN (${placeholders})
+    `).run(interval, nextRunAt, id, ...userIds);
     return result.changes > 0;
   }
 
