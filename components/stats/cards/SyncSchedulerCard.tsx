@@ -27,7 +27,9 @@ interface SyncPairLatestRun {
 interface SyncPair {
   id: string;
   sourceProvider: string;
+  sourcePlaylistId: string;
   targetProvider: string;
+  targetPlaylistId: string;
   syncInterval: string;
   nextRunAt: string | null;
   consecutiveFailures: number;
@@ -307,9 +309,14 @@ function SyncPairRow({
           />
         </td>
         <td className="px-3 py-2">
-          <span className="font-medium">{pair.sourceProvider}</span>
-          <span className="text-muted-foreground mx-1.5">→</span>
-          <span className="font-medium">{pair.targetProvider}</span>
+          <div>
+            <span className="font-medium">{pair.sourceProvider}</span>
+            <span className="text-muted-foreground mx-1.5">→</span>
+            <span className="font-medium">{pair.targetProvider}</span>
+          </div>
+          <div className="text-[10px] text-muted-foreground font-mono mt-0.5" title={`${pair.sourcePlaylistId} → ${pair.targetPlaylistId}`}>
+            {pair.sourcePlaylistId.slice(0, 8)}... → {pair.targetPlaylistId.slice(0, 8)}...
+          </div>
         </td>
         <td className="px-3 py-2 text-muted-foreground">{pair.syncInterval}</td>
         <td className="px-3 py-2">
@@ -358,14 +365,17 @@ function SyncPairRow({
 
 export function SyncSchedulerCard({ data, workerEnabled, isLoading }: SyncSchedulerCardProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [hasInteracted, setHasInteracted] = useState(false);
   const [now] = useState(() => Date.now());
   const [selectedPair, setSelectedPair] = useState<SyncPair | null>(null);
 
   const providerStats = data ? computeProviderStats(data.pairs) : [];
 
-  // Auto-expand pairs with errors
-  const initialExpandedId = data?.pairs.find((p) => p.consecutiveFailures > 0)?.id ?? null;
-  const effectiveExpandedId = expandedId ?? initialExpandedId;
+  // Auto-expand first failing pair until the user interacts
+  const autoExpandId = !hasInteracted
+    ? (data?.pairs.find((p) => p.consecutiveFailures > 0)?.id ?? null)
+    : null;
+  const effectiveExpandedId = expandedId ?? autoExpandId;
 
   return (
     <>
@@ -435,9 +445,10 @@ export function SyncSchedulerCard({ data, workerEnabled, isLoading }: SyncSchedu
                       key={pair.id}
                       pair={pair}
                       expanded={effectiveExpandedId === pair.id}
-                      onToggle={() =>
-                        setExpandedId((prev) => (prev === pair.id ? null : pair.id))
-                      }
+                      onToggle={() => {
+                        setHasInteracted(true);
+                        setExpandedId((prev) => prev === pair.id ? null : pair.id);
+                      }}
                       onUserClick={setSelectedPair}
                       now={now}
                     />

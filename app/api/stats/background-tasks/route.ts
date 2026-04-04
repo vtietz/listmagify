@@ -37,7 +37,9 @@ export async function GET() {
       return {
         id: pair.id,
         sourceProvider: pair.sourceProvider,
+        sourcePlaylistId: pair.sourcePlaylistId,
         targetProvider: pair.targetProvider,
+        targetPlaylistId: pair.targetPlaylistId,
         direction: pair.direction,
         syncInterval: pair.syncInterval,
         nextRunAt: pair.nextRunAt,
@@ -64,7 +66,11 @@ export async function GET() {
       };
     });
 
-    const tokenStatuses = getAllTokenStatuses();
+    const tokenStatuses = getAllTokenStatuses().map((token) => ({
+      ...token,
+      userHash: hashUserId(token.userId),
+      userId: undefined, // Strip raw user ID from response
+    }));
 
     return NextResponse.json({
       success: true,

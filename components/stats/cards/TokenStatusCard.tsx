@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils';
 import { Key } from 'lucide-react';
 
 interface TokenEntry {
-  userId: string;
+  userHash: string;
   provider: string;
   status: string;
   isByok: boolean;
@@ -60,11 +60,6 @@ function getStatusBadge(status: string): string {
   }
 }
 
-function truncateId(id: string): string {
-  if (id.length <= 12) return id;
-  return `${id.slice(0, 6)}...${id.slice(-4)}`;
-}
-
 export function TokenStatusCard({ data, keepaliveEnabled, isLoading }: TokenStatusCardProps) {
   return (
     <Card>
@@ -100,7 +95,7 @@ export function TokenStatusCard({ data, keepaliveEnabled, isLoading }: TokenStat
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b text-muted-foreground">
-                  <th className="px-3 py-2 text-left">User ID</th>
+                  <th className="px-3 py-2 text-left">User</th>
                   <th className="px-3 py-2 text-left">Provider</th>
                   <th className="px-3 py-2 text-left">Status</th>
                   <th className="px-3 py-2 text-left">BYOK</th>
@@ -110,12 +105,12 @@ export function TokenStatusCard({ data, keepaliveEnabled, isLoading }: TokenStat
               </thead>
               <tbody>
                 {data.tokens.map((token) => (
-                  <tr key={`${token.userId}-${token.provider}`} className="border-b last:border-b-0">
+                  <tr key={`${token.userHash}-${token.provider}`} className="border-b last:border-b-0">
                     <td
                       className="px-3 py-2 font-mono text-muted-foreground"
-                      title={token.userId}
+                      title={token.userHash}
                     >
-                      {truncateId(token.userId)}
+                      {token.userHash.slice(0, 12)}...
                     </td>
                     <td className="px-3 py-2 font-medium">{token.provider}</td>
                     <td className="px-3 py-2">
