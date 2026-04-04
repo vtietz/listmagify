@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/auth';
 import { isUserAllowedForStats, getAllSessionUserIds } from '@/lib/metrics/env';
-import { getAllSyncPairsWithLatestRun } from '@/lib/sync/syncStore';
+import { getAllSyncPairsWithLatestRun, listSyncRunsForPair } from '@/lib/sync/syncStore';
 import { getRecentImportJobsAdmin } from '@/lib/import/importStore';
 import { getAllTokenStatuses } from '@/lib/auth/tokenStore';
 
@@ -13,10 +13,16 @@ export async function GET() {
   }
 
   try {
-    const pairs = getAllSyncPairsWithLatestRun();
-    const activePairs = pairs.filter((p) => p.syncInterval !== 'off');
-    const failingPairs = pairs.filter((p) => p.consecutiveFailures > 0);
-    const disabledPairs = pairs.filter((p) => p.syncInterval === 'off');
+    const pairsWithLatest = getAllSyncPairsWithLatestRun();
+    const activePairs = pairsWithLatest.filter((p) => p.syncInterval !== 'off');
+    const failingPairs = pairsWithLatest.filter((p) => p.consecutiveFailures > 0);
+    const disabledPairs = pairsWithLatest.filter((p) => p.syncInterval === 'off');
+
+    // Enrich each pair with recent run history (up to 10)
+    const pairs = pairsWithLatest.map((pair) => ({
+      ...pair,
+      recentRuns: listSyncRunsForPair(pair.id, 10),
+    }));
 
     const importJobs = getRecentImportJobsAdmin(20);
     const tokenStatuses = getAllTokenStatuses();

@@ -33,6 +33,7 @@ interface SyncPair {
   nextRunAt: string | null;
   consecutiveFailures: number;
   latestRun: SyncPairLatestRun | null;
+  recentRuns?: SyncPairLatestRun[];
 }
 
 interface SyncSchedulerCardProps {
@@ -49,14 +50,16 @@ interface SyncSchedulerCardProps {
 
 function timeAgo(iso: string): string {
   const ms = Date.now() - new Date(iso).getTime();
-  const s = Math.floor(ms / 1000);
-  if (s < 60) return `${s}s ago`;
+  const abs = Math.abs(ms);
+  const suffix = ms >= 0 ? 'ago' : 'from now';
+  const s = Math.floor(abs / 1000);
+  if (s < 60) return `${s}s ${suffix}`;
   const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
+  if (m < 60) return `${m}m ${suffix}`;
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
+  if (h < 24) return `${h}h ${suffix}`;
   const d = Math.floor(h / 24);
-  return `${d}d ago`;
+  return `${d}d ${suffix}`;
 }
 
 function getStatusDotColor(status: string | undefined): string {
@@ -85,34 +88,87 @@ function KpiBox({ label, value, colorClass }: { label: string; value: number; co
   );
 }
 
-function SyncPairDrilldown({ run }: { run: SyncPairLatestRun }) {
+function getRunStatusBadge(status: string): string {
+  switch (status) {
+    case 'done':
+    case 'completed':
+      return 'bg-green-100 text-green-800 dark:bg-green-950/30 dark:text-green-400';
+    case 'failed':
+    case 'error':
+      return 'bg-red-100 text-red-800 dark:bg-red-950/30 dark:text-red-400';
+    case 'pending':
+    case 'executing':
+    case 'running':
+      return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-950/30 dark:text-yellow-400';
+    default:
+      return 'bg-gray-100 text-gray-800 dark:bg-gray-950/30 dark:text-gray-400';
+  }
+}
+
+function SyncPairDrilldown({ pair }: { pair: SyncPair }) {
+  const runs = pair.recentRuns ?? (pair.latestRun ? [pair.latestRun] : []);
+
+  if (runs.length === 0) {
+    return (
+      <tr>
+        <td colSpan={8} className="px-3 pb-3">
+          <div className="text-xs text-muted-foreground">No runs yet</div>
+        </td>
+      </tr>
+    );
+  }
+
   return (
     <tr>
-      <td colSpan={7} className="px-3 pb-3">
-        <div className="space-y-2">
-          {run.errorMessage && (
-            <div className="bg-red-50 dark:bg-red-950/20 p-3 rounded text-sm">
-              <span className="font-medium">Error:</span> {run.errorMessage}
-            </div>
-          )}
-          {run.warnings.length > 0 && (
-            <div className="p-3 rounded border text-sm">
-              <div className="font-medium mb-1">Unresolved tracks:</div>
-              <ul className="space-y-1">
-                {run.warnings.map((w, i) => (
-                  <li key={i} className="text-xs text-muted-foreground">
-                    {w.title} — {w.artists.join(', ')} ({w.reason})
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          <div className="flex gap-4 text-xs text-muted-foreground">
-            <span>Added: {run.tracksAdded}</span>
-            <span>Removed: {run.tracksRemoved}</span>
-            <span>Unresolved: {run.tracksUnresolved}</span>
-            {run.completedAt && <span>Completed: {timeAgo(run.completedAt)}</span>}
-          </div>
+      <td colSpan={8} className="px-3 pb-3">
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b text-muted-foreground">
+                <th className="px-2 py-1.5 text-left">Status</th>
+                <th className="px-2 py-1.5 text-left">Started</th>
+                <th className="px-2 py-1.5 text-right">Added</th>
+                <th className="px-2 py-1.5 text-right">Removed</th>
+                <th className="px-2 py-1.5 text-right">Unresolved</th>
+                <th className="px-2 py-1.5 text-left">Error</th>
+              </tr>
+            </thead>
+            <tbody>
+              {runs.map((run) => (
+                <tr key={run.id} className="border-b last:border-b-0">
+                  <td className="px-2 py-1.5">
+                    <span
+                      className={cn(
+                        'px-1.5 py-0.5 rounded text-[10px] font-medium',
+                        getRunStatusBadge(run.status),
+                      )}
+                    >
+                      {run.status}
+                    </span>
+                  </td>
+                  <td className="px-2 py-1.5 text-muted-foreground">{timeAgo(run.startedAt)}</td>
+                  <td className="px-2 py-1.5 text-right text-muted-foreground">{run.tracksAdded}</td>
+                  <td className="px-2 py-1.5 text-right text-muted-foreground">{run.tracksRemoved}</td>
+                  <td className="px-2 py-1.5 text-right">
+                    {run.tracksUnresolved > 0 ? (
+                      <span className="text-orange-500">{run.tracksUnresolved}</span>
+                    ) : (
+                      <span className="text-muted-foreground">0</span>
+                    )}
+                  </td>
+                  <td className="px-2 py-1.5">
+                    {run.errorMessage ? (
+                      <span className="text-red-500 truncate block max-w-[300px]" title={run.errorMessage}>
+                        {run.errorMessage}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </td>
     </tr>
@@ -129,17 +185,12 @@ function SyncPairRow({
   onToggle: () => void;
 }) {
   const run = pair.latestRun;
-  const hasDetails = run && (run.errorMessage || run.warnings.length > 0);
-  const isClickable = !!hasDetails;
 
   return (
     <>
       <tr
-        className={cn(
-          'border-b last:border-b-0',
-          isClickable && 'cursor-pointer hover:bg-muted/50 transition-colors',
-        )}
-        onClick={isClickable ? onToggle : undefined}
+        className="border-b last:border-b-0 cursor-pointer hover:bg-muted/50 transition-colors"
+        onClick={onToggle}
       >
         <td className="px-3 py-2">
           <span
@@ -169,11 +220,17 @@ function SyncPairRow({
             <span className="text-muted-foreground">0</span>
           )}
         </td>
-        <td className="px-3 py-2 text-muted-foreground">
-          {pair.nextRunAt ? timeAgo(pair.nextRunAt) : '—'}
+        <td className="px-3 py-2">
+          {pair.nextRunAt ? (
+            new Date(pair.nextRunAt).getTime() < Date.now() ? (
+              <span className="text-red-500" title={pair.nextRunAt}>overdue ({timeAgo(pair.nextRunAt)})</span>
+            ) : (
+              <span className="text-muted-foreground">{timeAgo(pair.nextRunAt)}</span>
+            )
+          ) : '—'}
         </td>
       </tr>
-      {expanded && run && <SyncPairDrilldown run={run} />}
+      {expanded && <SyncPairDrilldown pair={pair} />}
     </>
   );
 }
