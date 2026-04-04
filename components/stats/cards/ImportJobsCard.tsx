@@ -7,7 +7,8 @@ import { Download } from 'lucide-react';
 import { UserDetailDialog } from '../UserDetailDialog';
 
 interface ImportPlaylist {
-  sourcePlaylistName: string;
+  sourcePlaylistId: string;
+  targetPlaylistId: string | null;
   status: string;
   trackCount: number;
   tracksAdded: number;
@@ -106,12 +107,13 @@ function ImportJobDrilldown({ job }: { job: ImportJob }) {
 
   return (
     <tr>
-      <td colSpan={7} className="px-3 pb-3">
+      <td colSpan={8} className="px-3 pb-3">
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b text-muted-foreground">
-                <th className="px-2 py-1.5 text-left">Playlist</th>
+                <th className="px-2 py-1.5 text-left">Source ID</th>
+                <th className="px-2 py-1.5 text-left">Target ID</th>
                 <th className="px-2 py-1.5 text-left">Status</th>
                 <th className="px-2 py-1.5 text-right">Tracks</th>
                 <th className="px-2 py-1.5 text-right">Added</th>
@@ -122,7 +124,14 @@ function ImportJobDrilldown({ job }: { job: ImportJob }) {
             <tbody>
               {job.playlists.map((pl, i) => (
                 <tr key={i} className="border-b last:border-b-0">
-                  <td className="px-2 py-1.5 font-medium">{pl.sourcePlaylistName}</td>
+                  <td className="px-2 py-1.5 font-mono text-muted-foreground" title={pl.sourcePlaylistId}>
+                    {pl.sourcePlaylistId.length > 12 ? `${pl.sourcePlaylistId.slice(0, 12)}...` : pl.sourcePlaylistId}
+                  </td>
+                  <td className="px-2 py-1.5 font-mono text-muted-foreground" title={pl.targetPlaylistId ?? ''}>
+                    {pl.targetPlaylistId
+                      ? (pl.targetPlaylistId.length > 12 ? `${pl.targetPlaylistId.slice(0, 12)}...` : pl.targetPlaylistId)
+                      : <span className="text-muted-foreground">—</span>}
+                  </td>
                   <td className="px-2 py-1.5">
                     <span
                       className={cn(
