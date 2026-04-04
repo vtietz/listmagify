@@ -57,6 +57,7 @@ export function createSpotifyAuthProvider() {
     authorization: {
       params: {
         scope: 'user-read-email user-read-private playlist-read-private playlist-modify-private playlist-modify-public user-library-read user-library-modify user-read-playback-state user-modify-playback-state streaming',
+        show_dialog: true,
       },
     },
     checks: ['pkce', 'state'],
