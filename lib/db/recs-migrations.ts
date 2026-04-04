@@ -344,4 +344,19 @@ export const recsMigrations: Migration[] = [
       ALTER TABLE import_jobs ADD COLUMN sync_interval TEXT NOT NULL DEFAULT 'off';
     `,
   },
+  {
+    version: 12,
+    name: 'prefix_created_by_ids',
+    sql: `
+      -- Before provider-prefixed IDs, created_by stored raw account IDs (e.g. "simsonoo").
+      -- TIDAL was not yet supported, so all unprefixed IDs are Spotify users.
+      UPDATE sync_pairs
+        SET created_by = 'spotify:' || created_by
+        WHERE created_by != '' AND created_by NOT LIKE '%:%';
+
+      UPDATE import_jobs
+        SET created_by = 'spotify:' || created_by
+        WHERE created_by != '' AND created_by NOT LIKE '%:%';
+    `,
+  },
 ];

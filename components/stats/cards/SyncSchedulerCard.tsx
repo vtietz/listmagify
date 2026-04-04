@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, AlertTriangle } from 'lucide-react';
+import { UserDetailDialog } from '../UserDetailDialog';
 
 interface SyncPairWarning {
   title: string;
@@ -26,12 +27,15 @@ interface SyncPairLatestRun {
 interface SyncPair {
   id: string;
   sourceProvider: string;
-  sourcePlaylistName: string;
   targetProvider: string;
-  targetPlaylistName: string;
   syncInterval: string;
   nextRunAt: string | null;
   consecutiveFailures: number;
+  createdByHash: string;
+  createdByRaw: string;
+  creatorProvider: string;
+  creatorAccountId: string;
+  createdAt: string;
   latestRun: SyncPairLatestRun | null;
   recentRuns?: SyncPairLatestRun[];
 }
@@ -46,6 +50,16 @@ interface SyncSchedulerCardProps {
   };
   workerEnabled?: boolean;
   isLoading: boolean;
+}
+
+interface ProviderDirectionStats {
+  direction: string;
+  total: number;
+  active: number;
+  failing: number;
+  totalRuns: number;
+  successfulRuns: number;
+  totalUnresolved: number;
 }
 
 function timeAgo(iso: string): string {
@@ -105,6 +119,80 @@ function getRunStatusBadge(status: string): string {
   }
 }
 
+function computeProviderStats(pairs: SyncPair[]): ProviderDirectionStats[] {
+  const byDirection = new Map<string, ProviderDirectionStats>();
+
+  for (const pair of pairs) {
+    const key = `${pair.sourceProvider} → ${pair.targetProvider}`;
+    let stats = byDirection.get(key);
+    if (!stats) {
+      stats = { direction: key, total: 0, active: 0, failing: 0, totalRuns: 0, successfulRuns: 0, totalUnresolved: 0 };
+      byDirection.set(key, stats);
+    }
+    stats.total++;
+    if (pair.syncInterval !== 'off') stats.active++;
+    if (pair.consecutiveFailures > 0) stats.failing++;
+
+    const runs = pair.recentRuns ?? (pair.latestRun ? [pair.latestRun] : []);
+    for (const run of runs) {
+      stats.totalRuns++;
+      if (run.status === 'done' || run.status === 'completed') stats.successfulRuns++;
+      stats.totalUnresolved += run.tracksUnresolved;
+    }
+  }
+
+  return Array.from(byDirection.values());
+}
+
+function ProviderStatsRow({ stats }: { stats: ProviderDirectionStats }) {
+  const successRate = stats.totalRuns > 0
+    ? Math.round((stats.successfulRuns / stats.totalRuns) * 100)
+    : 0;
+
+  return (
+    <div className="flex items-center gap-4 p-2 rounded-lg border text-xs">
+      <span className="font-medium min-w-[120px]">{stats.direction}</span>
+      <span className="text-muted-foreground">{stats.total} pairs ({stats.active} active)</span>
+      <span className={cn(
+        'font-medium',
+        successRate >= 80 ? 'text-green-500' : successRate >= 50 ? 'text-yellow-500' : 'text-red-500',
+      )}>
+        {successRate}% success
+      </span>
+      {stats.failing > 0 && (
+        <span className="text-red-500">{stats.failing} failing</span>
+      )}
+      {stats.totalUnresolved > 0 && (
+        <span className="text-orange-500">{stats.totalUnresolved} unresolved tracks</span>
+      )}
+    </div>
+  );
+}
+
+function UnmatchedTracksList({ warnings }: { warnings: SyncPairWarning[] }) {
+  if (warnings.length === 0) return null;
+
+  return (
+    <div className="mt-2 p-2 rounded-lg bg-orange-500/5 border border-orange-500/20">
+      <div className="flex items-center gap-1.5 text-[10px] font-medium text-orange-500 mb-1.5">
+        <AlertTriangle className="h-3 w-3" />
+        Unmatched Tracks
+      </div>
+      <div className="space-y-0.5">
+        {warnings.map((w, i) => (
+          <div key={i} className="text-[10px] text-muted-foreground">
+            <span className="font-medium text-foreground">{w.title}</span>
+            {w.artists.length > 0 && (
+              <span> — {w.artists.join(', ')}</span>
+            )}
+            <span className="text-orange-500/70 ml-1">({w.reason})</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function SyncPairDrilldown({ pair }: { pair: SyncPair }) {
   const runs = pair.recentRuns ?? (pair.latestRun ? [pair.latestRun] : []);
 
@@ -117,6 +205,17 @@ function SyncPairDrilldown({ pair }: { pair: SyncPair }) {
       </tr>
     );
   }
+
+  // Collect all unmatched tracks from recent runs
+  const allWarnings = runs.flatMap((r) => r.warnings ?? []);
+  // Deduplicate by title+artists
+  const seen = new Set<string>();
+  const uniqueWarnings = allWarnings.filter((w) => {
+    const key = `${w.title}|${w.artists.join(',')}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 
   return (
     <tr>
@@ -170,6 +269,7 @@ function SyncPairDrilldown({ pair }: { pair: SyncPair }) {
             </tbody>
           </table>
         </div>
+        <UnmatchedTracksList warnings={uniqueWarnings} />
       </td>
     </tr>
   );
@@ -179,14 +279,18 @@ function SyncPairRow({
   pair,
   expanded,
   onToggle,
+  onUserClick,
   now,
 }: {
   pair: SyncPair;
   expanded: boolean;
   onToggle: () => void;
+  onUserClick: (pair: SyncPair) => void;
   now: number;
 }) {
   const run = pair.latestRun;
+  const unresolvedCount = pair.recentRuns
+    ?.reduce((sum, r) => sum + r.tracksUnresolved, 0) ?? (run?.tracksUnresolved ?? 0);
 
   return (
     <>
@@ -203,13 +307,9 @@ function SyncPairRow({
           />
         </td>
         <td className="px-3 py-2">
-          <span className="font-medium">{pair.sourcePlaylistName}</span>
-          <span className="text-muted-foreground mx-1">({pair.sourceProvider})</span>
-        </td>
-        <td className="px-3 py-2 text-muted-foreground">→</td>
-        <td className="px-3 py-2">
-          <span className="font-medium">{pair.targetPlaylistName}</span>
-          <span className="text-muted-foreground mx-1">({pair.targetProvider})</span>
+          <span className="font-medium">{pair.sourceProvider}</span>
+          <span className="text-muted-foreground mx-1.5">→</span>
+          <span className="font-medium">{pair.targetProvider}</span>
         </td>
         <td className="px-3 py-2 text-muted-foreground">{pair.syncInterval}</td>
         <td className="px-3 py-2">
@@ -223,6 +323,13 @@ function SyncPairRow({
           )}
         </td>
         <td className="px-3 py-2">
+          {unresolvedCount > 0 ? (
+            <span className="text-orange-500 font-medium">{unresolvedCount}</span>
+          ) : (
+            <span className="text-muted-foreground">0</span>
+          )}
+        </td>
+        <td className="px-3 py-2">
           {pair.nextRunAt ? (
             new Date(pair.nextRunAt).getTime() < now ? (
               <span className="text-red-500" title={pair.nextRunAt}>overdue ({timeAgo(pair.nextRunAt)})</span>
@@ -230,6 +337,18 @@ function SyncPairRow({
               <span className="text-muted-foreground">{timeAgo(pair.nextRunAt)}</span>
             )
           ) : '—'}
+        </td>
+        <td className="px-3 py-2">
+          <button
+            className="font-mono text-xs text-muted-foreground hover:text-foreground hover:underline transition-colors"
+            title={pair.createdByHash}
+            onClick={(e) => {
+              e.stopPropagation();
+              onUserClick(pair);
+            }}
+          >
+            {pair.createdByHash.slice(0, 12)}...
+          </button>
         </td>
       </tr>
       {expanded && <SyncPairDrilldown pair={pair} />}
@@ -240,76 +359,105 @@ function SyncPairRow({
 export function SyncSchedulerCard({ data, workerEnabled, isLoading }: SyncSchedulerCardProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [now] = useState(() => Date.now());
+  const [selectedPair, setSelectedPair] = useState<SyncPair | null>(null);
+
+  const providerStats = data ? computeProviderStats(data.pairs) : [];
+
+  // Auto-expand pairs with errors
+  const initialExpandedId = data?.pairs.find((p) => p.consecutiveFailures > 0)?.id ?? null;
+  const effectiveExpandedId = expandedId ?? initialExpandedId;
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <CardTitle className="flex items-center gap-2">
-            <RefreshCw className="h-4 w-4" />
-            Sync Scheduler
-          </CardTitle>
-          {workerEnabled !== undefined && (
-            <span
-              className={cn(
-                'text-xs px-2 py-0.5 rounded-full',
-                workerEnabled
-                  ? 'bg-green-100 text-green-800 dark:bg-green-950/30 dark:text-green-400'
-                  : 'bg-red-100 text-red-800 dark:bg-red-950/30 dark:text-red-400',
+    <>
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <CardTitle className="flex items-center gap-2">
+              <RefreshCw className="h-4 w-4" />
+              Sync Scheduler
+            </CardTitle>
+            {workerEnabled !== undefined && (
+              <span
+                className={cn(
+                  'text-xs px-2 py-0.5 rounded-full',
+                  workerEnabled
+                    ? 'bg-green-100 text-green-800 dark:bg-green-950/30 dark:text-green-400'
+                    : 'bg-red-100 text-red-800 dark:bg-red-950/30 dark:text-red-400',
+                )}
+              >
+                {workerEnabled ? 'Enabled' : 'Disabled'}
+              </span>
+            )}
+          </div>
+          {data && (
+            <>
+              <div className="grid grid-cols-4 gap-3 mt-3">
+                <KpiBox label="Total" value={data.totalPairs} colorClass="text-foreground" />
+                <KpiBox label="Active" value={data.activePairs} colorClass="text-green-500" />
+                <KpiBox label="Failing" value={data.failingPairs} colorClass="text-red-500" />
+                <KpiBox label="Disabled" value={data.disabledPairs} colorClass="text-muted-foreground" />
+              </div>
+              {providerStats.length > 0 && (
+                <div className="mt-3 space-y-1.5">
+                  {providerStats.map((stats) => (
+                    <ProviderStatsRow key={stats.direction} stats={stats} />
+                  ))}
+                </div>
               )}
-            >
-              {workerEnabled ? 'Enabled' : 'Disabled'}
-            </span>
+            </>
           )}
-        </div>
-        {data && (
-          <div className="grid grid-cols-4 gap-3 mt-3">
-            <KpiBox label="Total" value={data.totalPairs} colorClass="text-foreground" />
-            <KpiBox label="Active" value={data.activePairs} colorClass="text-green-500" />
-            <KpiBox label="Failing" value={data.failingPairs} colorClass="text-red-500" />
-            <KpiBox label="Disabled" value={data.disabledPairs} colorClass="text-muted-foreground" />
-          </div>
-        )}
-      </CardHeader>
-      <CardContent>
-        {isLoading ? (
-          <div className="py-8 text-center text-muted-foreground">Loading...</div>
-        ) : !data || data.pairs.length === 0 ? (
-          <div className="py-8 text-center text-muted-foreground text-sm">
-            No sync pairs configured
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b text-muted-foreground">
-                  <th className="px-3 py-2 text-left w-8"></th>
-                  <th className="px-3 py-2 text-left">Source</th>
-                  <th className="px-3 py-2"></th>
-                  <th className="px-3 py-2 text-left">Target</th>
-                  <th className="px-3 py-2 text-left">Interval</th>
-                  <th className="px-3 py-2 text-left">Last Run</th>
-                  <th className="px-3 py-2 text-left">Failures</th>
-                  <th className="px-3 py-2 text-left">Next Run</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.pairs.map((pair) => (
-                  <SyncPairRow
-                    key={pair.id}
-                    pair={pair}
-                    expanded={expandedId === pair.id}
-                    onToggle={() =>
-                      setExpandedId((prev) => (prev === pair.id ? null : pair.id))
-                    }
-                    now={now}
-                  />
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="py-8 text-center text-muted-foreground">Loading...</div>
+          ) : !data || data.pairs.length === 0 ? (
+            <div className="py-8 text-center text-muted-foreground text-sm">
+              No sync pairs configured
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b text-muted-foreground">
+                    <th className="px-3 py-2 text-left w-8"></th>
+                    <th className="px-3 py-2 text-left">Direction</th>
+                    <th className="px-3 py-2 text-left">Interval</th>
+                    <th className="px-3 py-2 text-left">Last Run</th>
+                    <th className="px-3 py-2 text-left">Failures</th>
+                    <th className="px-3 py-2 text-left">Unresolved</th>
+                    <th className="px-3 py-2 text-left">Next Run</th>
+                    <th className="px-3 py-2 text-left">Owner</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.pairs.map((pair) => (
+                    <SyncPairRow
+                      key={pair.id}
+                      pair={pair}
+                      expanded={effectiveExpandedId === pair.id}
+                      onToggle={() =>
+                        setExpandedId((prev) => (prev === pair.id ? null : pair.id))
+                      }
+                      onUserClick={setSelectedPair}
+                      now={now}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {selectedPair && (
+        <UserDetailDialog
+          userId={selectedPair.creatorAccountId}
+          userHash={selectedPair.createdByHash}
+          provider={selectedPair.creatorProvider as 'spotify' | 'tidal' | null}
+          open={true}
+          onOpenChange={(open) => !open && setSelectedPair(null)}
+        />
+      )}
+    </>
   );
 }

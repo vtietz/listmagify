@@ -16,11 +16,11 @@ import { useState } from 'react';
 interface UserDetailDialogProps {
   userId: string | null;
   userHash: string;
-  eventCount: number;
-  tracksAdded: number;
-  tracksRemoved: number;
-  lastActive: string;
-  firstLoginAt: string | null;
+  eventCount?: number;
+  tracksAdded?: number;
+  tracksRemoved?: number;
+  lastActive?: string;
+  firstLoginAt?: string | null;
   provider?: 'spotify' | 'tidal' | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -446,13 +446,15 @@ export function UserDetailDialog({
             />
           </div>
 
-          <ActivityStatsSection
-            eventCount={eventCount}
-            tracksAdded={tracksAdded}
-            tracksRemoved={tracksRemoved}
-            lastActive={lastActive}
-            firstLoginAt={firstLoginAt}
-          />
+          {eventCount !== undefined && tracksAdded !== undefined && tracksRemoved !== undefined && lastActive !== undefined && (
+            <ActivityStatsSection
+              eventCount={eventCount}
+              tracksAdded={tracksAdded}
+              tracksRemoved={tracksRemoved}
+              lastActive={lastActive}
+              firstLoginAt={firstLoginAt ?? null}
+            />
+          )}
         </div>
       </DialogContent>
     </Dialog>

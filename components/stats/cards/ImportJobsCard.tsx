@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { Download } from 'lucide-react';
+import { UserDetailDialog } from '../UserDetailDialog';
 
 interface ImportPlaylist {
   sourcePlaylistName: string;
@@ -19,7 +20,10 @@ interface ImportJob {
   sourceProvider: string;
   targetProvider: string;
   status: string;
-  createdBy: string;
+  createdByHash: string;
+  createdByRaw: string;
+  creatorProvider: string;
+  creatorAccountId: string;
   createdAt: string;
   completedAt: string | null;
   playlists: ImportPlaylist[];
@@ -98,9 +102,11 @@ function getPlaylistStatusBadge(status: string): string {
 }
 
 function ImportJobDrilldown({ job }: { job: ImportJob }) {
+  const totalUnresolved = job.playlists.reduce((sum, pl) => sum + pl.tracksUnresolved, 0);
+
   return (
     <tr>
-      <td colSpan={6} className="px-3 pb-3">
+      <td colSpan={7} className="px-3 pb-3">
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
@@ -150,6 +156,11 @@ function ImportJobDrilldown({ job }: { job: ImportJob }) {
             </tbody>
           </table>
         </div>
+        {totalUnresolved > 0 && (
+          <div className="mt-2 text-[10px] text-orange-500">
+            {totalUnresolved} track{totalUnresolved !== 1 ? 's' : ''} could not be matched across providers
+          </div>
+        )}
       </td>
     </tr>
   );
@@ -159,11 +170,15 @@ function ImportJobRow({
   job,
   expanded,
   onToggle,
+  onUserClick,
 }: {
   job: ImportJob;
   expanded: boolean;
   onToggle: () => void;
+  onUserClick: (job: ImportJob) => void;
 }) {
+  const totalUnresolved = job.playlists.reduce((sum, pl) => sum + pl.tracksUnresolved, 0);
+
   return (
     <>
       <tr
@@ -186,12 +201,28 @@ function ImportJobRow({
         <td className="px-3 py-2 text-muted-foreground">
           {job.completedPlaylists}/{job.totalPlaylists}
         </td>
+        <td className="px-3 py-2">
+          {totalUnresolved > 0 ? (
+            <span className="text-orange-500 font-medium">{totalUnresolved}</span>
+          ) : (
+            <span className="text-muted-foreground">0</span>
+          )}
+        </td>
         <td className="px-3 py-2 text-muted-foreground">{timeAgo(job.createdAt)}</td>
         <td className="px-3 py-2 text-muted-foreground">
           {formatDuration(job.createdAt, job.completedAt)}
         </td>
-        <td className="px-3 py-2 text-muted-foreground truncate max-w-[120px]" title={job.createdBy}>
-          {job.createdBy}
+        <td className="px-3 py-2">
+          <button
+            className="font-mono text-xs text-muted-foreground hover:text-foreground hover:underline transition-colors"
+            title={job.createdByHash}
+            onClick={(e) => {
+              e.stopPropagation();
+              onUserClick(job);
+            }}
+          >
+            {job.createdByHash.slice(0, 12)}...
+          </button>
         </td>
       </tr>
       {expanded && <ImportJobDrilldown job={job} />}
@@ -201,51 +232,66 @@ function ImportJobRow({
 
 export function ImportJobsCard({ data, isLoading }: ImportJobsCardProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [selectedJob, setSelectedJob] = useState<ImportJob | null>(null);
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Download className="h-4 w-4" />
-          Import Jobs
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        {isLoading ? (
-          <div className="py-8 text-center text-muted-foreground">Loading...</div>
-        ) : !data || data.length === 0 ? (
-          <div className="py-8 text-center text-muted-foreground text-sm">
-            No import jobs found
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b text-muted-foreground">
-                  <th className="px-3 py-2 text-left w-8"></th>
-                  <th className="px-3 py-2 text-left">Providers</th>
-                  <th className="px-3 py-2 text-left">Playlists</th>
-                  <th className="px-3 py-2 text-left">Created</th>
-                  <th className="px-3 py-2 text-left">Duration</th>
-                  <th className="px-3 py-2 text-left">Created By</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.map((job) => (
-                  <ImportJobRow
-                    key={job.id}
-                    job={job}
-                    expanded={expandedId === job.id}
-                    onToggle={() =>
-                      setExpandedId((prev) => (prev === job.id ? null : job.id))
-                    }
-                  />
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Download className="h-4 w-4" />
+            Import Jobs
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="py-8 text-center text-muted-foreground">Loading...</div>
+          ) : !data || data.length === 0 ? (
+            <div className="py-8 text-center text-muted-foreground text-sm">
+              No import jobs found
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b text-muted-foreground">
+                    <th className="px-3 py-2 text-left w-8"></th>
+                    <th className="px-3 py-2 text-left">Providers</th>
+                    <th className="px-3 py-2 text-left">Playlists</th>
+                    <th className="px-3 py-2 text-left">Unresolved</th>
+                    <th className="px-3 py-2 text-left">Created</th>
+                    <th className="px-3 py-2 text-left">Duration</th>
+                    <th className="px-3 py-2 text-left">Owner</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.map((job) => (
+                    <ImportJobRow
+                      key={job.id}
+                      job={job}
+                      expanded={expandedId === job.id}
+                      onToggle={() =>
+                        setExpandedId((prev) => (prev === job.id ? null : job.id))
+                      }
+                      onUserClick={setSelectedJob}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {selectedJob && (
+        <UserDetailDialog
+          userId={selectedJob.creatorAccountId}
+          userHash={selectedJob.createdByHash}
+          provider={selectedJob.creatorProvider as 'spotify' | 'tidal' | null}
+          open={true}
+          onOpenChange={(open) => !open && setSelectedJob(null)}
+        />
+      )}
+    </>
   );
 }
