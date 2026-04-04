@@ -16,9 +16,24 @@ import {
   incrementConsecutiveFailures,
   resetConsecutiveFailures,
 } from '@/lib/sync/syncStore';
+import { getSessionFromDb } from '@/lib/auth/sessionFromDb';
 import type { SyncPair, SyncWarning } from '@/lib/sync/types';
 
 export async function executeBackgroundSync(pair: SyncPair): Promise<void> {
+  // Pre-check: skip entirely if either provider session is missing.
+  // No sync run is created — the pair just waits for the next interval.
+  const [sourceSession, targetSession] = await Promise.all([
+    getSessionFromDb(pair.createdBy, pair.sourceProvider),
+    getSessionFromDb(pair.createdBy, pair.targetProvider),
+  ]);
+
+  if (!sourceSession || !targetSession) {
+    const missing = !sourceSession ? pair.sourceProvider : pair.targetProvider;
+    console.debug(`[sync/background] skipping pair ${pair.id}: no valid session for ${missing}`);
+    advanceNextRunAt(pair.id);
+    return;
+  }
+
   const run = createSyncRun({
     syncPairId: pair.id,
     direction: pair.direction,

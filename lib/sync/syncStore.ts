@@ -592,6 +592,30 @@ export function getAllSyncPairsWithLatestRun(): Array<SyncPair & { latestRun: Sy
   });
 }
 
+/**
+ * Mark sync runs stuck in 'pending' or 'executing' for longer than
+ * maxAgeMs as 'failed'. Returns the number of runs reset.
+ */
+export function resetStaleSyncRuns(maxAgeMs: number): number {
+  const db = getRecsDb();
+  const cutoff = new Date(Date.now() - maxAgeMs).toISOString();
+
+  const result = db.prepare(`
+    UPDATE sync_runs
+    SET status = 'failed',
+        error_message = 'Timed out (stuck in ' || status || ' state)',
+        completed_at = datetime('now')
+    WHERE status IN ('pending', 'executing')
+      AND started_at < ?
+  `).run(cutoff);
+
+  if (result.changes > 0) {
+    console.debug(`[sync/store] reset ${result.changes} stale sync run(s)`);
+  }
+
+  return result.changes;
+}
+
 export function pruneOldSyncRuns(keepPerPair: number): number {
   const db = getRecsDb();
 

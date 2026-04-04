@@ -61,7 +61,7 @@ services:
       - >
         corepack prepare pnpm@latest --activate &&
         pnpm exec tsx scripts/migrate.ts &&
-        pnpm exec tsx services/sync-worker/index.ts
+        pnpm exec tsx watch services/sync-worker/index.ts
     deploy:
       resources:
         limits:

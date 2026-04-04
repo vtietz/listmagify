@@ -179,10 +179,12 @@ function SyncPairRow({
   pair,
   expanded,
   onToggle,
+  now,
 }: {
   pair: SyncPair;
   expanded: boolean;
   onToggle: () => void;
+  now: number;
 }) {
   const run = pair.latestRun;
 
@@ -222,7 +224,7 @@ function SyncPairRow({
         </td>
         <td className="px-3 py-2">
           {pair.nextRunAt ? (
-            new Date(pair.nextRunAt).getTime() < Date.now() ? (
+            new Date(pair.nextRunAt).getTime() < now ? (
               <span className="text-red-500" title={pair.nextRunAt}>overdue ({timeAgo(pair.nextRunAt)})</span>
             ) : (
               <span className="text-muted-foreground">{timeAgo(pair.nextRunAt)}</span>
@@ -237,6 +239,7 @@ function SyncPairRow({
 
 export function SyncSchedulerCard({ data, workerEnabled, isLoading }: SyncSchedulerCardProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [now] = useState(() => Date.now());
 
   return (
     <Card>
@@ -299,6 +302,7 @@ export function SyncSchedulerCard({ data, workerEnabled, isLoading }: SyncSchedu
                     onToggle={() =>
                       setExpandedId((prev) => (prev === pair.id ? null : pair.id))
                     }
+                    now={now}
                   />
                 ))}
               </tbody>
