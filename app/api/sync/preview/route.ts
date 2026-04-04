@@ -5,7 +5,7 @@ import { parseMusicProviderId } from '@/lib/music-provider';
 import { previewSync, previewSyncFromPair } from '@/lib/sync/runner';
 import { getAllSessionUserIds } from '@/lib/auth/sessionUserIds';
 import type { SyncDirection } from '@/lib/sync/types';
-import type { SyncMatchThresholds } from '@/lib/sync/runner';
+import type { SyncMatchThresholds } from '@/lib/sync/executor';
 import { normalizeConvertThreshold, deriveManualThreshold } from '@/lib/matching/config';
 
 const VALID_DIRECTIONS = new Set<SyncDirection>(['a-to-b', 'b-to-a', 'bidirectional']);

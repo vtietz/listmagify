@@ -9,11 +9,10 @@ import { materializeCanonicalTrackIds } from '@/lib/recs/materialize';
 import { getSyncPair, createSyncRun, updateSyncRun } from '@/lib/sync/syncStore';
 import type { SyncConfig, SyncPlan, SyncApplyResult, SyncPreviewResult, SyncPreviewTrack, SyncDiffItem } from '@/lib/sync/types';
 import type { PlaylistSnapshot } from '@/lib/sync/snapshot';
+import type { SyncMatchThresholds } from '@/lib/sync/executor';
 
-export interface SyncMatchThresholds {
-  convert: number;
-  manual: number;
-}
+// Re-export for backward compatibility with apply route
+export type { SyncMatchThresholds };
 
 // ---------------------------------------------------------------------------
 // Preview
@@ -196,21 +195,15 @@ export async function previewSync(
 }
 
 // ---------------------------------------------------------------------------
-// Sync run tracking helpers
+// Sync run tracking helpers (used by applySyncPlanWithRun)
 // ---------------------------------------------------------------------------
 
-/**
- * Map an unresolved reason code to a human-readable message.
- */
 function formatUnresolvedReason(reason: string): string {
   if (reason === 'not_found') return 'Not found on target provider';
   if (reason === 'materialize_failed') return 'Search on target provider failed';
   return 'No track mapping for target provider';
 }
 
-/**
- * Build the run-completion update payload from a `SyncApplyResult`.
- */
 function buildRunUpdate(result: SyncApplyResult): Record<string, unknown> {
   const hasErrors = result.errors.length > 0;
   const warnings = result.unresolved.map((info) => ({
@@ -231,31 +224,32 @@ function buildRunUpdate(result: SyncApplyResult): Record<string, unknown> {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Apply a pre-computed plan (used by SyncPreviewDialog)
+// ---------------------------------------------------------------------------
+
 /**
- * Execute an async operation with optional sync-run lifecycle tracking.
- *
- * When `syncPairId` is provided, creates a `SyncRun`, marks it executing,
- * updates it on success/failure, and returns the `runId`. Otherwise the
- * operation runs without tracking.
+ * Apply a pre-computed `SyncPlan` without re-running preview.
+ * When a `syncPairId` is supplied, a `SyncRun` record is created and tracked.
  */
-async function withSyncRunTracking<T>(
-  syncPairId: string | undefined,
-  direction: SyncConfig['direction'],
-  operation: () => Promise<{ result: SyncApplyResult } & T>,
-): Promise<{ runId?: string } & { result: SyncApplyResult } & T> {
+export async function applySyncPlanWithRun(
+  plan: SyncPlan,
+  syncPairId?: string,
+  _matchThresholds?: SyncMatchThresholds,
+): Promise<{ result: SyncApplyResult; runId?: string }> {
   if (!syncPairId) {
-    const outcome = await operation();
-    return outcome;
+    const result = await applySyncPlan(plan);
+    return { result };
   }
 
-  const run = createSyncRun({ syncPairId, direction });
+  const run = createSyncRun({ syncPairId, direction: plan.direction });
   const runId = run.id;
   updateSyncRun(runId, { status: 'executing' });
 
   try {
-    const outcome = await operation();
-    updateSyncRun(runId, buildRunUpdate(outcome.result));
-    return { ...outcome, runId };
+    const result = await applySyncPlan(plan);
+    updateSyncRun(runId, buildRunUpdate(result));
+    return { result, runId };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     updateSyncRun(runId, {
@@ -268,73 +262,7 @@ async function withSyncRunTracking<T>(
 }
 
 // ---------------------------------------------------------------------------
-// Execute
-// ---------------------------------------------------------------------------
-
-interface ExecuteSyncConfig extends SyncConfig {
-  syncPairId?: string;
-}
-
-interface ExecuteSyncResult {
-  plan: SyncPlan;
-  result: SyncApplyResult;
-  runId?: string;
-}
-
-/**
- * Preview then apply the sync plan. When a `syncPairId` is supplied, a
- * `SyncRun` record is created and updated through the lifecycle.
- */
-export async function executeSync(
-  config: ExecuteSyncConfig,
-  matchThresholds?: SyncMatchThresholds,
-): Promise<ExecuteSyncResult> {
-  const outcome = await withSyncRunTracking(
-    config.syncPairId,
-    config.direction,
-    async () => {
-      const previewResult = await previewSync(config, matchThresholds);
-      const plan = previewResult.plan;
-      const result = await applySyncPlan(plan);
-      return { plan, result };
-    },
-  );
-
-  console.debug('[sync/runner] execute complete', {
-    runId: outcome.runId,
-    added: outcome.result.added,
-    removed: outcome.result.removed,
-    errors: outcome.result.errors.length,
-  });
-
-  return outcome;
-}
-
-// ---------------------------------------------------------------------------
-// Apply a pre-computed plan
-// ---------------------------------------------------------------------------
-
-/**
- * Apply a pre-computed `SyncPlan` without re-running preview.
- * When a `syncPairId` is supplied, a `SyncRun` record is created and tracked.
- */
-export async function applySyncPlanWithRun(
-  plan: SyncPlan,
-  syncPairId?: string,
-  _matchThresholds?: SyncMatchThresholds,
-): Promise<{ result: SyncApplyResult; runId?: string }> {
-  return withSyncRunTracking(
-    syncPairId,
-    plan.direction,
-    async () => {
-      const result = await applySyncPlan(plan);
-      return { result };
-    },
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Pair-based convenience wrappers
+// Pair-based convenience wrappers (preview only)
 // ---------------------------------------------------------------------------
 
 function buildConfigFromPair(pair: {
@@ -368,25 +296,4 @@ export async function previewSyncFromPair(
   }
 
   return previewSync(buildConfigFromPair(pair), matchThresholds);
-}
-
-/**
- * Look up a saved sync pair and execute a full sync, recording a SyncRun.
- * When `createdBy` is provided, the pair must belong to that user.
- */
-export async function executeSyncFromPair(
-  syncPairId: string,
-  createdBy?: string | string[],
-  matchThresholds?: SyncMatchThresholds,
-): Promise<{ plan: SyncPlan; result: SyncApplyResult; runId: string }> {
-  const pair = getSyncPair(syncPairId, createdBy);
-  if (!pair) {
-    throw new Error(`Sync pair not found: ${syncPairId}`);
-  }
-
-  const config = buildConfigFromPair(pair);
-  const outcome = await executeSync({ ...config, syncPairId }, matchThresholds);
-
-  // runId is always defined when syncPairId is provided
-  return { plan: outcome.plan, result: outcome.result, runId: outcome.runId! };
 }

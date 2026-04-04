@@ -9,16 +9,16 @@ vi.mock('@/lib/sync/syncStore', () => ({
   getDueSyncPairs: vi.fn(),
 }));
 
-vi.mock('@/lib/sync/backgroundRunner', () => ({
-  executeBackgroundSync: vi.fn(),
+vi.mock('@/lib/sync/executor', () => ({
+  executeSyncPair: vi.fn(),
 }));
 
 import { getDueSyncPairs } from '@/lib/sync/syncStore';
-import { executeBackgroundSync } from '@/lib/sync/backgroundRunner';
+import { executeSyncPair } from '@/lib/sync/executor';
 import { startScheduler, stopScheduler } from '@/lib/sync/scheduler';
 
 const mockedGetDueSyncPairs = vi.mocked(getDueSyncPairs);
-const mockedExecuteBackgroundSync = vi.mocked(executeBackgroundSync);
+const mockedExecuteSyncPair = vi.mocked(executeSyncPair);
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -46,13 +46,13 @@ function createPair(id: string): SyncPair {
 
 /**
  * Creates a deferred promise — allows the test to control when a mock
- * executeBackgroundSync call resolves or rejects.
+ * executeSyncPair call resolves or rejects.
  */
-function createDeferred(): { promise: Promise<void>; resolve: () => void; reject: (err: Error) => void } {
+function createDeferred(): { promise: Promise<string>; resolve: () => void; reject: (err: Error) => void } {
   let resolve!: () => void;
   let reject!: (err: Error) => void;
-  const promise = new Promise<void>((res, rej) => {
-    resolve = res;
+  const promise = new Promise<string>((res, rej) => {
+    resolve = () => res('run-id');
     reject = rej;
   });
   return { promise, resolve, reject };
@@ -75,7 +75,7 @@ beforeEach(() => {
 
   // Default mock: no due pairs, instant resolve
   mockedGetDueSyncPairs.mockReturnValue([]);
-  mockedExecuteBackgroundSync.mockResolvedValue(undefined);
+  mockedExecuteSyncPair.mockResolvedValue('run-id');
 });
 
 afterEach(() => {
@@ -128,7 +128,7 @@ describe('scheduler', () => {
       await vi.advanceTimersByTimeAsync(0);
 
       expect(mockedGetDueSyncPairs).toHaveBeenCalledTimes(1);
-      expect(mockedExecuteBackgroundSync).toHaveBeenCalledWith(pair);
+      expect(mockedExecuteSyncPair).toHaveBeenCalledWith({ pair, triggeredBy: 'scheduler' });
     });
 
     it('is idempotent — calling twice does not create duplicate timers', async () => {
@@ -187,7 +187,7 @@ describe('scheduler', () => {
   // -------------------------------------------------------------------------
 
   describe('tick behavior', () => {
-    it('fetches due pairs and dispatches them to executeBackgroundSync', async () => {
+    it('fetches due pairs and dispatches them to executeSyncPair', async () => {
       process.env.SYNC_SCHEDULER_ENABLED = 'true';
       const pairs = [createPair('a'), createPair('b')];
       mockedGetDueSyncPairs.mockReturnValue(pairs);
@@ -196,9 +196,9 @@ describe('scheduler', () => {
       await vi.advanceTimersByTimeAsync(0);
 
       expect(mockedGetDueSyncPairs).toHaveBeenCalledWith(2); // default max concurrent
-      expect(mockedExecuteBackgroundSync).toHaveBeenCalledTimes(2);
-      expect(mockedExecuteBackgroundSync).toHaveBeenCalledWith(pairs[0]);
-      expect(mockedExecuteBackgroundSync).toHaveBeenCalledWith(pairs[1]);
+      expect(mockedExecuteSyncPair).toHaveBeenCalledTimes(2);
+      expect(mockedExecuteSyncPair).toHaveBeenCalledWith({ pair: pairs[0], triggeredBy: 'scheduler' });
+      expect(mockedExecuteSyncPair).toHaveBeenCalledWith({ pair: pairs[1], triggeredBy: 'scheduler' });
     });
 
     it('handles zero due pairs gracefully', async () => {
@@ -209,7 +209,7 @@ describe('scheduler', () => {
       await vi.advanceTimersByTimeAsync(0);
 
       expect(mockedGetDueSyncPairs).toHaveBeenCalledTimes(1);
-      expect(mockedExecuteBackgroundSync).not.toHaveBeenCalled();
+      expect(mockedExecuteSyncPair).not.toHaveBeenCalled();
     });
 
     it('re-ticks after the scheduled delay', async () => {
@@ -253,7 +253,7 @@ describe('scheduler', () => {
 
       const deferred1 = createDeferred();
       const deferred2 = createDeferred();
-      mockedExecuteBackgroundSync
+      mockedExecuteSyncPair
         .mockReturnValueOnce(deferred1.promise)
         .mockReturnValueOnce(deferred2.promise);
       mockedGetDueSyncPairs.mockReturnValue([createPair('a'), createPair('b')]);
@@ -262,16 +262,16 @@ describe('scheduler', () => {
       await vi.advanceTimersByTimeAsync(0);
 
       // Both slots taken
-      expect(mockedExecuteBackgroundSync).toHaveBeenCalledTimes(2);
+      expect(mockedExecuteSyncPair).toHaveBeenCalledTimes(2);
 
       // Next tick: all slots occupied, should request 0 pairs and skip
       mockedGetDueSyncPairs.mockClear();
-      mockedExecuteBackgroundSync.mockClear();
+      mockedExecuteSyncPair.mockClear();
 
       await vi.advanceTimersByTimeAsync(70_000);
 
       // tick() returns early because activeSyncs >= maxConcurrent
-      expect(mockedExecuteBackgroundSync).not.toHaveBeenCalled();
+      expect(mockedExecuteSyncPair).not.toHaveBeenCalled();
 
       // Resolve both to clean up activeSyncs
       deferred1.resolve();
@@ -284,13 +284,13 @@ describe('scheduler', () => {
       process.env.SYNC_MAX_CONCURRENT = '1';
 
       const deferred = createDeferred();
-      mockedExecuteBackgroundSync.mockReturnValueOnce(deferred.promise);
+      mockedExecuteSyncPair.mockReturnValueOnce(deferred.promise);
       mockedGetDueSyncPairs.mockReturnValue([createPair('a')]);
 
       startScheduler();
       await vi.advanceTimersByTimeAsync(0);
 
-      expect(mockedExecuteBackgroundSync).toHaveBeenCalledTimes(1);
+      expect(mockedExecuteSyncPair).toHaveBeenCalledTimes(1);
 
       // Resolve the sync
       deferred.resolve();
@@ -298,14 +298,14 @@ describe('scheduler', () => {
 
       // Next tick — slot is free again
       mockedGetDueSyncPairs.mockClear();
-      mockedExecuteBackgroundSync.mockClear();
+      mockedExecuteSyncPair.mockClear();
       mockedGetDueSyncPairs.mockReturnValue([createPair('b')]);
-      mockedExecuteBackgroundSync.mockResolvedValue(undefined);
+      mockedExecuteSyncPair.mockResolvedValue('run-id');
 
       await vi.advanceTimersByTimeAsync(70_000);
 
       expect(mockedGetDueSyncPairs).toHaveBeenCalledWith(1);
-      expect(mockedExecuteBackgroundSync).toHaveBeenCalledTimes(1);
+      expect(mockedExecuteSyncPair).toHaveBeenCalledTimes(1);
     });
 
     it('decrements activeSyncs when a sync fails', async () => {
@@ -313,7 +313,7 @@ describe('scheduler', () => {
       process.env.SYNC_MAX_CONCURRENT = '1';
 
       const deferred = createDeferred();
-      mockedExecuteBackgroundSync.mockReturnValueOnce(deferred.promise);
+      mockedExecuteSyncPair.mockReturnValueOnce(deferred.promise);
       mockedGetDueSyncPairs.mockReturnValue([createPair('a')]);
 
       // Suppress the console.error from the .catch handler
@@ -322,7 +322,7 @@ describe('scheduler', () => {
       startScheduler();
       await vi.advanceTimersByTimeAsync(0);
 
-      expect(mockedExecuteBackgroundSync).toHaveBeenCalledTimes(1);
+      expect(mockedExecuteSyncPair).toHaveBeenCalledTimes(1);
 
       // Reject the sync — activeSyncs should still decrement via .finally()
       deferred.reject(new Error('sync failed'));
@@ -330,13 +330,13 @@ describe('scheduler', () => {
 
       // Next tick — slot should be free again
       mockedGetDueSyncPairs.mockClear();
-      mockedExecuteBackgroundSync.mockClear();
+      mockedExecuteSyncPair.mockClear();
       mockedGetDueSyncPairs.mockReturnValue([createPair('b')]);
-      mockedExecuteBackgroundSync.mockResolvedValue(undefined);
+      mockedExecuteSyncPair.mockResolvedValue('run-id');
 
       await vi.advanceTimersByTimeAsync(70_000);
 
-      expect(mockedExecuteBackgroundSync).toHaveBeenCalledTimes(1);
+      expect(mockedExecuteSyncPair).toHaveBeenCalledTimes(1);
 
       errorSpy.mockRestore();
     });
@@ -346,7 +346,7 @@ describe('scheduler', () => {
       process.env.SYNC_MAX_CONCURRENT = '3';
 
       const deferred = createDeferred();
-      mockedExecuteBackgroundSync.mockReturnValueOnce(deferred.promise);
+      mockedExecuteSyncPair.mockReturnValueOnce(deferred.promise);
       mockedGetDueSyncPairs.mockReturnValue([createPair('a')]);
 
       startScheduler();
@@ -507,12 +507,12 @@ describe('scheduler', () => {
   // -------------------------------------------------------------------------
 
   describe('error handling', () => {
-    it('logs to console.error when executeBackgroundSync rejects', async () => {
+    it('logs to console.error when executeSyncPair rejects', async () => {
       process.env.SYNC_SCHEDULER_ENABLED = 'true';
       const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       mockedGetDueSyncPairs.mockReturnValue([createPair('fail')]);
-      mockedExecuteBackgroundSync.mockRejectedValue(new Error('boom'));
+      mockedExecuteSyncPair.mockRejectedValue(new Error('boom'));
 
       startScheduler();
       await vi.advanceTimersByTimeAsync(0);
@@ -530,7 +530,7 @@ describe('scheduler', () => {
       const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       mockedGetDueSyncPairs.mockReturnValue([createPair('fail')]);
-      mockedExecuteBackgroundSync.mockRejectedValue(new Error('boom'));
+      mockedExecuteSyncPair.mockRejectedValue(new Error('boom'));
 
       startScheduler();
       await vi.advanceTimersByTimeAsync(0);

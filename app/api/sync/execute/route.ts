@@ -1,18 +1,12 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { assertAuthenticated } from '@/app/api/_shared/guard';
-import { ok, badRequest, fromError } from '@/app/api/_shared/http';
-import { parseMusicProviderId } from '@/lib/music-provider';
-import { executeSync, executeSyncFromPair } from '@/lib/sync/runner';
+import { badRequest, fromError } from '@/app/api/_shared/http';
+import { getSyncPair } from '@/lib/sync/syncStore';
+import { initiateSyncRun, executeSyncRun } from '@/lib/sync/executor';
+import type { ExecuteSyncOptions } from '@/lib/sync/executor';
 import { getAllSessionUserIds } from '@/lib/auth/sessionUserIds';
-import type { SyncDirection } from '@/lib/sync/types';
-import type { SyncMatchThresholds } from '@/lib/sync/runner';
 import { normalizeConvertThreshold, deriveManualThreshold } from '@/lib/matching/config';
-
-const VALID_DIRECTIONS = new Set<SyncDirection>(['a-to-b', 'b-to-a', 'bidirectional']);
-
-function isValidDirection(value: unknown): value is SyncDirection {
-  return typeof value === 'string' && VALID_DIRECTIONS.has(value as SyncDirection);
-}
+import type { SyncMatchThresholds } from '@/lib/sync/executor';
 
 function parseMatchThresholds(body: Record<string, unknown>): SyncMatchThresholds | undefined {
   const raw = body.matchThresholds;
@@ -29,50 +23,41 @@ function parseMatchThresholds(body: Record<string, unknown>): SyncMatchThreshold
 /**
  * POST /api/sync/execute
  *
- * Preview and apply a sync plan. When using a saved pair, a SyncRun
- * record is created to track the operation.
+ * Creates a SyncRun, kicks off execution asynchronously, and returns
+ * the runId immediately (202 Accepted). The frontend picks up status
+ * changes via the existing useSyncPairs polling.
  *
- * Accepts either an inline config:
- *   { sourceProvider, sourcePlaylistId, targetProvider, targetPlaylistId, direction, matchThresholds? }
- *
- * Or a saved pair reference:
- *   { syncPairId, matchThresholds? }
+ * Body: { syncPairId, matchThresholds? }
  */
 export async function POST(request: NextRequest) {
   try {
     const session = await assertAuthenticated();
-
     const body = await request.json();
+
+    if (!body.syncPairId || typeof body.syncPairId !== 'string') {
+      return badRequest('syncPairId is required');
+    }
+
+    const userIds = getAllSessionUserIds(session);
+    const pair = getSyncPair(body.syncPairId, userIds);
+    if (!pair) {
+      return badRequest('Sync pair not found');
+    }
+
     const matchThresholds = parseMatchThresholds(body);
-
-    // Pair-based execute
-    if (body.syncPairId) {
-      if (typeof body.syncPairId !== 'string') {
-        return badRequest('syncPairId must be a string');
-      }
-      const outcome = await executeSyncFromPair(body.syncPairId, getAllSessionUserIds(session), matchThresholds);
-      return ok(outcome);
-    }
-
-    // Inline config execute
-    if (!body.sourceProvider || !body.sourcePlaylistId || !body.targetProvider || !body.targetPlaylistId || !body.direction) {
-      return badRequest('Missing required fields: sourceProvider, sourcePlaylistId, targetProvider, targetPlaylistId, direction');
-    }
-
-    if (!isValidDirection(body.direction)) {
-      return badRequest(`Invalid direction: ${body.direction}. Must be one of: a-to-b, b-to-a, bidirectional`);
-    }
-
-    const config = {
-      sourceProvider: parseMusicProviderId(body.sourceProvider),
-      sourcePlaylistId: String(body.sourcePlaylistId),
-      targetProvider: parseMusicProviderId(body.targetProvider),
-      targetPlaylistId: String(body.targetPlaylistId),
-      direction: body.direction as SyncDirection,
+    const options: ExecuteSyncOptions = {
+      pair,
+      triggeredBy: 'manual',
+      matchThresholds,
     };
 
-    const outcome = await executeSync(config, matchThresholds);
-    return ok(outcome);
+    // Create run synchronously, then fire-and-forget the execution
+    const runId = initiateSyncRun(options);
+    executeSyncRun(runId, options).catch(() => {
+      // Errors are recorded on the run record; nothing to do here
+    });
+
+    return NextResponse.json({ runId }, { status: 202 });
   } catch (error) {
     console.error('[api/sync/execute] Error:', error);
     return fromError(error);

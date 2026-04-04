@@ -350,7 +350,10 @@ async function applySide(
  * Collects errors per batch rather than aborting the entire operation so
  * partial progress is preserved.
  */
-export async function applySyncPlan(plan: SyncPlan, targetProviderOverride?: MusicProvider): Promise<SyncApplyResult> {
+export async function applySyncPlan(
+  plan: SyncPlan,
+  providerOverrides?: MusicProvider | Partial<Record<MusicProviderId, MusicProvider>>,
+): Promise<SyncApplyResult> {
   // Group items by their target provider
   const itemsByProvider = new Map<MusicProviderId, SyncDiffItem[]>();
   for (const item of plan.items) {
@@ -377,8 +380,17 @@ export async function applySyncPlan(plan: SyncPlan, targetProviderOverride?: Mus
       continue;
     }
 
-    // Use the override only for the plan's target provider (background sync passes it)
-    const override = providerId === plan.targetProvider ? targetProviderOverride : undefined;
+    // Resolve provider override: supports both a single MusicProvider (legacy)
+    // and a Record<MusicProviderId, MusicProvider> map (unified executor)
+    let override: MusicProvider | undefined;
+    if (providerOverrides) {
+      if (typeof (providerOverrides as MusicProvider).addTracks === 'function') {
+        // Legacy: single provider override for target only
+        override = providerId === plan.targetProvider ? (providerOverrides as MusicProvider) : undefined;
+      } else {
+        override = (providerOverrides as Partial<Record<MusicProviderId, MusicProvider>>)[providerId];
+      }
+    }
     const desiredOrder = plan.targetOrder?.[providerId];
     const result = await applySide(items, providerId, playlistId, desiredOrder, override);
 

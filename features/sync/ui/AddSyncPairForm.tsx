@@ -15,21 +15,11 @@ import { useAvailableProviders } from '@shared/hooks/useAvailableProviders';
 import { useAuthSummary } from '@features/auth/hooks/useAuth';
 import { useCreateSyncPair } from '@features/sync/hooks/useSyncPairs';
 import { usePlaylistName } from '@features/sync/hooks/usePlaylistName';
-import { Save, ArrowLeftRight, Eye, Play, Loader2 } from 'lucide-react';
+import { Save, ArrowLeftRight, Eye, Loader2 } from 'lucide-react';
 import { useSyncDialogStore } from '@features/sync/stores/useSyncDialogStore';
-import { useSyncExecute } from '@features/sync/hooks/useSyncExecute';
 import { useSyncSchedulerEnabled } from '@shared/hooks/useAppConfig';
-import { SyncRunStatusIcon } from '@features/sync/ui/SyncRunStatusIcon';
-import { SyncRunResultContent } from '@features/sync/ui/SyncRunResultContent';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog';
 import type { MusicProviderId } from '@/lib/music-provider/types';
-import type { SyncPair, SyncInterval, SyncApplyResult } from '@/lib/sync/types';
+import type { SyncPair, SyncInterval } from '@/lib/sync/types';
 
 /** Same grid as SyncPairRow: [left] [arrow] [right] [status] [actions] */
 const ROW_GRID = 'grid grid-cols-[1fr_auto_1fr_auto_auto] items-center gap-x-2';
@@ -255,10 +245,6 @@ export function AddSyncPairForm(props: AddSyncPairFormProps) {
   );
 }
 
-function deriveResultStatus(result: SyncApplyResult): 'done' | 'failed' {
-  return result.errors.length > 0 ? 'failed' : 'done';
-}
-
 function SyncActionButtons({
   sourceProvider,
   sourcePlaylistId,
@@ -273,10 +259,6 @@ function SyncActionButtons({
   disabled: boolean;
 }) {
   const openPreview = useSyncDialogStore((s) => s.openPreview);
-  const execute = useSyncExecute();
-  const isSyncing = execute.isPending;
-  const [lastResult, setLastResult] = useState<SyncApplyResult | null>(null);
-  const [showResultDialog, setShowResultDialog] = useState(false);
 
   const pairConfig = {
     sourceProvider,
@@ -286,52 +268,16 @@ function SyncActionButtons({
     direction: 'bidirectional' as const,
   };
 
-  const buttonsDisabled = disabled || isSyncing;
-
   return (
-    <>
-      {lastResult && (
-        <SyncRunStatusIcon
-          status={deriveResultStatus(lastResult)}
-          hasWarnings={lastResult.unresolved.length > 0}
-          onClick={() => setShowResultDialog(true)}
-        />
-      )}
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-7 w-7"
-        title="Preview sync"
-        disabled={buttonsDisabled}
-        onClick={() => openPreview(pairConfig, true)}
-      >
-        <Eye className="h-3.5 w-3.5" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-7 w-7"
-        title="Sync now"
-        disabled={buttonsDisabled}
-        onClick={() => execute.mutate(pairConfig, {
-          onSuccess: (data: { result: SyncApplyResult }) => setLastResult(data.result),
-        })}
-      >
-        {isSyncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
-      </Button>
-      {lastResult && (
-        <Dialog open={showResultDialog} onOpenChange={(o) => { if (!o) setShowResultDialog(false); }}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>Sync result</DialogTitle>
-            </DialogHeader>
-            <SyncRunResultContent source={lastResult} />
-            <DialogFooter>
-              <Button onClick={() => setShowResultDialog(false)}>Done</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
-    </>
+    <Button
+      variant="ghost"
+      size="icon"
+      className="h-7 w-7"
+      title="Preview sync"
+      disabled={disabled}
+      onClick={() => openPreview(pairConfig, true)}
+    >
+      <Eye className="h-3.5 w-3.5" />
+    </Button>
   );
 }

@@ -5,19 +5,19 @@ import { apiFetch } from '@/lib/api/client';
 import { getConfiguredMatchThresholds } from '@/lib/matching/config';
 import { eventBus } from '@/lib/sync/eventBus';
 import { useSyncActivityStore } from '@features/sync/stores/useSyncActivityStore';
-import type { SyncPlan, SyncApplyResult, SyncConfig } from '@/lib/sync/types';
+import { SYNC_PAIRS_KEY } from '@features/sync/hooks/useSyncPairs';
+import type { SyncConfig } from '@/lib/sync/types';
 import { playlistTracksByProvider } from '@/lib/api/queryKeys';
 
 interface SyncExecuteResponse {
-  plan: SyncPlan;
-  result: SyncApplyResult;
-  runId?: string;
+  runId: string;
 }
 
 /**
- * Mutation hook to execute a sync operation between two playlists.
- * On success, invalidates the target playlist's track cache so the UI refreshes.
- * Sends the user's configured match thresholds to the server.
+ * Mutation hook to trigger a sync operation between two playlists.
+ *
+ * The server creates a SyncRun and executes asynchronously (202 Accepted).
+ * Status updates are picked up by useSyncPairs' 10-second polling interval.
  */
 export function useSyncExecute() {
   const queryClient = useQueryClient();
@@ -25,40 +25,21 @@ export function useSyncExecute() {
   const decrementActive = useSyncActivityStore((s) => s.decrementActive);
 
   return useMutation({
-    mutationFn: async (config: SyncConfig) => {
+    mutationFn: async (config: SyncConfig & { syncPairId?: string }) => {
       incrementActive();
-      try {
-        const matchThresholds = getConfiguredMatchThresholds();
-        return await apiFetch<SyncExecuteResponse>('/api/sync/execute', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...config, matchThresholds }),
-        });
-      } catch (err) {
-        decrementActive();
-        throw err;
-      }
-    },
-    onSuccess: (_data: SyncExecuteResponse, variables: SyncConfig) => {
-      decrementActive();
-      // Invalidate target playlist tracks so the panel refreshes
-      queryClient.invalidateQueries({
-        queryKey: playlistTracksByProvider(
-          variables.targetPlaylistId,
-          variables.targetProvider,
-        ),
+      const matchThresholds = getConfiguredMatchThresholds();
+      return apiFetch<SyncExecuteResponse>('/api/sync/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ syncPairId: config.syncPairId, matchThresholds }),
       });
-
-      // For bidirectional sync, also invalidate the source playlist
-      if (variables.direction === 'bidirectional') {
-        queryClient.invalidateQueries({
-          queryKey: playlistTracksByProvider(
-            variables.sourcePlaylistId,
-            variables.sourceProvider,
-          ),
-        });
-      }
-
+    },
+    onSettled: () => {
+      decrementActive();
+      // Immediately refresh sync pairs so the UI shows 'executing' status
+      queryClient.invalidateQueries({ queryKey: SYNC_PAIRS_KEY });
+    },
+    onSuccess: (_data: SyncExecuteResponse, variables: SyncConfig & { syncPairId?: string }) => {
       // Emit sync-originated events so auto-sync runner ignores these changes
       eventBus.emit('playlist:update', {
         playlistId: variables.targetPlaylistId,
@@ -72,6 +53,22 @@ export function useSyncExecute() {
         cause: 'sync',
         syncOriginated: true,
       });
+
+      // Invalidate track caches so panels refresh once sync completes
+      queryClient.invalidateQueries({
+        queryKey: playlistTracksByProvider(
+          variables.targetPlaylistId,
+          variables.targetProvider,
+        ),
+      });
+      if (variables.direction === 'bidirectional') {
+        queryClient.invalidateQueries({
+          queryKey: playlistTracksByProvider(
+            variables.sourcePlaylistId,
+            variables.sourceProvider,
+          ),
+        });
+      }
     },
   });
 }

@@ -10,7 +10,7 @@
  */
 
 import { getDueSyncPairs, pruneOldSyncRuns, resetStaleSyncRuns } from '@/lib/sync/syncStore';
-import { executeBackgroundSync } from '@/lib/sync/backgroundRunner';
+import { executeSyncPair } from '@/lib/sync/executor';
 
 function getTickMs(): number {
   return Number(process.env.SYNC_TICK_MS ?? 60_000);
@@ -38,7 +38,7 @@ async function tick(): Promise<void> {
 
   for (const pair of duePairs) {
     activeSyncs++;
-    executeBackgroundSync(pair)
+    executeSyncPair({ pair, triggeredBy: 'scheduler' })
       .catch((err) => console.error('[sync/scheduler] unhandled', err))
       .finally(() => {
         activeSyncs--;

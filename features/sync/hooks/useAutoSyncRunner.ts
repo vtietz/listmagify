@@ -7,7 +7,6 @@ import { eventBus } from '@/lib/sync/eventBus';
 import { useSyncActivityStore } from '@features/sync/stores/useSyncActivityStore';
 import { SYNC_PAIRS_KEY } from '@features/sync/hooks/useSyncPairs';
 import type { SyncPairWithRun } from '@features/sync/hooks/useSyncPairs';
-import { playlistTracksByProvider } from '@/lib/api/queryKeys';
 import type { SyncPair } from '@/lib/sync/types';
 
 const DEBOUNCE_MS = 2000;
@@ -15,6 +14,9 @@ const DEBOUNCE_MS = 2000;
 /**
  * Global hook that listens for playlist changes and automatically
  * triggers sync for any auto-sync pairs that include the changed playlist.
+ *
+ * The server executes asynchronously (fire-and-forget). Status updates
+ * are picked up by useSyncPairs' polling interval.
  *
  * Must be mounted once at the app shell level.
  */
@@ -42,27 +44,13 @@ export function useAutoSyncRunner() {
       await apiFetch('/api/sync/execute', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sourceProvider: pair.sourceProvider,
-          sourcePlaylistId: pair.sourcePlaylistId,
-          targetProvider: pair.targetProvider,
-          targetPlaylistId: pair.targetPlaylistId,
-          direction: pair.direction,
-          syncPairId: pair.id,
-        }),
+        body: JSON.stringify({ syncPairId: pair.id }),
       });
 
-      // Invalidate track caches for both playlists
-      queryClient.invalidateQueries({
-        queryKey: playlistTracksByProvider(pair.targetPlaylistId, pair.targetProvider),
-      });
-      queryClient.invalidateQueries({
-        queryKey: playlistTracksByProvider(pair.sourcePlaylistId, pair.sourceProvider),
-      });
-      // Refresh sync pairs (to update latestRun)
+      // Refresh sync pairs so the UI picks up the new 'executing' run
       queryClient.invalidateQueries({ queryKey: SYNC_PAIRS_KEY });
     } catch (err) {
-      console.error('[auto-sync] Failed to sync pair', pairId, err);
+      console.error('[auto-sync] Failed to trigger sync for pair', pairId, err);
     } finally {
       inFlight.current.delete(pairId);
       decrementActive();
@@ -70,7 +58,6 @@ export function useAutoSyncRunner() {
       // Re-sync if new edits arrived during execution
       if (pendingResync.current.has(pairId)) {
         pendingResync.current.delete(pairId);
-        // Re-fetch pair data as it may have changed
         const pairs = queryClient.getQueryData<SyncPairWithRun[]>(SYNC_PAIRS_KEY);
         const freshPair = pairs?.find((p) => p.id === pairId);
         if (freshPair?.autoSync) {
