@@ -13,6 +13,7 @@ import { PlaylistSelector } from '@/components/split-editor/playlist/PlaylistSel
 import { ProviderStatusDropdown } from '@/components/auth/ProviderStatusDropdown';
 import { useAvailableProviders } from '@shared/hooks/useAvailableProviders';
 import { useAuthSummary } from '@features/auth/hooks/useAuth';
+import { useMusicProviderId } from '@features/auth/hooks/useMusicProviderId';
 import { useCreateSyncPair } from '@features/sync/hooks/useSyncPairs';
 import { usePlaylistName } from '@features/sync/hooks/usePlaylistName';
 import { Save, ArrowLeftRight, Eye, Loader2 } from 'lucide-react';
@@ -87,13 +88,20 @@ export interface AddSyncPairFormProps {
 
 function resolveDefaults(
   connectedProviders: MusicProviderId[],
+  currentProvider: MusicProviderId,
   props: AddSyncPairFormProps,
 ) {
-  const defaultProvider = connectedProviders[0] ?? ('spotify' as MusicProviderId);
+  const fallbackProvider = connectedProviders[0] ?? ('spotify' as MusicProviderId);
+  const sourceProvider = props.initialSourceProvider
+    ?? (connectedProviders.includes(currentProvider) ? currentProvider : fallbackProvider);
+  const targetProvider = props.initialTargetProvider
+    ?? connectedProviders.find((providerId) => providerId !== sourceProvider)
+    ?? sourceProvider;
+
   return {
-    sourceProvider: props.initialSourceProvider ?? defaultProvider,
+    sourceProvider,
     sourcePlaylistId: props.initialSourcePlaylistId ?? null,
-    targetProvider: props.initialTargetProvider ?? defaultProvider,
+    targetProvider,
     targetPlaylistId: props.initialTargetPlaylistId ?? null,
   };
 }
@@ -130,6 +138,7 @@ function SyncIntervalSelect({ value, onChange }: { value: SyncInterval; onChange
 export function AddSyncPairForm(props: AddSyncPairFormProps) {
   const { popoverContainer, showSyncActions } = props;
   const allProviders = useAvailableProviders();
+  const currentProvider = useMusicProviderId();
   const authSummary = useAuthSummary();
   const createPair = useCreateSyncPair();
   const schedulerEnabled = useSyncSchedulerEnabled();
@@ -140,7 +149,10 @@ export function AddSyncPairForm(props: AddSyncPairFormProps) {
     [allProviders, statusMap],
   );
 
-  const defaults = useMemo(() => resolveDefaults(connectedProviders, props), [connectedProviders, props]);
+  const defaults = useMemo(
+    () => resolveDefaults(connectedProviders, currentProvider, props),
+    [connectedProviders, currentProvider, props],
+  );
 
   const [sourceProvider, setSourceProvider] = useState<MusicProviderId>(defaults.sourceProvider);
   const [sourcePlaylistId, setSourcePlaylistId] = useState<string | null>(defaults.sourcePlaylistId);
