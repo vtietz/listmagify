@@ -143,6 +143,7 @@ interface InitializedProviders {
   sourceProvider: MusicProvider;
   targetProvider: MusicProvider;
   targetProviderUserId: string;
+  providerUserIds: Record<string, string>;
 }
 
 type ImportJobWithPlaylists = NonNullable<ReturnType<typeof getImportJobWithPlaylists>>;
@@ -175,7 +176,11 @@ async function initializeProviders(
 
   try {
     const user = await targetProvider.getCurrentUser();
-    return { sourceProvider, targetProvider, targetProviderUserId: user.id };
+    const providerUserIds: Record<string, string> = {
+      [sourceProviderId]: sourceUserId,
+      [targetProviderId]: targetUserId,
+    };
+    return { sourceProvider, targetProvider, targetProviderUserId: user.id, providerUserIds };
   } catch (err) {
     console.error('[import/runner] failed to get target user', {
       jobId,
@@ -191,6 +196,7 @@ function createSyncPairsForJob(
   sourceProviderId: MusicProviderId,
   targetProviderId: MusicProviderId,
   createdBy: string,
+  providerUserIds: Record<string, string>,
 ): void {
   for (const playlist of playlists) {
     if (
@@ -207,6 +213,7 @@ function createSyncPairsForJob(
           targetPlaylistName: playlist.sourcePlaylistName,
           direction: 'a-to-b',
           createdBy,
+          providerUserIds,
         });
         console.debug('[import/runner] sync pair created', {
           jobId,
@@ -297,7 +304,7 @@ export async function executeImportJob(jobId: string): Promise<void> {
 
   // Create sync pairs for successfully imported playlists if requested
   if (updatedJob?.createSyncPair) {
-    createSyncPairsForJob(jobId, updatedPlaylists, sourceProviderId, targetProviderId, job.createdBy);
+    createSyncPairsForJob(jobId, updatedPlaylists, sourceProviderId, targetProviderId, job.createdBy, providers.providerUserIds);
   }
 
   // If at least one non-cancelled playlist did not completely fail, mark as done.

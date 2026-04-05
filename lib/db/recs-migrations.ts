@@ -359,4 +359,11 @@ export const recsMigrations: Migration[] = [
         WHERE created_by != '' AND created_by NOT LIKE '%:%';
     `,
   },
+  {
+    version: 13,
+    name: 'add_sync_pair_provider_user_ids',
+    sql: `
+      ALTER TABLE sync_pairs ADD COLUMN provider_user_ids TEXT NOT NULL DEFAULT '{}';
+    `,
+  },
 ];

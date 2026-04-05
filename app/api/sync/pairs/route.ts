@@ -3,7 +3,7 @@ import { assertAuthenticated } from '@/app/api/_shared/guard';
 import { ok, created, badRequest, fromError } from '@/app/api/_shared/http';
 import { parseMusicProviderId } from '@/lib/music-provider';
 import { createSyncPair, listSyncPairs, getLatestSyncRun } from '@/lib/sync/syncStore';
-import { getAllSessionUserIds, getCreatorUserId } from '@/lib/auth/sessionUserIds';
+import { getAllSessionUserIds, getCreatorUserId, getProviderUserIds } from '@/lib/auth/sessionUserIds';
 import type { SyncDirection } from '@/lib/sync/types';
 
 const VALID_DIRECTIONS = new Set<SyncDirection>(['a-to-b', 'b-to-a', 'bidirectional']);
@@ -67,6 +67,7 @@ export async function POST(request: NextRequest) {
       targetPlaylistName: String(body.targetPlaylistName ?? ''),
       direction: body.direction as SyncDirection,
       createdBy: getCreatorUserId(session),
+      providerUserIds: getProviderUserIds(session),
     });
 
     return created({ pair });

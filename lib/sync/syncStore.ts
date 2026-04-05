@@ -63,6 +63,78 @@ function mapSyncRunRow(row: SyncRunRow): SyncRun {
 }
 
 // -----------------------------------------------------------------------------
+// SyncPair row mapper
+// -----------------------------------------------------------------------------
+
+interface SyncPairRow {
+  id: string;
+  sourceProvider: MusicProviderId;
+  sourcePlaylistId: string;
+  sourcePlaylistName: string;
+  targetProvider: MusicProviderId;
+  targetPlaylistId: string;
+  targetPlaylistName: string;
+  direction: SyncDirection;
+  createdBy: string;
+  providerUserIdsJson: string | null;
+  autoSync: boolean;
+  syncInterval: SyncInterval;
+  nextRunAt: string | null;
+  consecutiveFailures: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+function mapSyncPairRow(row: SyncPairRow): SyncPair {
+  let providerUserIds: Record<string, string> = {};
+  if (row.providerUserIdsJson) {
+    try {
+      providerUserIds = JSON.parse(row.providerUserIdsJson) as Record<string, string>;
+    } catch {
+      // corrupted JSON — treat as empty
+    }
+  }
+
+  return {
+    id: row.id,
+    sourceProvider: row.sourceProvider,
+    sourcePlaylistId: row.sourcePlaylistId,
+    sourcePlaylistName: row.sourcePlaylistName,
+    targetProvider: row.targetProvider,
+    targetPlaylistId: row.targetPlaylistId,
+    targetPlaylistName: row.targetPlaylistName,
+    direction: row.direction,
+    createdBy: row.createdBy,
+    providerUserIds,
+    autoSync: row.autoSync,
+    syncInterval: row.syncInterval,
+    nextRunAt: row.nextRunAt,
+    consecutiveFailures: row.consecutiveFailures,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
+
+const SYNC_PAIR_COLUMNS = `
+  id,
+  source_provider AS sourceProvider,
+  source_playlist_id AS sourcePlaylistId,
+  source_playlist_name AS sourcePlaylistName,
+  target_provider AS targetProvider,
+  target_playlist_id AS targetPlaylistId,
+  target_playlist_name AS targetPlaylistName,
+  direction,
+  created_by AS createdBy,
+  provider_user_ids AS providerUserIdsJson,
+  auto_sync AS autoSync,
+  sync_interval AS syncInterval,
+  next_run_at AS nextRunAt,
+  consecutive_failures AS consecutiveFailures,
+  created_at AS createdAt,
+  updated_at AS updatedAt
+`;
+
+// -----------------------------------------------------------------------------
 // SyncPair CRUD
 // -----------------------------------------------------------------------------
 
@@ -75,6 +147,7 @@ export function createSyncPair(input: {
   targetPlaylistName: string;
   direction: SyncDirection;
   createdBy: string;
+  providerUserIds: Record<string, string>;
 }): SyncPair {
   const db = getRecsDb();
   const id = randomUUID();
@@ -89,8 +162,9 @@ export function createSyncPair(input: {
       target_playlist_id,
       target_playlist_name,
       direction,
-      created_by
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      created_by,
+      provider_user_ids
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id,
     input.sourceProvider,
@@ -101,6 +175,7 @@ export function createSyncPair(input: {
     input.targetPlaylistName,
     input.direction,
     input.createdBy,
+    JSON.stringify(input.providerUserIds),
   );
 
   return getSyncPair(id)!;
@@ -115,51 +190,21 @@ export function getSyncPair(id: string, createdBy?: string | string[]): SyncPair
     const placeholders = userIds.map(() => '?').join(', ');
 
     const row = db.prepare(`
-      SELECT
-        id,
-        source_provider AS sourceProvider,
-        source_playlist_id AS sourcePlaylistId,
-        source_playlist_name AS sourcePlaylistName,
-        target_provider AS targetProvider,
-        target_playlist_id AS targetPlaylistId,
-        target_playlist_name AS targetPlaylistName,
-        direction,
-        created_by AS createdBy,
-        auto_sync AS autoSync,
-        sync_interval AS syncInterval,
-        next_run_at AS nextRunAt,
-        consecutive_failures AS consecutiveFailures,
-        created_at AS createdAt,
-        updated_at AS updatedAt
+      SELECT ${SYNC_PAIR_COLUMNS}
       FROM sync_pairs
       WHERE id = ? AND created_by IN (${placeholders})
-    `).get(id, ...userIds) as SyncPair | undefined;
+    `).get(id, ...userIds) as SyncPairRow | undefined;
 
-    return row ?? null;
+    return row ? mapSyncPairRow(row) : null;
   }
 
   const row = db.prepare(`
-    SELECT
-      id,
-      source_provider AS sourceProvider,
-      source_playlist_id AS sourcePlaylistId,
-      source_playlist_name AS sourcePlaylistName,
-      target_provider AS targetProvider,
-      target_playlist_id AS targetPlaylistId,
-      target_playlist_name AS targetPlaylistName,
-      direction,
-      created_by AS createdBy,
-      auto_sync AS autoSync,
-      sync_interval AS syncInterval,
-      next_run_at AS nextRunAt,
-      consecutive_failures AS consecutiveFailures,
-      created_at AS createdAt,
-      updated_at AS updatedAt
+    SELECT ${SYNC_PAIR_COLUMNS}
     FROM sync_pairs
     WHERE id = ?
-  `).get(id) as SyncPair | undefined;
+  `).get(id) as SyncPairRow | undefined;
 
-  return row ?? null;
+  return row ? mapSyncPairRow(row) : null;
 }
 
 export function getSyncPairByPlaylists(
@@ -172,22 +217,7 @@ export function getSyncPairByPlaylists(
   const db = getRecsDb();
 
   const row = db.prepare(`
-    SELECT
-      id,
-      source_provider AS sourceProvider,
-      source_playlist_id AS sourcePlaylistId,
-      source_playlist_name AS sourcePlaylistName,
-      target_provider AS targetProvider,
-      target_playlist_id AS targetPlaylistId,
-      target_playlist_name AS targetPlaylistName,
-      direction,
-      created_by AS createdBy,
-      auto_sync AS autoSync,
-      sync_interval AS syncInterval,
-      next_run_at AS nextRunAt,
-      consecutive_failures AS consecutiveFailures,
-      created_at AS createdAt,
-      updated_at AS updatedAt
+    SELECT ${SYNC_PAIR_COLUMNS}
     FROM sync_pairs
     WHERE source_provider = ?
       AND source_playlist_id = ?
@@ -200,9 +230,9 @@ export function getSyncPairByPlaylists(
     targetProvider,
     targetPlaylistId,
     createdBy,
-  ) as SyncPair | undefined;
+  ) as SyncPairRow | undefined;
 
-  return row ?? null;
+  return row ? mapSyncPairRow(row) : null;
 }
 
 export function listSyncPairs(createdBy: string | string[]): SyncPair[] {
@@ -212,27 +242,14 @@ export function listSyncPairs(createdBy: string | string[]): SyncPair[] {
 
   const placeholders = userIds.map(() => '?').join(', ');
 
-  return db.prepare(`
-    SELECT
-      id,
-      source_provider AS sourceProvider,
-      source_playlist_id AS sourcePlaylistId,
-      source_playlist_name AS sourcePlaylistName,
-      target_provider AS targetProvider,
-      target_playlist_id AS targetPlaylistId,
-      target_playlist_name AS targetPlaylistName,
-      direction,
-      created_by AS createdBy,
-      auto_sync AS autoSync,
-      sync_interval AS syncInterval,
-      next_run_at AS nextRunAt,
-      consecutive_failures AS consecutiveFailures,
-      created_at AS createdAt,
-      updated_at AS updatedAt
+  const rows = db.prepare(`
+    SELECT ${SYNC_PAIR_COLUMNS}
     FROM sync_pairs
     WHERE created_by IN (${placeholders})
     ORDER BY created_at DESC
-  `).all(...userIds) as SyncPair[];
+  `).all(...userIds) as SyncPairRow[];
+
+  return rows.map(mapSyncPairRow);
 }
 
 export function listSyncPairsForPlaylist(
@@ -242,23 +259,8 @@ export function listSyncPairsForPlaylist(
 ): SyncPair[] {
   const db = getRecsDb();
 
-  return db.prepare(`
-    SELECT
-      id,
-      source_provider AS sourceProvider,
-      source_playlist_id AS sourcePlaylistId,
-      source_playlist_name AS sourcePlaylistName,
-      target_provider AS targetProvider,
-      target_playlist_id AS targetPlaylistId,
-      target_playlist_name AS targetPlaylistName,
-      direction,
-      created_by AS createdBy,
-      auto_sync AS autoSync,
-      sync_interval AS syncInterval,
-      next_run_at AS nextRunAt,
-      consecutive_failures AS consecutiveFailures,
-      created_at AS createdAt,
-      updated_at AS updatedAt
+  const rows = db.prepare(`
+    SELECT ${SYNC_PAIR_COLUMNS}
     FROM sync_pairs
     WHERE created_by = ?
       AND (
@@ -266,7 +268,9 @@ export function listSyncPairsForPlaylist(
         OR (target_provider = ? AND target_playlist_id = ?)
       )
     ORDER BY created_at DESC
-  `).all(createdBy, providerId, playlistId, providerId, playlistId) as SyncPair[];
+  `).all(createdBy, providerId, playlistId, providerId, playlistId) as SyncPairRow[];
+
+  return rows.map(mapSyncPairRow);
 }
 
 export function deleteSyncPairsForPlaylist(
@@ -359,23 +363,8 @@ export function updateSyncPairInterval(id: string, interval: SyncInterval, creat
 export function getDueSyncPairs(limit: number): SyncPair[] {
   const db = getRecsDb();
 
-  return db.prepare(`
-    SELECT
-      id,
-      source_provider AS sourceProvider,
-      source_playlist_id AS sourcePlaylistId,
-      source_playlist_name AS sourcePlaylistName,
-      target_provider AS targetProvider,
-      target_playlist_id AS targetPlaylistId,
-      target_playlist_name AS targetPlaylistName,
-      direction,
-      created_by AS createdBy,
-      auto_sync AS autoSync,
-      sync_interval AS syncInterval,
-      next_run_at AS nextRunAt,
-      consecutive_failures AS consecutiveFailures,
-      created_at AS createdAt,
-      updated_at AS updatedAt
+  const rows = db.prepare(`
+    SELECT ${SYNC_PAIR_COLUMNS}
     FROM sync_pairs
     WHERE sync_interval != 'off'
       AND next_run_at IS NOT NULL
@@ -383,7 +372,9 @@ export function getDueSyncPairs(limit: number): SyncPair[] {
       AND consecutive_failures < 5
     ORDER BY next_run_at ASC
     LIMIT ?
-  `).all(limit) as SyncPair[];
+  `).all(limit) as SyncPairRow[];
+
+  return rows.map(mapSyncPairRow);
 }
 
 export function advanceNextRunAt(id: string): void {
@@ -556,18 +547,13 @@ export function listSyncRunsForPair(syncPairId: string, limit = 20): SyncRun[] {
 export function getAllSyncPairsWithLatestRun(): Array<SyncPair & { latestRun: SyncRun | null }> {
   const db = getRecsDb();
 
-  const pairs = db.prepare(`
-    SELECT
-      id, source_provider AS sourceProvider, source_playlist_id AS sourcePlaylistId,
-      source_playlist_name AS sourcePlaylistName, target_provider AS targetProvider,
-      target_playlist_id AS targetPlaylistId, target_playlist_name AS targetPlaylistName,
-      direction, created_by AS createdBy, auto_sync AS autoSync,
-      sync_interval AS syncInterval, next_run_at AS nextRunAt,
-      consecutive_failures AS consecutiveFailures,
-      created_at AS createdAt, updated_at AS updatedAt
+  const rows = db.prepare(`
+    SELECT ${SYNC_PAIR_COLUMNS}
     FROM sync_pairs
     ORDER BY updated_at DESC
-  `).all() as SyncPair[];
+  `).all() as SyncPairRow[];
+
+  const pairs = rows.map(mapSyncPairRow);
 
   // For each pair, fetch the latest run
   const latestRunStmt = db.prepare(`

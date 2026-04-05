@@ -35,6 +35,7 @@ function createPair(id: string): SyncPair {
     targetPlaylistName: 'Target ' + id,
     direction: 'a-to-b',
     createdBy: 'user-1',
+    providerUserIds: {},
     autoSync: true,
     syncInterval: '1h',
     nextRunAt: new Date().toISOString(),

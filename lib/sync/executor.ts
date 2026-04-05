@@ -43,6 +43,15 @@ function formatUnresolvedReason(reason: string): string {
   return 'No track mapping for target provider';
 }
 
+/**
+ * Resolve the DB userId for a given provider from the sync pair.
+ * Uses providerUserIds map (set at pair creation); falls back to
+ * pair.createdBy for legacy pairs that predate the migration.
+ */
+function resolveUserIdForProvider(pair: SyncPair, providerId: MusicProviderId): string {
+  return pair.providerUserIds[providerId] ?? pair.createdBy;
+}
+
 function buildRunUpdate(result: SyncApplyResult): Record<string, unknown> {
   const hasErrors = result.errors.length > 0;
   const warnings: SyncWarning[] = result.unresolved.map((info) => ({
@@ -96,16 +105,20 @@ export async function executeSyncRun(
 
   try {
     // Auth pre-check: verify both provider sessions exist in DB
+    const sourceUserId = resolveUserIdForProvider(pair, pair.sourceProvider);
+    const targetUserId = resolveUserIdForProvider(pair, pair.targetProvider);
+
     const [sourceSession, targetSession] = await Promise.all([
-      getSessionFromDb(pair.createdBy, pair.sourceProvider),
-      getSessionFromDb(pair.createdBy, pair.targetProvider),
+      getSessionFromDb(sourceUserId, pair.sourceProvider),
+      getSessionFromDb(targetUserId, pair.targetProvider),
     ]);
 
     if (!sourceSession || !targetSession) {
       const missing = !sourceSession ? pair.sourceProvider : pair.targetProvider;
+      const missingUserId = !sourceSession ? sourceUserId : targetUserId;
       updateSyncRun(runId, {
         status: 'failed',
-        errorMessage: `No valid session for ${missing}, user=${pair.createdBy}`,
+        errorMessage: `No valid session for ${missing}, user=${missingUserId}`,
         completedAt: new Date().toISOString(),
       });
       if (isScheduled) {
@@ -117,8 +130,8 @@ export async function executeSyncRun(
 
     updateSyncRun(runId, { status: 'executing' });
 
-    const sourceProvider = await createBackgroundProvider(pair.createdBy, pair.sourceProvider);
-    const targetProvider = await createBackgroundProvider(pair.createdBy, pair.targetProvider);
+    const sourceProvider = await createBackgroundProvider(sourceUserId, pair.sourceProvider);
+    const targetProvider = await createBackgroundProvider(targetUserId, pair.targetProvider);
 
     const snapshotOpts: SnapshotOptions | undefined = matchThresholds
       ? { resolveOptions: { thresholds: matchThresholds } }
@@ -140,8 +153,9 @@ export async function executeSyncRun(
 
     updateSyncRun(runId, buildRunUpdate(result));
 
-    if (isScheduled) {
-      resetConsecutiveFailures(pair.id);
+    // Any successful sync resets failures and advances the schedule
+    resetConsecutiveFailures(pair.id);
+    if (pair.syncInterval !== 'off') {
       advanceNextRunAt(pair.id);
     }
 

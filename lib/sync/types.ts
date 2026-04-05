@@ -22,6 +22,8 @@ export interface SyncPair {
   targetPlaylistName: string;
   direction: SyncDirection;
   createdBy: string;
+  /** Maps provider ID to its prefixed userId for DB token lookups (e.g. { spotify: "spotify:simsonoo", tidal: "tidal:123" }) */
+  providerUserIds: Record<string, string>;
   autoSync: boolean;
   syncInterval: SyncInterval;
   nextRunAt: string | null;

@@ -36,6 +36,24 @@ export function getCreatorUserId(
 }
 
 /**
+ * Build a map of provider → prefixed userId for all connected providers.
+ * Used when creating sync pairs so the executor knows which userId to use per provider.
+ */
+export function getProviderUserIds(
+  session: { providerAccountIds?: Record<string, string> } | null,
+): Record<string, string> {
+  if (!session?.providerAccountIds) return {};
+
+  const map: Record<string, string> = {};
+  for (const [provider, accountId] of Object.entries(session.providerAccountIds)) {
+    if (accountId) {
+      map[provider] = prefixedUserId(provider, accountId);
+    }
+  }
+  return map;
+}
+
+/**
  * Extract ALL known user IDs from a session as prefixed IDs.
  *
  * Returns: ["spotify:simsonoo", "tidal:181936426"]
