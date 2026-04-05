@@ -3,7 +3,6 @@ import { ServerAuthError } from '@/lib/auth/requireAuth';
 import { withRateLimitRetry } from '@/lib/spotify/rateLimit';
 import type { AuthenticatedSession } from '@/lib/auth/requireAuth';
 import { ProviderApiError, type ProviderClientOptions } from '@/lib/music-provider/types';
-import { createAPIClient } from '@tidal-music/api';
 import { randomUUID } from 'node:crypto';
 import {
   JSON_API_CONTENT_TYPE,
@@ -86,64 +85,11 @@ function buildPathWithCursor(basePath: string, nextCursor?: string | null): stri
   return nextCursor ?? basePath;
 }
 
-type SdkMethod = 'GET' | 'POST' | 'PATCH' | 'DELETE' | 'PUT' | 'HEAD' | 'OPTIONS' | 'TRACE';
-
-type SdkCredentialsProvider = Parameters<typeof createAPIClient>[0];
-
-const SDK_METHODS: ReadonlySet<string> = new Set(['GET', 'POST', 'PATCH', 'DELETE', 'PUT', 'HEAD', 'OPTIONS', 'TRACE']);
 const MUTATION_METHODS: ReadonlySet<string> = new Set(['POST', 'PATCH', 'DELETE', 'PUT']);
-
-function toSdkMethod(method: string | undefined): SdkMethod | null {
-  const normalized = (method ?? 'GET').toUpperCase();
-  return SDK_METHODS.has(normalized) ? (normalized as SdkMethod) : null;
-}
-
-function isRelativePath(path: string): boolean {
-  return path.startsWith('/');
-}
 
 function isMutationMethod(method: string | undefined): boolean {
   const normalized = (method ?? 'GET').toUpperCase();
   return MUTATION_METHODS.has(normalized);
-}
-
-function shouldUseSdk(
-  path: string,
-  method: string | undefined,
-  body: RequestInit['body'] | undefined,
-  fetchImpl: typeof fetch,
-): method is SdkMethod {
-  const sdkMethod = toSdkMethod(method);
-  if (!sdkMethod) {
-    return false;
-  }
-
-  if (isMutationMethod(sdkMethod)) {
-    return false;
-  }
-
-  if (typeof body === 'string' && body.length > 0) {
-    return false;
-  }
-
-  if (!isRelativePath(path)) {
-    return false;
-  }
-
-  return fetchImpl === fetch;
-}
-
-function createSdkCredentialsProvider(accessToken: string): SdkCredentialsProvider {
-  return {
-    getCredentials: async () => ({ token: accessToken }),
-  } as unknown as SdkCredentialsProvider;
-}
-
-function buildSdkRequestOptions(init: RequestInit): Record<string, unknown> {
-  return {
-    headers: init.headers,
-    ...(init.body !== undefined ? { body: init.body } : {}),
-  };
 }
 
 function addMutationHeaders(headers: Headers, method: string | undefined): void {
@@ -154,35 +100,6 @@ function addMutationHeaders(headers: Headers, method: string | undefined): void 
   if (!headers.has('Idempotency-Key')) {
     headers.set('Idempotency-Key', randomUUID());
   }
-}
-
-async function executeWithSdk(
-  accessToken: string,
-  path: string,
-  method: SdkMethod,
-  init: RequestInit,
-  baseUrl?: string,
-): Promise<Response> {
-  const client = createAPIClient(createSdkCredentialsProvider(accessToken), baseUrl ?? getEffectiveBaseUrl());
-  const requestOptions = buildSdkRequestOptions(init);
-  const result = await (client as any)[method](path, requestOptions);
-  const response = result.response as Response;
-
-  if (!response.bodyUsed) {
-    return response;
-  }
-
-  const headers = new Headers(response.headers);
-  const payload = response.ok
-    ? (result as { data?: unknown }).data
-    : (result as { error?: unknown }).error;
-  const body = payload === undefined ? null : JSON.stringify(payload);
-
-  return new Response(body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers,
-  });
 }
 
 const TIDAL_PROVIDER_ID = 'tidal';
@@ -220,14 +137,6 @@ export function createTidalTransport(dependencies: TidalProviderDependencies = {
         ...init,
         headers,
       };
-
-      if (shouldUseSdk(path, init?.method, init?.body, deps.fetchImpl)) {
-        return withRateLimitRetry(
-          () => executeWithSdk(session.accessToken, path, (init?.method ?? 'GET').toUpperCase() as SdkMethod, requestInit, opts?.baseUrl),
-          opts?.backoff,
-          safePath,
-        );
-      }
 
       return withRateLimitRetry(
         () =>

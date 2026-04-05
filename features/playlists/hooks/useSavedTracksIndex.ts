@@ -157,6 +157,11 @@ export const useSavedTracksStore = create<SavedTracksIndexState>()(
 
         return {
           providerId,
+          likedIds: [],
+          total: 0,
+          isPrefetching: false,
+          isPrefetchComplete: false,
+          lastUpdatedAt: 0,
         };
       }),
       

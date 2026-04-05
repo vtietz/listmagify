@@ -174,6 +174,27 @@ function getPlaylistOwner(
   };
 }
 
+const TIDAL_UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function buildTidalImageUrl(uuid: string, size = 640): string {
+  return `https://resources.tidal.com/images/${uuid.replace(/-/g, '/')}/${size}x${size}.jpg`;
+}
+
+function getCoverArtFromRelationshipId(raw: JsonApiResource): Image | null {
+  const coverArtData = raw.relationships?.coverArt?.data;
+  const identifier = Array.isArray(coverArtData) ? coverArtData[0] : coverArtData;
+  if (!identifier || typeof identifier !== 'object' || !('id' in identifier)) {
+    return null;
+  }
+
+  const id = (identifier as { id: string }).id;
+  if (!TIDAL_UUID_PATTERN.test(id)) {
+    return null;
+  }
+
+  return { url: buildTidalImageUrl(id), width: 640, height: 640 };
+}
+
 function getPlaylistCoverImage(raw: JsonApiResource, includedIndex: Map<string, JsonApiResource>): Image | null {
   const coverResource =
     getFirstRelationshipResource(raw, 'coverArt', includedIndex)
@@ -193,6 +214,7 @@ function getPlaylistCoverImage(raw: JsonApiResource, includedIndex: Map<string, 
     ?? mapImageFromCandidate(attributes.squareImage)
     ?? mapImageFromCandidate(attributes.coverUrl)
     ?? mapImageFromCandidate(attributes.imageUrl)
+    ?? getCoverArtFromRelationshipId(raw)
     ?? null
   );
 }
