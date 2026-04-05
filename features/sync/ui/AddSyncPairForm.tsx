@@ -18,7 +18,7 @@ import { useCreateSyncPair } from '@features/sync/hooks/useSyncPairs';
 import { usePlaylistName } from '@features/sync/hooks/usePlaylistName';
 import { Save, ArrowLeftRight, Eye, Loader2 } from 'lucide-react';
 import { useSyncDialogStore } from '@features/sync/stores/useSyncDialogStore';
-import { useSyncSchedulerEnabled } from '@shared/hooks/useAppConfig';
+import { useSyncIntervalOptions, useSyncSchedulerEnabled } from '@shared/hooks/useAppConfig';
 import type { MusicProviderId } from '@/lib/music-provider/types';
 import type { SyncPair, SyncInterval } from '@/lib/sync/types';
 
@@ -116,20 +116,24 @@ function canSubmitForm(
   return !!sourcePlaylistId && !!targetPlaylistId && sourceProvider !== targetProvider && !isPending;
 }
 
-function SyncIntervalSelect({ value, onChange }: { value: SyncInterval; onChange: (v: SyncInterval) => void }) {
+function SyncIntervalSelect({
+  value,
+  options,
+  onChange,
+}: {
+  value: SyncInterval;
+  options: readonly SyncInterval[];
+  onChange: (v: SyncInterval) => void;
+}) {
   return (
     <Select value={value} onValueChange={(v) => onChange(v as SyncInterval)}>
       <SelectTrigger className="h-7 w-[68px] text-xs px-2">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value="off">Off</SelectItem>
-        <SelectItem value="15m">15m</SelectItem>
-        <SelectItem value="30m">30m</SelectItem>
-        <SelectItem value="1h">1h</SelectItem>
-        <SelectItem value="6h">6h</SelectItem>
-        <SelectItem value="12h">12h</SelectItem>
-        <SelectItem value="24h">24h</SelectItem>
+        {options.map((interval) => (
+          <SelectItem key={interval} value={interval}>{interval === 'off' ? 'Off' : interval}</SelectItem>
+        ))}
       </SelectContent>
     </Select>
   );
@@ -142,6 +146,11 @@ export function AddSyncPairForm(props: AddSyncPairFormProps) {
   const authSummary = useAuthSummary();
   const createPair = useCreateSyncPair();
   const schedulerEnabled = useSyncSchedulerEnabled();
+  const configuredSyncIntervals = useSyncIntervalOptions();
+  const intervalOptions: readonly SyncInterval[] = useMemo(
+    () => ['off', ...configuredSyncIntervals],
+    [configuredSyncIntervals],
+  );
 
   const statusMap = useMemo(() => buildStatusMap(authSummary), [authSummary]);
   const connectedProviders = useMemo(
@@ -228,7 +237,13 @@ export function AddSyncPairForm(props: AddSyncPairFormProps) {
 
       {/* Status column — scheduling dropdown */}
       <div className="flex items-center gap-1.5 shrink-0">
-        {schedulerEnabled && <SyncIntervalSelect value={syncInterval} onChange={setSyncInterval} />}
+        {schedulerEnabled && (
+          <SyncIntervalSelect
+            value={syncInterval}
+            options={intervalOptions}
+            onChange={setSyncInterval}
+          />
+        )}
       </div>
 
       {/* Actions column */}

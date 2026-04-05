@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { parseSyncIntervalOptions } from '@/lib/sync/types';
 
 type ConfiguredMusicProvider = 'spotify' | 'tidal';
 const DEFAULT_MUSIC_PROVIDERS: ConfiguredMusicProvider[] = ['spotify'];
@@ -56,6 +57,11 @@ const serverSchema = z.object({
       const num = parseInt(val, 10);
       return isNaN(num) || num <= 0 ? undefined : num;
     }),
+  // Optional: sync interval dropdown options (comma-separated, e.g. 15m,30m,1h)
+  SYNC_INTERVAL_OPTIONS: z
+    .string()
+    .optional()
+    .transform((val) => parseSyncIntervalOptions(val)),
   // Optional: allow users to bring their own Spotify API keys
   SPOTIFY_BYOK_ENABLED: z
     .string()
@@ -136,6 +142,7 @@ export const serverEnv: ServerEnv = (() => {
       TIDAL_CLIENT_SECRET: '',
       MUSIC_PROVIDERS: [...DEFAULT_MUSIC_PROVIDERS],
       PLAYLIST_POLL_INTERVAL_SECONDS: undefined,
+      SYNC_INTERVAL_OPTIONS: parseSyncIntervalOptions(undefined),
       SPOTIFY_BYOK_ENABLED: false,
       ACCESS_REQUEST_ENABLED: false,
       ACCESS_REQUEST_EMAIL_VERIFICATION_ENABLED: false,
@@ -150,6 +157,7 @@ export const serverEnv: ServerEnv = (() => {
     TIDAL_CLIENT_SECRET: process.env.TIDAL_CLIENT_SECRET,
     MUSIC_PROVIDERS: process.env.MUSIC_PROVIDERS,
     PLAYLIST_POLL_INTERVAL_SECONDS: process.env.PLAYLIST_POLL_INTERVAL_SECONDS,
+    SYNC_INTERVAL_OPTIONS: process.env.SYNC_INTERVAL_OPTIONS,
     SPOTIFY_BYOK_ENABLED: process.env.SPOTIFY_BYOK_ENABLED ?? process.env.BYOK_ENABLED,
     ACCESS_REQUEST_ENABLED: process.env.ACCESS_REQUEST_ENABLED,
     ACCESS_REQUEST_EMAIL_VERIFICATION_ENABLED: process.env.ACCESS_REQUEST_EMAIL_VERIFICATION_ENABLED,
@@ -166,6 +174,7 @@ export function summarizeEnv(): string {
     `NEXTAUTH_URL=${serverEnv.NEXTAUTH_URL}`,
     `NEXTAUTH_SECRET=${serverEnv.NEXTAUTH_SECRET ? "[set]" : "[missing]"}`,
     `MUSIC_PROVIDERS=${serverEnv.MUSIC_PROVIDERS.join(',')}`,
+    `SYNC_INTERVAL_OPTIONS=${serverEnv.SYNC_INTERVAL_OPTIONS.join(',')}`,
     `SPOTIFY_CLIENT_ID=${serverEnv.SPOTIFY_CLIENT_ID ? "[set]" : "[missing]"}`,
     `SPOTIFY_CLIENT_SECRET=${serverEnv.SPOTIFY_CLIENT_SECRET ? "[set]" : "[missing]"}`,
     `TIDAL_CLIENT_ID=${serverEnv.TIDAL_CLIENT_ID ? "[set]" : "[missing]"}`,

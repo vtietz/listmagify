@@ -4,6 +4,51 @@ import { created, badRequest, conflict, fromError } from '@/app/api/_shared/http
 import { createImportJob, getActiveImportJob } from '@/lib/import/importStore';
 import { executeImportJob } from '@/lib/import/importRunner';
 import { getAllSessionUserIds, getCreatorUserId } from '@/lib/auth/sessionUserIds';
+import { serverEnv } from '@/lib/env';
+
+type ImportStartBody = {
+  sourceProvider?: unknown;
+  targetProvider?: unknown;
+  playlists?: Array<{ id?: unknown; name?: unknown }>;
+  createSyncPair?: unknown;
+  syncInterval?: unknown;
+};
+
+function validateRequiredFields(body: ImportStartBody): string | null {
+  if (!body.sourceProvider || !body.targetProvider) {
+    return 'Missing required fields: sourceProvider, targetProvider';
+  }
+
+  if (!Array.isArray(body.playlists) || body.playlists.length === 0) {
+    return 'playlists must be a non-empty array';
+  }
+
+  for (const playlist of body.playlists) {
+    if (!playlist.id || !playlist.name) {
+      return 'Each playlist must have an id and name';
+    }
+  }
+
+  return null;
+}
+
+function validateSyncPairRequest(body: ImportStartBody): string | null {
+  if (body.sourceProvider === body.targetProvider) {
+    return 'sourceProvider and targetProvider must be different';
+  }
+
+  if (!body.createSyncPair) {
+    return null;
+  }
+
+  const validIntervals: Set<string> = new Set(serverEnv.SYNC_INTERVAL_OPTIONS);
+  const requestedInterval = body.syncInterval ? String(body.syncInterval) : 'off';
+  if (requestedInterval !== 'off' && !validIntervals.has(requestedInterval)) {
+    return 'Invalid syncInterval';
+  }
+
+  return null;
+}
 
 /**
  * POST /api/import/start
@@ -16,25 +61,16 @@ import { getAllSessionUserIds, getCreatorUserId } from '@/lib/auth/sessionUserId
 export async function POST(request: NextRequest) {
   try {
     const session = await assertAuthenticated();
-    const body = await request.json();
+    const body = await request.json() as ImportStartBody;
 
-    // Validate required fields
-    if (!body.sourceProvider || !body.targetProvider) {
-      return badRequest('Missing required fields: sourceProvider, targetProvider');
+    const requiredFieldsError = validateRequiredFields(body);
+    if (requiredFieldsError) {
+      return badRequest(requiredFieldsError);
     }
 
-    if (!Array.isArray(body.playlists) || body.playlists.length === 0) {
-      return badRequest('playlists must be a non-empty array');
-    }
-
-    for (const playlist of body.playlists) {
-      if (!playlist.id || !playlist.name) {
-        return badRequest('Each playlist must have an id and name');
-      }
-    }
-
-    if (body.sourceProvider === body.targetProvider) {
-      return badRequest('sourceProvider and targetProvider must be different');
+    const syncPairError = validateSyncPairRequest(body);
+    if (syncPairError) {
+      return badRequest(syncPairError);
     }
 
     // Check for existing active import job
@@ -48,7 +84,7 @@ export async function POST(request: NextRequest) {
       sourceProvider: String(body.sourceProvider),
       targetProvider: String(body.targetProvider),
       createdBy: getCreatorUserId(session),
-      playlists: body.playlists.map((p: { id: string; name: string }) => ({
+      playlists: (body.playlists ?? []).map((p) => ({
         id: String(p.id),
         name: String(p.name),
       })),

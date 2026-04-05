@@ -18,5 +18,7 @@ export async function GET() {
     availableProviders: getEnabledMusicProviders(),
     // Whether the background sync scheduler is enabled
     syncSchedulerEnabled: process.env.SYNC_SCHEDULER_ENABLED === 'true',
+    // User-configurable sync interval options for UI dropdowns
+    syncIntervalOptions: serverEnv.SYNC_INTERVAL_OPTIONS,
   });
 }

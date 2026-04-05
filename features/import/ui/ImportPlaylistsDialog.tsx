@@ -32,8 +32,10 @@ import {
   ImportPlaylistSelectionRow,
   ImportPlaylistProgressRow,
 } from '@/features/import/ui/ImportPlaylistStatusRow';
+import { useSyncIntervalOptions } from '@shared/hooks/useAppConfig';
 import type { Playlist } from '@/lib/music-provider/types';
 import type { MusicProviderId } from '@/lib/music-provider/types';
+import type { SyncIntervalOption } from '@/lib/sync/types';
 
 const AVAILABLE_PROVIDERS: Array<{ id: MusicProviderId; label: string }> = [
   { id: 'spotify', label: 'Spotify' },
@@ -178,11 +180,13 @@ function TransferModePicker({
   mode,
   onModeChange,
   interval,
+  intervalOptions,
   onIntervalChange,
 }: {
   mode: 'import' | 'sync';
   onModeChange: (mode: 'import' | 'sync') => void;
   interval: string;
+  intervalOptions: SyncIntervalOption[];
   onIntervalChange: (interval: string) => void;
 }) {
   return (
@@ -217,12 +221,9 @@ function TransferModePicker({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="15m">15m</SelectItem>
-              <SelectItem value="30m">30m</SelectItem>
-              <SelectItem value="1h">1h</SelectItem>
-              <SelectItem value="6h">6h</SelectItem>
-              <SelectItem value="12h">12h</SelectItem>
-              <SelectItem value="24h">24h</SelectItem>
+              {intervalOptions.map((option) => (
+                <SelectItem key={option} value={option}>{option}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
         )}
@@ -362,7 +363,8 @@ function SelectionView({
   const [searchQuery, setSearchQuery] = useState('');
   const [localTargetProvider, setLocalTargetProvider] = useState<string>(targetProvider ?? '');
   const [transferMode, setTransferMode] = useState<'import' | 'sync'>('import');
-  const [syncInterval, setSyncInterval] = useState('1h');
+  const syncIntervalOptions = useSyncIntervalOptions();
+  const [syncInterval, setSyncInterval] = useState<string>(() => syncIntervalOptions[0] ?? '1h');
 
   const effectiveTarget = targetProvider ?? localTargetProvider;
 
@@ -384,6 +386,12 @@ function SelectionView({
       setSourceProvider('');
     }
   }, [sourceProvider, effectiveTarget]);
+
+  useEffect(() => {
+    if (!syncIntervalOptions.includes(syncInterval as SyncIntervalOption)) {
+      setSyncInterval(syncIntervalOptions[0] ?? '1h');
+    }
+  }, [syncInterval, syncIntervalOptions]);
 
   const { allPlaylists, isLoading, isFetchingNextPage } = useProviderPlaylists(
     sourceProvider || null,
@@ -443,6 +451,7 @@ function SelectionView({
           mode={transferMode}
           onModeChange={setTransferMode}
           interval={syncInterval}
+          intervalOptions={syncIntervalOptions}
           onIntervalChange={setSyncInterval}
         />
 

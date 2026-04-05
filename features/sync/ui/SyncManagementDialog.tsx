@@ -28,7 +28,7 @@ import {
 } from '@/components/ui/select';
 import { Play, Eye, Trash2, ArrowLeftRight, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useSyncSchedulerEnabled } from '@shared/hooks/useAppConfig';
+import { useSyncIntervalOptions, useSyncSchedulerEnabled } from '@shared/hooks/useAppConfig';
 import { useProposedSyncPairs } from '@features/sync/hooks/useProposedSyncPairs';
 import type { MusicProviderId } from '@/lib/music-provider/types';
 import type { SyncRunStatus } from '@/lib/sync/types';
@@ -109,8 +109,11 @@ function SyncPairActions({ pair, bothConnected, isSyncing, showScheduler }: {
   const deletePair = useDeleteSyncPair();
   const execute = useSyncExecute();
   const updatePair = useUpdateSyncPair();
+  const configuredSyncIntervals = useSyncIntervalOptions();
   const pairConfig = buildPairConfig(pair);
   const actionsDisabled = !bothConnected || isSyncing;
+  const intervalOptions = ['off', ...configuredSyncIntervals, pair.syncInterval]
+    .filter((value, index, all) => all.indexOf(value) === index);
 
   return (
     <div className="flex items-center gap-0.5 shrink-0">
@@ -124,13 +127,9 @@ function SyncPairActions({ pair, bothConnected, isSyncing, showScheduler }: {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="off">Off</SelectItem>
-            <SelectItem value="15m">15m</SelectItem>
-            <SelectItem value="30m">30m</SelectItem>
-            <SelectItem value="1h">1h</SelectItem>
-            <SelectItem value="6h">6h</SelectItem>
-            <SelectItem value="12h">12h</SelectItem>
-            <SelectItem value="24h">24h</SelectItem>
+            {intervalOptions.map((interval) => (
+              <SelectItem key={interval} value={interval}>{interval === 'off' ? 'Off' : interval}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
       )}

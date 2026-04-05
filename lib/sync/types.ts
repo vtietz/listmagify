@@ -3,7 +3,31 @@ import type { MusicProviderId } from '@/lib/music-provider/types';
 export type SyncDirection = 'a-to-b' | 'b-to-a' | 'bidirectional';
 export type SyncRunStatus = 'pending' | 'previewing' | 'executing' | 'done' | 'failed';
 export type SyncInterval = 'off' | '15m' | '30m' | '1h' | '6h' | '12h' | '24h';
+export type SyncIntervalOption = Exclude<SyncInterval, 'off'>;
 export type SyncTrigger = 'manual' | 'auto_sync' | 'scheduler';
+
+export const DEFAULT_SYNC_INTERVAL_OPTIONS: readonly SyncIntervalOption[] = ['15m', '30m', '1h', '6h', '12h', '24h'];
+
+export function isSyncIntervalOption(value: string): value is SyncIntervalOption {
+  return (DEFAULT_SYNC_INTERVAL_OPTIONS as readonly string[]).includes(value);
+}
+
+export function parseSyncIntervalOptions(raw: string | undefined): SyncIntervalOption[] {
+  if (!raw) {
+    return [...DEFAULT_SYNC_INTERVAL_OPTIONS];
+  }
+
+  const parsed = raw
+    .split(',')
+    .map((value) => value.trim().toLowerCase())
+    .filter(isSyncIntervalOption);
+
+  if (parsed.length === 0) {
+    return [...DEFAULT_SYNC_INTERVAL_OPTIONS];
+  }
+
+  return Array.from(new Set(parsed));
+}
 
 export interface SyncWarning {
   canonicalTrackId: string;

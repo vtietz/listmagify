@@ -3,6 +3,7 @@ import { assertAuthenticated } from '@/app/api/_shared/guard';
 import { ok, fromError, notFound, badRequest } from '@/app/api/_shared/http';
 import { getSyncPair, deleteSyncPair, getLatestSyncRun, updateSyncPairAutoSync, updateSyncPairInterval } from '@/lib/sync/syncStore';
 import { getAllSessionUserIds } from '@/lib/auth/sessionUserIds';
+import { serverEnv } from '@/lib/env';
 import type { SyncInterval } from '@/lib/sync/types';
 
 /**
@@ -76,10 +77,10 @@ export async function PATCH(
     const { id } = await params;
     const body = await request.json();
 
-    const VALID_INTERVALS: Set<string> = new Set(['off', '15m', '30m', '1h', '6h', '12h', '24h']);
+    const validIntervals: Set<string> = new Set(['off', ...serverEnv.SYNC_INTERVAL_OPTIONS]);
 
     if (body.syncInterval !== undefined) {
-      if (!VALID_INTERVALS.has(body.syncInterval)) {
+      if (!validIntervals.has(body.syncInterval)) {
         return badRequest('Invalid syncInterval');
       }
 

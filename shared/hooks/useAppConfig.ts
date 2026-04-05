@@ -2,10 +2,13 @@
 
 import { useQuery } from '@tanstack/react-query';
 import type { MusicProviderId } from '@/lib/music-provider/types';
+import { DEFAULT_SYNC_INTERVAL_OPTIONS } from '@/lib/sync/types';
+import type { SyncIntervalOption } from '@/lib/sync/types';
 
 interface AppConfigResponse {
   availableProviders?: MusicProviderId[];
   syncSchedulerEnabled?: boolean;
+  syncIntervalOptions?: SyncIntervalOption[];
 }
 
 /**
@@ -34,4 +37,11 @@ export function useAppConfig(): AppConfigResponse {
 export function useSyncSchedulerEnabled(): boolean {
   const config = useAppConfig();
   return config.syncSchedulerEnabled ?? false;
+}
+
+export function useSyncIntervalOptions(): SyncIntervalOption[] {
+  const config = useAppConfig();
+  return config.syncIntervalOptions?.length
+    ? config.syncIntervalOptions
+    : [...DEFAULT_SYNC_INTERVAL_OPTIONS];
 }
