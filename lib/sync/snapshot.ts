@@ -1,6 +1,7 @@
 import type { MusicProvider, MusicProviderId, Track } from '@/lib/music-provider/types';
 import { fromProviderTrackBatch } from '@/lib/resolver/canonicalResolver';
 import type { MappingConfidence, ResolveOptions, ResolveProviderTrackInput } from '@/lib/resolver/canonicalResolver';
+import { isLikedSongsPlaylist } from '@/lib/sync/likedSongs';
 
 export interface CanonicalSnapshotItem {
   canonicalTrackId: string;
@@ -26,24 +27,53 @@ const PAGE_SIZE = 100;
 /**
  * Lightweight fetch to get only the playlist snapshot ID without loading
  * all tracks. Fetches a single-track page to extract the snapshotId.
- * Returns null if the provider doesn't support snapshot IDs (e.g. TIDAL).
+ * Returns null if the provider doesn't support snapshot IDs (e.g. TIDAL)
+ * or for liked songs (which have no snapshot concept).
  */
 export async function fetchPlaylistSnapshotId(
   provider: MusicProvider,
   playlistId: string,
 ): Promise<string | null> {
+  if (isLikedSongsPlaylist(playlistId)) return null;
   const page = await provider.getPlaylistTracks(playlistId, 1, null);
   return page.snapshotId;
 }
 
 /**
- * Paginate through all pages of a playlist, collecting every track
- * and the snapshotId from the first response.
+ * Paginate through all pages of liked/saved tracks.
+ * Returns snapshotId as null (liked songs have no snapshot concept).
+ */
+async function fetchFullLikedTracks(
+  provider: MusicProvider,
+): Promise<{ tracks: Track[]; snapshotId: null }> {
+  const allTracks: Track[] = [];
+  let cursor: string | null = null;
+
+  do {
+    const page = await provider.getLikedTracks(PAGE_SIZE, cursor);
+    allTracks.push(...page.tracks);
+    cursor = page.nextCursor;
+  } while (cursor !== null);
+
+  console.debug('[sync/snapshot] fetched full liked tracks', {
+    trackCount: allTracks.length,
+  });
+
+  return { tracks: allTracks, snapshotId: null };
+}
+
+/**
+ * Paginate through all pages of a playlist (or liked songs), collecting
+ * every track and the snapshotId from the first response.
  */
 export async function fetchFullPlaylistTracks(
   provider: MusicProvider,
   playlistId: string,
 ): Promise<{ tracks: Track[]; snapshotId: string | null }> {
+  if (isLikedSongsPlaylist(playlistId)) {
+    return fetchFullLikedTracks(provider);
+  }
+
   const allTracks: Track[] = [];
   let cursor: string | null = null;
   let snapshotId: string | null = null;

@@ -2,6 +2,7 @@ import type { MusicProvider, MusicProviderId } from '@/lib/music-provider/types'
 import { getMusicProvider } from '@/lib/music-provider';
 import { materializeCanonicalTrackIds } from '@/lib/recs/materialize';
 import { createSyncMaterializeAdapter } from '@/lib/sync/materializeAdapter';
+import { isLikedSongsPlaylist, uriToTrackId, LIKED_TRACKS_BATCH_SIZE } from '@/lib/sync/likedSongs';
 import type { SyncDiffItem, SyncPlan, SyncApplyResult, UnresolvedTrackInfo } from '@/lib/sync/types';
 
 const BATCH_SIZE = 100;
@@ -108,17 +109,31 @@ async function resolveAddUris(
 async function applyBatchedAdds(
   uris: string[],
   provider: MusicProvider,
+  providerId: MusicProviderId,
   playlistId: string,
+  isLiked: boolean,
 ): Promise<{ count: number; errors: string[] }> {
   const errors: string[] = [];
   let count = 0;
 
-  for (const batch of chunk(uris, BATCH_SIZE)) {
-    try {
-      await provider.addTracks({ playlistId, trackUris: batch });
-      count += batch.length;
-    } catch (err) {
-      errors.push(`Add batch failed (${batch.length} tracks): ${errorMessage(err)}`);
+  if (isLiked) {
+    for (const batch of chunk(uris, LIKED_TRACKS_BATCH_SIZE)) {
+      try {
+        const ids = batch.map((uri) => uriToTrackId(providerId, uri));
+        await provider.saveTracks({ ids });
+        count += batch.length;
+      } catch (err) {
+        errors.push(`Save-tracks batch failed (${batch.length} tracks): ${errorMessage(err)}`);
+      }
+    }
+  } else {
+    for (const batch of chunk(uris, BATCH_SIZE)) {
+      try {
+        await provider.addTracks({ playlistId, trackUris: batch });
+        count += batch.length;
+      } catch (err) {
+        errors.push(`Add batch failed (${batch.length} tracks): ${errorMessage(err)}`);
+      }
     }
   }
 
@@ -128,17 +143,31 @@ async function applyBatchedAdds(
 async function applyBatchedRemoves(
   uris: string[],
   provider: MusicProvider,
+  providerId: MusicProviderId,
   playlistId: string,
+  isLiked: boolean,
 ): Promise<{ count: number; errors: string[] }> {
   const errors: string[] = [];
   let count = 0;
 
-  for (const batch of chunk(uris, BATCH_SIZE)) {
-    try {
-      await provider.removePlaylistTracks(playlistId, batch);
-      count += batch.length;
-    } catch (err) {
-      errors.push(`Remove batch failed (${batch.length} tracks): ${errorMessage(err)}`);
+  if (isLiked) {
+    for (const batch of chunk(uris, LIKED_TRACKS_BATCH_SIZE)) {
+      try {
+        const ids = batch.map((uri) => uriToTrackId(providerId, uri));
+        await provider.removeTracks({ ids });
+        count += batch.length;
+      } catch (err) {
+        errors.push(`Remove-tracks batch failed (${batch.length} tracks): ${errorMessage(err)}`);
+      }
+    }
+  } else {
+    for (const batch of chunk(uris, BATCH_SIZE)) {
+      try {
+        await provider.removePlaylistTracks(playlistId, batch);
+        count += batch.length;
+      } catch (err) {
+        errors.push(`Remove batch failed (${batch.length} tracks): ${errorMessage(err)}`);
+      }
     }
   }
 
@@ -177,10 +206,37 @@ function resolveRemoveUris(
 async function filterAlreadyPresent(
   uris: string[],
   provider: MusicProvider,
+  providerId: MusicProviderId,
   playlistId: string,
+  isLiked: boolean,
 ): Promise<string[]> {
   if (uris.length === 0) return uris;
+
   try {
+    if (isLiked) {
+      // Use containsTracks in batches of 50 for liked songs
+      const alreadyLiked = new Array<boolean>(uris.length).fill(false);
+      const ids = uris.map((uri) => uriToTrackId(providerId, uri));
+
+      for (let i = 0; i < ids.length; i += LIKED_TRACKS_BATCH_SIZE) {
+        const batchIds = ids.slice(i, i + LIKED_TRACKS_BATCH_SIZE);
+        const results = await provider.containsTracks({ ids: batchIds });
+        for (let j = 0; j < results.length; j++) {
+          alreadyLiked[i + j] = results[j]!;
+        }
+      }
+
+      const filtered = uris.filter((_, idx) => !alreadyLiked[idx]);
+      if (filtered.length < uris.length) {
+        console.debug('[sync/apply] skipping already-liked tracks', {
+          total: uris.length,
+          alreadyLiked: uris.length - filtered.length,
+          toAdd: filtered.length,
+        });
+      }
+      return filtered;
+    }
+
     const existingUris = new Set(await provider.getPlaylistTrackUris(playlistId));
     const filtered = uris.filter((uri) => !existingUris.has(uri));
     if (filtered.length < uris.length) {
@@ -286,6 +342,7 @@ async function applySide(
   providerOverride?: MusicProvider,
 ): Promise<SideResult> {
   const provider = providerOverride ?? getMusicProvider(providerId);
+  const isLiked = isLikedSongsPlaylist(playlistId);
 
   const adds = items.filter((i) => i.action === 'add');
   const removes = items.filter((i) => i.action === 'remove');
@@ -296,17 +353,18 @@ async function applySide(
   const allUnresolved = [...resolved.unresolved, ...removeResolved.unresolved];
   const allErrors = [...resolved.errors];
 
-  // Filter out tracks already in the playlist
-  const addUris = await filterAlreadyPresent(resolved.uris, provider, playlistId);
+  // Filter out tracks already in the playlist / liked songs
+  const addUris = await filterAlreadyPresent(resolved.uris, provider, providerId, playlistId, isLiked);
 
   if (addUris.length > 0) {
     console.debug('[sync/apply] applying additions', {
       provider: providerId,
       count: addUris.length,
       targetPlaylist: playlistId,
+      isLiked,
     });
   }
-  const addResult = await applyBatchedAdds(addUris, provider, playlistId);
+  const addResult = await applyBatchedAdds(addUris, provider, providerId, playlistId, isLiked);
   allErrors.push(...addResult.errors);
 
   if (removeResolved.uris.length > 0) {
@@ -314,13 +372,14 @@ async function applySide(
       provider: providerId,
       count: removeResolved.uris.length,
       targetPlaylist: playlistId,
+      isLiked,
     });
   }
-  const removeResult = await applyBatchedRemoves(removeResolved.uris, provider, playlistId);
+  const removeResult = await applyBatchedRemoves(removeResolved.uris, provider, providerId, playlistId, isLiked);
   allErrors.push(...removeResult.errors);
 
-  // Reorder to match desired track order if provided
-  if (desiredOrder && desiredOrder.length > 0 && (addResult.count > 0 || removeResult.count > 0)) {
+  // Reorder to match desired track order if provided (skip for liked songs — order is by date-added)
+  if (!isLiked && desiredOrder && desiredOrder.length > 0 && (addResult.count > 0 || removeResult.count > 0)) {
     try {
       await reorderPlaylist(provider, providerId, playlistId, desiredOrder);
     } catch (err) {

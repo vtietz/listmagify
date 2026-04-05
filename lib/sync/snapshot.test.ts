@@ -1,9 +1,15 @@
 /**
- * Unit tests for sync snapshot canonicalization.
+ * Unit tests for sync snapshot functions: canonicalization, snapshot ID
+ * fetching, and full playlist/liked-songs track fetching.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { canonicalizeSnapshot } from '@/lib/sync/snapshot';
-import type { Track } from '@/lib/music-provider/types';
+import {
+  canonicalizeSnapshot,
+  fetchPlaylistSnapshotId,
+  fetchFullPlaylistTracks,
+} from '@/lib/sync/snapshot';
+import { LIKED_SONGS_PLAYLIST_ID } from '@/lib/sync/likedSongs';
+import type { MusicProvider, Track } from '@/lib/music-provider/types';
 import type { CanonicalMappingResult, ResolveProviderTrackInput } from '@/lib/resolver/canonicalResolver';
 
 // Mock the canonical resolver (depends on DB)
@@ -197,5 +203,140 @@ describe('canonicalizeSnapshot', () => {
     expect(snapshot.items[0]!.title).toBe('Original Title');
     expect(snapshot.items[0]!.artists).toEqual(['Artist One', 'Artist Two']);
     expect(snapshot.items[0]!.durationMs).toBe(123456);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Helpers for provider-level tests
+// ---------------------------------------------------------------------------
+
+function createMockProvider(
+  overrides: Partial<MusicProvider> = {},
+): MusicProvider {
+  return {
+    getPlaylistTracks: vi.fn(),
+    getLikedTracks: vi.fn(),
+    ...overrides,
+  } as unknown as MusicProvider;
+}
+
+// ---------------------------------------------------------------------------
+// fetchPlaylistSnapshotId
+// ---------------------------------------------------------------------------
+
+describe('fetchPlaylistSnapshotId', () => {
+  it('returns null immediately for liked songs without calling getPlaylistTracks', async () => {
+    const provider = createMockProvider();
+
+    const result = await fetchPlaylistSnapshotId(provider, LIKED_SONGS_PLAYLIST_ID);
+
+    expect(result).toBeNull();
+    expect(provider.getPlaylistTracks).not.toHaveBeenCalled();
+  });
+
+  it('calls getPlaylistTracks for regular playlist IDs and returns snapshotId', async () => {
+    const provider = createMockProvider({
+      getPlaylistTracks: vi.fn().mockResolvedValue({
+        tracks: [createTrack()],
+        snapshotId: 'snap-abc',
+        total: 10,
+        nextCursor: null,
+      }),
+    });
+
+    const result = await fetchPlaylistSnapshotId(provider, 'regular-playlist-id');
+
+    expect(result).toBe('snap-abc');
+    expect(provider.getPlaylistTracks).toHaveBeenCalledTimes(1);
+    expect(provider.getPlaylistTracks).toHaveBeenCalledWith('regular-playlist-id', 1, null);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// fetchFullPlaylistTracks
+// ---------------------------------------------------------------------------
+
+describe('fetchFullPlaylistTracks', () => {
+  it('calls getLikedTracks (not getPlaylistTracks) when playlistId is liked', async () => {
+    const likedTrack = createTrack({ id: 'liked-1', name: 'Liked Song' });
+    const provider = createMockProvider({
+      getLikedTracks: vi.fn().mockResolvedValue({
+        tracks: [likedTrack],
+        total: 1,
+        nextCursor: null,
+      }),
+    });
+
+    const result = await fetchFullPlaylistTracks(provider, LIKED_SONGS_PLAYLIST_ID);
+
+    expect(provider.getLikedTracks).toHaveBeenCalledTimes(1);
+    expect(provider.getPlaylistTracks).not.toHaveBeenCalled();
+    expect(result.tracks).toEqual([likedTrack]);
+  });
+
+  it('paginates through multiple liked tracks pages correctly', async () => {
+    const page1Tracks = [
+      createTrack({ id: 'liked-1', name: 'Song 1' }),
+      createTrack({ id: 'liked-2', name: 'Song 2' }),
+    ];
+    const page2Tracks = [
+      createTrack({ id: 'liked-3', name: 'Song 3' }),
+    ];
+
+    const getLikedTracks = vi.fn()
+      .mockResolvedValueOnce({
+        tracks: page1Tracks,
+        total: 3,
+        nextCursor: 'cursor-page-2',
+      })
+      .mockResolvedValueOnce({
+        tracks: page2Tracks,
+        total: 3,
+        nextCursor: null,
+      });
+
+    const provider = createMockProvider({ getLikedTracks });
+
+    const result = await fetchFullPlaylistTracks(provider, LIKED_SONGS_PLAYLIST_ID);
+
+    expect(getLikedTracks).toHaveBeenCalledTimes(2);
+    expect(getLikedTracks).toHaveBeenNthCalledWith(1, 100, null);
+    expect(getLikedTracks).toHaveBeenNthCalledWith(2, 100, 'cursor-page-2');
+    expect(result.tracks).toHaveLength(3);
+    expect(result.tracks).toEqual([...page1Tracks, ...page2Tracks]);
+  });
+
+  it('returns snapshotId as null for liked songs', async () => {
+    const provider = createMockProvider({
+      getLikedTracks: vi.fn().mockResolvedValue({
+        tracks: [],
+        total: 0,
+        nextCursor: null,
+      }),
+    });
+
+    const result = await fetchFullPlaylistTracks(provider, LIKED_SONGS_PLAYLIST_ID);
+
+    expect(result.snapshotId).toBeNull();
+  });
+
+  it('calls getPlaylistTracks for regular playlist IDs (regression)', async () => {
+    const regularTrack = createTrack({ id: 'reg-1', name: 'Regular Song' });
+    const provider = createMockProvider({
+      getPlaylistTracks: vi.fn().mockResolvedValue({
+        tracks: [regularTrack],
+        snapshotId: 'snap-regular',
+        total: 1,
+        nextCursor: null,
+      }),
+    });
+
+    const result = await fetchFullPlaylistTracks(provider, 'some-playlist-id');
+
+    expect(provider.getPlaylistTracks).toHaveBeenCalledTimes(1);
+    expect(provider.getPlaylistTracks).toHaveBeenCalledWith('some-playlist-id', 100, null);
+    expect(provider.getLikedTracks).not.toHaveBeenCalled();
+    expect(result.tracks).toEqual([regularTrack]);
+    expect(result.snapshotId).toBe('snap-regular');
   });
 });

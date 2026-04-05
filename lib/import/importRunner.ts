@@ -11,6 +11,13 @@ import { fetchFullPlaylistTracks, canonicalizeSnapshot } from '@/lib/sync/snapsh
 import { createSyncMaterializeAdapter } from '@/lib/sync/materializeAdapter';
 import { materializeCanonicalTrackIds } from '@/lib/recs/materialize';
 import { findUserIdForProvider } from '@/lib/auth/tokenStore';
+import {
+  isLikedSongsPlaylist,
+  uriToTrackId,
+  getLikedSongsDisplayName,
+  LIKED_TRACKS_BATCH_SIZE,
+  LIKED_SONGS_PLAYLIST_ID,
+} from '@/lib/sync/likedSongs';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -51,22 +58,37 @@ async function importPlaylist(
   targetProviderId: MusicProviderId,
   targetProviderUserId: string,
 ): Promise<void> {
-  // Step 1: Create playlist on target provider
-  updateImportJobPlaylist(playlist.id, { status: 'creating' });
+  const isLikedTarget = isLikedSongsPlaylist(playlist.targetPlaylistId);
 
-  const createdPlaylist = await targetProvider.createPlaylist({
-    userId: targetProviderUserId,
-    name: playlist.sourcePlaylistName,
-    description: `Imported from ${sourceProviderId}`,
-    isPublic: false,
-  });
+  // Step 1: Create playlist on target provider (skip for liked songs)
+  let targetPlaylistId: string;
 
-  updateImportJobPlaylist(playlist.id, {
-    targetPlaylistId: createdPlaylist.id,
-  });
+  if (isLikedTarget) {
+    targetPlaylistId = LIKED_SONGS_PLAYLIST_ID;
+    updateImportJobPlaylist(playlist.id, {
+      targetPlaylistId,
+      status: 'resolving_tracks',
+    });
+  } else {
+    updateImportJobPlaylist(playlist.id, { status: 'creating' });
 
-  // Step 2: Fetch all source tracks
-  updateImportJobPlaylist(playlist.id, { status: 'resolving_tracks' });
+    const createdPlaylist = await targetProvider.createPlaylist({
+      userId: targetProviderUserId,
+      name: playlist.sourcePlaylistName,
+      description: `Imported from ${sourceProviderId}`,
+      isPublic: false,
+    });
+
+    targetPlaylistId = createdPlaylist.id;
+    updateImportJobPlaylist(playlist.id, {
+      targetPlaylistId: createdPlaylist.id,
+    });
+  }
+
+  // Step 2: Fetch all source tracks (handles liked songs as source via fetchFullPlaylistTracks)
+  if (!isLikedTarget) {
+    updateImportJobPlaylist(playlist.id, { status: 'resolving_tracks' });
+  }
 
   const { tracks, snapshotId } = await fetchFullPlaylistTracks(
     sourceProvider,
@@ -111,12 +133,20 @@ async function importPlaylist(
   const trackUris = materializeResult.trackIds.map((id) => toTrackUri(targetProviderId, id));
   let tracksAdded = 0;
 
-  for (const batch of chunk(trackUris, BATCH_SIZE)) {
-    await targetProvider.addTracks({
-      playlistId: createdPlaylist.id,
-      trackUris: batch,
-    });
-    tracksAdded += batch.length;
+  if (isLikedTarget) {
+    for (const batch of chunk(trackUris, LIKED_TRACKS_BATCH_SIZE)) {
+      const ids = batch.map((uri) => uriToTrackId(targetProviderId, uri));
+      await targetProvider.saveTracks({ ids });
+      tracksAdded += batch.length;
+    }
+  } else {
+    for (const batch of chunk(trackUris, BATCH_SIZE)) {
+      await targetProvider.addTracks({
+        playlistId: targetPlaylistId,
+        trackUris: batch,
+      });
+      tracksAdded += batch.length;
+    }
   }
 
   // Step 6: Update final status
@@ -204,13 +234,20 @@ function createSyncPairsForJob(
       playlist.targetPlaylistId
     ) {
       try {
+        const targetName = isLikedSongsPlaylist(playlist.targetPlaylistId)
+          ? getLikedSongsDisplayName(targetProviderId)
+          : playlist.sourcePlaylistName;
+        const sourceName = isLikedSongsPlaylist(playlist.sourcePlaylistId)
+          ? getLikedSongsDisplayName(sourceProviderId)
+          : playlist.sourcePlaylistName;
+
         createSyncPair({
           sourceProvider: sourceProviderId,
           sourcePlaylistId: playlist.sourcePlaylistId,
-          sourcePlaylistName: playlist.sourcePlaylistName,
+          sourcePlaylistName: sourceName,
           targetProvider: targetProviderId,
           targetPlaylistId: playlist.targetPlaylistId,
-          targetPlaylistName: playlist.sourcePlaylistName,
+          targetPlaylistName: targetName,
           direction: 'a-to-b',
           createdBy,
           providerUserIds,
