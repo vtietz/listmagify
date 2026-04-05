@@ -174,6 +174,7 @@ export function VirtualizedTrackListContainer({
   const setBrowseActiveTab = useBrowsePanelStore((s) => s.setActiveTab);
   const setSearchQuery = useBrowsePanelStore((s) => s.setSearchQuery);
   const setSearchFilter = useBrowsePanelStore((s) => s.setSearchFilter);
+  const setDrillDown = useBrowsePanelStore((s) => s.setDrillDown);
   const setProviderId = useBrowsePanelStore((s) => s.setProviderId);
   const togglePoint = useInsertionPointsStore((s) => s.togglePoint);
   const hasActiveMarkersSelector = useInsertionPointsStore((s) => s.hasActiveMarkers);
@@ -238,6 +239,7 @@ export function VirtualizedTrackListContainer({
     providerId: providerId ?? 'spotify',
     setSearchQuery,
     setSearchFilter,
+    setDrillDown,
     togglePoint, hasAnyMarkersGlobal: hasAnyMarkersGlobal, isPhone,
     setMobileOverlay, isDndActive, openContextMenu, setProviderId, showHandle, handleOnlyDrag,
   }), [
@@ -247,6 +249,7 @@ export function VirtualizedTrackListContainer({
     providerId,
     setSearchQuery,
     setSearchFilter,
+    setDrillDown,
     togglePoint, hasAnyMarkersGlobal, isPhone, setMobileOverlay,
     isDndActive, openContextMenu, setProviderId, showHandle, handleOnlyDrag,
   ]);

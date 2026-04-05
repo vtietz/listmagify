@@ -149,18 +149,23 @@ export const useBrowsePanelStore = create<BrowsePanelState>()(
           searchStateByProvider: updatedStateByProvider,
         };
       }),
-      setSearchQuery: (query) => set((state) => ({
-        searchQuery: query,
-        drillDown: null,
-        searchStateByProvider: {
-          ...state.searchStateByProvider,
-          [state.providerId]: {
-            ...state.searchStateByProvider[state.providerId],
-            searchQuery: query,
-            drillDown: null,
+      setSearchQuery: (query) => set((state) => {
+        // Skip no-op writes to avoid clearing drillDown when the debounced
+        // search effect fires on mount with the same value already in the store.
+        if (state.searchQuery === query) return {};
+        return {
+          searchQuery: query,
+          drillDown: null,
+          searchStateByProvider: {
+            ...state.searchStateByProvider,
+            [state.providerId]: {
+              ...state.searchStateByProvider[state.providerId],
+              searchQuery: query,
+              drillDown: null,
+            },
           },
-        },
-      })),
+        };
+      }),
       setSearchFilter: (filter) => set((state) => ({
         searchFilter: filter,
         spotifySelection: [],

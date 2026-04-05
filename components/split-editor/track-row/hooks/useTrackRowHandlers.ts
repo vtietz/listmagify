@@ -52,7 +52,7 @@ export function useTrackRowHandlers({
   isPlaying,
   onPlay,
   onPause,
-  providerId,
+  providerId: _providerId,
   setSearchQuery,
   setSearchFilter,
   openBrowsePanel,
@@ -84,9 +84,9 @@ export function useTrackRowHandlers({
       e.stopPropagation();
       e.preventDefault();
       const trackProvider: MusicProviderId = track.uri.startsWith('spotify:') ? 'spotify' : 'tidal';
-      if (providerId !== trackProvider) {
-        setProviderId(trackProvider);
-      }
+      // Always switch the browse store to the track's provider BEFORE setting
+      // search state so the query is persisted under the correct provider.
+      setProviderId(trackProvider);
       if (artistId && trackProvider !== 'spotify' && setDrillDown) {
         setDrillDown({ type: 'artist', id: artistId, name: artistName });
       } else if (trackProvider === 'spotify') {
@@ -101,7 +101,7 @@ export function useTrackRowHandlers({
         openBrowsePanel();
       }
     },
-    [track.uri, providerId, setProviderId, setSearchQuery, setSearchFilter, setDrillDown, isPhone, setMobileOverlay, openBrowsePanel],
+    [track.uri, setProviderId, setSearchQuery, setSearchFilter, setDrillDown, isPhone, setMobileOverlay, openBrowsePanel],
   );
 
   const handleAlbumClick = useCallback(
@@ -109,9 +109,9 @@ export function useTrackRowHandlers({
       e.stopPropagation();
       e.preventDefault();
       const trackProvider: MusicProviderId = track.uri.startsWith('spotify:') ? 'spotify' : 'tidal';
-      if (providerId !== trackProvider) {
-        setProviderId(trackProvider);
-      }
+      // Always switch the browse store to the track's provider BEFORE setting
+      // search state so the query is persisted under the correct provider.
+      setProviderId(trackProvider);
       if (albumId && trackProvider !== 'spotify' && setDrillDown) {
         setDrillDown({ type: 'album', id: albumId, name: albumName });
       } else if (trackProvider === 'spotify') {
@@ -126,7 +126,7 @@ export function useTrackRowHandlers({
         openBrowsePanel();
       }
     },
-    [track.uri, providerId, setProviderId, setSearchQuery, setSearchFilter, setDrillDown, isPhone, setMobileOverlay, openBrowsePanel],
+    [track.uri, setProviderId, setSearchQuery, setSearchFilter, setDrillDown, isPhone, setMobileOverlay, openBrowsePanel],
   );
 
   const handleClick = useCallback(
