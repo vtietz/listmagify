@@ -18,6 +18,8 @@ export async function GET() {
     availableProviders: getEnabledMusicProviders(),
     // Whether the background sync scheduler is enabled
     syncSchedulerEnabled: process.env.SYNC_SCHEDULER_ENABLED === 'true',
+    // Scheduler polling interval in milliseconds (defaults to 60s)
+    syncSchedulerTickMs: Number(process.env.SYNC_TICK_MS ?? 60_000),
     // User-configurable sync interval options for UI dropdowns
     syncIntervalOptions: serverEnv.SYNC_INTERVAL_OPTIONS,
   });

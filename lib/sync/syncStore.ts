@@ -26,6 +26,44 @@ const INTERVAL_MS: Record<SyncInterval, number> = {
   '24h': 24 * 60 * 60 * 1000,
 };
 
+interface PairMissingNextRunRow {
+  id: string;
+  syncInterval: SyncInterval;
+}
+
+function computeNextRunAt(interval: SyncInterval): string | null {
+  if (interval === 'off') return null;
+
+  const ms = INTERVAL_MS[interval];
+  if (!ms) return null;
+
+  const jitter = ms * 0.10 * (2 * Math.random() - 1);
+  return new Date(Date.now() + Math.round(ms + jitter)).toISOString();
+}
+
+function backfillMissingNextRunAt(): void {
+  const db = getRecsDb();
+  const rows = db.prepare(`
+    SELECT id, sync_interval AS syncInterval
+    FROM sync_pairs
+    WHERE sync_interval != 'off' AND next_run_at IS NULL
+  `).all() as PairMissingNextRunRow[];
+
+  if (rows.length === 0) return;
+
+  const update = db.prepare(`
+    UPDATE sync_pairs
+    SET next_run_at = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `);
+
+  for (const row of rows) {
+    const nextRunAt = computeNextRunAt(row.syncInterval);
+    if (!nextRunAt) continue;
+    update.run(nextRunAt, row.id);
+  }
+}
+
 // -----------------------------------------------------------------------------
 // SyncPair row mapper
 // -----------------------------------------------------------------------------
@@ -234,6 +272,8 @@ export function getSyncPairByPlaylists(
 }
 
 export function listSyncPairs(createdBy: string | string[]): SyncPair[] {
+  backfillMissingNextRunAt();
+
   const db = getRecsDb();
   const userIds = Array.isArray(createdBy) ? createdBy : [createdBy];
   if (userIds.length === 0) return [];
@@ -372,6 +412,8 @@ export function updateSyncPairInterval(id: string, interval: SyncInterval, creat
 }
 
 export function getDueSyncPairs(limit: number): SyncPair[] {
+  backfillMissingNextRunAt();
+
   const db = getRecsDb();
 
   const rows = db.prepare(`
@@ -379,9 +421,9 @@ export function getDueSyncPairs(limit: number): SyncPair[] {
     FROM sync_pairs
     WHERE sync_interval != 'off'
       AND next_run_at IS NOT NULL
-      AND next_run_at <= datetime('now')
+      AND datetime(next_run_at) <= datetime('now')
       AND consecutive_failures < 5
-    ORDER BY next_run_at ASC
+    ORDER BY datetime(next_run_at) ASC
     LIMIT ?
   `).all(limit) as SyncPairRow[];
 
@@ -400,8 +442,8 @@ export function advanceNextRunAt(id: string): void {
   const ms = INTERVAL_MS[row.sync_interval];
   if (ms === 0) return;
 
-  const jitter = ms * 0.10 * (2 * Math.random() - 1);
-  const nextRunAt = new Date(Date.now() + Math.round(ms + jitter)).toISOString();
+  const nextRunAt = computeNextRunAt(row.sync_interval);
+  if (!nextRunAt) return;
   db.prepare('UPDATE sync_pairs SET next_run_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(nextRunAt, id);
 }
 

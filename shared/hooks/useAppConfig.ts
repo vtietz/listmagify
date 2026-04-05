@@ -8,6 +8,7 @@ import type { SyncIntervalOption } from '@/lib/sync/types';
 interface AppConfigResponse {
   availableProviders?: MusicProviderId[];
   syncSchedulerEnabled?: boolean;
+  syncSchedulerTickMs?: number;
   syncIntervalOptions?: SyncIntervalOption[];
 }
 
@@ -44,4 +45,9 @@ export function useSyncIntervalOptions(): SyncIntervalOption[] {
   return config.syncIntervalOptions?.length
     ? config.syncIntervalOptions
     : [...DEFAULT_SYNC_INTERVAL_OPTIONS];
+}
+
+export function useSyncSchedulerTickMs(): number {
+  const config = useAppConfig();
+  return config.syncSchedulerTickMs ?? 60_000;
 }

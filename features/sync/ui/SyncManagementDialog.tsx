@@ -28,13 +28,13 @@ import {
 } from '@/components/ui/select';
 import { Play, Eye, Trash2, ArrowLeftRight, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useSyncIntervalOptions, useSyncSchedulerEnabled } from '@shared/hooks/useAppConfig';
+import { useSyncIntervalOptions, useSyncSchedulerEnabled, useSyncSchedulerTickMs } from '@shared/hooks/useAppConfig';
 import { useProposedSyncPairs } from '@features/sync/hooks/useProposedSyncPairs';
 import type { MusicProviderId } from '@/lib/music-provider/types';
 import type { SyncRunStatus } from '@/lib/sync/types';
 import { formatRelativeTime } from '@shared/utils/formatRelativeTime';
 
-const ROW_GRID = 'grid grid-cols-[1fr_auto_1fr_auto_auto] items-center gap-x-2';
+const ROW_GRID = 'grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_minmax(120px,auto)_auto] items-center gap-x-2';
 
 function buildPairConfig(pair: SyncPairWithRun) {
   return {
@@ -48,8 +48,7 @@ function buildPairConfig(pair: SyncPairWithRun) {
 }
 
 function isNextRunScheduled(pair: SyncPairWithRun, showScheduler: boolean): boolean {
-  if (!showScheduler || !pair.nextRunAt || pair.syncInterval === 'off') return false;
-  return formatRelativeTime(pair.nextRunAt).startsWith('in ');
+  return showScheduler && pair.syncInterval !== 'off';
 }
 
 function getDisplayedStatus(isSyncing: boolean, runStatus: SyncRunStatus | undefined): SyncRunStatus | undefined {
@@ -65,14 +64,38 @@ function LastSyncTimeLabel({ time }: { time: string }) {
 }
 
 function NextRunLabel({ nextRunAt }: { nextRunAt: string }) {
+  const relative = formatRelativeTime(nextRunAt);
+  const label = relative.startsWith('in ')
+    ? `next ${relative}`
+    : relative === 'just now'
+      ? 'due now'
+      : `due ${relative}`;
+
   return (
     <span
       className="text-[10px] text-muted-foreground whitespace-nowrap"
       title={`Next: ${nextRunAt}`}
     >
-      next {formatRelativeTime(nextRunAt)}
+      {label}
     </span>
   );
+}
+
+function NextRunMissingLabel() {
+  return (
+    <span
+      className="text-[10px] text-muted-foreground whitespace-nowrap"
+      title="Next run will be scheduled shortly"
+    >
+      next pending
+    </span>
+  );
+}
+
+function renderNextRunNode(showNextRun: boolean, nextRunAt: string | null) {
+  if (!showNextRun) return null;
+  if (!nextRunAt) return <NextRunMissingLabel />;
+  return <NextRunLabel nextRunAt={nextRunAt} />;
 }
 
 function SyncPairStatusCell({ pair, isSyncing, showScheduler, onShowResult }: {
@@ -87,14 +110,14 @@ function SyncPairStatusCell({ pair, isSyncing, showScheduler, onShowResult }: {
   const showNextRun = isNextRunScheduled(pair, showScheduler);
 
   return (
-    <div className="flex items-center gap-1.5 shrink-0">
+    <div className="flex items-center justify-end gap-1.5 shrink-0 text-right">
       <SyncRunStatusIcon
         status={getDisplayedStatus(isSyncing, pair.latestRun?.status)}
         hasWarnings={warningCount > 0}
         onClick={pair.latestRun ? onShowResult : undefined}
       />
       {showLastSync && <LastSyncTimeLabel time={lastSyncTime} />}
-      {showNextRun && <NextRunLabel nextRunAt={pair.nextRunAt!} />}
+      {renderNextRunNode(showNextRun, pair.nextRunAt)}
     </div>
   );
 }
@@ -237,6 +260,8 @@ export function SyncManagementDialog() {
   const { data: pairs, isLoading } = useSyncPairs(isManagementOpen);
   const proposedPairs = useProposedSyncPairs(pairs);
   const schedulerEnabled = useSyncSchedulerEnabled();
+  const schedulerTickMs = useSyncSchedulerTickMs();
+  const schedulerTickSec = Math.max(1, Math.round(schedulerTickMs / 1000));
   const [overlayEl, setOverlayEl] = useState<HTMLDivElement | null>(null);
   const overlayRef = useCallback((node: HTMLDivElement | null) => { setOverlayEl(node); }, []);
 
@@ -277,6 +302,11 @@ export function SyncManagementDialog() {
               <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
                 Saved sync pairs
               </h3>
+              {schedulerEnabled && (
+                <p className="text-[10px] text-muted-foreground">
+                  Scheduler checks due pairs about every {schedulerTickSec}s.
+                </p>
+              )}
               {pairs.map((pair: SyncPairWithRun) => (
                 <SyncPairRowWithAuth key={pair.id} pair={pair} showScheduler={schedulerEnabled} />
               ))}
