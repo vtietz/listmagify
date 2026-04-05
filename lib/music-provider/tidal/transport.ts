@@ -173,8 +173,10 @@ async function executeWithSdk(
   }
 
   const headers = new Headers(response.headers);
-  const data = (result as { data?: unknown }).data;
-  const body = data === undefined ? null : JSON.stringify(data);
+  const payload = response.ok
+    ? (result as { data?: unknown }).data
+    : (result as { error?: unknown }).error;
+  const body = payload === undefined ? null : JSON.stringify(payload);
 
   return new Response(body, {
     status: response.status,
