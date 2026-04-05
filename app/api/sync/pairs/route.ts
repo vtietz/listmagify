@@ -4,12 +4,104 @@ import { ok, created, badRequest, fromError } from '@/app/api/_shared/http';
 import { parseMusicProviderId } from '@/lib/music-provider';
 import { createSyncPair, listSyncPairs, getLatestSyncRun } from '@/lib/sync/syncStore';
 import { getAllSessionUserIds, getCreatorUserId, getProviderUserIds } from '@/lib/auth/sessionUserIds';
-import type { SyncDirection } from '@/lib/sync/types';
+import { serverEnv } from '@/lib/env';
+import type { SyncDirection, SyncInterval } from '@/lib/sync/types';
 
 const VALID_DIRECTIONS = new Set<SyncDirection>(['a-to-b', 'b-to-a', 'bidirectional']);
 
 function isValidDirection(value: unknown): value is SyncDirection {
   return typeof value === 'string' && VALID_DIRECTIONS.has(value as SyncDirection);
+}
+
+type CreateSyncPairBody = {
+  sourceProvider: string;
+  sourcePlaylistId: string;
+  sourcePlaylistName: string;
+  targetProvider: string;
+  targetPlaylistId: string;
+  targetPlaylistName: string;
+  direction: SyncDirection;
+  autoSync?: boolean;
+  syncInterval: SyncInterval;
+};
+
+const REQUIRED_FIELDS = [
+  'sourceProvider',
+  'sourcePlaylistId',
+  'targetProvider',
+  'targetPlaylistId',
+  'direction',
+] as const;
+
+function hasMissingRequiredFields(body: Record<string, unknown>): boolean {
+  return REQUIRED_FIELDS.some((field) => !body[field]);
+}
+
+function normalizeSyncInterval(value: unknown): SyncInterval | null {
+  const syncInterval = value === undefined ? 'off' : String(value);
+  const validIntervals: Set<string> = new Set(['off', ...serverEnv.SYNC_INTERVAL_OPTIONS]);
+  return validIntervals.has(syncInterval) ? (syncInterval as SyncInterval) : null;
+}
+
+function normalizeAutoSync(value: unknown): boolean | undefined | null {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (typeof value !== 'boolean') {
+    return null;
+  }
+
+  return value;
+}
+
+function normalizeCreateSyncPairBody(rawBody: unknown): { error: string } | { value: CreateSyncPairBody } {
+  const body = (rawBody ?? {}) as Record<string, unknown>;
+
+  if (hasMissingRequiredFields(body)) {
+    return {
+      error: 'Missing required fields: sourceProvider, sourcePlaylistId, targetProvider, targetPlaylistId, direction',
+    };
+  }
+
+  if (!isValidDirection(body.direction)) {
+    return {
+      error: `Invalid direction: ${String(body.direction)}. Must be one of: a-to-b, b-to-a, bidirectional`,
+    };
+  }
+
+  const sourceProvider = String(body.sourceProvider);
+  const targetProvider = String(body.targetProvider);
+
+  if (sourceProvider === targetProvider) {
+    return { error: 'Sync requires two different providers' };
+  }
+
+  const syncInterval = normalizeSyncInterval(body.syncInterval);
+  if (!syncInterval) {
+    return { error: 'Invalid syncInterval' };
+  }
+
+  const autoSync = normalizeAutoSync(body.autoSync);
+  if (autoSync === null) {
+    return { error: 'autoSync must be a boolean' };
+  }
+
+  const normalizedBody: CreateSyncPairBody = {
+    sourceProvider,
+    sourcePlaylistId: String(body.sourcePlaylistId),
+    sourcePlaylistName: String(body.sourcePlaylistName ?? ''),
+    targetProvider,
+    targetPlaylistId: String(body.targetPlaylistId),
+    targetPlaylistName: String(body.targetPlaylistName ?? ''),
+    direction: body.direction,
+    syncInterval,
+    ...(autoSync === undefined ? {} : { autoSync }),
+  };
+
+  return {
+    value: normalizedBody,
+  };
 }
 
 /**
@@ -43,31 +135,26 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const session = await assertAuthenticated();
+    const parsedBody = normalizeCreateSyncPairBody(await request.json());
 
-    const body = await request.json();
-
-    if (!body.sourceProvider || !body.sourcePlaylistId || !body.targetProvider || !body.targetPlaylistId || !body.direction) {
-      return badRequest('Missing required fields: sourceProvider, sourcePlaylistId, targetProvider, targetPlaylistId, direction');
+    if ('error' in parsedBody) {
+      return badRequest(parsedBody.error);
     }
 
-    if (!isValidDirection(body.direction)) {
-      return badRequest(`Invalid direction: ${body.direction}. Must be one of: a-to-b, b-to-a, bidirectional`);
-    }
-
-    if (body.sourceProvider === body.targetProvider) {
-      return badRequest('Sync requires two different providers');
-    }
+    const body = parsedBody.value;
 
     const pair = createSyncPair({
       sourceProvider: parseMusicProviderId(body.sourceProvider),
-      sourcePlaylistId: String(body.sourcePlaylistId),
-      sourcePlaylistName: String(body.sourcePlaylistName ?? ''),
+      sourcePlaylistId: body.sourcePlaylistId,
+      sourcePlaylistName: body.sourcePlaylistName,
       targetProvider: parseMusicProviderId(body.targetProvider),
-      targetPlaylistId: String(body.targetPlaylistId),
-      targetPlaylistName: String(body.targetPlaylistName ?? ''),
-      direction: body.direction as SyncDirection,
+      targetPlaylistId: body.targetPlaylistId,
+      targetPlaylistName: body.targetPlaylistName,
+      direction: body.direction,
       createdBy: getCreatorUserId(session),
       providerUserIds: getProviderUserIds(session),
+      syncInterval: body.syncInterval,
+      ...(body.autoSync === undefined ? {} : { autoSync: body.autoSync }),
     });
 
     return created({ pair });

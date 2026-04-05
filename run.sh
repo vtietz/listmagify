@@ -12,7 +12,7 @@ Commands:
   install         Install dependencies
   test            Run unit tests
   test-e2e        Run e2e tests (Playwright, spins up test stack automatically)
-  quality         Run code quality checks (typecheck, lint, LOC, complexity)
+  quality         Run code quality checks (changed files by default, use --all for full gate)
   exec            Run command in container (e.g., exec pnpm add package)
   compose         Run docker compose command (e.g., compose logs -f)
   init-env        Create .env from .env.example
@@ -36,6 +36,7 @@ Examples:
   ./run.sh test-e2e
   ./run.sh test-e2e -- --project=chromium
   ./run.sh quality
+  ./run.sh quality --all
   ./run.sh test -- --watch
   ./run.sh exec pnpm add lodash
   ./run.sh compose logs -f
@@ -102,34 +103,87 @@ case "${1:-}" in
     ;;
   quality)
     shift
-    docker compose --env-file .env -f docker/docker-compose.yml run --rm web sh -lc "
+    QUALITY_MODE="changed"
+    if [ "${1:-}" = "--all" ]; then
+      QUALITY_MODE="all"
+      shift
+    fi
+    if [ "$#" -ne 0 ]; then
+      echo "Unknown argument(s) for quality: $*"
+      echo "Usage: ./run.sh quality [--all]"
+      exit 1
+    fi
+
+    docker compose --env-file .env -f docker/docker-compose.yml run --rm -e QUALITY_MODE="$QUALITY_MODE" web sh -lc "
       set +e
-      pnpm typecheck
-      TYPECHECK_EXIT=\$?
-      pnpm lint
-      LINT_EXIT=\$?
+
+      MODE=\${QUALITY_MODE:-changed}
+
+      if command -v git >/dev/null 2>&1 && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        if [ \"\$MODE\" = 'all' ]; then
+          TARGET_FILES=\$(git ls-files '*.ts' '*.tsx' '*.js' '*.jsx')
+        else
+          TARGET_FILES=\$(
+            {
+              git diff --name-only --diff-filter=ACMR
+              git diff --name-only --cached --diff-filter=ACMR
+              git ls-files --others --exclude-standard
+            } \
+              | sed '/^$/d' \
+              | grep -E '\\.(ts|tsx|js|jsx)\$' \
+              | sort -u \
+              | while IFS= read -r file; do
+                  [ -f \"\$file\" ] && printf '%s\\n' \"\$file\"
+                done
+          )
+        fi
+      else
+        echo '[quality] git not found in container, using find fallback'
+        TARGET_FILES=\$(find app components hooks lib tests types scripts features shared widgets -type f \
+          \( -name '*.ts' -o -name '*.tsx' -o -name '*.js' -o -name '*.jsx' \) 2>/dev/null)
+      fi
+
+      TARGET_COUNT=\$(printf '%s\\n' \"\$TARGET_FILES\" | sed '/^$/d' | wc -l)
+
+      if [ \"\$MODE\" = 'changed' ] && [ \"\$TARGET_COUNT\" -eq 0 ]; then
+        echo '[quality] Mode: changed files (default)'
+        echo '[quality] No changed source files detected.'
+        exit 0
+      fi
+
+      if [ \"\$MODE\" = 'all' ]; then
+        echo '[quality] Mode: all files (--all)'
+        pnpm typecheck
+        TYPECHECK_EXIT=\$?
+      else
+        echo '[quality] Mode: changed files (default)'
+        echo '[quality] Skipping full typecheck in changed-files mode. Run ./run.sh quality --all before finishing.'
+        TYPECHECK_EXIT=0
+      fi
+
+      if [ \"\$TARGET_COUNT\" -gt 0 ]; then
+        printf '%s\\n' \"\$TARGET_FILES\" | sed '/^$/d' | xargs -r pnpm exec eslint
+        LINT_EXIT=\$?
+      else
+        LINT_EXIT=0
+      fi
 
       echo ''
       echo '[quality] Code metrics'
-      if command -v git >/dev/null 2>&1 && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-        FILES=\$(git ls-files '*.ts' '*.tsx' '*.js' '*.jsx' | wc -l)
-        LOC=\$(git ls-files '*.ts' '*.tsx' '*.js' '*.jsx' | xargs -r wc -l | tail -n1 | awk '{print \$1}')
+      FILES=\$TARGET_COUNT
+      if [ \"\$FILES\" -gt 0 ]; then
+        LOC=\$(printf '%s\\n' \"\$TARGET_FILES\" | sed '/^$/d' | xargs -r wc -l | tail -n1 | awk '{print \$1}')
       else
-        echo '[quality] git not found in container, using find fallback'
-        FILE_LIST=\$(find app components hooks lib tests types scripts -type f \( -name '*.ts' -o -name '*.tsx' -o -name '*.js' -o -name '*.jsx' \) 2>/dev/null)
-        FILES=\$(printf '%s\n' "\$FILE_LIST" | sed '/^$/d' | wc -l)
-        if [ "\$FILES" -gt 0 ]; then
-          LOC=\$(printf '%s\n' "\$FILE_LIST" | sed '/^$/d' | xargs -r wc -l | tail -n1 | awk '{print \$1}')
-        else
-          LOC=0
-        fi
+        LOC=0
       fi
       echo \"[quality] Source files: \$FILES\"
       echo \"[quality] Total LOC (ts/js): \$LOC\"
 
       echo ''
       echo '[quality] Complexity check (cyclomatic complexity > 12)'
-      pnpm exec eslint . --rule 'complexity: [warn, 12]' --format stylish || true
+      if [ \"\$TARGET_COUNT\" -gt 0 ]; then
+        printf '%s\\n' \"\$TARGET_FILES\" | sed '/^$/d' | xargs -r pnpm exec eslint --rule 'complexity: [warn, 12]' --format stylish || true
+      fi
 
       echo ''
       echo \"[quality] typecheck exit code: \$TYPECHECK_EXIT\"

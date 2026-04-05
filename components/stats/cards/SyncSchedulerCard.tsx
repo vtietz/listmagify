@@ -363,6 +363,115 @@ function SyncPairRow({
   );
 }
 
+function SyncSchedulerHeader({
+  data,
+  workerEnabled,
+  providerStats,
+}: {
+  data: SyncSchedulerCardProps['data'];
+  workerEnabled: boolean | undefined;
+  providerStats: ProviderDirectionStats[];
+}) {
+  return (
+    <CardHeader>
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <CardTitle className="flex items-center gap-2">
+          <RefreshCw className="h-4 w-4" />
+          Sync Scheduler
+        </CardTitle>
+        {workerEnabled !== undefined && (
+          <span
+            className={cn(
+              'text-xs px-2 py-0.5 rounded-full',
+              workerEnabled
+                ? 'bg-green-100 text-green-800 dark:bg-green-950/30 dark:text-green-400'
+                : 'bg-red-100 text-red-800 dark:bg-red-950/30 dark:text-red-400',
+            )}
+          >
+            {workerEnabled ? 'Enabled' : 'Disabled'}
+          </span>
+        )}
+      </div>
+      {data && (
+        <>
+          <div className="grid grid-cols-4 gap-3 mt-3">
+            <KpiBox label="Total" value={data.totalPairs} colorClass="text-foreground" />
+            <KpiBox label="Active" value={data.activePairs} colorClass="text-green-500" />
+            <KpiBox label="Failing" value={data.failingPairs} colorClass="text-red-500" />
+            <KpiBox label="Disabled" value={data.disabledPairs} colorClass="text-muted-foreground" />
+          </div>
+          {providerStats.length > 0 && (
+            <div className="mt-3 space-y-1.5">
+              {providerStats.map((stats) => (
+                <ProviderStatsRow key={stats.direction} stats={stats} />
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </CardHeader>
+  );
+}
+
+function SyncSchedulerTable({
+  data,
+  isLoading,
+  effectiveExpandedId,
+  now,
+  onToggle,
+  onUserClick,
+}: {
+  data: SyncSchedulerCardProps['data'];
+  isLoading: boolean;
+  effectiveExpandedId: string | null;
+  now: number;
+  onToggle: (pairId: string) => void;
+  onUserClick: (pair: SyncPair) => void;
+}) {
+  if (isLoading) {
+    return <div className="py-8 text-center text-muted-foreground">Loading...</div>;
+  }
+
+  if (!data || data.pairs.length === 0) {
+    return (
+      <div className="py-8 text-center text-muted-foreground text-sm">
+        No sync pairs configured
+      </div>
+    );
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="border-b text-muted-foreground">
+            <th className="px-3 py-2 text-left w-8"></th>
+            <th className="px-3 py-2 text-left">Direction</th>
+            <th className="px-3 py-2 text-left">Interval</th>
+            <th className="px-3 py-2 text-left">Last Run</th>
+            <th className="px-3 py-2 text-left">Failures</th>
+            <th className="px-3 py-2 text-left">Unresolved</th>
+            <th className="px-3 py-2 text-left">Next Run</th>
+            <th className="px-3 py-2 text-left">Owner</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.pairs.map((pair) => (
+            <SyncPairRow
+              key={pair.id}
+              pair={pair}
+              expanded={effectiveExpandedId === pair.id}
+              onToggle={() => onToggle(pair.id)}
+              onUserClick={onUserClick}
+              now={now}
+            />
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export function SyncSchedulerCard({ data, workerEnabled, isLoading }: SyncSchedulerCardProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [hasInteracted, setHasInteracted] = useState(false);
@@ -380,83 +489,19 @@ export function SyncSchedulerCard({ data, workerEnabled, isLoading }: SyncSchedu
   return (
     <>
       <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <CardTitle className="flex items-center gap-2">
-              <RefreshCw className="h-4 w-4" />
-              Sync Scheduler
-            </CardTitle>
-            {workerEnabled !== undefined && (
-              <span
-                className={cn(
-                  'text-xs px-2 py-0.5 rounded-full',
-                  workerEnabled
-                    ? 'bg-green-100 text-green-800 dark:bg-green-950/30 dark:text-green-400'
-                    : 'bg-red-100 text-red-800 dark:bg-red-950/30 dark:text-red-400',
-                )}
-              >
-                {workerEnabled ? 'Enabled' : 'Disabled'}
-              </span>
-            )}
-          </div>
-          {data && (
-            <>
-              <div className="grid grid-cols-4 gap-3 mt-3">
-                <KpiBox label="Total" value={data.totalPairs} colorClass="text-foreground" />
-                <KpiBox label="Active" value={data.activePairs} colorClass="text-green-500" />
-                <KpiBox label="Failing" value={data.failingPairs} colorClass="text-red-500" />
-                <KpiBox label="Disabled" value={data.disabledPairs} colorClass="text-muted-foreground" />
-              </div>
-              {providerStats.length > 0 && (
-                <div className="mt-3 space-y-1.5">
-                  {providerStats.map((stats) => (
-                    <ProviderStatsRow key={stats.direction} stats={stats} />
-                  ))}
-                </div>
-              )}
-            </>
-          )}
-        </CardHeader>
+        <SyncSchedulerHeader data={data} workerEnabled={workerEnabled} providerStats={providerStats} />
         <CardContent>
-          {isLoading ? (
-            <div className="py-8 text-center text-muted-foreground">Loading...</div>
-          ) : !data || data.pairs.length === 0 ? (
-            <div className="py-8 text-center text-muted-foreground text-sm">
-              No sync pairs configured
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b text-muted-foreground">
-                    <th className="px-3 py-2 text-left w-8"></th>
-                    <th className="px-3 py-2 text-left">Direction</th>
-                    <th className="px-3 py-2 text-left">Interval</th>
-                    <th className="px-3 py-2 text-left">Last Run</th>
-                    <th className="px-3 py-2 text-left">Failures</th>
-                    <th className="px-3 py-2 text-left">Unresolved</th>
-                    <th className="px-3 py-2 text-left">Next Run</th>
-                    <th className="px-3 py-2 text-left">Owner</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.pairs.map((pair) => (
-                    <SyncPairRow
-                      key={pair.id}
-                      pair={pair}
-                      expanded={effectiveExpandedId === pair.id}
-                      onToggle={() => {
-                        setHasInteracted(true);
-                        setExpandedId((prev) => prev === pair.id ? null : pair.id);
-                      }}
-                      onUserClick={setSelectedPair}
-                      now={now}
-                    />
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <SyncSchedulerTable
+            data={data}
+            isLoading={isLoading}
+            effectiveExpandedId={effectiveExpandedId}
+            now={now}
+            onToggle={(pairId) => {
+              setHasInteracted(true);
+              setExpandedId((prev) => prev === pairId ? null : pairId);
+            }}
+            onUserClick={setSelectedPair}
+          />
         </CardContent>
       </Card>
 

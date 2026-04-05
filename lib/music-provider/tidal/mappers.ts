@@ -107,13 +107,36 @@ function asRecord(value: unknown): UnknownRecord | null {
   return value as UnknownRecord;
 }
 
+function mapImageFromStringCandidate(candidate: string): Image {
+  if (TIDAL_UUID_PATTERN.test(candidate)) {
+    return { url: buildTidalImageUrl(candidate), width: 640, height: 640 };
+  }
+
+  return { url: candidate, width: null, height: null };
+}
+
+function mapImageFromRecordCandidate(record: UnknownRecord): Image | null {
+  const meta = asRecord(record.meta);
+  const url = asOptionalString(record.href) ?? asOptionalString(record.url) ?? asOptionalString(record.src);
+  if (url) {
+    return {
+      url,
+      width: asOptionalNumber(record.width) ?? asOptionalNumber(meta?.width),
+      height: asOptionalNumber(record.height) ?? asOptionalNumber(meta?.height),
+    };
+  }
+
+  const imageId = asOptionalString(record.id) ?? asOptionalString(record.uuid);
+  if (imageId && TIDAL_UUID_PATTERN.test(imageId)) {
+    return { url: buildTidalImageUrl(imageId), width: 640, height: 640 };
+  }
+
+  return null;
+}
+
 function mapImageFromCandidate(candidate: unknown): Image | null {
   if (typeof candidate === 'string' && candidate.length > 0) {
-    if (TIDAL_UUID_PATTERN.test(candidate)) {
-      return { url: buildTidalImageUrl(candidate), width: 640, height: 640 };
-    }
-
-    return { url: candidate, width: null, height: null };
+    return mapImageFromStringCandidate(candidate);
   }
 
   const record = asRecord(candidate);
@@ -121,22 +144,7 @@ function mapImageFromCandidate(candidate: unknown): Image | null {
     return null;
   }
 
-  const meta = asRecord(record.meta);
-  const url = asOptionalString(record.href) ?? asOptionalString(record.url) ?? asOptionalString(record.src);
-  if (!url) {
-    const imageId = asOptionalString(record.id) ?? asOptionalString(record.uuid);
-    if (imageId && TIDAL_UUID_PATTERN.test(imageId)) {
-      return { url: buildTidalImageUrl(imageId), width: 640, height: 640 };
-    }
-
-    return null;
-  }
-
-  return {
-    url,
-    width: asOptionalNumber(record.width) ?? asOptionalNumber(meta?.width),
-    height: asOptionalNumber(record.height) ?? asOptionalNumber(meta?.height),
-  };
+  return mapImageFromRecordCandidate(record);
 }
 
 function getPrimaryFile(resource: JsonApiResource | null): JsonApiFile | null {

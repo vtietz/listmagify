@@ -229,7 +229,15 @@ if "%1"=="test" (
   goto :eof
 )
 if "%1"=="quality" (
-  docker compose -f docker\docker-compose.yml run --rm web sh -lc "set +e; pnpm typecheck; TYPECHECK_EXIT=\$?; pnpm lint; LINT_EXIT=\$?; echo ''; echo '[quality] Code metrics'; FILES=\$(git ls-files '*.ts' '*.tsx' '*.js' '*.jsx' ^| wc -l); LOC=\$(git ls-files '*.ts' '*.tsx' '*.js' '*.jsx' ^| xargs -r wc -l ^| tail -n1 ^| awk '{print \$1}'); echo \"[quality] Source files: \$FILES\"; echo \"[quality] Total LOC (ts/js): \$LOC\"; echo ''; echo '[quality] Complexity check (cyclomatic complexity ^> 12)'; pnpm exec eslint . --rule 'complexity: [warn, 12]' --format stylish ^|^| true; echo ''; echo \"[quality] typecheck exit code: \$TYPECHECK_EXIT\"; echo \"[quality] lint exit code: \$LINT_EXIT\"; if [ \$TYPECHECK_EXIT -ne 0 ] ^|^| [ \$LINT_EXIT -ne 0 ]; then exit 1; fi"
+  set "QUALITY_MODE=changed"
+  if /I "%2"=="--all" (
+    set "QUALITY_MODE=all"
+  ) else if not "%2"=="" (
+    echo Unknown argument(s) for quality: %2 %3 %4 %5 %6 %7 %8 %9
+    echo Usage: run.bat quality [--all]
+    goto :eof
+  )
+  docker compose -f docker\docker-compose.yml run --rm -e QUALITY_MODE=%QUALITY_MODE% web sh -lc "set +e; MODE=\${QUALITY_MODE:-changed}; if command -v git ^>/dev/null 2^>^&1 ^&^& git rev-parse --is-inside-work-tree ^>/dev/null 2^>^&1; then if [ \"\$MODE\" = 'all' ]; then TARGET_FILES=\$(git ls-files '*.ts' '*.tsx' '*.js' '*.jsx'); else TARGET_FILES=\$({ git diff --name-only --diff-filter=ACMR; git diff --name-only --cached --diff-filter=ACMR; git ls-files --others --exclude-standard; } ^| sed '/^$/d' ^| grep -E '\\.(ts^|tsx^|js^|jsx)\$' ^| sort -u ^| while IFS= read -r file; do [ -f \"\$file\" ] ^&^& printf '%s\\n' \"\$file\"; done); fi; else echo '[quality] git not found in container, using find fallback'; TARGET_FILES=\$(find app components hooks lib tests types scripts features shared widgets -type f \( -name '*.ts' -o -name '*.tsx' -o -name '*.js' -o -name '*.jsx' \) 2^>/dev/null); fi; TARGET_COUNT=\$(printf '%s\\n' \"\$TARGET_FILES\" ^| sed '/^$/d' ^| wc -l); if [ \"\$MODE\" = 'changed' ] ^&^& [ \"\$TARGET_COUNT\" -eq 0 ]; then echo '[quality] Mode: changed files (default)'; echo '[quality] No changed source files detected.'; exit 0; fi; if [ \"\$MODE\" = 'all' ]; then echo '[quality] Mode: all files (--all)'; pnpm typecheck; TYPECHECK_EXIT=\$?; else echo '[quality] Mode: changed files (default)'; echo '[quality] Skipping full typecheck in changed-files mode. Run ./run.sh quality --all before finishing.'; TYPECHECK_EXIT=0; fi; if [ \"\$TARGET_COUNT\" -gt 0 ]; then printf '%s\\n' \"\$TARGET_FILES\" ^| sed '/^$/d' ^| xargs -r pnpm exec eslint; LINT_EXIT=\$?; else LINT_EXIT=0; fi; echo ''; echo '[quality] Code metrics'; FILES=\$TARGET_COUNT; if [ \"\$FILES\" -gt 0 ]; then LOC=\$(printf '%s\\n' \"\$TARGET_FILES\" ^| sed '/^$/d' ^| xargs -r wc -l ^| tail -n1 ^| awk '{print \$1}'); else LOC=0; fi; echo \"[quality] Source files: \$FILES\"; echo \"[quality] Total LOC (ts/js): \$LOC\"; echo ''; echo '[quality] Complexity check (cyclomatic complexity ^> 12)'; if [ \"\$TARGET_COUNT\" -gt 0 ]; then printf '%s\\n' \"\$TARGET_FILES\" ^| sed '/^$/d' ^| xargs -r pnpm exec eslint --rule 'complexity: [warn, 12]' --format stylish ^|^| true; fi; echo ''; echo \"[quality] typecheck exit code: \$TYPECHECK_EXIT\"; echo \"[quality] lint exit code: \$LINT_EXIT\"; if [ \$TYPECHECK_EXIT -ne 0 ] ^|^| [ \$LINT_EXIT -ne 0 ]; then exit 1; fi"
   goto :eof
 )
 
@@ -256,7 +264,7 @@ echo   run.bat up                - Start dev server (docker compose up)
 echo   run.bat down              - Stop dev server (docker compose down)
 echo   run.bat install           - Install dependencies
 echo   run.bat test [args]       - Run tests
-echo   run.bat quality           - Run typecheck, lint, LOC, complexity
+echo   run.bat quality [--all]   - Run quality (changed files default, --all full gate)
 echo   run.bat exec ^<cmd^>       - Run command in web container
 echo   run.bat compose ^<cmd^>    - Run docker compose command
 echo   run.bat init-env          - Create .env from .env.example

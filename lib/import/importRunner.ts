@@ -7,6 +7,7 @@ import {
 } from './importStore';
 import { createBackgroundProvider } from '@/lib/sync/backgroundProvider';
 import { createSyncPair } from '@/lib/sync/syncStore';
+import type { SyncInterval } from '@/lib/sync/types';
 import { fetchFullPlaylistTracks, canonicalizeSnapshot } from '@/lib/sync/snapshot';
 import { createSyncMaterializeAdapter } from '@/lib/sync/materializeAdapter';
 import { materializeCanonicalTrackIds } from '@/lib/recs/materialize';
@@ -226,6 +227,7 @@ function createSyncPairsForJob(
   sourceProviderId: MusicProviderId,
   targetProviderId: MusicProviderId,
   createdBy: string,
+  syncInterval: SyncInterval,
   providerUserIds: Record<string, string>,
 ): void {
   for (const playlist of playlists) {
@@ -250,6 +252,8 @@ function createSyncPairsForJob(
           targetPlaylistName: targetName,
           direction: 'a-to-b',
           createdBy,
+          autoSync: syncInterval !== 'off',
+          syncInterval,
           providerUserIds,
         });
         console.debug('[import/runner] sync pair created', {
@@ -341,7 +345,15 @@ export async function executeImportJob(jobId: string): Promise<void> {
 
   // Create sync pairs for successfully imported playlists if requested
   if (updatedJob?.createSyncPair) {
-    createSyncPairsForJob(jobId, updatedPlaylists, sourceProviderId, targetProviderId, job.createdBy, providers.providerUserIds);
+    createSyncPairsForJob(
+      jobId,
+      updatedPlaylists,
+      sourceProviderId,
+      targetProviderId,
+      job.createdBy,
+      updatedJob.syncInterval as SyncInterval,
+      providers.providerUserIds,
+    );
   }
 
   // If at least one non-cancelled playlist did not completely fail, mark as done.

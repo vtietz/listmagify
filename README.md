@@ -169,7 +169,8 @@ All commands run inside Docker:
 | Start dev server | `./run.sh up` |
 | Stop dev server | `./run.sh down` |
 | Run unit tests | `./run.sh test` |
-| Run code quality checks | `./run.sh quality` |
+| Run code quality checks (changed files) | `./run.sh quality` |
+| Run full quality gate (all files) | `./run.sh quality --all` |
 | Run test in watch mode | `./run.sh test -- --watch` |
 | Start local production preview | `./run.sh preview-up [--no-cache]` |
 | Stop local production preview | `./run.sh preview-down` |

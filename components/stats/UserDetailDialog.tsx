@@ -39,6 +39,58 @@ interface UserProfile {
   };
 }
 
+async function fetchUserProfile(userId: string): Promise<UserProfile | null> {
+  const res = await fetch('/api/stats/user-profiles', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userIds: [userId] }),
+  });
+
+  if (!res.ok) {
+    return null;
+  }
+
+  const json = await res.json();
+  return json.data?.[0] as UserProfile | null;
+}
+
+function useUserProfile(userId: string | null, open: boolean) {
+  return useQuery({
+    queryKey: ['user-profile', userId],
+    queryFn: async () => (userId ? fetchUserProfile(userId) : null),
+    enabled: open && !!userId,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+function getActivityStats(props: {
+  eventCount: number | undefined;
+  tracksAdded: number | undefined;
+  tracksRemoved: number | undefined;
+  lastActive: string | undefined;
+}): {
+  eventCount: number;
+  tracksAdded: number;
+  tracksRemoved: number;
+  lastActive: string;
+} | null {
+  if (
+    props.eventCount === undefined
+    || props.tracksAdded === undefined
+    || props.tracksRemoved === undefined
+    || props.lastActive === undefined
+  ) {
+    return null;
+  }
+
+  return {
+    eventCount: props.eventCount,
+    tracksAdded: props.tracksAdded,
+    tracksRemoved: props.tracksRemoved,
+    lastActive: props.lastActive,
+  };
+}
+
 function formatDate(value: string | null): string {
   if (!value) {
     return 'N/A';
@@ -384,27 +436,17 @@ export function UserDetailDialog({
 }: UserDetailDialogProps) {
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
-  // Fetch user profile from Spotify API on-demand
-  const { data: profileData, isLoading } = useQuery({
-    queryKey: ['user-profile', userId],
-    queryFn: async () => {
-      if (!userId) return null;
-      const res = await fetch('/api/stats/user-profiles', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userIds: [userId] }),
-      });
-      if (!res.ok) return null;
-      const json = await res.json();
-      return json.data?.[0] as UserProfile | null;
-    },
-    enabled: open && !!userId,
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
-  });
+  const { data: profileData, isLoading } = useUserProfile(userId, open);
 
   const profile = profileData;
   const displayName = profile?.displayName || userId || 'Unknown User';
   const spotifyUrl = profile?.external_urls?.spotify;
+  const activityStats = getActivityStats({
+    eventCount,
+    tracksAdded,
+    tracksRemoved,
+    lastActive,
+  });
 
   const copyToClipboard = async (text: string, fieldName: string) => {
     try {
@@ -446,12 +488,12 @@ export function UserDetailDialog({
             />
           </div>
 
-          {eventCount !== undefined && tracksAdded !== undefined && tracksRemoved !== undefined && lastActive !== undefined && (
+          {activityStats && (
             <ActivityStatsSection
-              eventCount={eventCount}
-              tracksAdded={tracksAdded}
-              tracksRemoved={tracksRemoved}
-              lastActive={lastActive}
+              eventCount={activityStats.eventCount}
+              tracksAdded={activityStats.tracksAdded}
+              tracksRemoved={activityStats.tracksRemoved}
+              lastActive={activityStats.lastActive}
               firstLoginAt={firstLoginAt ?? null}
             />
           )}

@@ -16,7 +16,8 @@ All development runs inside Docker. Never run `pnpm`, `node`, or `npm` directly 
 | Start dev server | `./run.sh up` |
 | Stop dev server | `./run.sh down` |
 | Run unit tests | `./run.sh test` |
-| Run quality checks (lint + typecheck) | `./run.sh quality` |
+| Run quality checks (changed files, fast loop) | `./run.sh quality` |
+| Run full quality gate (all files) | `./run.sh quality --all` |
 | Run tests in watch mode | `./run.sh test -- --watch` |
 | Run a single test file | `./run.sh exec pnpm vitest --run <path/to/file>.test.ts` |
 | Type check | `./run.sh exec pnpm typecheck` |
@@ -25,7 +26,7 @@ All development runs inside Docker. Never run `pnpm`, `node`, or `npm` directly 
 | Run arbitrary command | `./run.sh exec <cmd>` |
 | E2E tests | `./run.sh test-e2e` |
 
-**Quality gate**: A task is not complete until `./run.sh quality` passes.
+**Quality gate**: Use `./run.sh quality` for iterative checks; a task is not complete until `./run.sh quality --all` passes.
 
 ## Architecture
 

@@ -1,4 +1,4 @@
-- ---
+---
 name: architect
 description: Software architect for planning implementations. Analyzes requirements, identifies affected files, designs approach, and produces step-by-step implementation plans. Use this agent FIRST before coding.
 tools:
@@ -25,6 +25,7 @@ You are a software architect for the Listmagify codebase. Your job is to analyze
    - Files to create/modify/delete (with full paths)
    - For each file: what changes are needed and why
    - Testing strategy: which tests to add/update
+    - Validation strategy: use `./run.sh quality` for iterative changed-files checks and `./run.sh quality --all` for the final gate
    - Risks or trade-offs worth noting
 
 ## Architecture Rules (from project conventions)

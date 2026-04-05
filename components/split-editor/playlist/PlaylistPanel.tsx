@@ -28,6 +28,8 @@ import {
 import { SaveOrderDialog } from '../panel/SaveOrderDialog';
 import { cn } from '@/lib/utils';
 import type { Track } from '@/lib/music-provider/types';
+import { getActivePlayPosition, resolvePlayingPanelState } from './playlistPanelPlayback';
+import { MoveProgressBar } from './MoveProgressBar';
 
 interface PlaylistPanelProps {
   panelId: string;
@@ -57,84 +59,6 @@ function getPlaylistPanelClassName({
     : isPlayingPanel
       ? 'flex flex-col h-full border-2 rounded-lg overflow-hidden transition-all border-green-500 shadow-[0_0_10px_rgba(34,197,94,0.3)]'
       : 'flex flex-col h-full border-2 rounded-lg overflow-hidden transition-all border-border bg-card';
-}
-
-function getActivePlayPosition({
-  isPlayingPanel,
-  playbackState,
-  filteredTracks,
-}: {
-  isPlayingPanel: boolean;
-  playbackState: ReturnType<typeof usePlayerStore.getState>['playbackState'];
-  filteredTracks: Track[];
-}) {
-  if (!isPlayingPanel || !playbackState?.isPlaying || !playbackState.track?.id) {
-    return -1;
-  }
-  const activeTrackIndex = filteredTracks.findIndex((track) => track.id === playbackState.track?.id);
-  return filteredTracks[activeTrackIndex]?.position ?? activeTrackIndex;
-}
-
-function hasPlayingTrackInPanel({
-  filteredTracks,
-  isTrackPlaying,
-}: {
-  filteredTracks: Track[];
-  isTrackPlaying: (trackId: string | null) => boolean;
-}): boolean {
-  return filteredTracks.some((track) => isTrackPlaying(track.id));
-}
-function matchesCurrentTrackId(playbackState: ReturnType<typeof usePlayerStore.getState>['playbackState'], filteredTracks: Track[]): boolean {
-  const currentlyPlayingTrackId = playbackState?.track?.id;
-  return Boolean(currentlyPlayingTrackId && filteredTracks.some((track) => track.id === currentlyPlayingTrackId));
-}
-function matchesCurrentContextTrack(playbackContext: ReturnType<typeof usePlayerStore.getState>['playbackContext'], filteredTracks: Track[]): boolean {
-  const currentContextTrackUri = getCurrentContextTrackUri(playbackContext);
-  return Boolean(currentContextTrackUri && filteredTracks.some((track) => track.uri === currentContextTrackUri));
-}
-
-function matchesPlaybackStateContextPlaylist(
-  playbackState: ReturnType<typeof usePlayerStore.getState>['playbackState'],
-  playlistId: string | null | undefined,
-): boolean {
-  if (!playlistId) {
-    return false;
-  }
-
-  return playbackState?.context?.uri === `spotify:playlist:${playlistId}`;
-}
-
-function getCurrentContextTrackUri(playbackContext: ReturnType<typeof usePlayerStore.getState>['playbackContext']): string | undefined {
-  if (!playbackContext) {
-    return undefined;
-  }
-
-  return playbackContext.trackUris[playbackContext.currentIndex];
-}
-
-function resolvePlayingPanelState({
-  panelId,
-  playlistId,
-  playbackContext,
-  playbackState,
-  filteredTracks,
-  isTrackPlaying,
-}: {
-  panelId: string;
-  playlistId: string | null | undefined;
-  playbackContext: ReturnType<typeof usePlayerStore.getState>['playbackContext'];
-  playbackState: ReturnType<typeof usePlayerStore.getState>['playbackState'];
-  filteredTracks: Track[];
-  isTrackPlaying: (trackId: string | null) => boolean;
-}): boolean {
-  return Boolean(
-    playbackContext?.sourceId === panelId
-    || (playlistId && playbackContext?.playlistId === playlistId)
-    || matchesPlaybackStateContextPlaylist(playbackState, playlistId)
-    || (playbackState?.isPlaying && hasPlayingTrackInPanel({ filteredTracks, isTrackPlaying }))
-    || matchesCurrentTrackId(playbackState, filteredTracks)
-    || matchesCurrentContextTrack(playbackContext, filteredTracks)
-  );
 }
 
 function buildTrackListOptionalProps({
@@ -280,34 +204,64 @@ function PlaylistTrackListState({
   );
 }
 
-function MoveProgressBar({
-  current,
-  total,
-  onCancel,
+function PlaylistPanelTrackArea({
+  panelId,
+  state,
+  scrollDroppableRef,
+  panelBlocked,
+  playbackContext,
+  isDragSource,
+  hasActiveMarkers,
+  handleAddToAllMarkers,
+  activePlayPosition,
 }: {
-  current: number;
-  total: number;
-  onCancel: () => void;
+  panelId: string;
+  state: PlaylistPanelViewState;
+  scrollDroppableRef: PlaylistPanelState['scrollDroppableRef'];
+  panelBlocked: boolean;
+  playbackContext: ReturnType<typeof usePlayerStore.getState>['playbackContext'];
+  isDragSource: boolean;
+  hasActiveMarkers: boolean;
+  handleAddToAllMarkers: () => void;
+  activePlayPosition: number;
 }) {
-  const percentage = total > 0 ? Math.round((current / total) * 100) : 0;
   return (
-    <div className="flex items-center gap-2 border-b border-border bg-muted/50 px-3 py-1.5 text-xs text-muted-foreground">
-      <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
-        <div
-          className="h-full rounded-full bg-primary transition-all duration-200"
-          style={{ width: `${percentage}%` }}
-        />
-      </div>
-      <span className="whitespace-nowrap">
-        Moving tracks: {current} / {total}
-      </span>
-      <button
-        type="button"
-        onClick={onCancel}
-        className="ml-1 rounded px-1.5 py-0.5 text-xs hover:bg-muted"
-      >
-        Cancel
-      </button>
+    <div
+      ref={scrollDroppableRef}
+      data-testid="track-list-scroll"
+      className={cn('flex-1 overflow-auto focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0', panelBlocked && 'pointer-events-none')}
+      aria-hidden={panelBlocked ? true : undefined}
+      style={{
+        paddingBottom: TRACK_ROW_HEIGHT * 2,
+        overscrollBehaviorX: 'none',
+        overscrollBehaviorY: 'contain',
+        willChange: 'scroll-position',
+        touchAction: 'auto',
+        WebkitOverflowScrolling: 'touch',
+      }}
+      role="listbox"
+      aria-disabled={panelBlocked}
+      aria-multiselectable="true"
+      aria-activedescendant={state.focusedIndex !== null ? `option-${panelId}-${state.focusedIndex}` : undefined}
+      tabIndex={panelBlocked ? -1 : 0}
+      onKeyDown={panelBlocked ? undefined : state.handleKeyDownNavigation}
+    >
+      <PlaylistTrackListState
+        panelId={panelId}
+        state={state}
+        playbackContext={playbackContext}
+        isDragSource={isDragSource}
+        hasActiveMarkers={hasActiveMarkers}
+        handleAddToAllMarkers={handleAddToAllMarkers}
+        activePlayPosition={activePlayPosition}
+        isInteractionBlocked={panelBlocked}
+      />
+
+      {state.isAutoLoading && (
+        <div className="p-3 text-center text-xs text-muted-foreground">
+          Loading all tracks for this playlist… ({state.tracks.length} loaded)
+        </div>
+      )}
     </div>
   );
 }
@@ -345,6 +299,7 @@ function PlaylistPanelBody({
 }) {
   const isSequentialMoving = state.sequentialMoveState.isMoving;
   const panelBlocked = isInteractionBlocked || isSequentialMoving;
+  const showOverlay = isInteractionBlocked && !!guardReason;
   return (
     <div
       data-testid="playlist-panel"
@@ -354,7 +309,7 @@ function PlaylistPanelBody({
       onMouseEnter={() => state.setIsMouseOver(true)}
       onMouseLeave={() => state.setIsMouseOver(false)}
     >
-      {isInteractionBlocked && guardReason && (
+      {showOverlay && (
         <OverlaySignInCTA providerId={guardProvider} reason={guardReason} />
       )}
       <div className="flex min-h-0 flex-1 flex-col">
@@ -410,43 +365,17 @@ function PlaylistPanelBody({
           />
         )}
 
-        <div
-          ref={scrollDroppableRef}
-          data-testid="track-list-scroll"
-          className={cn('flex-1 overflow-auto focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0', panelBlocked && 'pointer-events-none')}
-          aria-hidden={panelBlocked ? true : undefined}
-          style={{
-            paddingBottom: TRACK_ROW_HEIGHT * 2,
-            overscrollBehaviorX: 'none',
-            overscrollBehaviorY: 'contain',
-            willChange: 'scroll-position',
-            touchAction: 'auto',
-            WebkitOverflowScrolling: 'touch',
-          }}
-          role="listbox"
-          aria-disabled={panelBlocked}
-          aria-multiselectable="true"
-          aria-activedescendant={state.focusedIndex !== null ? `option-${panelId}-${state.focusedIndex}` : undefined}
-          tabIndex={panelBlocked ? -1 : 0}
-          onKeyDown={panelBlocked ? undefined : state.handleKeyDownNavigation}
-        >
-          <PlaylistTrackListState
-            panelId={panelId}
-            state={state}
-            playbackContext={playbackContext}
-            isDragSource={isDragSource}
-            hasActiveMarkers={hasActiveMarkers}
-            handleAddToAllMarkers={handleAddToAllMarkers}
-            activePlayPosition={activePlayPosition}
-            isInteractionBlocked={panelBlocked}
-          />
-
-          {state.isAutoLoading && (
-            <div className="p-3 text-center text-xs text-muted-foreground">
-              Loading all tracks for this playlist… ({state.tracks.length} loaded)
-            </div>
-          )}
-        </div>
+        <PlaylistPanelTrackArea
+          panelId={panelId}
+          state={state}
+          scrollDroppableRef={scrollDroppableRef}
+          panelBlocked={panelBlocked}
+          playbackContext={playbackContext}
+          isDragSource={isDragSource}
+          hasActiveMarkers={hasActiveMarkers}
+          handleAddToAllMarkers={handleAddToAllMarkers}
+          activePlayPosition={activePlayPosition}
+        />
 
         <ConfirmDeleteDialog
           open={state.showDeleteConfirmation}

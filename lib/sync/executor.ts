@@ -53,6 +53,71 @@ function resolveUserIdForProvider(pair: SyncPair, providerId: MusicProviderId): 
   return pair.providerUserIds[providerId] ?? pair.createdBy;
 }
 
+type ProviderSessions = {
+  sourceUserId: string;
+  targetUserId: string;
+  missingProvider?: MusicProviderId;
+  missingUserId?: string;
+};
+
+async function resolveProviderSessions(pair: SyncPair): Promise<ProviderSessions> {
+  const sourceUserId = resolveUserIdForProvider(pair, pair.sourceProvider);
+  const targetUserId = resolveUserIdForProvider(pair, pair.targetProvider);
+
+  const [sourceSession, targetSession] = await Promise.all([
+    getSessionFromDb(sourceUserId, pair.sourceProvider),
+    getSessionFromDb(targetUserId, pair.targetProvider),
+  ]);
+
+  if (!sourceSession) {
+    return { sourceUserId, targetUserId, missingProvider: pair.sourceProvider, missingUserId: sourceUserId };
+  }
+
+  if (!targetSession) {
+    return { sourceUserId, targetUserId, missingProvider: pair.targetProvider, missingUserId: targetUserId };
+  }
+
+  return { sourceUserId, targetUserId };
+}
+
+function markRunFailedForMissingSession(
+  runId: string,
+  pair: SyncPair,
+  isScheduled: boolean,
+  missingProvider: MusicProviderId,
+  missingUserId: string,
+): void {
+  updateSyncRun(runId, {
+    status: 'failed',
+    errorMessage: `No valid session for ${missingProvider}, user=${missingUserId}`,
+    completedAt: new Date().toISOString(),
+  });
+
+  if (isScheduled) {
+    incrementConsecutiveFailures(pair.id);
+    advanceNextRunAt(pair.id);
+  }
+}
+
+function finishScheduledSuccess(pair: SyncPair): void {
+  resetConsecutiveFailures(pair.id);
+  if (pair.syncInterval !== 'off') {
+    advanceNextRunAt(pair.id);
+  }
+}
+
+function handleScheduledFailure(pair: SyncPair, message: string): void {
+  const isAuthError =
+    message.includes('No valid session') ||
+    message.includes('invalid_grant') ||
+    message.includes('revoked');
+
+  incrementConsecutiveFailures(pair.id);
+  if (!isAuthError) {
+    advanceNextRunAt(pair.id);
+  }
+}
+
 function buildRunUpdate(result: SyncApplyResult): Record<string, unknown> {
   const hasErrors = result.errors.length > 0;
   const warnings: SyncWarning[] = result.unresolved.map((info) => ({
@@ -129,34 +194,16 @@ export async function executeSyncRun(
   const isScheduled = triggeredBy === 'scheduler';
 
   try {
-    // Auth pre-check: verify both provider sessions exist in DB
-    const sourceUserId = resolveUserIdForProvider(pair, pair.sourceProvider);
-    const targetUserId = resolveUserIdForProvider(pair, pair.targetProvider);
-
-    const [sourceSession, targetSession] = await Promise.all([
-      getSessionFromDb(sourceUserId, pair.sourceProvider),
-      getSessionFromDb(targetUserId, pair.targetProvider),
-    ]);
-
-    if (!sourceSession || !targetSession) {
-      const missing = !sourceSession ? pair.sourceProvider : pair.targetProvider;
-      const missingUserId = !sourceSession ? sourceUserId : targetUserId;
-      updateSyncRun(runId, {
-        status: 'failed',
-        errorMessage: `No valid session for ${missing}, user=${missingUserId}`,
-        completedAt: new Date().toISOString(),
-      });
-      if (isScheduled) {
-        incrementConsecutiveFailures(pair.id);
-        advanceNextRunAt(pair.id);
-      }
+    const sessions = await resolveProviderSessions(pair);
+    if (sessions.missingProvider && sessions.missingUserId) {
+      markRunFailedForMissingSession(runId, pair, isScheduled, sessions.missingProvider, sessions.missingUserId);
       return;
     }
 
     updateSyncRun(runId, { status: 'executing' });
 
-    const sourceProvider = await createBackgroundProvider(sourceUserId, pair.sourceProvider);
-    const targetProvider = await createBackgroundProvider(targetUserId, pair.targetProvider);
+    const sourceProvider = await createBackgroundProvider(sessions.sourceUserId, pair.sourceProvider);
+    const targetProvider = await createBackgroundProvider(sessions.targetUserId, pair.targetProvider);
 
     // Snapshot short-circuit: if both playlists are unchanged, skip the sync
     if (await arePlaylistsUnchanged(pair, sourceProvider, targetProvider)) {
@@ -167,10 +214,7 @@ export async function executeSyncRun(
         tracksUnresolved: 0,
         completedAt: new Date().toISOString(),
       });
-      resetConsecutiveFailures(pair.id);
-      if (pair.syncInterval !== 'off') {
-        advanceNextRunAt(pair.id);
-      }
+      finishScheduledSuccess(pair);
       console.debug('[sync/executor] skipped — both playlists unchanged', {
         runId,
         pairId: pair.id,
@@ -206,10 +250,7 @@ export async function executeSyncRun(
     );
 
     // Any successful sync resets failures and advances the schedule
-    resetConsecutiveFailures(pair.id);
-    if (pair.syncInterval !== 'off') {
-      advanceNextRunAt(pair.id);
-    }
+    finishScheduledSuccess(pair);
 
     console.debug('[sync/executor] complete', {
       runId,
@@ -228,14 +269,7 @@ export async function executeSyncRun(
     });
 
     if (isScheduled) {
-      const isAuthError =
-        message.includes('No valid session') ||
-        message.includes('invalid_grant') ||
-        message.includes('revoked');
-      incrementConsecutiveFailures(pair.id);
-      if (!isAuthError) {
-        advanceNextRunAt(pair.id);
-      }
+      handleScheduledFailure(pair, message);
     }
 
     console.error('[sync/executor] failed', { pairId: pair.id, runId, triggeredBy, error: message });

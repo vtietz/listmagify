@@ -37,6 +37,36 @@ function parseBackup(raw: string): BackupPayload {
   return { tokens: parsed as Partial<Record<string, ProviderJwtToken>> };
 }
 
+function restoreMissingProviderTokens(
+  backupTokens: Partial<Record<string, ProviderJwtToken>>,
+  providerTokens: Partial<Record<MusicProviderId, ProviderJwtToken>>,
+  accountProviderId: MusicProviderId | null,
+  toMusicProviderId: (value: unknown) => MusicProviderId | null,
+): void {
+  for (const [key, token] of Object.entries(backupTokens)) {
+    const pid = toMusicProviderId(key);
+    if (!pid || !token?.accessToken || pid === accountProviderId) {
+      continue;
+    }
+
+    if (!providerTokens[pid]?.accessToken) {
+      providerTokens[pid] = token;
+    }
+  }
+}
+
+function mergeProviderAccountIds(
+  jwtToken: Record<string, any> | undefined,
+  providerAccountIds: BackupPayload['providerAccountIds'],
+): void {
+  if (!jwtToken || !providerAccountIds) {
+    return;
+  }
+
+  const existing = (jwtToken.providerAccountIds ?? {}) as Partial<Record<string, string>>;
+  jwtToken.providerAccountIds = { ...providerAccountIds, ...existing };
+}
+
 export async function restoreProviderTokensFromBackup(
   providerTokens: Partial<Record<MusicProviderId, ProviderJwtToken>>,
   accountProviderId: MusicProviderId | null,
@@ -51,29 +81,8 @@ export async function restoreProviderTokensFromBackup(
     }
 
     const backup = parseBackup(raw);
-
-    // Restore provider tokens
-    for (const [key, token] of Object.entries(backup.tokens)) {
-      const pid = toMusicProviderId(key);
-      if (!pid || !token?.accessToken) {
-        continue;
-      }
-
-      if (pid === accountProviderId) {
-        continue;
-      }
-
-      if (!providerTokens[pid]?.accessToken) {
-        providerTokens[pid] = token;
-      }
-    }
-
-    // Restore providerAccountIds into the JWT token so admin checks
-    // and data scoping can see all connected provider IDs
-    if (jwtToken && backup.providerAccountIds) {
-      const existing = (jwtToken.providerAccountIds ?? {}) as Partial<Record<string, string>>;
-      jwtToken.providerAccountIds = { ...backup.providerAccountIds, ...existing };
-    }
+    restoreMissingProviderTokens(backup.tokens, providerTokens, accountProviderId, toMusicProviderId);
+    mergeProviderAccountIds(jwtToken, backup.providerAccountIds);
 
     cookieStore.delete(BACKUP_COOKIE_NAME);
   } catch {

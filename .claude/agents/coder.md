@@ -67,7 +67,10 @@ Run validation to catch issues early:
 ```bash
 ./run.sh exec pnpm typecheck
 ./run.sh exec pnpm lint
+./run.sh quality
 ```
+
+Use `./run.sh quality` for fast changed-files feedback while implementing. The final full gate is `./run.sh quality --all` and is owned by the reviewer step.
 
 Do NOT run the full test suite — the reviewer agent handles that.
 

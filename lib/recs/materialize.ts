@@ -63,6 +63,50 @@ function isLikelyArtistMatch(sourceArtistNorm: string, candidateArtists: string[
   return matched >= Math.max(1, Math.ceil(sourceTokens.size / 3));
 }
 
+function findCompatibleCandidate(
+  candidates: MaterializeSearchCandidate[],
+  metadata: NonNullable<ReturnType<typeof getCanonicalTrackMetadata>>,
+  seenTrackSignatures: Set<string>,
+): MaterializeSearchCandidate | undefined {
+  return candidates.find((candidate) => {
+    if (!isDurationCompatible(metadata.durationSec, candidate.durationSec)) {
+      return false;
+    }
+
+    if (!isLikelyArtistMatch(metadata.artistNorm, candidate.artists)) {
+      return false;
+    }
+
+    const signature = `${candidate.title.toLowerCase()}::${candidate.artists.join(',').toLowerCase()}`;
+    if (seenTrackSignatures.has(signature)) {
+      return false;
+    }
+
+    seenTrackSignatures.add(signature);
+    return true;
+  });
+}
+
+function persistDiscoveredMapping(
+  provider: MusicProviderId,
+  canonicalTrackId: string,
+  metadata: NonNullable<ReturnType<typeof getCanonicalTrackMetadata>>,
+  match: MaterializeSearchCandidate,
+): void {
+  const isIsrcMatch = !!(metadata.isrc && match.isrc && metadata.isrc === match.isrc);
+  const matchScore = isIsrcMatch ? 1.0 : 0.8;
+  const confidence = scoreToConfidence(matchScore, DEFAULT_MATCH_THRESHOLDS);
+
+  upsertProviderMap({
+    provider,
+    providerTrackId: match.id,
+    canonicalTrackId,
+    isrc: match.isrc ?? null,
+    matchScore,
+    confidence,
+  });
+}
+
 export async function materializeCanonicalTrackIds(
   input: MaterializeCanonicalInput,
 ): Promise<MaterializeCanonicalResult> {
@@ -100,23 +144,7 @@ export async function materializeCanonicalTrackIds(
         durationSec: metadata.durationSec,
       });
 
-      const match = candidates.find((candidate) => {
-        if (!isDurationCompatible(metadata.durationSec, candidate.durationSec)) {
-          return false;
-        }
-
-        if (!isLikelyArtistMatch(metadata.artistNorm, candidate.artists)) {
-          return false;
-        }
-
-        const signature = `${candidate.title.toLowerCase()}::${candidate.artists.join(',').toLowerCase()}`;
-        if (seenTrackSignatures.has(signature)) {
-          return false;
-        }
-
-        seenTrackSignatures.add(signature);
-        return true;
-      });
+      const match = findCompatibleCandidate(candidates, metadata, seenTrackSignatures);
 
       if (!match || seenProviderTrackIds.has(match.id)) {
         unresolvedCanonicalIds.push(canonicalTrackId);
@@ -125,19 +153,8 @@ export async function materializeCanonicalTrackIds(
 
       seenProviderTrackIds.add(match.id);
       trackIds.push(match.id);
-
-      // Write back the discovered mapping so future syncs hit the cache
-      const isIsrcMatch = !!(metadata.isrc && match.isrc && metadata.isrc === match.isrc);
-      const matchScore = isIsrcMatch ? 1.0 : 0.8;
-      const confidence = scoreToConfidence(matchScore, DEFAULT_MATCH_THRESHOLDS);
-      upsertProviderMap({
-        provider: input.provider,
-        providerTrackId: match.id,
-        canonicalTrackId,
-        isrc: match.isrc ?? null,
-        matchScore,
-        confidence,
-      });
+      // Write back the discovered mapping so future syncs hit the cache.
+      persistDiscoveredMapping(input.provider, canonicalTrackId, metadata, match);
     } catch (error) {
       console.warn('[recs/materialize] provider search failed', {
         provider: input.provider,

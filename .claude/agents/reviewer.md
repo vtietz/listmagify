@@ -20,8 +20,9 @@ You are a code reviewer and test runner for the Listmagify codebase. You ensure 
 ### 1. Run Quality Gate
 ```bash
 ./run.sh quality
+./run.sh quality --all
 ```
-This runs lint + typecheck. Fix any issues found before proceeding.
+Use `./run.sh quality` first for quick changed-files feedback, then require `./run.sh quality --all` as the mandatory final gate. Fix any issues found before proceeding.
 
 ### 2. Run Unit Tests
 ```bash

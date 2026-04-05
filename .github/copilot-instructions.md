@@ -32,7 +32,8 @@ Never run `pnpm`, `node`, or `npm` directly on the host.
 | Start app | `\.\run.bat up` | `./run.sh up` |
 | Stop app | `\.\run.bat down` | `./run.sh down` |
 | Run tests | `\.\run.bat test` | `./run.sh test` |
-| Quality gate | `\.\run.bat quality` | `./run.sh quality` |
+| Quality gate (changed files, fast loop) | `\.\run.bat quality` | `./run.sh quality` |
+| Quality gate (all files, final check) | `\.\run.bat quality --all` | `./run.sh quality --all` |
 
 Use command wrappers to install packages so lockfiles are updated correctly.
 
@@ -49,11 +50,12 @@ After every code change, run:
 
 1. Type check (`\.\run.bat dev pnpm typecheck` or `./run.sh exec pnpm typecheck`)
 2. Tests (`\.\run.bat test` or `./run.sh test`)
-3. Quality check (`\.\run.bat quality` or `./run.sh quality`)
+3. Quality check (`\.\run.bat quality` or `./run.sh quality` for iterative checks, then `--all` before completion)
 
 ### Mandatory quality gate
 
-- The task is **not complete** until `./run.sh quality` (Linux/macOS) or `\.\run.bat quality` (Windows) passes.
+- Use `./run.sh quality` / `\.\run.bat quality` for fast changed-files feedback during development.
+- The task is **not complete** until `./run.sh quality --all` (Linux/macOS) or `\.\run.bat quality --all` (Windows) passes.
 - If quality checks fail, fix the reported issues and re-run quality checks before finishing.
 
 When adding functionality, also add or update tests where appropriate.
@@ -136,7 +138,7 @@ Confirm all of the following:
 
 1. Changes were made through Docker-first workflow.
 2. Type checks and tests were run (where applicable).
-3. `./run.sh quality` / `\.\run.bat quality` passes.
+3. `./run.sh quality --all` / `\.\run.bat quality --all` passes.
 4. Any reported quality issues were fixed and re-validated.
 5. No unrequested files were added.
 6. No debug leftovers or commented-out code remain.
