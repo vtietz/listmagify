@@ -115,6 +115,21 @@ function mapSyncPairRow(row: SyncPairRow): SyncPair {
   };
 }
 
+/**
+ * Build a WHERE clause that matches sync pairs owned by any of the given userIds.
+ * Checks both the legacy `created_by` column and the `provider_user_ids` JSON map.
+ */
+function ownershipCondition(userIds: string[]): { sql: string; params: string[] } {
+  const createdByPlaceholders = userIds.map(() => '?').join(', ');
+  const likeClauses = userIds.map(() => `provider_user_ids LIKE ?`).join(' OR ');
+  const likeParams = userIds.map((id) => `%${id}%`);
+
+  return {
+    sql: `(created_by IN (${createdByPlaceholders}) OR ${likeClauses})`,
+    params: [...userIds, ...likeParams],
+  };
+}
+
 const SYNC_PAIR_COLUMNS = `
   id,
   source_provider AS sourceProvider,
@@ -187,13 +202,13 @@ export function getSyncPair(id: string, createdBy?: string | string[]): SyncPair
   if (createdBy) {
     const userIds = Array.isArray(createdBy) ? createdBy : [createdBy];
     if (userIds.length === 0) return null;
-    const placeholders = userIds.map(() => '?').join(', ');
+    const ownership = ownershipCondition(userIds);
 
     const row = db.prepare(`
       SELECT ${SYNC_PAIR_COLUMNS}
       FROM sync_pairs
-      WHERE id = ? AND created_by IN (${placeholders})
-    `).get(id, ...userIds) as SyncPairRow | undefined;
+      WHERE id = ? AND ${ownership.sql}
+    `).get(id, ...ownership.params) as SyncPairRow | undefined;
 
     return row ? mapSyncPairRow(row) : null;
   }
@@ -240,14 +255,14 @@ export function listSyncPairs(createdBy: string | string[]): SyncPair[] {
   const userIds = Array.isArray(createdBy) ? createdBy : [createdBy];
   if (userIds.length === 0) return [];
 
-  const placeholders = userIds.map(() => '?').join(', ');
+  const ownership = ownershipCondition(userIds);
 
   const rows = db.prepare(`
     SELECT ${SYNC_PAIR_COLUMNS}
     FROM sync_pairs
-    WHERE created_by IN (${placeholders})
+    WHERE ${ownership.sql}
     ORDER BY created_at DESC
-  `).all(...userIds) as SyncPairRow[];
+  `).all(...ownership.params) as SyncPairRow[];
 
   return rows.map(mapSyncPairRow);
 }
@@ -298,8 +313,8 @@ export function deleteSyncPair(id: string, createdBy?: string | string[]): boole
   if (createdBy) {
     const userIds = Array.isArray(createdBy) ? createdBy : [createdBy];
     if (userIds.length === 0) return false;
-    const placeholders = userIds.map(() => '?').join(', ');
-    const result = db.prepare(`DELETE FROM sync_pairs WHERE id = ? AND created_by IN (${placeholders})`).run(id, ...userIds);
+    const ownership = ownershipCondition(userIds);
+    const result = db.prepare(`DELETE FROM sync_pairs WHERE id = ? AND ${ownership.sql}`).run(id, ...ownership.params);
     return result.changes > 0;
   }
 
@@ -314,10 +329,10 @@ export function updateSyncPairAutoSync(id: string, autoSync: boolean, createdBy?
   if (createdBy) {
     const userIds = Array.isArray(createdBy) ? createdBy : [createdBy];
     if (userIds.length === 0) return false;
-    const placeholders = userIds.map(() => '?').join(', ');
+    const ownership = ownershipCondition(userIds);
     const result = db.prepare(
-      `UPDATE sync_pairs SET auto_sync = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND created_by IN (${placeholders})`,
-    ).run(value, id, ...userIds);
+      `UPDATE sync_pairs SET auto_sync = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND ${ownership.sql}`,
+    ).run(value, id, ...ownership.params);
     return result.changes > 0;
   }
 
@@ -343,12 +358,12 @@ export function updateSyncPairInterval(id: string, interval: SyncInterval, creat
   if (createdBy) {
     const userIds = Array.isArray(createdBy) ? createdBy : [createdBy];
     if (userIds.length === 0) return false;
-    const placeholders = userIds.map(() => '?').join(', ');
+    const ownership = ownershipCondition(userIds);
     const result = db.prepare(`
       UPDATE sync_pairs
       SET sync_interval = ?, next_run_at = ?, consecutive_failures = 0, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ? AND created_by IN (${placeholders})
-    `).run(interval, nextRunAt, id, ...userIds);
+      WHERE id = ? AND ${ownership.sql}
+    `).run(interval, nextRunAt, id, ...ownership.params);
     return result.changes > 0;
   }
 
