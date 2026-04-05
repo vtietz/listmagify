@@ -58,6 +58,70 @@ import {
   unsupported,
 } from '@/lib/music-provider/tidal/providerInternals';
 
+function asFiniteNumber(value: unknown): number | null {
+  if (typeof value !== 'number' || Number.isNaN(value) || !Number.isFinite(value)) {
+    return null;
+  }
+
+  return value;
+}
+
+function resolveCollectionTotal(raw: JsonApiDocument<unknown>, fallback: number): number {
+  const topLevelMeta = raw as JsonApiDocument<unknown> & {
+    meta?: {
+      total?: unknown;
+      totalNumberOfItems?: unknown;
+      page?: {
+        total?: unknown;
+        totalNumberOfItems?: unknown;
+      };
+    };
+  };
+
+  return (
+    asFiniteNumber(topLevelMeta.meta?.total)
+    ?? asFiniteNumber(topLevelMeta.meta?.totalNumberOfItems)
+    ?? asFiniteNumber(topLevelMeta.meta?.page?.total)
+    ?? asFiniteNumber(topLevelMeta.meta?.page?.totalNumberOfItems)
+    ?? fallback
+  );
+}
+
+const USER_PLAYLISTS_INCLUDE = 'items,items.owners,items.coverArt,items.collaborators';
+
+function buildUserPlaylistsPath(limit: number, offset = 0): string {
+  return `/userCollectionPlaylists/me/relationships/items?include=${USER_PLAYLISTS_INCLUDE}&page[size]=${limit}&page[offset]=${offset}`;
+}
+
+function mapUserPlaylistsPage(raw: JsonApiDocument<JsonApiIdentifier[]>): {
+  items: Playlist[];
+  nextCursor: string | null;
+  total: number;
+} {
+  const includedIndex = buildIncludedIndex(raw.included);
+  const identifiers = Array.isArray(raw.data) ? raw.data : [];
+  const items: Playlist[] = [];
+
+  for (const identifier of identifiers) {
+    if (identifier.type !== 'playlists') {
+      continue;
+    }
+
+    const playlistResource = includedIndex.get(`${identifier.type}:${identifier.id}`);
+    if (!playlistResource) {
+      continue;
+    }
+
+    items.push(mapPlaylistResource(playlistResource, includedIndex));
+  }
+
+  return {
+    items,
+    nextCursor: raw.links?.next ?? null,
+    total: resolveCollectionTotal(raw, items.length),
+  };
+}
+
 export function createTidalProvider(dependencies: TidalProviderDependencies = {}): MusicProvider {
   const transport = createTidalTransport(dependencies);
 
@@ -485,30 +549,70 @@ export function createTidalProvider(dependencies: TidalProviderDependencies = {}
 
     async getUserPlaylists(limit = 50, nextCursor?: string | null): Promise<PlaylistPageResult<Playlist>> {
       const boundedLimit = Math.min(Math.max(limit, 1), 100);
-      const basePath = `/userCollectionPlaylists/me/relationships/items?include=items&page[size]=${boundedLimit}`;
-      const path = nextCursor ?? basePath;
-      const response = await transport.executeWithSession(path, { method: 'GET' }, undefined);
-      if (!response.ok) {
-        throwProviderError(response, await readJsonApiErrorDetails(response), 'getUserPlaylists');
+      const fetchPage = async (path: string): Promise<ReturnType<typeof mapUserPlaylistsPage>> => {
+        const response = await transport.executeWithSession(path, { method: 'GET' }, undefined);
+        if (!response.ok) {
+          throwProviderError(response, await readJsonApiErrorDetails(response), 'getUserPlaylists');
+        }
+
+        const raw = (await response.json()) as JsonApiDocument<JsonApiIdentifier[]>;
+        return mapUserPlaylistsPage(raw);
+      };
+
+      if (nextCursor) {
+        return fetchPage(nextCursor);
       }
 
-      const raw = (await response.json()) as JsonApiDocument<JsonApiIdentifier[]>;
-      const includedIndex = buildIncludedIndex(raw.included);
-      const identifiers = Array.isArray(raw.data) ? raw.data : [];
-      const items: Playlist[] = [];
+      const seenPlaylistIds = new Set<string>();
+      const seenCursors = new Set<string>();
+      const aggregated: Playlist[] = [];
+      const MAX_PAGES = 50;
+      let cursor: string | null = buildUserPlaylistsPath(boundedLimit, 0);
+      let fallbackOffset = 0;
+      let expectedTotal: number | null = null;
+      let pageCount = 0;
 
-      for (const identifier of identifiers) {
-        if (identifier.type !== 'playlists') {
+      while (cursor && pageCount < MAX_PAGES && !seenCursors.has(cursor)) {
+        seenCursors.add(cursor);
+        const page = await fetchPage(cursor);
+        pageCount += 1;
+        fallbackOffset += page.items.length;
+
+        if (page.total > 0) {
+          expectedTotal = Math.max(expectedTotal ?? 0, page.total);
+        }
+
+        let newItemsInPage = 0;
+        for (const playlist of page.items) {
+          if (seenPlaylistIds.has(playlist.id)) {
+            continue;
+          }
+
+          seenPlaylistIds.add(playlist.id);
+          aggregated.push(playlist);
+          newItemsInPage += 1;
+        }
+
+        if (page.nextCursor) {
+          cursor = page.nextCursor;
           continue;
         }
 
-        const playlistResource = includedIndex.get(`${identifier.type}:${identifier.id}`);
-        if (playlistResource) {
-          items.push(mapPlaylistResource(playlistResource, includedIndex));
+        // Some TIDAL environments cap page size (e.g. 20) without returning links.next.
+        // Continue with explicit offset while pages still yield unseen playlists.
+        if (page.items.length > 0 && newItemsInPage > 0) {
+          cursor = buildUserPlaylistsPath(boundedLimit, fallbackOffset);
+          continue;
         }
+
+        cursor = null;
       }
 
-      return { items, nextCursor: raw.links?.next ?? null, total: items.length };
+      return {
+        items: aggregated,
+        nextCursor: null,
+        total: Math.max(expectedTotal ?? 0, aggregated.length),
+      };
     },
 
     async getPlaylistTracks(

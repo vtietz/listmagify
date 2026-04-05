@@ -98,6 +98,37 @@ describe('tidal jsonApi and mappers', () => {
     });
   });
 
+  it('maps playlist owner and cover from attribute fallbacks', () => {
+    const playlist: JsonApiResource = {
+      id: 'pl-attrs',
+      type: 'playlists',
+      attributes: {
+        name: 'Fallback Playlist',
+        description: null,
+        numberOfItems: 7,
+        ownerId: 'owner-attr-id',
+        ownerUsername: 'owner-from-attrs',
+        squareImage: {
+          id: '550e8400-e29b-41d4-a716-446655440000',
+        },
+      },
+      relationships: {},
+    };
+
+    const mapped = mapPlaylistResource(playlist, buildIncludedIndex([]));
+
+    expect(mapped.owner).toEqual({
+      id: 'owner-attr-id',
+      displayName: 'owner-from-attrs',
+    });
+    expect(mapped.ownerName).toBe('owner-from-attrs');
+    expect(mapped.image).toEqual({
+      url: 'https://resources.tidal.com/images/550e8400/e29b/41d4/a716/446655440000/640x640.jpg',
+      width: 640,
+      height: 640,
+    });
+  });
+
   it('maps track list document with artists, album, cover, and addedAt', () => {
     const raw: JsonApiDocument<JsonApiIdentifier[]> = {
       data: [

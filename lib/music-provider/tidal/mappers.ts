@@ -71,6 +71,12 @@ function asOptionalNumber(value: unknown): number | null {
   return typeof value === 'number' ? value : null;
 }
 
+const TIDAL_UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function buildTidalImageUrl(uuid: string, size = 640): string {
+  return `https://resources.tidal.com/images/${uuid.replace(/-/g, '/')}/${size}x${size}.jpg`;
+}
+
 function clampToTrackPopularityRange(value: number): number {
   if (value < 0) {
     return 0;
@@ -103,6 +109,10 @@ function asRecord(value: unknown): UnknownRecord | null {
 
 function mapImageFromCandidate(candidate: unknown): Image | null {
   if (typeof candidate === 'string' && candidate.length > 0) {
+    if (TIDAL_UUID_PATTERN.test(candidate)) {
+      return { url: buildTidalImageUrl(candidate), width: 640, height: 640 };
+    }
+
     return { url: candidate, width: null, height: null };
   }
 
@@ -114,6 +124,11 @@ function mapImageFromCandidate(candidate: unknown): Image | null {
   const meta = asRecord(record.meta);
   const url = asOptionalString(record.href) ?? asOptionalString(record.url) ?? asOptionalString(record.src);
   if (!url) {
+    const imageId = asOptionalString(record.id) ?? asOptionalString(record.uuid);
+    if (imageId && TIDAL_UUID_PATTERN.test(imageId)) {
+      return { url: buildTidalImageUrl(imageId), width: 640, height: 640 };
+    }
+
     return null;
   }
 
@@ -160,24 +175,85 @@ function mapImageFromResource(resource: JsonApiResource | null): Image | null {
   return mapImageFromCandidate(resource.attributes);
 }
 
+function firstOwnerIdentifier(raw: JsonApiResource): JsonApiIdentifier | undefined {
+  return (
+    toIdentifierArray(raw.relationships?.owners)[0]
+    ?? toIdentifierArray(raw.relationships?.owner)[0]
+    ?? toIdentifierArray(raw.relationships?.creator)[0]
+  );
+}
+
+function nestedStringCandidates(base: UnknownRecord | null, keys: string[]): Array<unknown> {
+  if (!base) {
+    return [];
+  }
+
+  const candidates: Array<unknown> = [];
+  for (const key of keys) {
+    candidates.push(base[key]);
+  }
+
+  return candidates;
+}
+
+function pickFirstString(candidates: Array<unknown>): string | null {
+  for (const candidate of candidates) {
+    const asString = asOptionalString(candidate);
+    if (asString) {
+      return asString;
+    }
+  }
+
+  return null;
+}
+
+function getOwnerIdFromAttributes(attributes: UnknownRecord | null): string | null {
+  const owner = asRecord(attributes?.owner);
+  const creator = asRecord(attributes?.creator);
+  const createdBy = asRecord(attributes?.createdBy);
+
+  return pickFirstString([
+    attributes?.ownerId,
+    attributes?.creatorId,
+    attributes?.createdByUserId,
+    owner?.id,
+    creator?.id,
+    createdBy?.id,
+  ]);
+}
+
+function getOwnerNameFromAttributes(attributes: UnknownRecord | null): string | null {
+  const owner = asRecord(attributes?.owner);
+  const creator = asRecord(attributes?.creator);
+  const createdBy = asRecord(attributes?.createdBy);
+
+  return pickFirstString([
+    ...nestedStringCandidates(attributes, ['ownerName', 'creatorName', 'createdByName', 'ownerUsername']),
+    ...nestedStringCandidates(owner, ['username', 'name']),
+    ...nestedStringCandidates(creator, ['username', 'name']),
+    ...nestedStringCandidates(createdBy, ['username', 'name']),
+  ]);
+}
+
 function getPlaylistOwner(
   raw: JsonApiResource,
   includedIndex: Map<string, JsonApiResource>,
 ): { ownerId: string | null; ownerDisplayName: string | null } {
-  const ownerIdentifier = toIdentifierArray(raw.relationships?.owners)[0];
+  const ownerIdentifier = firstOwnerIdentifier(raw);
   const ownerResource = getIncludedResource(includedIndex, ownerIdentifier);
-  const ownerDisplayName = asOptionalString(ownerResource?.attributes?.username);
+  const ownerFromAttributes = asRecord(raw.attributes);
+  const ownerIdFromAttributes = getOwnerIdFromAttributes(ownerFromAttributes);
+  const ownerDisplayName =
+    pickFirstString([
+      ownerResource?.attributes?.username,
+      ownerResource?.attributes?.name,
+    ])
+    ?? getOwnerNameFromAttributes(ownerFromAttributes);
 
   return {
-    ownerId: ownerIdentifier?.id ?? null,
+    ownerId: ownerIdentifier?.id ?? ownerIdFromAttributes ?? null,
     ownerDisplayName,
   };
-}
-
-const TIDAL_UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-function buildTidalImageUrl(uuid: string, size = 640): string {
-  return `https://resources.tidal.com/images/${uuid.replace(/-/g, '/')}/${size}x${size}.jpg`;
 }
 
 function getCoverArtFromRelationshipId(raw: JsonApiResource): Image | null {

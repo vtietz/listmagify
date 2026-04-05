@@ -252,4 +252,143 @@ describe('tidal provider reorder', () => {
       details: 'Invalid positionBefore anchor',
     } satisfies Partial<ProviderApiError>);
   });
+
+  it('returns collection total from meta and requests owner/artwork includes for playlists', async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async (input) => {
+      const url = String(input);
+      if (!url.includes('/userCollectionPlaylists/me/relationships/items')) {
+        throw new Error(`Unexpected request in test: ${url}`);
+      }
+
+      return jsonResponse(200, {
+        data: [{ id: 'pl-1', type: 'playlists' }],
+        included: [
+          {
+            id: 'pl-1',
+            type: 'playlists',
+            attributes: {
+              name: 'Playlist One',
+              description: 'desc',
+              numberOfItems: 5,
+              accessType: 'PUBLIC',
+            },
+            relationships: {
+              owners: {
+                data: [{ id: 'owner-1', type: 'users' }],
+              },
+              coverArt: {
+                data: [{ id: 'img-1', type: 'images' }],
+              },
+            },
+          },
+          {
+            id: 'owner-1',
+            type: 'users',
+            attributes: {
+              username: 'owner-user',
+            },
+          },
+          {
+            id: 'img-1',
+            type: 'images',
+            attributes: {
+              url: 'https://cdn.example/pl.jpg',
+              width: 640,
+              height: 640,
+            },
+          },
+        ],
+        links: { next: null },
+        meta: { total: 42 },
+      });
+    });
+
+    const provider = createTidalProvider({
+      fetchImpl,
+      getSession: vi.fn().mockResolvedValue({ accessToken: 'token' }),
+    });
+
+    const result = await provider.getUserPlaylists(50);
+
+    const firstUrl = String(fetchImpl.mock.calls[0]?.[0] ?? '');
+    expect(firstUrl).toContain('/userCollectionPlaylists/me/relationships/items');
+    expect(firstUrl).toContain('include=items,items.owners,items.coverArt,items.collaborators');
+    expect(firstUrl).toContain('page[size]=50');
+
+    expect(result.total).toBe(42);
+    expect(result.items[0]?.owner?.id).toBe('owner-1');
+    expect(result.items[0]?.image?.url).toBe('https://cdn.example/pl.jpg');
+  });
+
+  it('continues loading playlists with offset fallback when next cursor is absent', async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async (input) => {
+      const url = String(input);
+      if (!url.includes('/userCollectionPlaylists/me/relationships/items')) {
+        throw new Error(`Unexpected request in test: ${url}`);
+      }
+
+      if (url.includes('page[offset]=0')) {
+        return jsonResponse(200, {
+          data: [
+            { id: 'pl-1', type: 'playlists' },
+            { id: 'pl-2', type: 'playlists' },
+          ],
+          included: [
+            {
+              id: 'pl-1',
+              type: 'playlists',
+              attributes: { name: 'Playlist 1', numberOfItems: 1 },
+              relationships: {},
+            },
+            {
+              id: 'pl-2',
+              type: 'playlists',
+              attributes: { name: 'Playlist 2', numberOfItems: 2 },
+              relationships: {},
+            },
+          ],
+          links: { next: null },
+          meta: { total: 3 },
+        });
+      }
+
+      if (url.includes('page[offset]=2')) {
+        return jsonResponse(200, {
+          data: [{ id: 'pl-3', type: 'playlists' }],
+          included: [
+            {
+              id: 'pl-3',
+              type: 'playlists',
+              attributes: { name: 'Playlist 3', numberOfItems: 3 },
+              relationships: {},
+            },
+          ],
+          links: { next: null },
+          meta: { total: 3 },
+        });
+      }
+
+      if (url.includes('page[offset]=3')) {
+        return jsonResponse(200, {
+          data: [],
+          included: [],
+          links: { next: null },
+          meta: { total: 3 },
+        });
+      }
+
+      throw new Error(`Unexpected request URL in test: ${url}`);
+    });
+
+    const provider = createTidalProvider({
+      fetchImpl,
+      getSession: vi.fn().mockResolvedValue({ accessToken: 'token' }),
+    });
+
+    const result = await provider.getUserPlaylists(2);
+
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+    expect(result.total).toBe(3);
+    expect(result.items.map((playlist) => playlist.id)).toEqual(['pl-1', 'pl-2', 'pl-3']);
+  });
 });
