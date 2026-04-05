@@ -54,7 +54,7 @@ function scoreCanonicalCandidate(
   return computeWeightedScore({ titleScore, artistScore, durationScore });
 }
 
-function upsertProviderMap(input: {
+export function upsertProviderMap(input: {
   provider: MusicProviderId;
   providerTrackId: string;
   canonicalTrackId: string;
@@ -150,6 +150,128 @@ function findBestCanonicalCandidate(
 export interface ResolveOptions {
   thresholds?: { convert: number; manual: number };
 }
+
+// ---------------------------------------------------------------------------
+// Batch lookup helpers
+// ---------------------------------------------------------------------------
+
+const BATCH_CHUNK_SIZE = 500;
+
+interface CachedMapping {
+  canonicalTrackId: string;
+  matchScore: number;
+  confidence: MappingConfidence;
+  isrc: string | null;
+}
+
+function batchLookupProviderTrackMap(
+  provider: MusicProviderId,
+  providerTrackIds: string[],
+): Map<string, CachedMapping> {
+  const db = getRecsDb();
+  const result = new Map<string, CachedMapping>();
+
+  for (let i = 0; i < providerTrackIds.length; i += BATCH_CHUNK_SIZE) {
+    const chunk = providerTrackIds.slice(i, i + BATCH_CHUNK_SIZE);
+    const placeholders = chunk.map(() => '?').join(', ');
+
+    const rows = db.prepare(`
+      SELECT
+        provider_track_id AS providerTrackId,
+        canonical_track_id AS canonicalTrackId,
+        match_score AS matchScore,
+        confidence,
+        isrc
+      FROM provider_track_map
+      WHERE provider = ? AND provider_track_id IN (${placeholders})
+    `).all(provider, ...chunk) as Array<{
+      providerTrackId: string;
+      canonicalTrackId: string;
+      matchScore: number;
+      confidence: MappingConfidence;
+      isrc: string | null;
+    }>;
+
+    for (const row of rows) {
+      result.set(row.providerTrackId, {
+        canonicalTrackId: row.canonicalTrackId,
+        matchScore: row.matchScore,
+        confidence: row.confidence,
+        isrc: row.isrc,
+      });
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Resolve a batch of provider tracks to canonical IDs.
+ *
+ * Phase 1: bulk-query `provider_track_map` for all inputs at once.
+ * Phase 2: fall back to `fromProviderTrack()` for cache misses.
+ *
+ * This reduces N individual SQL selects to ~1 bulk query + M miss queries.
+ */
+export function fromProviderTrackBatch(
+  inputs: ResolveProviderTrackInput[],
+  options?: ResolveOptions,
+): CanonicalMappingResult[] {
+  if (inputs.length === 0) return [];
+
+  // All inputs share the same provider
+  const provider = inputs[0]!.provider;
+  const providerTrackIds = inputs.map((i) => i.providerTrackId);
+
+  // Phase 1: batch cache lookup
+  const cached = batchLookupProviderTrackMap(provider, providerTrackIds);
+
+  const db = getRecsDb();
+  const results: CanonicalMappingResult[] = [];
+
+  for (const input of inputs) {
+    const hit = cached.get(input.providerTrackId);
+    if (hit) {
+      // Backfill ISRC on cached entries that were stored without it
+      if (input.isrc && !hit.isrc) {
+        db.prepare(`
+          UPDATE canonical_tracks SET isrc = ?
+          WHERE id = ? AND isrc IS NULL
+        `).run(input.isrc, hit.canonicalTrackId);
+
+        db.prepare(`
+          UPDATE provider_track_map SET isrc = ?
+          WHERE provider = ? AND provider_track_id = ? AND isrc IS NULL
+        `).run(input.isrc, input.provider, input.providerTrackId);
+      }
+
+      results.push({
+        canonicalTrackId: hit.canonicalTrackId,
+        matchScore: hit.matchScore,
+        confidence: hit.confidence,
+        fromCache: true,
+      });
+    } else {
+      // Phase 2: individual resolution for cache misses
+      results.push(fromProviderTrack(input, options));
+    }
+  }
+
+  const cacheHits = results.filter((r) => r.fromCache).length;
+  if (inputs.length > 0) {
+    console.debug('[resolver] batch canonicalization', {
+      total: inputs.length,
+      cacheHits,
+      cacheMisses: inputs.length - cacheHits,
+    });
+  }
+
+  return results;
+}
+
+// ---------------------------------------------------------------------------
+// Single-track resolution
+// ---------------------------------------------------------------------------
 
 export function fromProviderTrack(
   input: ResolveProviderTrackInput,

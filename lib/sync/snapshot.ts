@@ -1,6 +1,6 @@
 import type { MusicProvider, MusicProviderId, Track } from '@/lib/music-provider/types';
-import { fromProviderTrack } from '@/lib/resolver/canonicalResolver';
-import type { MappingConfidence, ResolveOptions } from '@/lib/resolver/canonicalResolver';
+import { fromProviderTrackBatch } from '@/lib/resolver/canonicalResolver';
+import type { MappingConfidence, ResolveOptions, ResolveProviderTrackInput } from '@/lib/resolver/canonicalResolver';
 
 export interface CanonicalSnapshotItem {
   canonicalTrackId: string;
@@ -22,6 +22,19 @@ export interface PlaylistSnapshot {
 }
 
 const PAGE_SIZE = 100;
+
+/**
+ * Lightweight fetch to get only the playlist snapshot ID without loading
+ * all tracks. Fetches a single-track page to extract the snapshotId.
+ * Returns null if the provider doesn't support snapshot IDs (e.g. TIDAL).
+ */
+export async function fetchPlaylistSnapshotId(
+  provider: MusicProvider,
+  playlistId: string,
+): Promise<string | null> {
+  const page = await provider.getPlaylistTracks(playlistId, 1, null);
+  return page.snapshotId;
+}
 
 /**
  * Paginate through all pages of a playlist, collecting every track
@@ -69,24 +82,23 @@ export function canonicalizeSnapshot(
   snapshotId: string | null,
   options?: SnapshotOptions,
 ): PlaylistSnapshot {
+  // Build batch input for all tracks at once
+  const resolveInputs: ResolveProviderTrackInput[] = tracks.map((track) => ({
+    provider: providerId,
+    providerTrackId: track.id ?? track.uri,
+    title: track.name,
+    artists: track.artists,
+    durationMs: track.durationMs,
+    isrc: track.isrc ?? null,
+  }));
+
+  const mappings = fromProviderTrackBatch(resolveInputs, options?.resolveOptions);
+
   const items: CanonicalSnapshotItem[] = tracks.map((track, index) => {
-    const providerTrackId = track.id ?? track.uri;
-
-    const resolveInput = {
-      provider: providerId,
-      providerTrackId,
-      title: track.name,
-      artists: track.artists,
-      durationMs: track.durationMs,
-      isrc: track.isrc ?? null,
-    };
-    const mapping = options?.resolveOptions
-      ? fromProviderTrack(resolveInput, options.resolveOptions)
-      : fromProviderTrack(resolveInput);
-
+    const mapping = mappings[index]!;
     return {
       canonicalTrackId: mapping.canonicalTrackId,
-      providerTrackId,
+      providerTrackId: resolveInputs[index]!.providerTrackId,
       matchScore: mapping.matchScore,
       confidence: mapping.confidence,
       title: track.name,

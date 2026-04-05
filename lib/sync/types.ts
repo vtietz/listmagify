@@ -28,6 +28,10 @@ export interface SyncPair {
   syncInterval: SyncInterval;
   nextRunAt: string | null;
   consecutiveFailures: number;
+  /** Last-seen snapshot ID for the source playlist (Spotify-only; null for TIDAL) */
+  sourceSnapshotId: string | null;
+  /** Last-seen snapshot ID for the target playlist (Spotify-only; null for TIDAL) */
+  targetSnapshotId: string | null;
   createdAt: string;
   updatedAt: string;
 }

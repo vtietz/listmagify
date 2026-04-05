@@ -366,4 +366,12 @@ export const recsMigrations: Migration[] = [
       ALTER TABLE sync_pairs ADD COLUMN provider_user_ids TEXT NOT NULL DEFAULT '{}';
     `,
   },
+  {
+    version: 14,
+    name: 'add_sync_pair_snapshot_ids',
+    sql: `
+      ALTER TABLE sync_pairs ADD COLUMN source_snapshot_id TEXT;
+      ALTER TABLE sync_pairs ADD COLUMN target_snapshot_id TEXT;
+    `,
+  },
 ];

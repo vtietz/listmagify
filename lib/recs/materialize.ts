@@ -1,5 +1,6 @@
 import type { MusicProviderId } from '@/lib/music-provider/types';
-import { getCanonicalTrackMetadata, toProviderTrack } from '@/lib/resolver/canonicalResolver';
+import { getCanonicalTrackMetadata, toProviderTrack, upsertProviderMap } from '@/lib/resolver/canonicalResolver';
+import { scoreToConfidence, DEFAULT_MATCH_THRESHOLDS } from '@/lib/matching/config';
 
 export interface MaterializeSearchCandidate {
   id: string;
@@ -124,6 +125,19 @@ export async function materializeCanonicalTrackIds(
 
       seenProviderTrackIds.add(match.id);
       trackIds.push(match.id);
+
+      // Write back the discovered mapping so future syncs hit the cache
+      const isIsrcMatch = !!(metadata.isrc && match.isrc && metadata.isrc === match.isrc);
+      const matchScore = isIsrcMatch ? 1.0 : 0.8;
+      const confidence = scoreToConfidence(matchScore, DEFAULT_MATCH_THRESHOLDS);
+      upsertProviderMap({
+        provider: input.provider,
+        providerTrackId: match.id,
+        canonicalTrackId,
+        isrc: match.isrc ?? null,
+        matchScore,
+        confidence,
+      });
     } catch (error) {
       console.warn('[recs/materialize] provider search failed', {
         provider: input.provider,

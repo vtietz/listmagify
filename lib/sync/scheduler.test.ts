@@ -40,6 +40,8 @@ function createPair(id: string): SyncPair {
     syncInterval: '1h',
     nextRunAt: new Date().toISOString(),
     consecutiveFailures: 0,
+    sourceSnapshotId: null,
+    targetSnapshotId: null,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };

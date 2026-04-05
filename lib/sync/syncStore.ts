@@ -81,6 +81,8 @@ interface SyncPairRow {
   syncInterval: SyncInterval;
   nextRunAt: string | null;
   consecutiveFailures: number;
+  sourceSnapshotId: string | null;
+  targetSnapshotId: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -110,6 +112,8 @@ function mapSyncPairRow(row: SyncPairRow): SyncPair {
     syncInterval: row.syncInterval,
     nextRunAt: row.nextRunAt,
     consecutiveFailures: row.consecutiveFailures,
+    sourceSnapshotId: row.sourceSnapshotId,
+    targetSnapshotId: row.targetSnapshotId,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -145,6 +149,8 @@ const SYNC_PAIR_COLUMNS = `
   sync_interval AS syncInterval,
   next_run_at AS nextRunAt,
   consecutive_failures AS consecutiveFailures,
+  source_snapshot_id AS sourceSnapshotId,
+  target_snapshot_id AS targetSnapshotId,
   created_at AS createdAt,
   updated_at AS updatedAt
 `;
@@ -340,6 +346,19 @@ export function updateSyncPairAutoSync(id: string, autoSync: boolean, createdBy?
     'UPDATE sync_pairs SET auto_sync = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
   ).run(value, id);
   return result.changes > 0;
+}
+
+export function updateSyncPairSnapshotIds(
+  id: string,
+  sourceSnapshotId: string | null,
+  targetSnapshotId: string | null,
+): void {
+  const db = getRecsDb();
+  db.prepare(`
+    UPDATE sync_pairs
+    SET source_snapshot_id = ?, target_snapshot_id = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `).run(sourceSnapshotId, targetSnapshotId, id);
 }
 
 // -----------------------------------------------------------------------------

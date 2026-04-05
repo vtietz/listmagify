@@ -4,16 +4,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { canonicalizeSnapshot } from '@/lib/sync/snapshot';
 import type { Track } from '@/lib/music-provider/types';
-import type { CanonicalMappingResult } from '@/lib/resolver/canonicalResolver';
+import type { CanonicalMappingResult, ResolveProviderTrackInput } from '@/lib/resolver/canonicalResolver';
 
 // Mock the canonical resolver (depends on DB)
 vi.mock('@/lib/resolver/canonicalResolver', () => ({
-  fromProviderTrack: vi.fn(),
+  fromProviderTrackBatch: vi.fn(),
 }));
 
-import { fromProviderTrack } from '@/lib/resolver/canonicalResolver';
+import { fromProviderTrackBatch } from '@/lib/resolver/canonicalResolver';
 
-const mockFromProviderTrack = vi.mocked(fromProviderTrack);
+const mockFromProviderTrackBatch = vi.mocked(fromProviderTrackBatch);
 
 function createTrack(overrides: Partial<Track> = {}): Track {
   return {
@@ -36,9 +36,19 @@ function createMappingResult(overrides: Partial<CanonicalMappingResult> = {}): C
   };
 }
 
+/**
+ * Helper: make the batch mock return one result per input,
+ * using the provided mapping results in order.
+ */
+function mockBatchResults(...results: CanonicalMappingResult[]): void {
+  mockFromProviderTrackBatch.mockImplementation((inputs: ResolveProviderTrackInput[]) => {
+    return inputs.map((_, i) => results[i] ?? createMappingResult());
+  });
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
-  mockFromProviderTrack.mockReturnValue(createMappingResult());
+  mockBatchResults(createMappingResult());
 });
 
 describe('canonicalizeSnapshot', () => {
@@ -48,9 +58,10 @@ describe('canonicalizeSnapshot', () => {
       createTrack({ id: 'sp-2', name: 'Song B', artists: ['Artist B'], durationMs: 300000 }),
     ];
 
-    mockFromProviderTrack
-      .mockReturnValueOnce(createMappingResult({ canonicalTrackId: 'can-1', matchScore: 0.95, confidence: 'high' }))
-      .mockReturnValueOnce(createMappingResult({ canonicalTrackId: 'can-2', matchScore: 0.8, confidence: 'medium' }));
+    mockBatchResults(
+      createMappingResult({ canonicalTrackId: 'can-1', matchScore: 0.95, confidence: 'high' }),
+      createMappingResult({ canonicalTrackId: 'can-2', matchScore: 0.8, confidence: 'medium' }),
+    );
 
     const snapshot = canonicalizeSnapshot('spotify', 'pl-1', tracks, 'snap-123');
 
@@ -83,24 +94,29 @@ describe('canonicalizeSnapshot', () => {
     });
   });
 
-  it('calls fromProviderTrack with correct params for each track', () => {
+  it('calls fromProviderTrackBatch with correct params for all tracks', () => {
     const tracks: Track[] = [
       createTrack({ id: 'sp-1', name: 'Song A', artists: ['Artist A', 'Artist B'], durationMs: 250000 }),
     ];
 
-    mockFromProviderTrack.mockReturnValue(createMappingResult());
+    mockBatchResults(createMappingResult());
 
     canonicalizeSnapshot('tidal', 'pl-42', tracks, null);
 
-    expect(mockFromProviderTrack).toHaveBeenCalledTimes(1);
-    expect(mockFromProviderTrack).toHaveBeenCalledWith({
-      provider: 'tidal',
-      providerTrackId: 'sp-1',
-      title: 'Song A',
-      artists: ['Artist A', 'Artist B'],
-      durationMs: 250000,
-      isrc: null,
-    });
+    expect(mockFromProviderTrackBatch).toHaveBeenCalledTimes(1);
+    expect(mockFromProviderTrackBatch).toHaveBeenCalledWith(
+      [
+        {
+          provider: 'tidal',
+          providerTrackId: 'sp-1',
+          title: 'Song A',
+          artists: ['Artist A', 'Artist B'],
+          durationMs: 250000,
+          isrc: null,
+        },
+      ],
+      undefined,
+    );
   });
 
   it('uses URI as fallback providerTrackId when track.id is null', () => {
@@ -108,14 +124,13 @@ describe('canonicalizeSnapshot', () => {
       createTrack({ id: null, uri: 'spotify:track:fallback-uri', name: 'No ID Track' }),
     ];
 
-    mockFromProviderTrack.mockReturnValue(createMappingResult({ canonicalTrackId: 'can-fallback' }));
+    mockBatchResults(createMappingResult({ canonicalTrackId: 'can-fallback' }));
 
     const snapshot = canonicalizeSnapshot('spotify', 'pl-1', tracks, null);
 
-    expect(mockFromProviderTrack).toHaveBeenCalledWith(
-      expect.objectContaining({
-        providerTrackId: 'spotify:track:fallback-uri',
-      }),
+    expect(mockFromProviderTrackBatch).toHaveBeenCalledWith(
+      [expect.objectContaining({ providerTrackId: 'spotify:track:fallback-uri' })],
+      undefined,
     );
     expect(snapshot.items[0]!.providerTrackId).toBe('spotify:track:fallback-uri');
   });
@@ -127,7 +142,7 @@ describe('canonicalizeSnapshot', () => {
       createTrack({ id: 'sp-3' }),
     ];
 
-    mockFromProviderTrack.mockReturnValue(createMappingResult());
+    mockBatchResults(createMappingResult(), createMappingResult(), createMappingResult());
 
     const snapshot = canonicalizeSnapshot('spotify', 'pl-1', tracks, null);
 
@@ -140,7 +155,7 @@ describe('canonicalizeSnapshot', () => {
 
     expect(snapshot.items).toHaveLength(0);
     expect(snapshot.trackCount).toBe(0);
-    expect(mockFromProviderTrack).not.toHaveBeenCalled();
+    expect(mockFromProviderTrackBatch).toHaveBeenCalledWith([], undefined);
   });
 
   it('assigns position based on array index', () => {
@@ -150,7 +165,7 @@ describe('canonicalizeSnapshot', () => {
       createTrack({ id: 'sp-3' }),
     ];
 
-    mockFromProviderTrack.mockReturnValue(createMappingResult());
+    mockBatchResults(createMappingResult(), createMappingResult(), createMappingResult());
 
     const snapshot = canonicalizeSnapshot('spotify', 'pl-1', tracks, null);
 
@@ -175,7 +190,7 @@ describe('canonicalizeSnapshot', () => {
       }),
     ];
 
-    mockFromProviderTrack.mockReturnValue(createMappingResult());
+    mockBatchResults(createMappingResult());
 
     const snapshot = canonicalizeSnapshot('spotify', 'pl-1', tracks, null);
 

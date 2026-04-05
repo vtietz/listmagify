@@ -7,7 +7,7 @@
  */
 
 import { createBackgroundProvider } from '@/lib/sync/backgroundProvider';
-import { captureSnapshot } from '@/lib/sync/snapshot';
+import { captureSnapshot, fetchPlaylistSnapshotId } from '@/lib/sync/snapshot';
 import type { SnapshotOptions } from '@/lib/sync/snapshot';
 import { computeSyncDiff } from '@/lib/sync/diff';
 import { applySyncPlan } from '@/lib/sync/apply';
@@ -18,9 +18,10 @@ import {
   advanceNextRunAt,
   incrementConsecutiveFailures,
   resetConsecutiveFailures,
+  updateSyncPairSnapshotIds,
 } from '@/lib/sync/syncStore';
 import type { SyncPair, SyncTrigger, SyncWarning, SyncApplyResult } from '@/lib/sync/types';
-import type { MusicProviderId } from '@/lib/music-provider/types';
+import type { MusicProvider, MusicProviderId } from '@/lib/music-provider/types';
 
 export interface SyncMatchThresholds {
   convert: number;
@@ -70,6 +71,30 @@ function buildRunUpdate(result: SyncApplyResult): Record<string, unknown> {
     warningsJson: warnings.length > 0 ? JSON.stringify(warnings) : null,
     completedAt: new Date().toISOString(),
   };
+}
+
+/**
+ * Check whether both playlists are unchanged since the last sync by
+ * comparing lightweight snapshot IDs. Returns true if we can skip the sync.
+ */
+async function arePlaylistsUnchanged(
+  pair: SyncPair,
+  sourceProvider: MusicProvider,
+  targetProvider: MusicProvider,
+): Promise<boolean> {
+  if (!pair.sourceSnapshotId || !pair.targetSnapshotId) return false;
+
+  const [currentSourceId, currentTargetId] = await Promise.all([
+    fetchPlaylistSnapshotId(sourceProvider, pair.sourcePlaylistId),
+    fetchPlaylistSnapshotId(targetProvider, pair.targetPlaylistId),
+  ]);
+
+  return !!(
+    currentSourceId &&
+    currentTargetId &&
+    currentSourceId === pair.sourceSnapshotId &&
+    currentTargetId === pair.targetSnapshotId
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -133,6 +158,26 @@ export async function executeSyncRun(
     const sourceProvider = await createBackgroundProvider(sourceUserId, pair.sourceProvider);
     const targetProvider = await createBackgroundProvider(targetUserId, pair.targetProvider);
 
+    // Snapshot short-circuit: if both playlists are unchanged, skip the sync
+    if (await arePlaylistsUnchanged(pair, sourceProvider, targetProvider)) {
+      updateSyncRun(runId, {
+        status: 'done',
+        tracksAdded: 0,
+        tracksRemoved: 0,
+        tracksUnresolved: 0,
+        completedAt: new Date().toISOString(),
+      });
+      resetConsecutiveFailures(pair.id);
+      if (pair.syncInterval !== 'off') {
+        advanceNextRunAt(pair.id);
+      }
+      console.debug('[sync/executor] skipped — both playlists unchanged', {
+        runId,
+        pairId: pair.id,
+      });
+      return;
+    }
+
     const snapshotOpts: SnapshotOptions | undefined = matchThresholds
       ? { resolveOptions: { thresholds: matchThresholds } }
       : undefined;
@@ -152,6 +197,13 @@ export async function executeSyncRun(
     const result = await applySyncPlan(plan, providerOverrides);
 
     updateSyncRun(runId, buildRunUpdate(result));
+
+    // Persist snapshot IDs so subsequent syncs can short-circuit
+    updateSyncPairSnapshotIds(
+      pair.id,
+      sourceSnapshot.snapshotId,
+      targetSnapshot.snapshotId,
+    );
 
     // Any successful sync resets failures and advances the schedule
     resetConsecutiveFailures(pair.id);
