@@ -15,7 +15,7 @@ RUN corepack enable && corepack install -g pnpm@10.26.2
 FROM base AS dev
 # Install OS deps (openssl for Auth.js PKCE)
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends bash openssl && \
+    apt-get install -y --no-install-recommends bash openssl git && \
     rm -rf /var/lib/apt/lists/*
 # Dev image: no dependency install; dependencies are installed during development via docker/run.bat install
 COPY . .

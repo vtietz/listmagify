@@ -132,7 +132,7 @@ export function getImportJobWithPlaylists(
       id,
       job_id AS jobId,
       source_playlist_id AS sourcePlaylistId,
-      source_playlist_name AS sourcePlaylistName,
+      COALESCE(NULLIF(TRIM(source_playlist_name), ''), source_playlist_id) AS sourcePlaylistName,
       target_playlist_id AS targetPlaylistId,
       status,
       track_count AS trackCount,
@@ -288,7 +288,7 @@ export function getImportHistory(createdBy: string | string[], limit = 20): Impo
     const playlists = db.prepare(`
       SELECT
         id, job_id AS jobId, source_playlist_id AS sourcePlaylistId,
-        source_playlist_name AS sourcePlaylistName,
+        COALESCE(NULLIF(TRIM(source_playlist_name), ''), source_playlist_id) AS sourcePlaylistName,
         target_playlist_id AS targetPlaylistId,
         status, track_count AS trackCount,
         tracks_resolved AS tracksResolved, tracks_added AS tracksAdded,
@@ -352,7 +352,7 @@ export function getRecentImportJobsAdmin(limit = 20): ImportJobWithPlaylists[] {
     const playlists = db.prepare(`
       SELECT
         id, job_id AS jobId, source_playlist_id AS sourcePlaylistId,
-        source_playlist_name AS sourcePlaylistName,
+        COALESCE(NULLIF(TRIM(source_playlist_name), ''), source_playlist_id) AS sourcePlaylistName,
         target_playlist_id AS targetPlaylistId,
         status, track_count AS trackCount,
         tracks_resolved AS tracksResolved, tracks_added AS tracksAdded,

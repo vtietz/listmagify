@@ -119,23 +119,32 @@ case "${1:-}" in
 
       MODE=\${QUALITY_MODE:-changed}
 
-      if command -v git >/dev/null 2>&1 && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-        if [ \"\$MODE\" = 'all' ]; then
-          TARGET_FILES=\$(git ls-files '*.ts' '*.tsx' '*.js' '*.jsx')
+      if command -v git >/dev/null 2>&1; then
+        # In Docker bind mounts, git may reject ownership unless explicitly marked safe.
+        git config --global --add safe.directory /usr/src/app >/dev/null 2>&1 || true
+
+        if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+          if [ \"\$MODE\" = 'all' ]; then
+            TARGET_FILES=\$(git ls-files '*.ts' '*.tsx' '*.js' '*.jsx')
+          else
+            TARGET_FILES=\$(
+              {
+                git diff --name-only --diff-filter=ACMR
+                git diff --name-only --cached --diff-filter=ACMR
+                git ls-files --others --exclude-standard
+              } \
+                | sed '/^$/d' \
+                | grep -E '\\.(ts|tsx|js|jsx)\$' \
+                | sort -u \
+                | while IFS= read -r file; do
+                    [ -f \"\$file\" ] && printf '%s\\n' \"\$file\"
+                  done
+            )
+          fi
         else
-          TARGET_FILES=\$(
-            {
-              git diff --name-only --diff-filter=ACMR
-              git diff --name-only --cached --diff-filter=ACMR
-              git ls-files --others --exclude-standard
-            } \
-              | sed '/^$/d' \
-              | grep -E '\\.(ts|tsx|js|jsx)\$' \
-              | sort -u \
-              | while IFS= read -r file; do
-                  [ -f \"\$file\" ] && printf '%s\\n' \"\$file\"
-                done
-          )
+          echo '[quality] git is available but repository metadata is not accessible; using find fallback'
+          TARGET_FILES=\$(find app components hooks lib tests types scripts features shared widgets -type f \
+            \( -name '*.ts' -o -name '*.tsx' -o -name '*.js' -o -name '*.jsx' \) 2>/dev/null)
         fi
       else
         echo '[quality] git not found in container, using find fallback'

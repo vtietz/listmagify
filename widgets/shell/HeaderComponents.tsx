@@ -43,7 +43,6 @@ import { AdaptiveNav as AdaptiveNavComponent, type NavItem } from '@/components/
 import { syncProviderAuthStatusWithRetry } from '@/lib/providers/syncProviderAuth';
 import type { ProviderId } from '@/lib/providers/types';
 import { ConfigDialog } from '@widgets/shell/config/ConfigDialog';
-import { cn } from '@/lib/utils';
 import { useSyncDialogStore } from '@features/sync/stores/useSyncDialogStore';
 import { useSyncActivityStore } from '@features/sync/stores/useSyncActivityStore';
 import { useImportManagementStore } from '@features/import/stores/useImportManagementStore';
@@ -106,6 +105,27 @@ interface AdaptiveNavProps {
 
 interface AppConfigResponse {
   availableProviders?: ProviderId[];
+}
+
+function renderAttentionOrActivityBadge(attentionCount: number, isActive: boolean) {
+  if (attentionCount > 0) {
+    return (
+      <span className="ml-1 text-xs bg-red-500 text-white px-1.5 py-0.5 rounded-full">
+        {attentionCount}
+      </span>
+    );
+  }
+
+  if (isActive) {
+    return (
+      <span
+        className="ml-1 inline-block h-2 w-2 rounded-full bg-blue-500 animate-pulse"
+        title="Active"
+      />
+    );
+  }
+
+  return undefined;
 }
 
 function isProviderId(value: unknown): value is ProviderId {
@@ -298,33 +318,21 @@ export function AdaptiveNav({
     }
     items.push({
       id: 'import',
-      icon: <Import className={cn('h-3.5 w-3.5', isImporting && 'animate-spin')} />,
+      icon: <Import className="h-3.5 w-3.5" />,
       label: 'Import',
       onClick: openImportManagement,
       visible: showSecureLinks && multipleProvidersConnected,
       group: 'view',
-      ...(importAttentionCount > 0 ? {
-        badge: (
-          <span className="ml-1 text-xs bg-red-500 text-white px-1.5 py-0.5 rounded-full">
-            {importAttentionCount}
-          </span>
-        ),
-      } : {}),
+      badge: renderAttentionOrActivityBadge(importAttentionCount, isImporting),
     });
     items.push({
       id: 'sync',
-      icon: <RefreshCw className={cn('h-3.5 w-3.5', isSyncing && 'animate-spin')} />,
+      icon: <RefreshCw className="h-3.5 w-3.5" />,
       label: 'Sync',
       onClick: openManagement,
       visible: showSecureLinks && multipleProvidersConnected,
       group: 'view',
-      ...(syncAttentionCount > 0 ? {
-        badge: (
-          <span className="ml-1 text-xs bg-red-500 text-white px-1.5 py-0.5 rounded-full">
-            {syncAttentionCount}
-          </span>
-        ),
-      } : {}),
+      badge: renderAttentionOrActivityBadge(syncAttentionCount, isSyncing),
     });
     items.push({
       id: 'config',

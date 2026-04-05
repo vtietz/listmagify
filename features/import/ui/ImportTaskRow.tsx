@@ -10,6 +10,7 @@ import { useCancelImportTask } from '@/features/import/hooks/useCancelImportTask
 import { formatRelativeTime } from '@shared/utils/formatRelativeTime';
 import type { ImportJobPlaylist } from '@/lib/import/types';
 import type { MusicProviderId } from '@/lib/music-provider/types';
+import { getLikedSongsDisplayName, isLikedSongsPlaylist } from '@/lib/sync/likedSongs';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -28,6 +29,19 @@ function showSyncBadge(
 
 function hasResultDetail(status: ImportJobPlaylist['status']): boolean {
   return status === 'done' || status === 'failed' || status === 'partial';
+}
+
+function resolvePlaylistDisplayName(entry: ImportJobPlaylist, sourceProvider: MusicProviderId): string {
+  const sourceName = entry.sourcePlaylistName?.trim();
+  if (sourceName) {
+    return sourceName;
+  }
+
+  if (isLikedSongsPlaylist(entry.sourcePlaylistId)) {
+    return getLikedSongsDisplayName(sourceProvider);
+  }
+
+  return 'Unnamed playlist';
 }
 
 // ---------------------------------------------------------------------------
@@ -77,6 +91,7 @@ export function ImportTaskRow({
 
   const timestamp = jobCompletedAt ?? jobCreatedAt;
   const clickable = hasResultDetail(entry.status);
+  const playlistName = resolvePlaylistDisplayName(entry, sourceProvider);
 
   return (
     <div className="rounded-md border border-border">
@@ -90,8 +105,8 @@ export function ImportTaskRow({
 
         {/* Playlist name + sync badge */}
         <div className="flex items-center gap-1.5 min-w-0">
-          <span className="text-sm truncate" title={entry.sourcePlaylistName}>
-            {entry.sourcePlaylistName}
+          <span className="text-sm truncate" title={playlistName}>
+            {playlistName}
           </span>
           {showSyncBadge(createSyncPair, entry.status) && (
             <span title="Sync pair created">

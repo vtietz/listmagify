@@ -139,11 +139,13 @@ export function ImportPlaylistSelectionRow({
 }
 
 export function ImportPlaylistProgressRow({ entry }: ProgressRowProps) {
+  const playlistName = entry.sourcePlaylistName?.trim() || 'Unnamed playlist';
+
   return (
     <div className="flex items-center gap-3 px-3 py-2">
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <span className="text-sm truncate">{entry.sourcePlaylistName}</span>
+          <span className="text-sm truncate" title={playlistName}>{playlistName}</span>
           <StatusBadge status={entry.status} />
         </div>
         <TrackStats entry={entry} />
