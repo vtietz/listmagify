@@ -122,10 +122,7 @@ export function ConfigDialog({
               aria-label="Auto-match confidence threshold"
             />
             <p className="text-xs text-muted-foreground">
-              Matching confidence controls automatic conversion between providers: higher values are stricter and route more tracks to manual review.
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Manual review threshold is derived automatically: {Math.max(0.5, draftConvertThreshold - 0.1).toFixed(2)}
+              Matching confidence controls automatic conversion between providers. ISRC is tried first, then text search fallback. Higher values are stricter and route more tracks to manual review; manual review threshold: {Math.max(0.5, draftConvertThreshold - 0.1).toFixed(2)}.
             </p>
           </section>
 

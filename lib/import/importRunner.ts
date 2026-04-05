@@ -19,6 +19,8 @@ import {
   LIKED_TRACKS_BATCH_SIZE,
   LIKED_SONGS_PLAYLIST_ID,
 } from '@/lib/sync/likedSongs';
+import { RateLimitError } from '@/lib/spotify/rateLimit';
+import { ProviderApiError } from '@/lib/music-provider/types';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -47,6 +49,52 @@ function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function parseRetryAfterMsFromError(error: unknown): number | undefined {
+  if (error instanceof RateLimitError) {
+    return error.retryAfterMs;
+  }
+
+  if (error instanceof ProviderApiError && error.status === 429 && typeof error.details === 'string') {
+    const detailsMatch = error.details.match(/retryAfter\s*[=:]\s*(\d+)/i);
+    if (detailsMatch?.[1]) {
+      return Number(detailsMatch[1]) * 1000;
+    }
+  }
+
+  const message = errorMessage(error);
+  const secondsMatch = message.match(/retry after\s+(\d+)\s+second/i);
+  if (secondsMatch?.[1]) {
+    return Number(secondsMatch[1]) * 1000;
+  }
+
+  return undefined;
+}
+
+async function runWithRateLimitRetry<T>(operation: () => Promise<T>, maxAttempts = 2): Promise<T> {
+  let attempt = 0;
+  while (true) {
+    attempt++;
+    try {
+      return await operation();
+    } catch (error) {
+      const retryAfterMs = parseRetryAfterMsFromError(error);
+      if (!retryAfterMs || attempt >= maxAttempts) {
+        throw error;
+      }
+
+      console.warn('[import/runner] rate limited, retrying batch', {
+        attempt,
+        retryAfterMs,
+      });
+      await sleep(retryAfterMs);
+    }
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Import a single playlist
 // ---------------------------------------------------------------------------
@@ -73,12 +121,12 @@ async function importPlaylist(
   } else {
     updateImportJobPlaylist(playlist.id, { status: 'creating' });
 
-    const createdPlaylist = await targetProvider.createPlaylist({
+    const createdPlaylist = await runWithRateLimitRetry(() => targetProvider.createPlaylist({
       userId: targetProviderUserId,
       name: playlist.sourcePlaylistName,
       description: `Imported from ${sourceProviderId}`,
       isPublic: false,
-    });
+    }));
 
     targetPlaylistId = createdPlaylist.id;
     updateImportJobPlaylist(playlist.id, {
@@ -137,15 +185,15 @@ async function importPlaylist(
   if (isLikedTarget) {
     for (const batch of chunk(trackUris, LIKED_TRACKS_BATCH_SIZE)) {
       const ids = batch.map((uri) => uriToTrackId(targetProviderId, uri));
-      await targetProvider.saveTracks({ ids });
+      await runWithRateLimitRetry(() => targetProvider.saveTracks({ ids }));
       tracksAdded += batch.length;
     }
   } else {
     for (const batch of chunk(trackUris, BATCH_SIZE)) {
-      await targetProvider.addTracks({
+      await runWithRateLimitRetry(() => targetProvider.addTracks({
         playlistId: targetPlaylistId,
         trackUris: batch,
-      });
+      }));
       tracksAdded += batch.length;
     }
   }

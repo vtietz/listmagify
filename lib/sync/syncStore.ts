@@ -447,6 +447,13 @@ export function advanceNextRunAt(id: string): void {
   db.prepare('UPDATE sync_pairs SET next_run_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(nextRunAt, id);
 }
 
+export function setNextRunAtFromNow(id: string, delayMs: number): void {
+  const db = getRecsDb();
+  const safeDelayMs = Math.max(1000, Math.floor(delayMs));
+  const nextRunAt = new Date(Date.now() + safeDelayMs).toISOString();
+  db.prepare('UPDATE sync_pairs SET next_run_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(nextRunAt, id);
+}
+
 export function incrementConsecutiveFailures(id: string): void {
   const db = getRecsDb();
   db.prepare(

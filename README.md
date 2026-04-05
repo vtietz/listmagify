@@ -464,6 +464,29 @@ For detailed documentation, see [docs/RECOMMENDATIONS.md](docs/RECOMMENDATIONS.m
 
 When canonical mode rollout encounters a legacy rec DB (pre-canonical schema), Listmagify performs a one-time automatic backup and reset before running migrations.
 
+## Background Sync Tuning (Optional)
+
+Background sync runs in the `sync-worker` process. If provider rate limits appear under load, tune cadence and use global plus provider-specific concurrency caps.
+
+```env
+# .env
+SYNC_SCHEDULER_ENABLED=true
+SYNC_TICK_MS=60000
+SYNC_MAX_CONCURRENT=3
+SYNC_MAX_CONCURRENT_SPOTIFY=1
+SYNC_MAX_CONCURRENT_TIDAL=2
+SYNC_INTERVAL_OPTIONS=15m,30m,1h,6h,12h,24h
+```
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `SYNC_SCHEDULER_ENABLED` | Enables background scheduler execution | `false` |
+| `SYNC_TICK_MS` | Scheduler poll interval in milliseconds | `60000` |
+| `SYNC_MAX_CONCURRENT` | Global max sync pairs executed in parallel | `2` |
+| `SYNC_MAX_CONCURRENT_SPOTIFY` | Optional cap for pairs touching Spotify | unset (uses global cap only) |
+| `SYNC_MAX_CONCURRENT_TIDAL` | Optional cap for pairs touching TIDAL | unset (uses global cap only) |
+| `SYNC_INTERVAL_OPTIONS` | Comma-separated sync intervals shown in UI (`off` is always available) | `15m,30m,1h,6h,12h,24h` |
+
 ## Playlist Auto-Reload (Optional)
 
 Automatically refresh open playlists at a set interval. Useful for collaborative playlists or when multiple users are editing the same playlist.

@@ -6,6 +6,7 @@ import type {
   ImportJobWithPlaylists,
   CreateImportJobInput,
 } from './types';
+import type { MusicProviderId } from '@/lib/music-provider/types';
 
 // -----------------------------------------------------------------------------
 // ImportJob CRUD
@@ -253,6 +254,24 @@ export function getActiveImportJob(createdBy: string | string[]): ImportJob | nu
   if (!row) return null;
   row.createSyncPair = Boolean(row.createSyncPair);
   return row;
+}
+
+/**
+ * Returns true when any running import job touches the given provider
+ * as source or target.
+ */
+export function hasRunningImportJobForProvider(providerId: MusicProviderId): boolean {
+  const db = getRecsDb();
+
+  const row = db.prepare(`
+    SELECT 1
+    FROM import_jobs
+    WHERE status = 'running'
+      AND (source_provider = ? OR target_provider = ?)
+    LIMIT 1
+  `).get(providerId, providerId) as { 1: number } | undefined;
+
+  return !!row;
 }
 
 // -----------------------------------------------------------------------------

@@ -13,12 +13,18 @@ vi.mock('@/lib/sync/executor', () => ({
   executeSyncPair: vi.fn(),
 }));
 
+vi.mock('@/lib/import/importStore', () => ({
+  hasRunningImportJobForProvider: vi.fn(),
+}));
+
 import { getDueSyncPairs } from '@/lib/sync/syncStore';
 import { executeSyncPair } from '@/lib/sync/executor';
+import { hasRunningImportJobForProvider } from '@/lib/import/importStore';
 import { startScheduler, stopScheduler } from '@/lib/sync/scheduler';
 
 const mockedGetDueSyncPairs = vi.mocked(getDueSyncPairs);
 const mockedExecuteSyncPair = vi.mocked(executeSyncPair);
+const mockedHasRunningImportJobForProvider = vi.mocked(hasRunningImportJobForProvider);
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -75,10 +81,13 @@ beforeEach(() => {
   savedEnv.SYNC_SCHEDULER_ENABLED = process.env.SYNC_SCHEDULER_ENABLED;
   savedEnv.SYNC_TICK_MS = process.env.SYNC_TICK_MS;
   savedEnv.SYNC_MAX_CONCURRENT = process.env.SYNC_MAX_CONCURRENT;
+  savedEnv.SYNC_MAX_CONCURRENT_SPOTIFY = process.env.SYNC_MAX_CONCURRENT_SPOTIFY;
+  savedEnv.SYNC_MAX_CONCURRENT_TIDAL = process.env.SYNC_MAX_CONCURRENT_TIDAL;
 
   // Default mock: no due pairs, instant resolve
   mockedGetDueSyncPairs.mockReturnValue([]);
   mockedExecuteSyncPair.mockResolvedValue('run-id');
+  mockedHasRunningImportJobForProvider.mockReturnValue(false);
 });
 
 afterEach(() => {
@@ -429,6 +438,55 @@ describe('scheduler', () => {
       await vi.advanceTimersByTimeAsync(0);
 
       expect(mockedGetDueSyncPairs).toHaveBeenCalledWith(5);
+    });
+
+    it('enforces provider-specific concurrency caps when set', async () => {
+      process.env.SYNC_SCHEDULER_ENABLED = 'true';
+      process.env.SYNC_MAX_CONCURRENT = '3';
+      process.env.SYNC_MAX_CONCURRENT_SPOTIFY = '1';
+
+      const spotifyTidalA = createPair('a');
+      const spotifyTidalB = createPair('b');
+
+      const tidalOnly: SyncPair = {
+        ...createPair('c'),
+        sourceProvider: 'tidal',
+        targetProvider: 'tidal',
+      };
+
+      mockedGetDueSyncPairs.mockReturnValue([spotifyTidalA, spotifyTidalB, tidalOnly]);
+
+      startScheduler();
+      await vi.advanceTimersByTimeAsync(0);
+
+      // second spotify pair is blocked by spotify cap=1, tidal-only pair still runs
+      expect(mockedExecuteSyncPair).toHaveBeenCalledTimes(2);
+      expect(mockedExecuteSyncPair).toHaveBeenCalledWith({ pair: spotifyTidalA, triggeredBy: 'scheduler' });
+      expect(mockedExecuteSyncPair).toHaveBeenCalledWith({ pair: tidalOnly, triggeredBy: 'scheduler' });
+    });
+  });
+
+  describe('provider import gating', () => {
+    it('skips pairs touching a provider with running import jobs', async () => {
+      process.env.SYNC_SCHEDULER_ENABLED = 'true';
+
+      mockedHasRunningImportJobForProvider.mockImplementation((providerId: 'spotify' | 'tidal') => {
+        return providerId === 'spotify';
+      });
+
+      const spotifyPair = createPair('spotify-pair');
+      const tidalOnly: SyncPair = {
+        ...createPair('tidal-only'),
+        sourceProvider: 'tidal',
+        targetProvider: 'tidal',
+      };
+      mockedGetDueSyncPairs.mockReturnValue([spotifyPair, tidalOnly]);
+
+      startScheduler();
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(mockedExecuteSyncPair).toHaveBeenCalledTimes(1);
+      expect(mockedExecuteSyncPair).toHaveBeenCalledWith({ pair: tidalOnly, triggeredBy: 'scheduler' });
     });
   });
 

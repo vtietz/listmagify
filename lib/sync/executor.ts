@@ -16,12 +16,15 @@ import {
   createSyncRun,
   updateSyncRun,
   advanceNextRunAt,
+  setNextRunAtFromNow,
   incrementConsecutiveFailures,
   resetConsecutiveFailures,
   updateSyncPairSnapshotIds,
 } from '@/lib/sync/syncStore';
 import type { SyncPair, SyncTrigger, SyncWarning, SyncApplyResult } from '@/lib/sync/types';
 import type { MusicProvider, MusicProviderId } from '@/lib/music-provider/types';
+import { ProviderApiError } from '@/lib/music-provider/types';
+import { RateLimitError } from '@/lib/spotify/rateLimit';
 
 export interface SyncMatchThresholds {
   convert: number;
@@ -106,13 +109,41 @@ function finishScheduledSuccess(pair: SyncPair): void {
   }
 }
 
-function handleScheduledFailure(pair: SyncPair, message: string): void {
+function parseRetryAfterMsFromError(error: unknown, message: string): number | undefined {
+  if (error instanceof RateLimitError) {
+    return error.retryAfterMs;
+  }
+
+  if (error instanceof ProviderApiError && error.status === 429 && typeof error.details === 'string') {
+    const detailsMatch = error.details.match(/retryAfter\s*[=:]\s*(\d+)/i);
+    if (detailsMatch?.[1]) {
+      return Number(detailsMatch[1]) * 1000;
+    }
+  }
+
+  const secondsMatch = message.match(/retry after\s+(\d+)\s+second/i);
+  if (secondsMatch?.[1]) {
+    return Number(secondsMatch[1]) * 1000;
+  }
+
+  return undefined;
+}
+
+function handleScheduledFailure(pair: SyncPair, message: string, error: unknown): void {
   const isAuthError =
     message.includes('No valid session') ||
     message.includes('invalid_grant') ||
     message.includes('revoked');
 
+  const retryAfterMs = parseRetryAfterMsFromError(error, message);
+
   incrementConsecutiveFailures(pair.id);
+
+  if (retryAfterMs && (pair.sourceProvider === 'spotify' || pair.targetProvider === 'spotify')) {
+    setNextRunAtFromNow(pair.id, retryAfterMs);
+    return;
+  }
+
   if (!isAuthError) {
     advanceNextRunAt(pair.id);
   }
@@ -269,7 +300,7 @@ export async function executeSyncRun(
     });
 
     if (isScheduled) {
-      handleScheduledFailure(pair, message);
+      handleScheduledFailure(pair, message, error);
     }
 
     console.error('[sync/executor] failed', { pairId: pair.id, runId, triggeredBy, error: message });
