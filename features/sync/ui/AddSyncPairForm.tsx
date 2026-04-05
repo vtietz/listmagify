@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -141,6 +141,9 @@ function SyncIntervalSelect({
 
 export function AddSyncPairForm(props: AddSyncPairFormProps) {
   const { popoverContainer, showSyncActions } = props;
+  const managementDraft = useSyncDialogStore((s) => s.managementDraft);
+  const setManagementDraft = useSyncDialogStore((s) => s.setManagementDraft);
+  const clearManagementDraft = useSyncDialogStore((s) => s.clearManagementDraft);
   const allProviders = useAvailableProviders();
   const currentProvider = useMusicProviderId();
   const authSummary = useAuthSummary();
@@ -163,11 +166,60 @@ export function AddSyncPairForm(props: AddSyncPairFormProps) {
     [connectedProviders, currentProvider, props],
   );
 
-  const [sourceProvider, setSourceProvider] = useState<MusicProviderId>(defaults.sourceProvider);
-  const [sourcePlaylistId, setSourcePlaylistId] = useState<string | null>(defaults.sourcePlaylistId);
-  const [targetProvider, setTargetProvider] = useState<MusicProviderId>(defaults.targetProvider);
-  const [targetPlaylistId, setTargetPlaylistId] = useState<string | null>(defaults.targetPlaylistId);
-  const [syncInterval, setSyncInterval] = useState<SyncInterval>('off');
+  const isManualDraftForm = useMemo(
+    () => (
+      props.initialSourceProvider === undefined
+      && props.initialSourcePlaylistId === undefined
+      && props.initialTargetProvider === undefined
+      && props.initialTargetPlaylistId === undefined
+    ),
+    [props.initialSourceProvider, props.initialSourcePlaylistId, props.initialTargetProvider, props.initialTargetPlaylistId],
+  );
+
+  const initialState = useMemo(() => {
+    if (!isManualDraftForm || !managementDraft) {
+      return {
+        sourceProvider: defaults.sourceProvider,
+        sourcePlaylistId: defaults.sourcePlaylistId,
+        targetProvider: defaults.targetProvider,
+        targetPlaylistId: defaults.targetPlaylistId,
+        syncInterval: 'off' as SyncInterval,
+      };
+    }
+
+    return {
+      sourceProvider: managementDraft.sourceProvider,
+      sourcePlaylistId: managementDraft.sourcePlaylistId,
+      targetProvider: managementDraft.targetProvider,
+      targetPlaylistId: managementDraft.targetPlaylistId,
+      syncInterval: managementDraft.syncInterval,
+    };
+  }, [isManualDraftForm, managementDraft, defaults]);
+
+  const [sourceProvider, setSourceProvider] = useState<MusicProviderId>(initialState.sourceProvider);
+  const [sourcePlaylistId, setSourcePlaylistId] = useState<string | null>(initialState.sourcePlaylistId);
+  const [targetProvider, setTargetProvider] = useState<MusicProviderId>(initialState.targetProvider);
+  const [targetPlaylistId, setTargetPlaylistId] = useState<string | null>(initialState.targetPlaylistId);
+  const [syncInterval, setSyncInterval] = useState<SyncInterval>(initialState.syncInterval);
+
+  useEffect(() => {
+    if (!isManualDraftForm) return;
+    setManagementDraft({
+      sourceProvider,
+      sourcePlaylistId,
+      targetProvider,
+      targetPlaylistId,
+      syncInterval,
+    });
+  }, [
+    isManualDraftForm,
+    setManagementDraft,
+    sourceProvider,
+    sourcePlaylistId,
+    targetProvider,
+    targetPlaylistId,
+    syncInterval,
+  ]);
 
   const sourcePlaylistName = usePlaylistName(sourceProvider, sourcePlaylistId ?? '');
   const targetPlaylistName = usePlaylistName(targetProvider, targetPlaylistId ?? '');
@@ -196,6 +248,9 @@ export function AddSyncPairForm(props: AddSyncPairFormProps) {
           setSourcePlaylistId(null);
           setTargetPlaylistId(null);
           setSyncInterval('off');
+          if (isManualDraftForm) {
+            clearManagementDraft();
+          }
         },
       },
     );

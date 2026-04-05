@@ -4,6 +4,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useSyncDialogStore } from './useSyncDialogStore';
 import type { SyncDialogConfig } from './useSyncDialogStore';
+import type { SyncManagementDraft } from './useSyncDialogStore';
 
 const sampleConfig: SyncDialogConfig = {
   sourceProvider: 'spotify',
@@ -13,6 +14,14 @@ const sampleConfig: SyncDialogConfig = {
   direction: 'a-to-b',
 };
 
+const sampleDraft: SyncManagementDraft = {
+  sourceProvider: 'spotify',
+  sourcePlaylistId: 'source-pl',
+  targetProvider: 'tidal',
+  targetPlaylistId: 'target-pl',
+  syncInterval: '1h',
+};
+
 beforeEach(() => {
   // Reset store to initial state between tests
   useSyncDialogStore.setState({
@@ -20,6 +29,7 @@ beforeEach(() => {
     previewConfig: null,
     returnToManagement: false,
     isManagementOpen: false,
+    managementDraft: null,
   });
 });
 
@@ -143,6 +153,21 @@ describe('useSyncDialogStore', () => {
       // Close preview
       useSyncDialogStore.getState().closePreview();
       expect(useSyncDialogStore.getState().isManagementOpen).toBe(false);
+    });
+  });
+
+  describe('management draft', () => {
+    it('stores the add-sync form draft', () => {
+      useSyncDialogStore.getState().setManagementDraft(sampleDraft);
+
+      expect(useSyncDialogStore.getState().managementDraft).toEqual(sampleDraft);
+    });
+
+    it('clears the add-sync form draft', () => {
+      useSyncDialogStore.getState().setManagementDraft(sampleDraft);
+      useSyncDialogStore.getState().clearManagementDraft();
+
+      expect(useSyncDialogStore.getState().managementDraft).toBeNull();
     });
   });
 });
