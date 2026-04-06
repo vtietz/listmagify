@@ -38,6 +38,7 @@ export interface PanelToolbarNavItemsParams {
   isSavingOrder: boolean;
   insertionMarkerCount: number;
   onClearInsertionMarkers: (() => void) | undefined;
+  showAutoScrollToggle: boolean;
   autoScrollEnabled: boolean;
   toggleAutoScroll: () => void;
   onLockToggle: () => void;
@@ -273,7 +274,7 @@ function addClosePanelNavItem(items: NavItem[], params: PanelToolbarNavItemsPara
 }
 
 function addPanelNavItems(items: NavItem[], params: PanelToolbarNavItemsParams): void {
-  if (params.playlistId) {
+  if (params.playlistId && params.showAutoScrollToggle) {
     items.push({
       id: 'auto-scroll',
       icon: <ArrowDownToLine className="h-4 w-4" />,

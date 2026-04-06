@@ -4,6 +4,7 @@ import { useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import { useDeviceType } from '@shared/hooks/useDeviceType';
 import { useAutoScrollPlayStore, useHydratedAutoScrollPlay } from '@features/split-editor/hooks/useAutoScrollPlayStore';
+import { usePlayerStore } from '@features/player/hooks/usePlayerStore';
 import {
   type PanelToolbarProps,
   type ResolvedPanelToolbarProps,
@@ -19,7 +20,7 @@ import {
 export type { PanelToolbarProps } from '@features/split-editor/playlist/ui/panelToolbarHelpers';
 
 function PanelToolbarInner({
-  panelId: _panelId,
+  panelId,
   providerId,
   playlistId,
   playlistName,
@@ -86,6 +87,10 @@ function PanelToolbarInner({
   const canCloseLastPanel = isPlaylistDetailRoute;
   const disableClose = !isPhone && isLastPanel && !canCloseLastPanel;
   const canPlayInProvider = providerId === 'spotify';
+  const playbackSourceId = usePlayerStore((s) => s.playbackContext?.sourceId);
+  const isPlaybackActive = usePlayerStore((s) => Boolean(s.playbackState?.isPlaying));
+  const isPlaybackLeadPanel = playbackSourceId === panelId;
+  const showAutoScrollToggle = canPlayInProvider && isPlayingPanel && isPlaybackActive && isPlaybackLeadPanel;
 
   const navItems = useToolbarNavItems({
     playlistId,
@@ -108,6 +113,7 @@ function PanelToolbarInner({
     isSavingOrder,
     insertionMarkerCount,
     onClearInsertionMarkers,
+    showAutoScrollToggle,
     autoScrollEnabled,
     toggleAutoScroll,
     onLockToggle,
