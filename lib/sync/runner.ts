@@ -10,6 +10,18 @@ import { getSyncPair, createSyncRun, updateSyncRun } from '@/lib/sync/syncStore'
 import type { SyncConfig, SyncPlan, SyncApplyResult, SyncPreviewResult, SyncPreviewTrack, SyncDiffItem } from '@/lib/sync/types';
 import type { PlaylistSnapshot } from '@/lib/sync/snapshot';
 import type { SyncMatchThresholds } from '@/lib/sync/executor';
+import { updateSyncPreviewRun } from '@/lib/sync/previewStore';
+import { createBackgroundProvider } from '@/lib/sync/backgroundProvider';
+
+const PREVIEW_VALIDATION_BATCH_SIZE = 50;
+const PREVIEW_VALIDATION_BATCH_TIMEOUT_MS = 20_000;
+const PREVIEW_RUN_TIMEOUT_MS = 10 * 60_000;
+const PREVIEW_PROGRESS_CAPTURE_START = 5;
+const PREVIEW_PROGRESS_CAPTURE_DONE = 35;
+const PREVIEW_PROGRESS_DIFF_DONE = 55;
+const PREVIEW_PROGRESS_VALIDATION_START = 56;
+const PREVIEW_PROGRESS_VALIDATION_END = 96;
+const PREVIEW_PROGRESS_FINALIZING = 98;
 
 // Re-export for backward compatibility with apply route
 export type { SyncMatchThresholds };
@@ -104,23 +116,46 @@ function markAllNotFound(items: SyncDiffItem[]): void {
 async function validateMaterialization(
   plan: SyncPlan,
   providers: Map<MusicProviderId, MusicProvider>,
+  onProgress?: (phase: string, progress: number) => void,
 ): Promise<void> {
   const addsByProvider = groupAddItemsByProvider(plan.items);
+  const totalAdds = Array.from(addsByProvider.values()).reduce((sum, items) => sum + items.length, 0);
+  let processedAdds = 0;
+
+  const reportProgress = () => {
+    if (totalAdds === 0) {
+      onProgress?.('validating_matches', PREVIEW_PROGRESS_VALIDATION_END);
+      return;
+    }
+
+    const ratio = Math.min(1, processedAdds / totalAdds);
+    const progress = PREVIEW_PROGRESS_VALIDATION_START + Math.floor(
+      ratio * (PREVIEW_PROGRESS_VALIDATION_END - PREVIEW_PROGRESS_VALIDATION_START),
+    );
+    onProgress?.('validating_matches', progress);
+  };
 
   for (const [providerId, items] of addsByProvider) {
     const provider = providers.get(providerId);
     if (!provider) {
       markAllNotFound(items);
+      processedAdds += items.length;
+      reportProgress();
       continue;
     }
 
-    await resolveProviderItems(providerId, provider, items);
+      await resolveProviderItems(providerId, provider, items, () => {
+        processedAdds += 1;
+      reportProgress();
+    });
   }
 
   // Update summary unresolved count based on actual materialization
   plan.summary.unresolved = plan.items.filter(
     (i) => i.action === 'add' && i.materializeStatus === 'not_found',
   ).length;
+
+  onProgress?.('validating_matches', PREVIEW_PROGRESS_VALIDATION_END);
 }
 
 /**
@@ -131,23 +166,55 @@ async function resolveProviderItems(
   providerId: MusicProviderId,
   provider: MusicProvider,
   items: SyncDiffItem[],
+  onItemProcessed?: () => void,
 ): Promise<void> {
   const adapter = createSyncMaterializeAdapter(provider, providerId);
+  const resolvedMap = new Map<string, string>();
+  const unresolved = new Set<string>();
   const canonicalIds = items.map((i) => i.canonicalTrackId);
 
-  try {
-    const result = await materializeCanonicalTrackIds({
-      provider: providerId,
-      canonicalTrackIds: canonicalIds,
-      adapter,
-    });
+  for (let i = 0; i < canonicalIds.length; i += PREVIEW_VALIDATION_BATCH_SIZE) {
+    const batchIds = canonicalIds.slice(i, i + PREVIEW_VALIDATION_BATCH_SIZE);
+    try {
+        const materializeInput = {
+          provider: providerId,
+          canonicalTrackIds: batchIds,
+          adapter,
+          ...(onItemProcessed ? { onCanonicalProcessed: onItemProcessed } : {}),
+        };
 
-    const resolvedMap = buildResolvedMap(canonicalIds, result);
-    applyResolutionToItems(items, resolvedMap);
-  } catch (error) {
-    console.warn('[sync/runner] materialization validation failed', { providerId, error });
-    markAllNotFound(items);
+      const result = await Promise.race([
+          materializeCanonicalTrackIds(materializeInput),
+        new Promise<never>((_, reject) => {
+          setTimeout(() => {
+            reject(new Error(`Materialization batch timed out after ${PREVIEW_VALIDATION_BATCH_TIMEOUT_MS}ms`));
+          }, PREVIEW_VALIDATION_BATCH_TIMEOUT_MS);
+        }),
+      ]);
+
+      const batchResolved = buildResolvedMap(batchIds, result);
+      for (const [canonicalId, trackId] of batchResolved.entries()) {
+        resolvedMap.set(canonicalId, trackId);
+      }
+      for (const unresolvedId of result.unresolvedCanonicalIds) {
+        unresolved.add(unresolvedId);
+      }
+    } catch (error) {
+      console.warn('[sync/runner] materialization validation batch failed', {
+        providerId,
+        error,
+      });
+      for (const batchId of batchIds) {
+        unresolved.add(batchId);
+      }
+      }
   }
+
+  for (const unresolvedId of unresolved) {
+    resolvedMap.delete(unresolvedId);
+  }
+
+  applyResolutionToItems(items, resolvedMap);
 }
 
 /**
@@ -157,18 +224,25 @@ async function resolveProviderItems(
 export async function previewSync(
   config: SyncConfig,
   matchThresholds?: SyncMatchThresholds,
+  onProgress?: (phase: string, progress: number) => void,
+  providerOverrides?: Partial<Record<MusicProviderId, MusicProvider>>,
 ): Promise<SyncPreviewResult> {
-  const sourceProvider = getMusicProvider(config.sourceProvider);
-  const targetProvider = getMusicProvider(config.targetProvider);
+  const sourceProvider = providerOverrides?.[config.sourceProvider] ?? getMusicProvider(config.sourceProvider);
+  const targetProvider = providerOverrides?.[config.targetProvider] ?? getMusicProvider(config.targetProvider);
 
   const snapshotOpts: SnapshotOptions | undefined = matchThresholds
     ? { resolveOptions: { thresholds: matchThresholds } }
     : undefined;
 
+  onProgress?.('capturing_snapshots', PREVIEW_PROGRESS_CAPTURE_START);
+
   const [sourceSnapshot, targetSnapshot] = await Promise.all([
     captureSnapshot(sourceProvider, config.sourceProvider, config.sourcePlaylistId, snapshotOpts),
     captureSnapshot(targetProvider, config.targetProvider, config.targetPlaylistId, snapshotOpts),
   ]);
+
+  onProgress?.('capturing_snapshots', PREVIEW_PROGRESS_CAPTURE_DONE);
+  onProgress?.('computing_diff', PREVIEW_PROGRESS_DIFF_DONE);
 
   const diffOpts = matchThresholds ? { thresholds: matchThresholds } : undefined;
   const plan = computeSyncDiff(sourceSnapshot, targetSnapshot, config.direction, diffOpts);
@@ -178,7 +252,9 @@ export async function previewSync(
     [config.sourceProvider, sourceProvider],
     [config.targetProvider, targetProvider],
   ]);
+  onProgress?.('validating_matches', PREVIEW_PROGRESS_VALIDATION_START);
   await validateMaterialization(plan, providerMap);
+  onProgress?.('finalizing', PREVIEW_PROGRESS_FINALIZING);
 
   console.debug('[sync/runner] preview complete', {
     direction: config.direction,
@@ -296,4 +372,63 @@ export async function previewSyncFromPair(
   }
 
   return previewSync(buildConfigFromPair(pair), matchThresholds);
+}
+
+export async function executePreviewRun(
+  runId: string,
+  config: SyncConfig,
+  matchThresholds?: SyncMatchThresholds,
+  providerUserIds?: Partial<Record<MusicProviderId, string>>,
+): Promise<void> {
+  try {
+    updateSyncPreviewRun(runId, { status: 'executing', phase: 'capturing_snapshots', progress: 10 });
+
+    let providerOverrides: Partial<Record<MusicProviderId, MusicProvider>> | undefined;
+    if (providerUserIds) {
+      const sourceUserId = providerUserIds[config.sourceProvider];
+      const targetUserId = providerUserIds[config.targetProvider];
+
+      if (sourceUserId && targetUserId) {
+        const [sourceProvider, targetProvider] = await Promise.all([
+          createBackgroundProvider(sourceUserId, config.sourceProvider),
+          createBackgroundProvider(targetUserId, config.targetProvider),
+        ]);
+
+        providerOverrides = {
+          [config.sourceProvider]: sourceProvider,
+          [config.targetProvider]: targetProvider,
+        };
+      }
+    }
+
+    const result = await Promise.race([
+      previewSync(config, matchThresholds, (phase, progress) => {
+        updateSyncPreviewRun(runId, {
+          status: 'executing',
+          phase,
+          progress,
+        });
+      }, providerOverrides),
+      new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Preview run timed out on server.')), PREVIEW_RUN_TIMEOUT_MS);
+      }),
+    ]);
+
+    updateSyncPreviewRun(runId, {
+      status: 'done',
+      phase: 'done',
+      progress: 100,
+      resultJson: JSON.stringify(result),
+      completedAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    updateSyncPreviewRun(runId, {
+      status: 'failed',
+      phase: 'failed',
+      progress: 100,
+      errorMessage: message,
+      completedAt: new Date().toISOString(),
+    });
+  }
 }

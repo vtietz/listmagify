@@ -475,6 +475,8 @@ SYNC_TICK_MS=60000
 SYNC_MAX_CONCURRENT=3
 SYNC_MAX_CONCURRENT_SPOTIFY=1
 SYNC_MAX_CONCURRENT_TIDAL=2
+SYNC_PREVIEW_WORKER_ENABLED=true
+SYNC_PREVIEW_WORKER_TICK_MS=1000
 SYNC_INTERVAL_OPTIONS=15m,30m,1h,6h,12h,24h
 ```
 
@@ -485,6 +487,8 @@ SYNC_INTERVAL_OPTIONS=15m,30m,1h,6h,12h,24h
 | `SYNC_MAX_CONCURRENT` | Global max sync pairs executed in parallel | `2` |
 | `SYNC_MAX_CONCURRENT_SPOTIFY` | Optional cap for pairs touching Spotify | unset (uses global cap only) |
 | `SYNC_MAX_CONCURRENT_TIDAL` | Optional cap for pairs touching TIDAL | unset (uses global cap only) |
+| `SYNC_PREVIEW_WORKER_ENABLED` | Enables background worker pickup for large sync-preview jobs | `true` |
+| `SYNC_PREVIEW_WORKER_TICK_MS` | Poll interval for queued preview jobs in sync-worker | `1000` |
 | `SYNC_INTERVAL_OPTIONS` | Comma-separated sync intervals shown in UI (`off` is always available) | `15m,30m,1h,6h,12h,24h` |
 
 ## Playlist Auto-Reload (Optional)

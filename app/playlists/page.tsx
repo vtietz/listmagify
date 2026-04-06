@@ -13,6 +13,19 @@ type SessionLike = {
   musicProviderTokens?: Partial<Record<MusicProviderId, { accessToken?: string }>>;
 };
 
+type PlaylistsInitialLoadError = {
+  kind: 'rate_limited' | 'provider_error';
+  message: string;
+  retryAfterSeconds?: number;
+};
+
+type PlaylistsInitialState = {
+  items: Awaited<ReturnType<typeof getCurrentUserPlaylists>>['items'];
+  nextCursor: string | null;
+  total: number;
+  initialLoadError: PlaylistsInitialLoadError | null;
+};
+
 function resolvePreferredProviderFromSession(
   sessionLike: SessionLike | null,
   availableProviders: MusicProviderId[],
@@ -48,6 +61,41 @@ function isPlaylistAuthFailure(error: unknown): boolean {
   return false;
 }
 
+function parseRetryAfterSeconds(value: string | undefined): number | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  const match = value.match(/retry\s+after\s+(\d+)\s+seconds?/i);
+  if (!match) {
+    return undefined;
+  }
+
+  const parsed = Number.parseInt(match[1] ?? '', 10);
+  if (Number.isNaN(parsed)) {
+    return undefined;
+  }
+
+  return parsed;
+}
+
+function toInitialLoadError(error: ProviderApiError): PlaylistsInitialLoadError {
+  const retryAfterSeconds = parseRetryAfterSeconds(error.message) ?? parseRetryAfterSeconds(error.details);
+
+  if (error.status === 429) {
+    return {
+      kind: 'rate_limited',
+      message: error.message,
+      retryAfterSeconds,
+    };
+  }
+
+  return {
+    kind: 'provider_error',
+    message: error.message,
+  };
+}
+
 /**
  * Playlists index page with SSR initial data and client-side infinite scroll.
  * 
@@ -77,17 +125,34 @@ export default async function PlaylistsPage({
     providerId = fallbackProvider;
   }
 
-  const page = await getCurrentUserPlaylists(50, undefined, providerId).catch((error) => {
-    if (isPlaylistAuthFailure(error)) {
-      return {
-        items: [],
-        nextCursor: null,
-        total: 0,
-      };
-    }
+  const initialState: PlaylistsInitialState = await getCurrentUserPlaylists(50, undefined, providerId)
+    .then((page) => ({
+      items: page.items,
+      nextCursor: page.nextCursor,
+      total: page.total,
+      initialLoadError: null,
+    }))
+    .catch((error) => {
+      if (isPlaylistAuthFailure(error)) {
+        return {
+          items: [],
+          nextCursor: null,
+          total: 0,
+          initialLoadError: null,
+        };
+      }
 
-    throw error;
-  });
+      if (error instanceof ProviderApiError) {
+        return {
+          items: [],
+          nextCursor: null,
+          total: 0,
+          initialLoadError: toInitialLoadError(error),
+        };
+      }
+
+      throw error;
+    });
 
   return (
     <div className="container mx-auto p-6">
@@ -96,13 +161,14 @@ export default async function PlaylistsPage({
           <h1 className="text-xl font-semibold">Your Playlists</h1>
         </div>
         <span className="text-sm text-muted-foreground">
-          {page.total ?? page.items.length} {page.total === 1 ? "playlist" : "playlists"}
+          {initialState.total ?? initialState.items.length} {initialState.total === 1 ? "playlist" : "playlists"}
         </span>
       </header>
 
       <PlaylistsContainer
-        initialItems={page.items}
-        initialNextCursor={page.nextCursor}
+        initialItems={initialState.items}
+        initialNextCursor={initialState.nextCursor}
+        initialLoadError={initialState.initialLoadError}
         providerId={providerId}
         availableProviders={availableProviders}
       />

@@ -145,6 +145,29 @@ export default function RootLayout({
             `,
           }}
         />
+        <script
+          id="performance-measure-guard"
+          dangerouslySetInnerHTML={{
+            __html: `
+              try {
+                if (typeof window !== 'undefined' && window.performance && typeof window.performance.measure === 'function') {
+                  var originalMeasure = window.performance.measure.bind(window.performance);
+                  window.performance.measure = function() {
+                    try {
+                      return originalMeasure.apply(window.performance, arguments);
+                    } catch (error) {
+                      var message = error && error.message ? String(error.message) : '';
+                      if (message.includes('cannot have a negative time stamp')) {
+                        return;
+                      }
+                      throw error;
+                    }
+                  };
+                }
+              } catch (e) {}
+            `,
+          }}
+        />
         <Providers>
           <SessionErrorHandler />
           <AppShell>

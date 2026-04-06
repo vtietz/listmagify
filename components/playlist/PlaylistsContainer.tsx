@@ -12,6 +12,12 @@ import { useAuthSummary } from '@features/auth/hooks/useAuth';
 import { useEnsureValidToken } from '@features/auth/hooks/useEnsureValidToken';
 import { useImportDialogStore } from '@/features/import/stores/useImportDialogStore';
 
+export type PlaylistsInitialLoadError = {
+  kind: 'rate_limited' | 'provider_error';
+  message: string;
+  retryAfterSeconds?: number;
+};
+
 function parseProviderFromQuery(value: string | null | undefined): MusicProviderId {
   if (value === 'spotify' || value === 'tidal') {
     return value;
@@ -23,8 +29,23 @@ function parseProviderFromQuery(value: string | null | undefined): MusicProvider
 export interface PlaylistsContainerProps {
   initialItems: Playlist[];
   initialNextCursor: string | null;
+  initialLoadError?: PlaylistsInitialLoadError | null;
   providerId: MusicProviderId;
   availableProviders: MusicProviderId[];
+}
+
+type PlaylistsAreaError = PlaylistsInitialLoadError | {
+  kind: 'rate_limited';
+  message: string;
+  retryAfterSeconds?: number;
+};
+
+function formatRetryWindow(seconds: number | undefined): string {
+  if (!seconds || seconds <= 0) {
+    return 'Try again shortly.';
+  }
+
+  return `Try again in ${seconds} second${seconds === 1 ? '' : 's'}.`;
 }
 
 /**
@@ -34,6 +55,7 @@ export interface PlaylistsContainerProps {
 export function PlaylistsContainer({
   initialItems,
   initialNextCursor,
+  initialLoadError = null,
   providerId,
   availableProviders,
 }: PlaylistsContainerProps) {
@@ -79,6 +101,7 @@ export function PlaylistsContainer({
   const [searchTerm, setSearchTerm] = useState("");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [newlyCreatedPlaylist, setNewlyCreatedPlaylist] = useState<Playlist | null>(null);
+  const [playlistsAreaError, setPlaylistsAreaError] = useState<PlaylistsAreaError | null>(initialLoadError);
 
   const hydrated = useAuthRegistryHydrated();
   const isProviderConnected = providerAuth.code === 'ok';
@@ -102,6 +125,7 @@ export function PlaylistsContainer({
   }, [activeProviderId]);
 
   const handleRefresh = useCallback(() => {
+    setPlaylistsAreaError(null);
     setIsRefreshing(true);
   }, []);
 
@@ -109,6 +133,8 @@ export function PlaylistsContainer({
     if (nextProviderId === activeProviderId) {
       return;
     }
+
+    setPlaylistsAreaError(null);
 
     const params = new URLSearchParams(searchParams?.toString() ?? '');
     params.set('provider', nextProviderId);
@@ -130,6 +156,12 @@ export function PlaylistsContainer({
   const handleRefreshComplete = useCallback(() => {
     setIsRefreshing(false);
   }, []);
+
+  const handleGridError = useCallback((error: { kind: 'rate_limited'; message: string; retryAfterSeconds?: number }) => {
+    setPlaylistsAreaError(error);
+  }, []);
+
+  const shouldShowPlaylistsAreaError = playlistsAreaError !== null && !shouldShowProviderCta;
 
   // Refresh the grid when the import dialog closes after a completed job
   const importDialogOpen = useImportDialogStore((s) => s.isOpen);
@@ -170,6 +202,25 @@ export function PlaylistsContainer({
       <div className="flex-1 min-h-0 overflow-auto">
         {shouldShowProviderCta ? (
           <InlineSignInCard provider={activeProviderId} reason={providerAuth.code} />
+        ) : shouldShowPlaylistsAreaError ? (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-5 text-amber-900 space-y-3">
+            <h2 className="text-base font-semibold">{playlistsAreaError.kind === 'rate_limited' ? 'Provider rate limit reached' : 'Could not load playlists'}</h2>
+            <p className="text-sm">
+              {playlistsAreaError.kind === 'rate_limited'
+                ? formatRetryWindow(playlistsAreaError.retryAfterSeconds)
+                : 'Switch provider or try again.'}
+            </p>
+            <p className="text-xs opacity-80">{playlistsAreaError.message}</p>
+            <div>
+              <button
+                type="button"
+                onClick={handleRefresh}
+                className="inline-flex items-center justify-center rounded-md bg-amber-900 text-white px-3 py-1.5 text-sm font-medium hover:bg-amber-800 transition-colors"
+              >
+                Try again
+              </button>
+            </div>
+          </div>
         ) : (
           <PlaylistsGrid
             providerId={activeProviderId}
@@ -180,6 +231,7 @@ export function PlaylistsContainer({
             onRefreshComplete={handleRefreshComplete}
             newlyCreatedPlaylist={newlyCreatedPlaylist}
             onNewPlaylistAdded={handleNewPlaylistAdded}
+            onLoadError={handleGridError}
           />
         )}
       </div>

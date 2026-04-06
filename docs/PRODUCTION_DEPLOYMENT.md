@@ -22,6 +22,19 @@ cp .env.example .env
 # Edit .env with your Spotify API credentials and production settings
 ```
 
+Optional sync-worker tuning (rate-limit control):
+
+```env
+SYNC_SCHEDULER_ENABLED=true
+SYNC_TICK_MS=60000
+SYNC_MAX_CONCURRENT=3
+SYNC_MAX_CONCURRENT_SPOTIFY=1
+SYNC_MAX_CONCURRENT_TIDAL=2
+SYNC_INTERVAL_OPTIONS=15m,30m,1h,6h,12h,24h
+```
+
+`SYNC_MAX_CONCURRENT` is the global scheduler cap; provider-specific caps further limit pairs that touch a given provider.
+
 ### 3. Create Server-Specific Override (Optional)
 
 If you need custom networks, SSL certificates, or reverse proxy integration:

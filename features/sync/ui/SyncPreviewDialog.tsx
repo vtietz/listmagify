@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -13,14 +13,52 @@ import { Button } from '@/components/ui/button';
 import { Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { useSyncDialogStore } from '@features/sync/stores/useSyncDialogStore';
 import type { SyncDialogConfig } from '@features/sync/stores/useSyncDialogStore';
-import { useSyncPreview } from '@features/sync/hooks/useSyncPreview';
+import { SyncPreviewTimeoutError, useSyncPreview } from '@features/sync/hooks/useSyncPreview';
 import { useSyncApply } from '@features/sync/hooks/useSyncApply';
 import { usePlaylistName } from '@features/sync/hooks/usePlaylistName';
 import { SyncSplitView } from '@features/sync/ui/SyncSplitView';
 import { SyncRunResultContent } from '@features/sync/ui/SyncRunResultContent';
-import type { SyncApplyResult, SyncPreviewResult } from '@/lib/sync/types';
+import type { SyncApplyResult, SyncPreviewResult, SyncPreviewRun } from '@/lib/sync/types';
 
 type Step = 'preview' | 'result';
+
+function getPreviewProgressLabel(elapsedSeconds: number): string {
+  if (elapsedSeconds < 8) {
+    return 'Fetching playlist snapshots...';
+  }
+  if (elapsedSeconds < 20) {
+    return 'Resolving canonical mappings...';
+  }
+  if (elapsedSeconds < 45) {
+    return 'Computing diff and validating track matches...';
+  }
+  return 'Still working on large playlists...';
+}
+
+function getRunPhaseLabel(run: SyncPreviewRun | null, elapsedSeconds: number): string {
+  if (!run) {
+    return getPreviewProgressLabel(elapsedSeconds);
+  }
+
+  if (run.phase === 'capturing_snapshots') return 'Fetching playlist snapshots...';
+  if (run.phase === 'computing_diff') return 'Computing diff...';
+  if (run.phase === 'validating_matches') return 'Validating track matches...';
+  if (run.phase === 'finalizing') return 'Finalizing preview...';
+  if (run.phase === 'queued') return 'Queueing preview...';
+  return getPreviewProgressLabel(elapsedSeconds);
+}
+
+function formatPreviewError(error: unknown): string {
+  if (error instanceof SyncPreviewTimeoutError) {
+    return 'Preview took too long for this playlist size and was canceled. Try again, or use a smaller source/target while we move large previews to background processing.';
+  }
+
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message;
+  }
+
+  return 'Failed to generate preview. Please try again.';
+}
 
 function ResultStep({
   result,
@@ -56,22 +94,42 @@ function ResultStep({
   );
 }
 
-function PreviewStatusMessage({ isLoading, previewError, applyError }: {
+function PreviewStatusMessage({
+  isLoading,
+  previewError,
+  applyError,
+  elapsedSeconds,
+  previewRun,
+  previewErrorMessage,
+  onRetryPreview,
+}: {
   isLoading: boolean;
   previewError: boolean;
   applyError: boolean;
+  elapsedSeconds: number;
+  previewRun: SyncPreviewRun | null;
+  previewErrorMessage: string;
+  onRetryPreview: () => void;
 }) {
   if (isLoading) {
     return (
       <div className="flex flex-col items-center gap-2 py-8">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        <p className="text-sm text-muted-foreground">Computing diff...</p>
+        <p className="text-sm text-muted-foreground">{getRunPhaseLabel(previewRun, elapsedSeconds)}</p>
+        <p className="text-xs text-muted-foreground">
+          {previewRun ? `Progress: ${previewRun.progress}%` : `Elapsed: ${elapsedSeconds}s`}
+        </p>
       </div>
     );
   }
 
   if (previewError) {
-    return <div className="rounded-md bg-red-500/10 p-3 text-sm text-red-500">Failed to generate preview. Please try again.</div>;
+    return (
+      <div className="rounded-md bg-red-500/10 p-3 text-sm text-red-500">
+        <p>{previewErrorMessage}</p>
+        <Button variant="outline" size="sm" className="mt-2" onClick={onRetryPreview}>Retry preview</Button>
+      </div>
+    );
   }
 
   if (applyError) {
@@ -89,6 +147,10 @@ function PreviewStepContent({
   isLoading,
   previewError,
   applyError,
+  elapsedSeconds,
+  previewRun,
+  previewErrorMessage,
+  onRetryPreview,
   isApplying,
   onApply,
   onCancel,
@@ -100,6 +162,10 @@ function PreviewStepContent({
   isLoading: boolean;
   previewError: boolean;
   applyError: boolean;
+  elapsedSeconds: number;
+  previewRun: SyncPreviewRun | null;
+  previewErrorMessage: string;
+  onRetryPreview: () => void;
   isApplying: boolean;
   onApply: () => void;
   onCancel: () => void;
@@ -115,7 +181,15 @@ function PreviewStepContent({
         </p>
       )}
 
-      <PreviewStatusMessage isLoading={isLoading} previewError={previewError} applyError={applyError} />
+      <PreviewStatusMessage
+        isLoading={isLoading}
+        previewError={previewError}
+        applyError={applyError}
+        elapsedSeconds={elapsedSeconds}
+        previewRun={previewRun}
+        previewErrorMessage={previewErrorMessage}
+        onRetryPreview={onRetryPreview}
+      />
 
       {plan && previewData && (
         <SyncSplitView
@@ -158,7 +232,9 @@ function SyncPreviewDialogContent({
   previewConfig,
   sourcePlaylistName,
   targetPlaylistName,
+  elapsedSeconds,
   onApply,
+  onRetryPreview,
   onClose,
 }: {
   step: Step;
@@ -168,7 +244,9 @@ function SyncPreviewDialogContent({
   previewConfig: SyncDialogConfig | null;
   sourcePlaylistName: string;
   targetPlaylistName: string;
+  elapsedSeconds: number;
   onApply: () => void;
+  onRetryPreview: () => void;
   onClose: () => void;
 }) {
   if (step === 'result' && result) {
@@ -183,6 +261,10 @@ function SyncPreviewDialogContent({
       targetPlaylistName={targetPlaylistName}
       isLoading={preview.isPending}
       previewError={preview.isError}
+      elapsedSeconds={elapsedSeconds}
+      previewRun={preview.previewRun}
+      previewErrorMessage={formatPreviewError(preview.error)}
+      onRetryPreview={onRetryPreview}
       applyError={apply.isError}
       isApplying={apply.isPending}
       onApply={onApply}
@@ -195,6 +277,8 @@ export function SyncPreviewDialog() {
   const { isPreviewOpen, previewConfig, closePreview } = useSyncDialogStore();
   const [step, setStep] = useState<Step>('preview');
   const [result, setResult] = useState<SyncApplyResult | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const lastPreviewRequestKeyRef = useRef<string | null>(null);
 
   const sourcePlaylistName = usePlaylistName(
     previewConfig?.sourceProvider ?? 'spotify',
@@ -208,16 +292,49 @@ export function SyncPreviewDialog() {
   const preview = useSyncPreview();
   const apply = useSyncApply();
 
+  const triggerPreview = useCallback(() => {
+    if (!previewConfig) return;
+    setElapsedSeconds(0);
+    preview.mutate({ ...previewConfig, direction: 'bidirectional' });
+  }, [previewConfig, preview]);
+
   // Reset state and fetch preview when dialog opens
   useEffect(() => {
-    if (!isPreviewOpen || !previewConfig) return;
+    if (!isPreviewOpen || !previewConfig) {
+      lastPreviewRequestKeyRef.current = null;
+      return;
+    }
+
+    const previewKey = [
+      previewConfig.syncPairId ?? '',
+      previewConfig.sourceProvider,
+      previewConfig.sourcePlaylistId,
+      previewConfig.targetProvider,
+      previewConfig.targetPlaylistId,
+    ].join('::');
+
+    if (lastPreviewRequestKeyRef.current === previewKey) {
+      return;
+    }
+
+    lastPreviewRequestKeyRef.current = previewKey;
+
     setStep('preview');
     setResult(null);
     preview.reset();
     apply.reset();
-    preview.mutate({ ...previewConfig, direction: 'bidirectional' });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPreviewOpen]);
+    triggerPreview();
+  }, [isPreviewOpen, previewConfig, preview, apply, triggerPreview]);
+
+  useEffect(() => {
+    if (!preview.isPending) return;
+
+    const id = setInterval(() => {
+      setElapsedSeconds((prev) => prev + 1);
+    }, 1000);
+
+    return () => clearInterval(id);
+  }, [preview.isPending]);
 
   const handleApply = useCallback(() => {
     const plan = preview.data?.plan;
@@ -249,7 +366,9 @@ export function SyncPreviewDialog() {
           previewConfig={previewConfig}
           sourcePlaylistName={sourcePlaylistName}
           targetPlaylistName={targetPlaylistName}
+          elapsedSeconds={elapsedSeconds}
           onApply={handleApply}
+          onRetryPreview={triggerPreview}
           onClose={closePreview}
         />
       </DialogContent>

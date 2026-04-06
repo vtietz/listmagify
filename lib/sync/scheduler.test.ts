@@ -84,6 +84,11 @@ beforeEach(() => {
   savedEnv.SYNC_MAX_CONCURRENT_SPOTIFY = process.env.SYNC_MAX_CONCURRENT_SPOTIFY;
   savedEnv.SYNC_MAX_CONCURRENT_TIDAL = process.env.SYNC_MAX_CONCURRENT_TIDAL;
 
+  // Ensure deterministic defaults regardless of ambient container env.
+  delete process.env.SYNC_MAX_CONCURRENT;
+  delete process.env.SYNC_MAX_CONCURRENT_SPOTIFY;
+  delete process.env.SYNC_MAX_CONCURRENT_TIDAL;
+
   // Default mock: no due pairs, instant resolve
   mockedGetDueSyncPairs.mockReturnValue([]);
   mockedExecuteSyncPair.mockResolvedValue('run-id');

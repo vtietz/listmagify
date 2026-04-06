@@ -23,6 +23,7 @@ export interface MaterializeCanonicalInput {
   provider: MusicProviderId;
   canonicalTrackIds: string[];
   adapter?: MaterializeProviderAdapter;
+  onCanonicalProcessed?: () => void;
 }
 
 export interface MaterializeCanonicalResult {
@@ -116,27 +117,27 @@ export async function materializeCanonicalTrackIds(
   const seenTrackSignatures = new Set<string>();
 
   for (const canonicalTrackId of input.canonicalTrackIds) {
-    const mapped = toProviderTrack(input.provider, canonicalTrackId);
-    if (mapped?.providerTrackId && !seenProviderTrackIds.has(mapped.providerTrackId)) {
-      seenProviderTrackIds.add(mapped.providerTrackId);
-      trackIds.push(mapped.providerTrackId);
-      continue;
-    }
-
-    if (!input.adapter) {
-      unresolvedCanonicalIds.push(canonicalTrackId);
-      continue;
-    }
-
-    const metadata = getCanonicalTrackMetadata(canonicalTrackId);
-    if (!metadata) {
-      unresolvedCanonicalIds.push(canonicalTrackId);
-      continue;
-    }
-
-    const artist = metadata.artistNorm;
-
     try {
+      const mapped = toProviderTrack(input.provider, canonicalTrackId);
+      if (mapped?.providerTrackId && !seenProviderTrackIds.has(mapped.providerTrackId)) {
+        seenProviderTrackIds.add(mapped.providerTrackId);
+        trackIds.push(mapped.providerTrackId);
+        continue;
+      }
+
+      if (!input.adapter) {
+        unresolvedCanonicalIds.push(canonicalTrackId);
+        continue;
+      }
+
+      const metadata = getCanonicalTrackMetadata(canonicalTrackId);
+      if (!metadata) {
+        unresolvedCanonicalIds.push(canonicalTrackId);
+        continue;
+      }
+
+      const artist = metadata.artistNorm;
+
       const candidates = await input.adapter.searchTrack({
         title: metadata.titleNorm,
         artist,
@@ -162,6 +163,8 @@ export async function materializeCanonicalTrackIds(
         error: error instanceof Error ? error.message : String(error),
       });
       unresolvedCanonicalIds.push(canonicalTrackId);
+    } finally {
+      input.onCanonicalProcessed?.();
     }
   }
 

@@ -5,6 +5,19 @@ import type {
 } from '@/lib/recs/materialize';
 import { buildProviderSearchQuery } from '@/lib/matching/searchQuery';
 
+const MATERIALIZE_LOOKUP_TIMEOUT_MS = Number(process.env.SYNC_PREVIEW_LOOKUP_TIMEOUT_MS ?? 8000);
+
+async function withLookupTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) => {
+      setTimeout(() => {
+        reject(new Error(`${label} timed out after ${MATERIALIZE_LOOKUP_TIMEOUT_MS}ms`));
+      }, MATERIALIZE_LOOKUP_TIMEOUT_MS);
+    }),
+  ]);
+}
+
 /**
  * Wraps a MusicProvider to implement the MaterializeProviderAdapter interface.
  * Tries ISRC lookup first for an instant match, then falls back to text search.
@@ -18,7 +31,10 @@ export function createSyncMaterializeAdapter(
       // Fast-path: ISRC lookup
       if (query.isrc && provider.getTrackByIsrc) {
         try {
-          const track = await provider.getTrackByIsrc(query.isrc);
+          const track = await withLookupTimeout(
+            provider.getTrackByIsrc(query.isrc),
+            `[sync/materialize] ISRC lookup (${providerId ?? 'unknown'})`,
+          );
           if (track?.id) {
             return [{
               id: track.id,
@@ -41,7 +57,10 @@ export function createSyncMaterializeAdapter(
         : `${query.title} ${query.artist}`.trim();
       if (!searchQuery) return [];
 
-      const result = await provider.searchTracks(searchQuery, 5);
+      const result = await withLookupTimeout(
+        provider.searchTracks(searchQuery, 5),
+        `[sync/materialize] text search (${providerId ?? 'unknown'})`,
+      );
 
       return result.tracks.map(
         (track): MaterializeSearchCandidate => ({

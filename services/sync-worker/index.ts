@@ -11,6 +11,7 @@
 
 import { startScheduler, stopScheduler } from '@/lib/sync/scheduler';
 import { startTokenKeepaliveLoop, stopTokenKeepaliveLoop } from '@/lib/auth/tokenKeepalive';
+import { startPreviewWorkerLoop, stopPreviewWorkerLoop } from '@/lib/sync/previewWorker';
 
 function main(): void {
   console.debug('[sync-worker] starting', {
@@ -30,6 +31,11 @@ function main(): void {
     started = true;
   }
 
+  if (process.env.SYNC_PREVIEW_WORKER_ENABLED !== 'false') {
+    startPreviewWorkerLoop();
+    started = true;
+  }
+
   if (!started) {
     console.warn('[sync-worker] nothing enabled (set SYNC_SCHEDULER_ENABLED=true and/or TOKEN_KEEPALIVE_ENABLED=true)');
     process.exit(0);
@@ -42,6 +48,7 @@ function shutdown(): void {
   console.debug('[sync-worker] shutting down...');
   stopScheduler();
   stopTokenKeepaliveLoop();
+  stopPreviewWorkerLoop();
 
   // Give in-flight operations a grace period, then exit
   setTimeout(() => {

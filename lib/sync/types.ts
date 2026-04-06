@@ -2,6 +2,7 @@ import type { MusicProviderId } from '@/lib/music-provider/types';
 
 export type SyncDirection = 'a-to-b' | 'b-to-a' | 'bidirectional';
 export type SyncRunStatus = 'pending' | 'previewing' | 'executing' | 'done' | 'failed';
+export type SyncPreviewRunStatus = 'pending' | 'executing' | 'done' | 'failed';
 export type SyncInterval = 'off' | '15m' | '30m' | '1h' | '6h' | '12h' | '24h';
 export type SyncIntervalOption = Exclude<SyncInterval, 'off'>;
 export type SyncTrigger = 'manual' | 'auto_sync' | 'scheduler';
@@ -144,4 +145,15 @@ export interface SyncPreviewResult {
   plan: SyncPlan;
   sourceTracks: SyncPreviewTrack[];
   targetTracks: SyncPreviewTrack[];
+}
+
+export interface SyncPreviewRun {
+  id: string;
+  status: SyncPreviewRunStatus;
+  phase: string;
+  progress: number;
+  createdBy: string;
+  errorMessage: string | null;
+  startedAt: string;
+  completedAt: string | null;
 }

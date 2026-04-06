@@ -6,12 +6,13 @@ import type { MusicProviderId } from '@/lib/music-provider/types';
 import { PlaylistCard } from "@/components/playlist/PlaylistCard";
 import { PlaylistListItem } from "@/components/playlist/PlaylistListItem";
 import { Skeleton } from "@/components/ui/skeleton";
-import { apiFetch, ApiError } from "@/lib/api/client";
+import { apiFetch, ApiError, RateLimitApiError } from "@/lib/api/client";
 import { useAutoLoadPaginated } from "@shared/hooks/useAutoLoadPaginated";
 import { getLikedPlaylistMetadata } from "@features/playlists/hooks/useLikedVirtualPlaylist";
 import { useLikedSongsTotal } from "@features/playlists/hooks/useSavedTracksIndex";
 import { useCompactModeStore, useHydratedCompactMode } from "@features/split-editor/stores/useCompactModeStore";
 import { matchesAllWords } from "@/lib/utils";
+import { ProviderAuthError } from "@/lib/providers/errors";
 
 export interface PlaylistsGridProps {
   providerId: MusicProviderId;
@@ -22,6 +23,15 @@ export interface PlaylistsGridProps {
   onRefreshComplete: (items: Playlist[], nextCursor: string | null) => void;
   newlyCreatedPlaylist?: Playlist | null;
   onNewPlaylistAdded?: () => void;
+  onLoadError?: (error: { kind: 'rate_limited'; message: string; retryAfterSeconds?: number }) => void;
+}
+
+function toRetryAfterSeconds(value: number | undefined): number | undefined {
+  if (!value || value <= 0) {
+    return undefined;
+  }
+
+  return Math.max(1, Math.ceil(value / 1000));
 }
 
 /**
@@ -42,6 +52,7 @@ export function PlaylistsGrid({
   onRefreshComplete,
   newlyCreatedPlaylist,
   onNewPlaylistAdded,
+  onLoadError,
 }: PlaylistsGridProps) {
   const clientCompact = useHydratedCompactMode();
   const hasHydrated = useCompactModeStore((s) => s._hasHydrated);
@@ -102,7 +113,34 @@ export function PlaylistsGrid({
       } catch (error) {
         if (cancelled) return;
 
+        if (error instanceof ProviderAuthError && error.code === 'rate_limited') {
+          onLoadError?.({
+            kind: 'rate_limited',
+            message: error.message,
+            retryAfterSeconds: toRetryAfterSeconds(error.retryAfterMs),
+          });
+          onRefreshComplete(items, null);
+          return;
+        }
+
+        if (error instanceof RateLimitApiError) {
+          onLoadError?.({
+            kind: 'rate_limited',
+            message: error.message,
+            retryAfterSeconds: toRetryAfterSeconds(error.retryAfterMs),
+          });
+          onRefreshComplete(items, null);
+          return;
+        }
+
         if (error instanceof ApiError && !error.isUnauthorized) {
+          if (error.isRateLimited) {
+            onLoadError?.({
+              kind: 'rate_limited',
+              message: error.message,
+            });
+          }
+
           onRefreshComplete(items, null);
         }
       } finally {

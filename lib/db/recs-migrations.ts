@@ -374,4 +374,32 @@ export const recsMigrations: Migration[] = [
       ALTER TABLE sync_pairs ADD COLUMN target_snapshot_id TEXT;
     `,
   },
+  {
+    version: 15,
+    name: 'add_sync_preview_runs',
+    sql: `
+      CREATE TABLE IF NOT EXISTS sync_preview_runs (
+        id TEXT PRIMARY KEY,
+        status TEXT NOT NULL CHECK(status IN ('pending','executing','done','failed')),
+        phase TEXT NOT NULL DEFAULT 'queued',
+        progress INTEGER NOT NULL DEFAULT 0,
+        created_by TEXT NOT NULL,
+        result_json TEXT,
+        error_message TEXT,
+        started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        completed_at TEXT
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_sync_preview_runs_created_by ON sync_preview_runs(created_by);
+      CREATE INDEX IF NOT EXISTS idx_sync_preview_runs_status ON sync_preview_runs(status);
+    `,
+  },
+  {
+    version: 16,
+    name: 'add_sync_preview_run_request_payload',
+    sql: `
+      ALTER TABLE sync_preview_runs ADD COLUMN request_json TEXT;
+      ALTER TABLE sync_preview_runs ADD COLUMN match_thresholds_json TEXT;
+    `,
+  },
 ];
