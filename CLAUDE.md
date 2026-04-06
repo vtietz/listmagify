@@ -61,6 +61,14 @@ Provider-neutral interface (`MusicProvider`) with implementations for Spotify an
 
 Routes depend on the provider boundary; they must not embed provider-specific auth/transport details.
 
+### Strict Provider Adapter Rule
+
+- Keep provider-specific behavior behind adapters in `lib/music-provider/*`.
+- Shared orchestration code (sync/import/routes/hooks/services) must stay provider-agnostic and use shared provider interfaces/helpers.
+- Avoid inline checks for concrete providers in shared flows.
+- New providers should be introduced by adding an adapter and registering it, not by scattering provider conditionals across core modules.
+- Do not reintroduce backward-compatibility shims that duplicate provider-specific logic in shared modules.
+
 ### Auth (`lib/auth/` + `app/api/auth/`)
 
 Multi-provider auth via NextAuth with per-provider tokens stored in JWT under `musicProviderTokens`. Key files:

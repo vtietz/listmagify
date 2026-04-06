@@ -11,6 +11,7 @@ import {
 import { applyReorderToInfinitePages } from '@/lib/dnd/sortUtils';
 import { eventBus } from '@/lib/sync/eventBus';
 import { toast } from '@/lib/ui/toast';
+import { DEFAULT_MUSIC_PROVIDER_ID } from '@/lib/music-provider/providerId';
 
 import type { 
   ReorderTracksParams, 
@@ -30,7 +31,7 @@ export function useReorderTracks() {
 
   return useMutation({
     mutationFn: async (params: ReorderTracksParams): Promise<MutationResponse> => {
-      const providerId = params.providerId ?? 'spotify';
+      const providerId = params.providerId ?? DEFAULT_MUSIC_PROVIDER_ID;
       return apiFetch(`/api/playlists/${params.playlistId}/reorder?provider=${providerId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -43,7 +44,7 @@ export function useReorderTracks() {
       });
     },
     onMutate: async (params: ReorderTracksParams) => {
-      const providerId = params.providerId ?? 'spotify';
+      const providerId = params.providerId ?? DEFAULT_MUSIC_PROVIDER_ID;
       // Cancel outgoing refetches for both query keys
       await cancelPlaylistQueries(queryClient, params.playlistId, providerId);
 
@@ -88,7 +89,7 @@ export function useReorderTracks() {
       return { previousInfiniteData, previousData };
     },
     onSuccess: (data: MutationResponse, params: ReorderTracksParams) => {
-      const providerId = params.providerId ?? 'spotify';
+      const providerId = params.providerId ?? DEFAULT_MUSIC_PROVIDER_ID;
       // Update snapshotId to keep cache in sync with server
       updateLegacySnapshotId(queryClient, params.playlistId, data.snapshotId, providerId);
 
@@ -122,7 +123,7 @@ export function useReorderTracks() {
       params: ReorderTracksParams, 
       context: { previousInfiniteData?: InfinitePlaylistData; previousData?: PlaylistTracksData } | undefined
     ) => {
-      const providerId = params.providerId ?? 'spotify';
+      const providerId = params.providerId ?? DEFAULT_MUSIC_PROVIDER_ID;
       // Rollback both caches
       rollbackPlaylistCaches(queryClient, params.playlistId, providerId, context);
       toast.error(error instanceof Error ? error.message : 'Failed to reorder tracks');

@@ -5,6 +5,7 @@
 
 import { getFallbackMusicProviderId } from '@/lib/music-provider/enabledProviders';
 import type { MusicProviderId } from '@/lib/music-provider/types';
+import { isMusicProviderId } from '@/lib/music-provider/providerId';
 
 const TOKEN_REFRESH_ERROR = 'RefreshAccessTokenError';
 
@@ -77,19 +78,36 @@ function getAnyProviderTokenFromSession(session: any): {
   providerId: MusicProviderId;
   token: SessionProviderToken;
 } | null {
-  const fallbackProviderId = getFallbackMusicProviderId();
-  const providerOrder: MusicProviderId[] = fallbackProviderId === 'spotify'
-    ? [fallbackProviderId, 'tidal']
-    : [fallbackProviderId, 'spotify'];
-
-  for (const providerId of providerOrder) {
-    const token = getProviderTokenFromSession(session, providerId);
-    if (token?.accessToken) {
-      return { providerId, token };
-    }
+  const providerTokenStore = session?.musicProviderTokens;
+  if (!providerTokenStore || typeof providerTokenStore !== 'object') {
+    return null;
   }
 
-  return null;
+  const candidates = Object.entries(providerTokenStore)
+    .filter((entry): entry is [MusicProviderId, unknown] => isMusicProviderId(entry[0]))
+    .map(([providerId]) => {
+      const token = getProviderTokenFromSession(session, providerId);
+      return {
+        providerId,
+        token,
+      };
+    })
+    .filter((entry): entry is { providerId: MusicProviderId; token: SessionProviderToken } =>
+      Boolean(entry.token?.accessToken)
+    );
+
+  if (candidates.length === 0) {
+    return null;
+  }
+
+  const fallbackProviderId = getFallbackMusicProviderId();
+  candidates.sort((left, right) => {
+    if (left.providerId === fallbackProviderId) return -1;
+    if (right.providerId === fallbackProviderId) return 1;
+    return 0;
+  });
+
+  return candidates[0] ?? null;
 }
 
 function buildAuthenticatedSession(params: {
@@ -112,20 +130,6 @@ function throwIfRefreshFailed(error: unknown): void {
   }
 }
 
-function resolveLegacySpotifySession(session: any, typedSession: any): AuthenticatedSession | null {
-  if (typeof typedSession.accessToken !== 'string') {
-    return null;
-  }
-
-  throwIfRefreshFailed(typedSession.error);
-  return buildAuthenticatedSession({
-    user: session.user,
-    accessToken: typedSession.accessToken,
-    accessTokenExpires: typedSession.accessTokenExpires,
-    providerId: 'spotify',
-  });
-}
-
 function requireSessionForProvider(session: any, typedSession: any, providerId: MusicProviderId): AuthenticatedSession {
   const selectedProviderToken = getProviderTokenFromSession(typedSession, providerId);
   const providerError = typedSession?.providerErrors?.[providerId] ?? selectedProviderToken?.error;
@@ -138,13 +142,6 @@ function requireSessionForProvider(session: any, typedSession: any, providerId: 
       accessTokenExpires: selectedProviderToken.accessTokenExpires,
       providerId,
     });
-  }
-
-  if (providerId === 'spotify') {
-    const legacySession = resolveLegacySpotifySession(session, typedSession);
-    if (legacySession) {
-      return legacySession;
-    }
   }
 
   throw new ServerAuthError(`No access token in session for provider '${providerId}'`, 'token_expired');
@@ -161,17 +158,7 @@ function requireDefaultSession(session: any, typedSession: any): AuthenticatedSe
     });
   }
 
-  throwIfRefreshFailed(typedSession.error);
-
-  if (typeof typedSession.accessToken !== 'string') {
-    throw new ServerAuthError('No access token in session', 'token_expired');
-  }
-
-  return buildAuthenticatedSession({
-    user: session.user,
-    accessToken: typedSession.accessToken,
-    accessTokenExpires: typedSession.accessTokenExpires,
-  });
+  throw new ServerAuthError('No access token in session', 'token_expired');
 }
 
 /**

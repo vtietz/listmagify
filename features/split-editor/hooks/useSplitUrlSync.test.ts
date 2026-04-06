@@ -4,7 +4,6 @@ import {
   fromLayoutSpec,
   encodeLayout,
   decodeLayout,
-  decodeLayoutWithFallback,
 } from '@features/split-editor/hooks/useSplitUrlSync';
 import {
   PanelNode,
@@ -87,7 +86,7 @@ describe('useSplitUrlSync', () => {
 
       expect(spec).toEqual({
         k: 'p',
-        p: { pl: 'playlist-123', pr: 't' },
+        p: { pl: 'playlist-123', pr: 'tidal' },
       });
     });
 
@@ -219,7 +218,7 @@ describe('useSplitUrlSync', () => {
     });
 
     it('applies provider from spec', () => {
-      const spec = { k: 'p' as const, p: { pl: 'playlist-abc', pr: 't' as const } };
+      const spec = { k: 'p' as const, p: { pl: 'playlist-abc', pr: 'tidal' } };
 
       const node = fromLayoutSpec(spec) as PanelNode;
 
@@ -427,7 +426,7 @@ describe('useSplitUrlSync', () => {
       const node = createPanelNode(panel);
 
       const encoded = encodeLayout(node);
-      expect(encoded).toBe('p.abc~r-t');
+      expect(encoded).toBe('p.abc~r-tidal');
     });
   });
 
@@ -445,27 +444,6 @@ describe('useSplitUrlSync', () => {
     it('returns null for unknown node type', () => {
       const result = decodeLayout('x.abc');  // x is not a valid node type
       expect(result).toBeNull();
-    });
-  });
-
-  describe('legacy Base64 fallback', () => {
-    it('decodes legacy Base64 format', () => {
-      // Base64 encoded: {"k":"p","p":{"pl":"test-playlist"}}
-      const legacyEncoded = 'eyJrIjoicCIsInAiOnsicGwiOiJ0ZXN0LXBsYXlsaXN0In19';
-      
-      const result = decodeLayoutWithFallback(legacyEncoded) as PanelNode;
-      
-      expect(result).not.toBeNull();
-      expect(result.kind).toBe('panel');
-      expect(result.panel.playlistId).toBe('test-playlist');
-    });
-
-    it('prefers new format over legacy', () => {
-      const newFormat = 'p.my-playlist';
-      
-      const result = decodeLayoutWithFallback(newFormat) as PanelNode;
-      
-      expect(result.panel.playlistId).toBe('my-playlist');
     });
   });
 

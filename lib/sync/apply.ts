@@ -1,8 +1,10 @@
 import type { MusicProvider, MusicProviderId } from '@/lib/music-provider/types';
 import { getMusicProvider } from '@/lib/music-provider';
+import { toProviderTrackId, toProviderTrackUri } from '@/lib/music-provider/trackCodec';
+import { requiresLikedTracksVerification } from '@/lib/music-provider/capabilities';
 import { materializeCanonicalTrackIds } from '@/lib/recs/materialize';
 import { createSyncMaterializeAdapter } from '@/lib/sync/materializeAdapter';
-import { isLikedSongsPlaylist, uriToTrackId, LIKED_TRACKS_BATCH_SIZE } from '@/lib/sync/likedSongs';
+import { isLikedSongsPlaylist, LIKED_TRACKS_BATCH_SIZE } from '@/lib/sync/likedSongs';
 import type { SyncDiffItem, SyncPlan, SyncApplyResult, UnresolvedTrackInfo } from '@/lib/sync/types';
 
 const BATCH_SIZE = 100;
@@ -10,11 +12,6 @@ const BATCH_SIZE = 100;
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function toTrackUri(providerId: MusicProviderId, trackId: string): string {
-  if (trackId.includes(':')) return trackId; // already a URI
-  return providerId === 'spotify' ? `spotify:track:${trackId}` : `tidal:track:${trackId}`;
-}
 
 function chunk<T>(arr: T[], size: number): T[][] {
   const chunks: T[][] = [];
@@ -76,7 +73,7 @@ async function applyLikedTracksBatchWithFallback(
   return { appliedCount, failedIds, fallbackErrors };
 }
 
-async function verifyTidalLikedBatch(
+async function verifyLikedTracksBatch(
   provider: MusicProvider,
   ids: string[],
 ): Promise<{ confirmedCount: number; mismatchCount: number }> {
@@ -93,7 +90,7 @@ async function verifyTidalLikedBatch(
       mismatchCount: Math.max(0, sanitizedIds.length - confirmedCount),
     };
   } catch (error) {
-    console.warn('[sync/apply] tidal liked verification failed', {
+    console.warn('[sync/apply] liked verification failed', {
       error: errorMessage(error),
       batchSize: ids.length,
     });
@@ -134,7 +131,7 @@ async function resolveAddUris(
   const seenUris = new Set<string>();
   const uris: string[] = [];
   for (const item of preResolved) {
-    const uri = toTrackUri(targetProviderId, item.resolvedTargetTrackId!);
+    const uri = toProviderTrackUri(targetProviderId, item.resolvedTargetTrackId!);
     if (!seenUris.has(uri)) {
       seenUris.add(uri);
       uris.push(uri);
@@ -158,7 +155,7 @@ async function resolveAddUris(
         adapter,
       });
 
-      uris.push(...result.trackIds.map((id) => toTrackUri(targetProviderId, id)));
+      uris.push(...result.trackIds.map((id) => toProviderTrackUri(targetProviderId, id)));
       unresolved.push(...result.unresolvedCanonicalIds.map((id) => ({
         canonicalTrackId: id,
         reason: 'not_found' as const,
@@ -191,13 +188,13 @@ async function applyBatchedAdds(
 
   if (isLiked) {
     for (const batch of chunk(uris, LIKED_TRACKS_BATCH_SIZE)) {
-      const ids = batch.map((uri) => uriToTrackId(providerId, uri));
+      const ids = batch.map((uri) => toProviderTrackId(providerId, uri));
       const sanitizedIds = sanitizeTrackIdsForLibrary(ids);
       if (sanitizedIds.length === 0) continue;
       try {
         await provider.saveTracks({ ids: sanitizedIds });
-        if (providerId === 'tidal') {
-          const verification = await verifyTidalLikedBatch(provider, sanitizedIds);
+        if (requiresLikedTracksVerification(providerId)) {
+          const verification = await verifyLikedTracksBatch(provider, sanitizedIds);
           count += verification.confirmedCount;
           if (verification.mismatchCount > 0) {
             errors.push(
@@ -250,7 +247,7 @@ async function applyBatchedRemoves(
 
   if (isLiked) {
     for (const batch of chunk(uris, LIKED_TRACKS_BATCH_SIZE)) {
-      const ids = batch.map((uri) => uriToTrackId(providerId, uri));
+      const ids = batch.map((uri) => toProviderTrackId(providerId, uri));
       const sanitizedIds = sanitizeTrackIdsForLibrary(ids);
       if (sanitizedIds.length === 0) continue;
       try {
@@ -299,7 +296,7 @@ function resolveRemoveUris(
 
   for (const item of removes) {
     if (item.providerTrackId) {
-      uris.push(toTrackUri(targetProviderId, item.providerTrackId));
+      uris.push(toProviderTrackUri(targetProviderId, item.providerTrackId));
     } else {
       unresolved.push({
         canonicalTrackId: item.canonicalTrackId,
@@ -328,7 +325,7 @@ async function filterAlreadyPresent(
     if (isLiked) {
       // Use containsTracks in batches of 50 for liked songs
       const alreadyLiked = new Array<boolean>(uris.length).fill(false);
-      const ids = uris.map((uri) => uriToTrackId(providerId, uri));
+      const ids = uris.map((uri) => toProviderTrackId(providerId, uri));
 
       for (let i = 0; i < ids.length; i += LIKED_TRACKS_BATCH_SIZE) {
         const batchIds = ids.slice(i, i + LIKED_TRACKS_BATCH_SIZE);
@@ -392,7 +389,7 @@ async function reorderPlaylist(
   for (const canonicalId of desiredCanonicalOrder) {
     const mapping = toProviderTrack(providerId, canonicalId);
     if (mapping) {
-      const uri = toTrackUri(providerId, mapping.providerTrackId);
+      const uri = toProviderTrackUri(providerId, mapping.providerTrackId);
       if (currentUriSet.has(uri)) {
         canonicalToUri.set(canonicalId, uri);
       }

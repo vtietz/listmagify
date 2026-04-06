@@ -10,6 +10,7 @@ import { countPanels, findPanelById } from '@features/split-editor/model/tree';
 import { useMobileOverlayStore } from '@/components/split-editor/mobile/MobileBottomNav';
 import { useBrowsePanelStore } from '@features/split-editor/browse/hooks/useBrowsePanelStore';
 import { useDeviceType } from '@shared/hooks/useDeviceType';
+import { DEFAULT_MUSIC_PROVIDER_ID } from '@/lib/music-provider/providerId';
 import { eventBus } from '@/lib/sync/eventBus';
 import type { SortKey, SortDirection } from '@/lib/utils/sort';
 import type { MobileOverlay } from '@/components/split-editor/mobile/MobileBottomNav';
@@ -166,7 +167,7 @@ function derivePanelState(panel: {
   scrollOffset?: number;
 } | undefined) {
   return {
-    providerId: panel?.providerId ?? 'spotify',
+    providerId: panel?.providerId ?? DEFAULT_MUSIC_PROVIDER_ID,
     playlistId: panel?.playlistId,
     searchQuery: toSearchQuery(panel?.searchQuery),
     selection: toSelection(panel?.selection),

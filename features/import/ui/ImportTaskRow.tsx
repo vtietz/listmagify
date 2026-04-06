@@ -10,7 +10,8 @@ import { useCancelImportTask } from '@/features/import/hooks/useCancelImportTask
 import { formatRelativeTime } from '@shared/utils/formatRelativeTime';
 import type { ImportJobPlaylist } from '@/lib/import/types';
 import type { MusicProviderId } from '@/lib/music-provider/types';
-import { getLikedSongsDisplayName, isLikedSongsPlaylist } from '@/lib/sync/likedSongs';
+import { getProviderLikedSongsDisplayName } from '@/lib/music-provider/trackCodec';
+import { isLikedSongsPlaylist } from '@/lib/sync/likedSongs';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -38,7 +39,7 @@ function resolvePlaylistDisplayName(entry: ImportJobPlaylist, sourceProvider: Mu
   }
 
   if (isLikedSongsPlaylist(entry.sourcePlaylistId)) {
-    return getLikedSongsDisplayName(sourceProvider);
+    return getProviderLikedSongsDisplayName(sourceProvider);
   }
 
   return 'Unnamed playlist';

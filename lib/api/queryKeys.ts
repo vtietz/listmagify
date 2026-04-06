@@ -4,12 +4,13 @@
  */
 
 import type { MusicProviderId } from '@/lib/music-provider/types';
+import { DEFAULT_MUSIC_PROVIDER_ID } from '@/lib/music-provider/providerId';
 
 function withProvider<T extends readonly unknown[]>(
   providerId: MusicProviderId | undefined,
   base: T
 ): readonly unknown[] {
-  if (!providerId || providerId === 'spotify') {
+  if (!providerId || providerId === DEFAULT_MUSIC_PROVIDER_ID) {
     return base;
   }
 

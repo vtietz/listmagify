@@ -19,6 +19,7 @@ import { usePlaylistName } from '@features/sync/hooks/usePlaylistName';
 import { SyncSplitView } from '@features/sync/ui/SyncSplitView';
 import { SyncRunResultContent } from '@features/sync/ui/SyncRunResultContent';
 import type { SyncApplyResult, SyncPreviewResult, SyncPreviewRun } from '@/lib/sync/types';
+import { DEFAULT_MUSIC_PROVIDER_ID } from '@/lib/music-provider/providerId';
 import { apiFetch } from '@/lib/api/client';
 
 type Step = 'preview' | 'result';
@@ -394,11 +395,11 @@ export function SyncPreviewDialog() {
   const previewSession = useSyncDialogStore((s) => (previewKey ? s.previewSessions[previewKey] ?? null : null));
 
   const sourcePlaylistName = usePlaylistName(
-    previewConfig?.sourceProvider ?? 'spotify',
+    previewConfig?.sourceProvider ?? DEFAULT_MUSIC_PROVIDER_ID,
     previewConfig?.sourcePlaylistId ?? '',
   );
   const targetPlaylistName = usePlaylistName(
-    previewConfig?.targetProvider ?? 'spotify',
+    previewConfig?.targetProvider ?? DEFAULT_MUSIC_PROVIDER_ID,
     previewConfig?.targetPlaylistId ?? '',
   );
 

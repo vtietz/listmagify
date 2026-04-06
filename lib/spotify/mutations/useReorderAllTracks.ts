@@ -11,6 +11,7 @@ import {
 } from '@/lib/api/queryKeys';
 import { eventBus } from '@/lib/sync/eventBus';
 import { toast } from '@/lib/ui/toast';
+import { DEFAULT_MUSIC_PROVIDER_ID } from '@/lib/music-provider/providerId';
 
 import type { ReorderAllTracksParams, MutationResponse } from './types';
 
@@ -19,7 +20,7 @@ export function useReorderAllTracks() {
 
   return useMutation({
     mutationFn: async (params: ReorderAllTracksParams): Promise<MutationResponse> => {
-      const providerId = params.providerId ?? 'spotify';
+      const providerId = params.providerId ?? DEFAULT_MUSIC_PROVIDER_ID;
       return apiFetch(`/api/playlists/${params.playlistId}/reorder-all?provider=${providerId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -29,7 +30,7 @@ export function useReorderAllTracks() {
       });
     },
     onSuccess: (_data: MutationResponse, params: ReorderAllTracksParams) => {
-      const providerId = params.providerId ?? 'spotify';
+      const providerId = params.providerId ?? DEFAULT_MUSIC_PROVIDER_ID;
       // Invalidate the playlist tracks to refetch with the new order
       queryClient.invalidateQueries({ 
         queryKey: playlistTracksInfiniteByProvider(params.playlistId, providerId),

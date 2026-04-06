@@ -4,6 +4,11 @@ const SPOTIFY_TRACK_ID_RE = /^[A-Za-z0-9]{15,30}$/;
 const TIDAL_NUMERIC_ID_RE = /^[0-9]+$/;
 const TIDAL_UUID_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+const TRACK_ID_COMPATIBILITY: Record<MusicProviderId, (trackId: string) => boolean> = {
+  spotify: (trackId) => SPOTIFY_TRACK_ID_RE.test(trackId),
+  tidal: (trackId) => TIDAL_NUMERIC_ID_RE.test(trackId) || TIDAL_UUID_ID_RE.test(trackId),
+};
+
 export function isTrackIdCompatibleWithProvider(
   trackId: string | null | undefined,
   providerId: MusicProviderId,
@@ -16,13 +21,5 @@ export function isTrackIdCompatibleWithProvider(
     return true;
   }
 
-  if (providerId === 'spotify') {
-    return SPOTIFY_TRACK_ID_RE.test(trackId);
-  }
-
-  if (providerId === 'tidal') {
-    return TIDAL_NUMERIC_ID_RE.test(trackId) || TIDAL_UUID_ID_RE.test(trackId);
-  }
-
-  return true;
+  return TRACK_ID_COMPATIBILITY[providerId](trackId);
 }

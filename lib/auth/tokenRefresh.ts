@@ -208,11 +208,12 @@ export async function refreshProviderAccessToken(
   providerId: MusicProviderId,
   token: ProviderJwtToken
 ): Promise<ProviderJwtToken> {
-  if (providerId === 'spotify') {
-    return refreshSpotifyAccessToken(token);
-  }
+  const refreshers: Record<MusicProviderId, (providerToken: ProviderJwtToken) => Promise<ProviderJwtToken>> = {
+    spotify: refreshSpotifyAccessToken,
+    tidal: refreshTidalAccessToken,
+  };
 
-  return refreshTidalAccessToken(token);
+  return refreshers[providerId](token);
 }
 
 export async function refreshProviderTokenIfNeeded(

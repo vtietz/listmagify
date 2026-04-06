@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { getConfiguredMatchThresholds } from '@/lib/matching/config';
 import type { SyncDiffItem, SyncPlan } from '@/lib/sync/types';
 import type { MusicProviderId } from '@/lib/music-provider/types';
+import { getProviderDisplayName } from '@/lib/music-provider/providerLabels';
 
 interface SyncDiffTableProps {
   plan: SyncPlan;
@@ -100,10 +101,10 @@ export function SyncDiffTable({ plan }: SyncDiffTableProps) {
         {[...byProvider.entries()].map(([providerId, group]) => (
           <div key={providerId}>
             {group.adds.length > 0 && (
-              <ProviderSection providerId={providerId} label={`Add to ${providerId === 'spotify' ? 'Spotify' : 'TIDAL'}`} items={group.adds} lowConfidenceThreshold={lowConfidenceThreshold} />
+              <ProviderSection providerId={providerId} label={`Add to ${getProviderDisplayName(providerId)}`} items={group.adds} lowConfidenceThreshold={lowConfidenceThreshold} />
             )}
             {group.removes.length > 0 && (
-              <ProviderSection providerId={providerId} label={`Remove from ${providerId === 'spotify' ? 'Spotify' : 'TIDAL'}`} items={group.removes} lowConfidenceThreshold={lowConfidenceThreshold} />
+              <ProviderSection providerId={providerId} label={`Remove from ${getProviderDisplayName(providerId)}`} items={group.removes} lowConfidenceThreshold={lowConfidenceThreshold} />
             )}
           </div>
         ))}

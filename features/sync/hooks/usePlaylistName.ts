@@ -4,7 +4,8 @@ import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api/client';
 import { playlistMetaByProvider } from '@/lib/api/queryKeys';
 import type { MusicProviderId } from '@/lib/music-provider/types';
-import { isLikedSongsPlaylist, getLikedSongsDisplayName } from '@/lib/sync/likedSongs';
+import { getProviderLikedSongsDisplayName } from '@/lib/music-provider/trackCodec';
+import { isLikedSongsPlaylist } from '@/lib/sync/likedSongs';
 
 interface PlaylistMetaResponse {
   id: string;
@@ -26,7 +27,7 @@ export function usePlaylistName(providerId: MusicProviderId, playlistId: string)
     enabled: !!playlistId && !isLiked,
   });
 
-  if (isLiked) return getLikedSongsDisplayName(providerId);
+  if (isLiked) return getProviderLikedSongsDisplayName(providerId);
 
   return data?.name ?? (playlistId.length > 20 ? `${playlistId.slice(0, 20)}...` : playlistId);
 }

@@ -25,6 +25,7 @@ import {
 import { useBrowsePanelStore } from '@features/split-editor/browse/hooks/useBrowsePanelStore';
 import { toast } from '@/lib/ui/toast';
 import { logDebug } from '@/lib/utils/debug';
+import { DEFAULT_MUSIC_PROVIDER_ID } from '@/lib/music-provider/providerId';
 import {
   handleBrowsePanelCopyDrop,
   handlePlayerDrop,
@@ -239,7 +240,7 @@ function handleBrowseTrackSourceDrop(
   const targetPanel = ctx.panels.find((panel) => panel.id === targetPanelId);
   const targetProviderId = targetPanel
     ? resolvePanelProviderId(targetPanel, targetPlaylistId)
-    : (inferProviderIdFromPlaylistId(targetPlaylistId) ?? 'spotify');
+    : (inferProviderIdFromPlaylistId(targetPlaylistId) ?? DEFAULT_MUSIC_PROVIDER_ID);
 
   handleBrowsePanelCopyDrop(
     sourceData,

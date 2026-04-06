@@ -9,6 +9,7 @@ import { SYNC_PAIRS_KEY } from '@features/sync/hooks/useSyncPairs';
 import { toast } from '@/lib/ui/toast';
 import type { Playlist } from '@/lib/music-provider/types';
 import type { InfiniteData } from '@tanstack/react-query';
+import { DEFAULT_MUSIC_PROVIDER_ID } from '@/lib/music-provider/providerId';
 
 import type { DeletePlaylistParams } from './types';
 
@@ -23,14 +24,14 @@ export function useDeletePlaylist() {
 
   return useMutation({
     mutationFn: async (params: DeletePlaylistParams): Promise<{ success: boolean }> => {
-      const { playlistId, providerId = 'spotify' } = params;
+      const { playlistId, providerId = DEFAULT_MUSIC_PROVIDER_ID } = params;
       return apiFetch(`/api/playlists/${playlistId}?provider=${providerId}`, {
         method: 'DELETE',
         suppressErrorDialog: true,
       });
     },
     onMutate: async (params: DeletePlaylistParams): Promise<DeletePlaylistMutationContext> => {
-      const providerId = params.providerId ?? 'spotify';
+      const providerId = params.providerId ?? DEFAULT_MUSIC_PROVIDER_ID;
 
       await queryClient.cancelQueries({ queryKey: userPlaylistsByProvider(providerId) });
 
@@ -60,13 +61,12 @@ export function useDeletePlaylist() {
       toast.success('Playlist removed');
     },
     onError: (_error: Error, params: DeletePlaylistParams, context: DeletePlaylistMutationContext | undefined) => {
-      const providerId = params.providerId ?? 'spotify';
+      const providerId = params.providerId ?? DEFAULT_MUSIC_PROVIDER_ID;
       if (context?.previousUserPlaylists !== undefined) {
         queryClient.setQueryData(userPlaylistsByProvider(providerId), context.previousUserPlaylists);
       }
 
-      const label = providerId === 'tidal' ? 'delete' : 'remove';
-      toast.error(`Failed to ${label} playlist. Please try again.`);
+      toast.error('Failed to remove playlist. Please try again.');
     },
   });
 }

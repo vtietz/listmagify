@@ -1,12 +1,11 @@
 import { serverEnv } from '@/lib/env';
 import type { MusicProviderId } from '@/lib/music-provider/types';
-
-const DEFAULT_PROVIDER: MusicProviderId = 'spotify';
+import { DEFAULT_MUSIC_PROVIDER_ID } from '@/lib/music-provider/providerId';
 
 export function getEnabledMusicProviders(): MusicProviderId[] {
   const configured = serverEnv.MUSIC_PROVIDERS;
   if (!configured || configured.length === 0) {
-    return [DEFAULT_PROVIDER];
+    return [DEFAULT_MUSIC_PROVIDER_ID];
   }
 
   return configured;
@@ -18,5 +17,5 @@ export function isMusicProviderEnabled(providerId: MusicProviderId): boolean {
 
 export function getFallbackMusicProviderId(): MusicProviderId {
   const enabled = getEnabledMusicProviders();
-  return enabled[0] ?? DEFAULT_PROVIDER;
+  return enabled[0] ?? DEFAULT_MUSIC_PROVIDER_ID;
 }

@@ -82,6 +82,14 @@ When asked to reduce code size/complexity, do **not** only split files mechanica
 
 ## Architecture Boundaries
 
+### Strict Provider Adapter Rule
+
+- Treat provider integration as an adapter boundary: shared flows (sync, import, routes, hooks, services) must not contain provider-specific branching or URI/id parsing logic.
+- Put provider-specific behavior in provider adapter modules under `lib/music-provider/*` (or provider-scoped modules in the same layer).
+- Shared code must call provider-agnostic interfaces/helpers (capabilities, codecs, labels, provider resolver) rather than checking for specific providers.
+- Adding a new provider should be mostly adapter work: implement the new provider module and register it, with minimal or no shared-flow changes.
+- Do not add compatibility shims that reintroduce provider-specific helpers in shared modules.
+
 ### Feature-Sliced Architecture (see `docs/code-organization.md`)
 
 Code is organized into layers with enforced import boundaries:
@@ -117,6 +125,7 @@ Code is organized into layers with enforced import boundaries:
 7. For auth/provider boundary changes, update tests for retry/refresh/error mapping behavior.
 8. No new files in the legacy `hooks/` root — use the feature-sliced layers.
 9. No barrel files — import directly from specific module paths.
+10. Enforce strict provider adapter boundaries: provider-specific conditionals belong in adapters, not in shared orchestration code.
 
 ## 📝 Documentation Requirements
 

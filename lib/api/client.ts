@@ -10,11 +10,16 @@ import type { AppError } from "@/lib/errors/types";
 import { isPerPanelInlineLoginEnabled } from '@/lib/utils';
 import { providerAuthRegistry } from '@/lib/providers/authRegistry';
 import {
+  DEFAULT_MUSIC_PROVIDER_ID,
+  isMusicProviderId,
+} from '@/lib/music-provider/providerId';
+import {
   ProviderAuthError,
   isAuthError,
   isProviderAuthErrorPayload,
 } from '@/lib/providers/errors';
 import type { ProviderAuthCode } from '@/lib/providers/types';
+import type { MusicProviderId } from '@/lib/music-provider/types';
 
 interface FetchOptions extends RequestInit {
   /**
@@ -27,13 +32,9 @@ interface FetchOptions extends RequestInit {
 const PROVIDER_STORAGE_KEY = 'music-provider-id';
 const PROVIDER_MISMATCH_RELOAD_KEY = 'provider-mismatch-reload-attempted';
 
-function isMusicProviderId(value: string | null | undefined): value is 'spotify' | 'tidal' {
-  return value === 'spotify' || value === 'tidal';
-}
-
-function getCurrentProviderId(): 'spotify' | 'tidal' {
+function getCurrentProviderId(): MusicProviderId {
   if (typeof window === 'undefined') {
-    return 'spotify';
+    return DEFAULT_MUSIC_PROVIDER_ID;
   }
 
   const fromQuery = new URLSearchParams(window.location.search).get('provider');
@@ -47,10 +48,10 @@ function getCurrentProviderId(): 'spotify' | 'tidal' {
     return fromStorage;
   }
 
-  return 'spotify';
+  return DEFAULT_MUSIC_PROVIDER_ID;
 }
 
-function withProviderOnApiUrl(url: string, providerId: 'spotify' | 'tidal'): string {
+function withProviderOnApiUrl(url: string, providerId: MusicProviderId): string {
   if (!url.startsWith('/api/')) {
     return url;
   }
@@ -125,7 +126,7 @@ function parseRetryAfterMs(response: Response, data: any): number | undefined {
 function mapResponseToProviderAuthError(
   response: Response,
   data: any,
-  providerId: 'spotify' | 'tidal',
+  providerId: MusicProviderId,
 ): ProviderAuthError | null {
   if (isProviderAuthErrorPayload(data)) {
     return new ProviderAuthError(

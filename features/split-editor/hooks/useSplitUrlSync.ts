@@ -19,6 +19,7 @@ import {
   generateGroupId,
 } from '../stores/useSplitGridStore';
 import { isPlaylistIdCompatibleWithProvider } from '@/lib/providers/playlistIdCompat';
+import { DEFAULT_MUSIC_PROVIDER_ID, isMusicProviderId } from '@/lib/music-provider/providerId';
 
 // ============================================================================
 // URL Layout Spec Types (compact schema for URL encoding)
@@ -29,7 +30,7 @@ interface PanelSpec {
   k: 'p';
   p: {
     pl: string | null;  // playlistId
-    pr?: 's' | 't';     // provider: s = spotify, t = tidal (optional, spotify default)
+    pr?: string;        // provider ID (optional, defaults to app default provider)
     q?: string;         // searchQuery (optional, omit if empty)
     l?: boolean;        // locked (optional, omit if false)
     m?: 'copy' | 'move'; // dndMode (optional, omit if 'copy')
@@ -64,7 +65,7 @@ type LayoutSpec = PanelSpec | GroupSpec;
 //   : → .   (panel prefix separator)
 //   ~ → ~   (flag separator - URL safe)
 //
-// Examples:
+//   p.ID~q-search~l~m~r-provider - panel with options: q-=search, l=locked, m=move mode, r-=provider
 //   p.abc123                           - single panel with playlist abc123
 //   h_p.abc.p.def!                     - two panels side by side
 //   h_p.abc.v_p.def~l.p.!              - left panel + right column with locked panel and empty panel
@@ -104,8 +105,8 @@ function panelToString(node: PanelNode): string {
   if (panel.dndMode === 'move') {
     flags.push('m');
   }
-  if (panel.providerId === 'tidal') {
-    flags.push('r-t');
+  if (panel.providerId !== DEFAULT_MUSIC_PROVIDER_ID) {
+    flags.push(`r-${panel.providerId}`);
   }
   
   if (flags.length > 0) {
@@ -233,13 +234,17 @@ function applyPanelFlags(panel: ReturnType<typeof createPanelConfig>, flags: str
       continue;
     }
 
-    if (flag === 'r-t') {
-      panel.providerId = 'tidal';
-      continue;
-    }
+    if (flag.startsWith('r-')) {
+      const encodedProviderId = flag.slice(2);
+      const providerId = encodedProviderId === 's'
+        ? 'spotify'
+        : encodedProviderId === 't'
+          ? 'tidal'
+          : encodedProviderId;
 
-    if (flag === 'r-s') {
-      panel.providerId = 'spotify';
+      if (isMusicProviderId(providerId)) {
+        panel.providerId = providerId;
+      }
     }
   }
 }
@@ -303,41 +308,6 @@ function parseGroup(str: string, start: number, orientation: 'horizontal' | 'ver
   };
 }
 
-// ============================================================================
-// Legacy Base64 Support (for backwards compatibility)
-// ============================================================================
-
-/**
- * Try to decode as legacy Base64 format
- */
-function decodeLegacyBase64(encoded: string): SplitNode | null {
-  try {
-    // Convert from URL-safe format
-    let base64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
-    const padding = base64.length % 4;
-    if (padding) {
-      base64 += '='.repeat(4 - padding);
-    }
-    const json = decodeURIComponent(escape(atob(base64)));
-    const spec = JSON.parse(json) as LayoutSpec;
-    return fromLayoutSpec(spec);
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Decode layout string - tries new format first, then legacy Base64
- */
-export function decodeLayoutWithFallback(encoded: string): SplitNode | null {
-  // Try new human-readable format first
-  const result = decodeLayout(encoded);
-  if (result) return result;
-  
-  // Fall back to legacy Base64 format
-  return decodeLegacyBase64(encoded);
-}
-
 // Keep these for tests that use the intermediate spec format
 export function toLayoutSpec(node: SplitNode): LayoutSpec {
   if (node.kind === 'panel') {
@@ -347,8 +317,8 @@ export function toLayoutSpec(node: SplitNode): LayoutSpec {
         pl: node.panel.playlistId,
       },
     };
-    if (node.panel.providerId === 'tidal') {
-      spec.p.pr = 't';
+    if (node.panel.providerId !== DEFAULT_MUSIC_PROVIDER_ID) {
+      spec.p.pr = node.panel.providerId;
     }
     if (node.panel.searchQuery) {
       spec.p.q = node.panel.searchQuery;
@@ -370,7 +340,11 @@ export function toLayoutSpec(node: SplitNode): LayoutSpec {
 
 export function fromLayoutSpec(spec: LayoutSpec): SplitNode {
   if (spec.k === 'p') {
-    const providerId = spec.p.pr === 't' ? 'tidal' : 'spotify';
+    const providerId = spec.p.pr === 's'
+      ? 'spotify'
+      : spec.p.pr === 't'
+        ? 'tidal'
+        : (isMusicProviderId(spec.p.pr) ? spec.p.pr : DEFAULT_MUSIC_PROVIDER_ID);
     const panel = createPanelConfig(spec.p.pl, providerId);
     if (spec.p.q) {
       panel.searchQuery = spec.p.q;
@@ -465,11 +439,10 @@ export function useSplitUrlSync(): void {
 
     const layoutParam = searchParams.get('layout');
     if (layoutParam) {
-      // Try new format first, then legacy Base64
-      const root = decodeLayoutWithFallback(layoutParam);
+      const root = decodeLayout(layoutParam);
       if (root) {
         initializeFromRoot(root);
-        lastEncodedLayout.current = encodeLayout(root); // Store in new format
+        lastEncodedLayout.current = encodeLayout(root);
       }
       // If decode fails, we just use persisted state (no-op)
     }

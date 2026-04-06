@@ -2,12 +2,12 @@ import { useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useAuthSummary } from '@features/auth/hooks/useAuth';
 import type { MusicProviderId } from '@/lib/music-provider/types';
+import {
+  DEFAULT_MUSIC_PROVIDER_ID,
+  isMusicProviderId,
+} from '@/lib/music-provider/providerId';
 
 const STORAGE_KEY = 'music-provider-id';
-
-function isMusicProviderId(value: string | null | undefined): value is MusicProviderId {
-  return value === 'spotify' || value === 'tidal';
-}
 
 export function resolveClientMusicProviderId(searchValue?: string | null): MusicProviderId {
   if (isMusicProviderId(searchValue)) {
@@ -21,7 +21,7 @@ export function resolveClientMusicProviderId(searchValue?: string | null): Music
     }
   }
 
-  return 'spotify';
+  return DEFAULT_MUSIC_PROVIDER_ID;
 }
 
 function getConnectedProviders(summary: ReturnType<typeof useAuthSummary>): MusicProviderId[] {

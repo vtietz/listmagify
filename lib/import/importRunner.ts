@@ -11,11 +11,14 @@ import type { SyncInterval } from '@/lib/sync/types';
 import { fetchFullPlaylistTracks, canonicalizeSnapshot } from '@/lib/sync/snapshot';
 import { createSyncMaterializeAdapter } from '@/lib/sync/materializeAdapter';
 import { materializeCanonicalTrackIds } from '@/lib/recs/materialize';
+import {
+  getProviderLikedSongsDisplayName,
+  toProviderTrackId,
+  toProviderTrackUri,
+} from '@/lib/music-provider/trackCodec';
 import { findUserIdForProvider } from '@/lib/auth/tokenStore';
 import {
   isLikedSongsPlaylist,
-  uriToTrackId,
-  getLikedSongsDisplayName,
   LIKED_TRACKS_BATCH_SIZE,
   LIKED_SONGS_PLAYLIST_ID,
 } from '@/lib/sync/likedSongs';
@@ -31,11 +34,6 @@ const BATCH_SIZE = 100;
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function toTrackUri(providerId: MusicProviderId, trackId: string): string {
-  if (trackId.includes(':')) return trackId; // already a URI
-  return providerId === 'spotify' ? `spotify:track:${trackId}` : trackId;
-}
 
 function chunk<T>(arr: T[], size: number): T[][] {
   const chunks: T[][] = [];
@@ -179,12 +177,12 @@ async function importPlaylist(
   });
 
   // Step 5: Add tracks in batches
-  const trackUris = materializeResult.trackIds.map((id) => toTrackUri(targetProviderId, id));
+  const trackUris = materializeResult.trackIds.map((id) => toProviderTrackUri(targetProviderId, id));
   let tracksAdded = 0;
 
   if (isLikedTarget) {
     for (const batch of chunk(trackUris, LIKED_TRACKS_BATCH_SIZE)) {
-      const ids = batch.map((uri) => uriToTrackId(targetProviderId, uri));
+      const ids = batch.map((uri) => toProviderTrackId(targetProviderId, uri));
       await runWithRateLimitRetry(() => targetProvider.saveTracks({ ids }));
       tracksAdded += batch.length;
     }
@@ -285,10 +283,10 @@ function createSyncPairsForJob(
     ) {
       try {
         const targetName = isLikedSongsPlaylist(playlist.targetPlaylistId)
-          ? getLikedSongsDisplayName(targetProviderId)
+          ? getProviderLikedSongsDisplayName(targetProviderId)
           : playlist.sourcePlaylistName;
         const sourceName = isLikedSongsPlaylist(playlist.sourcePlaylistId)
-          ? getLikedSongsDisplayName(sourceProviderId)
+          ? getProviderLikedSongsDisplayName(sourceProviderId)
           : playlist.sourcePlaylistName;
 
         createSyncPair({

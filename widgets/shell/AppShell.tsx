@@ -33,6 +33,7 @@ import { useAutoSyncRunner } from "@features/sync/hooks/useAutoSyncRunner";
 import { ImportManagementDialog } from "@features/import/ui/ImportManagementDialog";
 import { ImportPlaylistsDialog } from "@features/import/ui/ImportPlaylistsDialog";
 import { useImportBackgroundDetection } from "@features/import/hooks/useImportBackgroundDetection";
+import { DEFAULT_MUSIC_PROVIDER_ID } from '@/lib/music-provider/providerId';
 
 type AppShellProps = {
   headerTitle?: string;
@@ -247,7 +248,7 @@ function Header({ title: _title }: { title: string }) {
 
     const focusedPanel = focusedPanelId ? panels.find((panel) => panel.id === focusedPanelId) : null;
     const fallbackPanel = panels[0] ?? null;
-    const browseProviderId = focusedPanel?.providerId ?? fallbackPanel?.providerId ?? 'spotify';
+    const browseProviderId = focusedPanel?.providerId ?? fallbackPanel?.providerId ?? DEFAULT_MUSIC_PROVIDER_ID;
 
     setBrowseProviderId(browseProviderId);
     setBrowseActiveTab('browse');

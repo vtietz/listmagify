@@ -11,6 +11,8 @@ import { useDragHandle } from '@/components/split-editor/mobile/DragHandle';
 import type { SortKey, SortDirection } from '@features/split-editor/playlist/hooks/usePlaylistSort';
 import type { LucideIcon } from 'lucide-react';
 import type { MusicProviderId } from '@/lib/music-provider/types';
+import { supportsProviderPlaybackControl } from '@/lib/music-provider/capabilities';
+import { DEFAULT_MUSIC_PROVIDER_ID } from '@/lib/music-provider/providerId';
 
 interface TableHeaderProps {
   isEditable: boolean;
@@ -427,12 +429,12 @@ export function TableHeader({
   showCumulativeTime = true,
   showReleaseYearColumn = true,
   showPopularityColumn = true,
-  providerId = 'spotify',
+  providerId = DEFAULT_MUSIC_PROVIDER_ID,
 }: TableHeaderProps) {
   const { isCompact } = useCompactModeStore();
   const iconClass = isCompact ? 'h-2.5 w-2.5' : 'h-3 w-3';
+  const showPlayButton = supportsProviderPlaybackControl(providerId);
   
-  const showPlayButton = providerId === 'spotify';
   
   // Mobile drag handle visibility (matches TrackRow)
   const { showHandle: showDragHandle } = useDragHandle();

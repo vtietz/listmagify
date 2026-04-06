@@ -11,6 +11,11 @@ const SPOTIFY_ID_RE = /^[A-Za-z0-9]{15,30}$/;
  */
 const TIDAL_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+const PLAYLIST_ID_COMPATIBILITY: Record<MusicProviderId, (playlistId: string) => boolean> = {
+  spotify: (playlistId) => SPOTIFY_ID_RE.test(playlistId),
+  tidal: (playlistId) => TIDAL_UUID_RE.test(playlistId),
+};
+
 /**
  * Check whether a playlist ID is compatible with the given provider.
  *
@@ -35,13 +40,5 @@ export function isPlaylistIdCompatibleWithProvider(
     return true;
   }
 
-  if (providerId === 'spotify') {
-    return SPOTIFY_ID_RE.test(playlistId);
-  }
-
-  if (providerId === 'tidal') {
-    return TIDAL_UUID_RE.test(playlistId);
-  }
-
-  return true;
+  return PLAYLIST_ID_COMPATIBILITY[providerId](playlistId);
 }

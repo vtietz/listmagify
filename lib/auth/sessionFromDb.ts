@@ -155,11 +155,13 @@ async function refreshAndPersist(
   }
 
   const jwtToken = storedTokenToProviderJwtToken(stored);
+  const refreshers: Record<MusicProviderId, (token: ProviderJwtToken) => Promise<ProviderJwtToken>> = {
+    spotify: refreshSpotifyAccessToken,
+    tidal: refreshTidalAccessToken,
+  };
 
   try {
-    const refreshed = providerId === 'spotify'
-      ? await refreshSpotifyAccessToken(jwtToken)
-      : await refreshTidalAccessToken(jwtToken);
+    const refreshed = await refreshers[providerId](jwtToken);
 
     if (refreshed.error) {
       recordPermanentFailure(providerId, 'refresh_error');

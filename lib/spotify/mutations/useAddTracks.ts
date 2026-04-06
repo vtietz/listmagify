@@ -10,6 +10,7 @@ import {
 } from '@/lib/api/queryKeys';
 import { eventBus } from '@/lib/sync/eventBus';
 import { toast } from '@/lib/ui/toast';
+import { DEFAULT_MUSIC_PROVIDER_ID } from '@/lib/music-provider/providerId';
 
 import type { 
   AddTracksParams, 
@@ -22,7 +23,7 @@ export function useAddTracks() {
 
   return useMutation({
     mutationFn: async (params: AddTracksParams): Promise<MutationResponse> => {
-      const providerId = params.providerId ?? 'spotify';
+      const providerId = params.providerId ?? DEFAULT_MUSIC_PROVIDER_ID;
       // Intentionally omit snapshotId to avoid stale snapshot errors
       // The Spotify API will operate on the current playlist state
       return apiFetch(`/api/playlists/${params.playlistId}/tracks/add?provider=${providerId}`, {
@@ -35,7 +36,7 @@ export function useAddTracks() {
       });
     },
     onMutate: async (params: AddTracksParams) => {
-      const providerId = params.providerId ?? 'spotify';
+      const providerId = params.providerId ?? DEFAULT_MUSIC_PROVIDER_ID;
       // Cancel outgoing refetches for both query types to prevent stale reads
       await Promise.all([
         queryClient.cancelQueries({
@@ -54,7 +55,7 @@ export function useAddTracks() {
       return { previousData };
     },
     onSuccess: async (_data: MutationResponse, params: AddTracksParams) => {
-      const providerId = params.providerId ?? 'spotify';
+      const providerId = params.providerId ?? DEFAULT_MUSIC_PROVIDER_ID;
       // Await refetch so the cache is guaranteed fresh before subsequent reads
       await queryClient.refetchQueries({ 
         queryKey: playlistTracksInfiniteByProvider(params.playlistId, providerId),
@@ -82,7 +83,7 @@ export function useAddTracks() {
       params: AddTracksParams, 
       context: { previousData?: PlaylistTracksData } | undefined
     ) => {
-      const providerId = params.providerId ?? 'spotify';
+      const providerId = params.providerId ?? DEFAULT_MUSIC_PROVIDER_ID;
       // Rollback on error
       if (context?.previousData) {
         queryClient.setQueryData(

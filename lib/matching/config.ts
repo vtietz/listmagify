@@ -1,4 +1,5 @@
 import type { MusicProviderId } from '@/lib/music-provider/types';
+import { getProviderDisplayName } from '@/lib/music-provider/providerLabels';
 
 export const DEFAULT_MATCH_THRESHOLDS = {
   convert: 0.82,
@@ -67,5 +68,5 @@ export function scoreToConfidence(
 }
 
 export function formatProviderName(providerId: MusicProviderId): string {
-  return providerId === 'tidal' ? 'TIDAL' : 'Spotify';
+  return getProviderDisplayName(providerId);
 }

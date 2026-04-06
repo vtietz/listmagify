@@ -12,14 +12,13 @@ import { useCallback, useMemo } from 'react';
 import { apiFetch } from '@/lib/api/client';
 import { useSavedTracksStore } from './useSavedTracksIndex';
 import type { MusicProviderId, Track } from '@/lib/music-provider/types';
+import { DEFAULT_MUSIC_PROVIDER_ID } from '@/lib/music-provider/providerId';
 import {
   LIKED_SONGS_PLAYLIST_ID,
   isLikedSongsPlaylist,
-  getLikedSongsDisplayName,
 } from '@/lib/sync/likedSongs';
 
-// Re-export so existing consumers don't break
-export { LIKED_SONGS_PLAYLIST_ID, isLikedSongsPlaylist, getLikedSongsDisplayName };
+export { LIKED_SONGS_PLAYLIST_ID, isLikedSongsPlaylist };
 
 /**
  * Virtual playlist metadata
@@ -96,7 +95,7 @@ export const likedPlaylistKey = (providerId: MusicProviderId) => ['liked-virtual
  * ```
  */
 export function useLikedVirtualPlaylist(
-  providerId: MusicProviderId = 'spotify',
+  providerId: MusicProviderId = DEFAULT_MUSIC_PROVIDER_ID,
   options?: UseLikedVirtualPlaylistOptions,
 ): UseLikedVirtualPlaylistResult {
   const { enabled = true } = options ?? {};

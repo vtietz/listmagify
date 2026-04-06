@@ -12,6 +12,7 @@ import { eventBus } from '@/lib/sync/eventBus';
 import { toast } from '@/lib/ui/toast';
 import type { Playlist } from '@/lib/music-provider/types';
 import type { InfiniteData } from '@tanstack/react-query';
+import { DEFAULT_MUSIC_PROVIDER_ID } from '@/lib/music-provider/providerId';
 
 import type { UpdatePlaylistParams } from './types';
 
@@ -37,7 +38,7 @@ export function useUpdatePlaylist() {
 
   return useMutation({
     mutationFn: async (params: UpdatePlaylistParams): Promise<{ success: boolean }> => {
-      const { playlistId, providerId = 'spotify', ...updateData } = params;
+      const { playlistId, providerId = DEFAULT_MUSIC_PROVIDER_ID, ...updateData } = params;
       return apiFetch(`/api/playlists/${playlistId}?provider=${providerId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -45,7 +46,7 @@ export function useUpdatePlaylist() {
       });
     },
     onMutate: async (params: UpdatePlaylistParams): Promise<UpdatePlaylistMutationContext> => {
-      const providerId = params.providerId ?? 'spotify';
+      const providerId = params.providerId ?? DEFAULT_MUSIC_PROVIDER_ID;
       const previousMeta = queryClient.getQueryData<PlaylistMetaQuery>(
         playlistMetaByProvider(params.playlistId, providerId)
       );
@@ -97,7 +98,7 @@ export function useUpdatePlaylist() {
       return { previousMeta, previousUserPlaylists };
     },
     onSuccess: (_data: { success: boolean }, params: UpdatePlaylistParams) => {
-      const providerId = params.providerId ?? 'spotify';
+      const providerId = params.providerId ?? DEFAULT_MUSIC_PROVIDER_ID;
       // Invalidate the specific playlist's metadata
       queryClient.invalidateQueries({
         queryKey: playlistMetaByProvider(params.playlistId, providerId),
@@ -115,7 +116,7 @@ export function useUpdatePlaylist() {
       // Success - no toast needed
     },
     onError: (error: Error, params: UpdatePlaylistParams, context: UpdatePlaylistMutationContext | undefined) => {
-      const providerId = params.providerId ?? 'spotify';
+      const providerId = params.providerId ?? DEFAULT_MUSIC_PROVIDER_ID;
       if (context?.previousMeta !== undefined) {
         queryClient.setQueryData(
           playlistMetaByProvider(params.playlistId, providerId),

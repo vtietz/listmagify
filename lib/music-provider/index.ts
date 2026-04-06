@@ -3,25 +3,28 @@ import type { MusicProviderId } from '@/lib/music-provider/types';
 import { createSpotifyProvider } from '@/lib/music-provider/spotify/provider';
 import { createTidalProvider } from '@/lib/music-provider/tidal/provider';
 import { isMusicProviderEnabled } from '@/lib/music-provider/enabledProviders';
+import {
+  isMusicProviderId,
+  parseMusicProviderId,
+  getSupportedMusicProviderIds,
+  DEFAULT_MUSIC_PROVIDER_ID,
+  detectMusicProviderIdFromUri,
+} from '@/lib/music-provider/providerId';
 
 const providers = new Map<MusicProviderId, MusicProvider>();
 
-function isMusicProviderId(value: string): value is MusicProviderId {
-  return value === 'spotify' || value === 'tidal';
-}
+const providerFactories: Record<MusicProviderId, () => MusicProvider> = {
+  spotify: createSpotifyProvider,
+  tidal: createTidalProvider,
+};
 
-export function parseMusicProviderId(value: string | null | undefined): MusicProviderId {
-  if (!value) {
-    return 'spotify';
-  }
-
-  const normalized = value.toLowerCase();
-  if (!isMusicProviderId(normalized)) {
-    throw new Error(`Unsupported provider: ${value}`);
-  }
-
-  return normalized;
-}
+export {
+  isMusicProviderId,
+  parseMusicProviderId,
+  getSupportedMusicProviderIds,
+  DEFAULT_MUSIC_PROVIDER_ID,
+  detectMusicProviderIdFromUri,
+};
 
 export function getMusicProvider(providerId: MusicProviderId): MusicProvider {
   if (!isMusicProviderEnabled(providerId)) {
@@ -33,9 +36,7 @@ export function getMusicProvider(providerId: MusicProviderId): MusicProvider {
     return existing;
   }
 
-  const created = providerId === 'spotify'
-    ? createSpotifyProvider()
-    : createTidalProvider();
+  const created = providerFactories[providerId]();
   providers.set(providerId, created);
   return created;
 }

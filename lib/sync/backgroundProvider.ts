@@ -9,6 +9,17 @@
 import type { MusicProvider, MusicProviderId } from '@/lib/music-provider/types';
 import { getSessionFromDb } from '@/lib/auth/sessionFromDb';
 
+const backgroundProviderFactories: Record<MusicProviderId, (getSession: () => Promise<{ accessToken: string }>) => Promise<MusicProvider>> = {
+  spotify: async (getSession) => {
+    const { createSpotifyProvider } = await import('@/lib/music-provider/spotify/provider');
+    return createSpotifyProvider({ getSession });
+  },
+  tidal: async (getSession) => {
+    const { createTidalProvider } = await import('@/lib/music-provider/tidal/provider');
+    return createTidalProvider({ getSession });
+  },
+};
+
 export async function createBackgroundProvider(
   userId: string,
   providerId: MusicProviderId,
@@ -21,11 +32,5 @@ export async function createBackgroundProvider(
     return session;
   };
 
-  if (providerId === 'spotify') {
-    const { createSpotifyProvider } = await import('@/lib/music-provider/spotify/provider');
-    return createSpotifyProvider({ getSession });
-  }
-
-  const { createTidalProvider } = await import('@/lib/music-provider/tidal/provider');
-  return createTidalProvider({ getSession });
+  return backgroundProviderFactories[providerId](getSession);
 }

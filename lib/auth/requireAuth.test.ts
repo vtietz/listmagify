@@ -27,8 +27,12 @@ describe('requireAuth', () => {
   it('returns session with access token when authenticated', async () => {
     mockGetServerSession.mockResolvedValue({
       user: { name: 'Test User', email: 'test@example.com' },
-      accessToken: 'valid-token-123',
-      accessTokenExpires: Date.now() + 3600000,
+      musicProviderTokens: {
+        spotify: {
+          accessToken: 'valid-token-123',
+          accessTokenExpires: Date.now() + 3600000,
+        },
+      },
     } as any);
 
     const session = await requireAuth();
@@ -49,12 +53,18 @@ describe('requireAuth', () => {
   it('throws ServerAuthError when token refresh failed', async () => {
     mockGetServerSession.mockResolvedValue({
       user: { name: 'Test User' },
-      accessToken: 'old-token',
-      error: 'RefreshAccessTokenError',
+      musicProviderTokens: {
+        spotify: {
+          error: 'RefreshAccessTokenError',
+        },
+      },
+      providerErrors: {
+        spotify: 'RefreshAccessTokenError',
+      },
     } as any);
 
-    await expect(requireAuth()).rejects.toThrow(ServerAuthError);
-    await expect(requireAuth()).rejects.toMatchObject({
+    await expect(requireAuth('spotify')).rejects.toThrow(ServerAuthError);
+    await expect(requireAuth('spotify')).rejects.toMatchObject({
       reason: 'refresh_failed',
     });
   });
@@ -80,7 +90,12 @@ describe('tryAuth', () => {
   it('returns session when authenticated', async () => {
     mockGetServerSession.mockResolvedValue({
       user: { name: 'Test User' },
-      accessToken: 'valid-token-123',
+      musicProviderTokens: {
+        spotify: {
+          accessToken: 'valid-token-123',
+          accessTokenExpires: Date.now() + 3600000,
+        },
+      },
     } as any);
 
     const session = await tryAuth();
@@ -100,10 +115,17 @@ describe('tryAuth', () => {
   it('returns null when token refresh failed', async () => {
     mockGetServerSession.mockResolvedValue({
       user: { name: 'Test User' },
-      error: 'RefreshAccessTokenError',
+      musicProviderTokens: {
+        spotify: {
+          error: 'RefreshAccessTokenError',
+        },
+      },
+      providerErrors: {
+        spotify: 'RefreshAccessTokenError',
+      },
     } as any);
 
-    const session = await tryAuth();
+    const session = await tryAuth('spotify');
 
     expect(session).toBeNull();
   });

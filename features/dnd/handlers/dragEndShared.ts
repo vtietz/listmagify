@@ -5,6 +5,7 @@ import { getBrowsePanelDragPayloads, getBrowsePanelDragUris } from '../helpers';
 import { apiFetch } from '@/lib/api/client';
 import { toast } from '@/lib/ui/toast';
 import { isPlaylistIdCompatibleWithProvider } from '@/lib/providers/playlistIdCompat';
+import { DEFAULT_MUSIC_PROVIDER_ID } from '@/lib/music-provider/providerId';
 
 export function inferProviderIdFromPlaylistId(playlistId: string | null | undefined): MusicProviderId | null {
   if (!playlistId) {
@@ -28,7 +29,7 @@ export function resolvePanelProviderId(panel: PanelConfig, playlistId?: string |
   }
 
   const inferredProvider = inferProviderIdFromPlaylistId(playlistId ?? panel.playlistId);
-  return inferredProvider ?? 'spotify';
+  return inferredProvider ?? DEFAULT_MUSIC_PROVIDER_ID;
 }
 
 function parseReleaseYear(releaseDate: string | null | undefined): number | undefined {

@@ -15,6 +15,7 @@ import {
 import { applyRemoveToInfinitePages } from '@/lib/dnd/sortUtils';
 import { eventBus } from '@/lib/sync/eventBus';
 import { toast } from '@/lib/ui/toast';
+import { DEFAULT_MUSIC_PROVIDER_ID } from '@/lib/music-provider/providerId';
 
 import type { 
   RemoveTracksParams, 
@@ -35,7 +36,7 @@ export function useRemoveTracks() {
 
   return useMutation({
     mutationFn: async (params: RemoveTracksParams): Promise<MutationResponse> => {
-      const providerId = params.providerId ?? 'spotify';
+      const providerId = params.providerId ?? DEFAULT_MUSIC_PROVIDER_ID;
       // Send tracks with positions - server handles the rebuild if needed
       return apiFetch(`/api/playlists/${params.playlistId}/tracks/remove?provider=${providerId}`, {
         method: 'DELETE',
@@ -44,7 +45,7 @@ export function useRemoveTracks() {
       });
     },
     onMutate: async (params: RemoveTracksParams) => {
-      const providerId = params.providerId ?? 'spotify';
+      const providerId = params.providerId ?? DEFAULT_MUSIC_PROVIDER_ID;
       // Cancel outgoing refetches for both query keys
       await cancelPlaylistQueries(queryClient, params.playlistId, providerId);
 
@@ -94,7 +95,7 @@ export function useRemoveTracks() {
       return { previousInfiniteData, previousData };
     },
     onSuccess: (data: MutationResponse, params: RemoveTracksParams) => {
-      const providerId = params.providerId ?? 'spotify';
+      const providerId = params.providerId ?? DEFAULT_MUSIC_PROVIDER_ID;
       // Update snapshotId in both caches without refetching
       updateBothSnapshotIds(queryClient, params.playlistId, providerId, data);
 
@@ -129,7 +130,7 @@ export function useRemoveTracks() {
       params: RemoveTracksParams, 
       context: { previousInfiniteData?: InfinitePlaylistData; previousData?: PlaylistTracksData } | undefined
     ) => {
-      const providerId = params.providerId ?? 'spotify';
+      const providerId = params.providerId ?? DEFAULT_MUSIC_PROVIDER_ID;
       // Rollback both caches
       rollbackPlaylistCaches(queryClient, params.playlistId, providerId, context);
       toast.error(error instanceof Error ? error.message : 'Failed to remove tracks');

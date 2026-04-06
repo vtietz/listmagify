@@ -5,6 +5,7 @@
 
 import { getTrackSelectionKey } from '@/lib/dnd/selection';
 import type { Track } from '@/lib/music-provider/types';
+import { detectMusicProviderIdFromUri } from '@/lib/music-provider/providerId';
 
 /**
  * Build a set of duplicate URIs (URIs that appear more than once in the track list).
@@ -135,7 +136,8 @@ export function getSortedValidTrackUris(sortedTracks: Track[]): string[] {
     .filter((uri): uri is string =>
       typeof uri === 'string' &&
       uri.length > 0 &&
-      uri.startsWith('spotify:track:')
+      detectMusicProviderIdFromUri(uri) === 'spotify' &&
+      uri.includes(':track:')
     );
 }
 
