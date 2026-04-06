@@ -17,6 +17,7 @@ interface ActiveImportResponse {
  */
 export function useImportBackgroundDetection() {
   const setActiveImport = useImportActivityStore((s) => s.setActiveImport);
+  const markImportCompleted = useImportActivityStore((s) => s.markImportCompleted);
   const activeJobId = useImportActivityStore((s) => s.activeImportJobId);
   const queryClient = useQueryClient();
   const hasNotified = useRef(false);
@@ -49,7 +50,7 @@ export function useImportBackgroundDetection() {
     if (hasNotified.current) return;
 
     hasNotified.current = true;
-    setActiveImport(null);
+    markImportCompleted(status);
     void queryClient.invalidateQueries({ queryKey: ['import-history'] });
 
     const total = jobData.playlists.length;
@@ -64,7 +65,7 @@ export function useImportBackgroundDetection() {
     } else {
       toast.error(`Import failed for ${total} playlist${total === 1 ? '' : 's'}`);
     }
-  }, [jobData, activeJobId, setActiveImport, queryClient]);
+  }, [jobData, activeJobId, markImportCompleted, queryClient]);
 
   // Reset notification flag when job changes
   useEffect(() => {

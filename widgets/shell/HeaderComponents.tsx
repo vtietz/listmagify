@@ -278,7 +278,9 @@ export function AdaptiveNav({
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [configOpen, setConfigOpen] = useState(false);
   const openManagement = useSyncDialogStore((s) => s.openManagement);
-  const isSyncing = useSyncActivityStore((s) => s.activeSyncCount > 0);
+  const isSyncExecuting = useSyncActivityStore((s) => s.activeSyncCount > 0);
+  const isSyncPreviewRunning = useSyncDialogStore((s) => Object.values(s.previewSessions).some((session) => session.status === 'running'));
+  const isSyncing = isSyncExecuting || isSyncPreviewRunning;
   const { attentionCount: syncAttentionCount } = useSyncAttention(showSecureLinks && multipleProvidersConnected);
   const openImportManagement = useImportManagementStore((s) => s.openManagement);
   const isImporting = useImportActivityStore((s) => s.isImportActive);

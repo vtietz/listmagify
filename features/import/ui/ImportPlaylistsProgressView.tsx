@@ -9,10 +9,12 @@ import {
 import { Button } from '@/components/ui/button';
 import { Import, Loader2 } from 'lucide-react';
 import { useImportDialogStore } from '@/features/import/stores/useImportDialogStore';
+import { useImportActivityStore } from '@/features/import/stores/useImportActivityStore';
 import { useImportJob, type ImportJobData } from '@/features/import/hooks/useImportJob';
 import { ImportPlaylistProgressRow } from '@/features/import/ui/ImportPlaylistStatusRow';
 
 function ProgressViewContent({ data }: { data: ImportJobData }) {
+  const acknowledgeCompletion = useImportActivityStore((s) => s.acknowledgeCompletion);
   const { job, playlists } = data;
   const isComplete = job.status === 'done' || job.status === 'failed';
   const doneCount = playlists.filter((p) => p.status === 'done').length;
@@ -68,7 +70,12 @@ function ProgressViewContent({ data }: { data: ImportJobData }) {
       <DialogFooter>
         <Button
           type="button"
-          onClick={() => useImportDialogStore.getState().close()}
+          onClick={() => {
+            if (isComplete) {
+              acknowledgeCompletion();
+            }
+            useImportDialogStore.getState().close();
+          }}
         >
           {isComplete ? 'Close' : 'Close (import continues in background)'}
         </Button>

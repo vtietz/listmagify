@@ -70,6 +70,35 @@ function formatPreviewError(error: unknown): string {
   return 'Failed to generate preview. Please try again.';
 }
 
+function useApplyProgressState(isApplying: boolean): {
+  applyProgressPercent: number;
+  isApplyLikelyStuck: boolean;
+} {
+  const [applyElapsedSeconds, setApplyElapsedSeconds] = useState(0);
+
+  useEffect(() => {
+    if (!isApplying) {
+      setApplyElapsedSeconds(0);
+      return;
+    }
+
+    const id = setInterval(() => {
+      setApplyElapsedSeconds((prev) => prev + 1);
+    }, 1000);
+
+    return () => clearInterval(id);
+  }, [isApplying]);
+
+  const applyProgressPercent = isApplying
+    ? Math.min(95, Math.max(4, Math.floor((applyElapsedSeconds / 300) * 100)))
+    : 100;
+
+  return {
+    applyProgressPercent,
+    isApplyLikelyStuck: isApplying && applyElapsedSeconds > 180,
+  };
+}
+
 function ResultStep({
   result,
   onDone,
@@ -108,6 +137,7 @@ function PreviewStatusMessage({
   isLoading,
   previewError,
   applyError,
+  applyErrorMessage,
   elapsedSeconds,
   previewRun,
   previewErrorMessage,
@@ -116,6 +146,7 @@ function PreviewStatusMessage({
   isLoading: boolean;
   previewError: boolean;
   applyError: boolean;
+  applyErrorMessage: string;
   elapsedSeconds: number;
   previewRun: SyncPreviewRun | null;
   previewErrorMessage: string;
@@ -143,7 +174,12 @@ function PreviewStatusMessage({
   }
 
   if (applyError) {
-    return <div className="rounded-md bg-red-500/10 p-3 text-sm text-red-500">Sync failed. Please try again.</div>;
+    return (
+      <div className="rounded-md bg-red-500/10 p-3 text-sm text-red-500">
+        <p>{applyErrorMessage}</p>
+        <p className="mt-1 text-xs text-red-400">Please review and try applying again.</p>
+      </div>
+    );
   }
 
   return null;
@@ -157,11 +193,14 @@ function PreviewStepContent({
   isLoading,
   previewError,
   applyError,
+  applyErrorMessage,
   elapsedSeconds,
   previewRun,
   previewErrorMessage,
   onRetryPreview,
   isApplying,
+  applyProgressPercent,
+  isApplyLikelyStuck,
   onApply,
   onCancel,
 }: {
@@ -172,11 +211,14 @@ function PreviewStepContent({
   isLoading: boolean;
   previewError: boolean;
   applyError: boolean;
+  applyErrorMessage: string;
   elapsedSeconds: number;
   previewRun: SyncPreviewRun | null;
   previewErrorMessage: string;
   onRetryPreview: () => void;
   isApplying: boolean;
+  applyProgressPercent: number;
+  isApplyLikelyStuck: boolean;
   onApply: () => void;
   onCancel: () => void;
 }) {
@@ -195,6 +237,7 @@ function PreviewStepContent({
         isLoading={isLoading}
         previewError={previewError}
         applyError={applyError}
+        applyErrorMessage={applyErrorMessage}
         elapsedSeconds={elapsedSeconds}
         previewRun={previewRun}
         previewErrorMessage={previewErrorMessage}
@@ -211,12 +254,35 @@ function PreviewStepContent({
         />
       )}
 
+      <div className={`min-h-[58px] rounded-md border border-border bg-muted/30 px-3 py-2 ${isApplying ? '' : 'invisible'}`}>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span>Applying changes to playlists. This can take a while for large liked-song syncs.</span>
+        </div>
+        <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+          <div
+            className="h-full rounded-full bg-primary transition-all duration-300"
+            style={{ width: `${Math.max(4, Math.min(100, applyProgressPercent))}%` }}
+          />
+        </div>
+        {isApplyLikelyStuck && (
+          <p className="mt-1 text-xs text-yellow-500">
+            This run is taking unusually long. It may be rate-limited; it will continue in background.
+          </p>
+        )}
+      </div>
+
       <DialogFooter>
-        <Button variant="outline" onClick={onCancel}>Cancel</Button>
+        {isApplying && (
+          <span className="mr-auto text-xs text-muted-foreground">
+            Sync continues in background if you close.
+          </span>
+        )}
+        <Button variant="outline" onClick={onCancel}>{isApplying ? 'Close' : 'Cancel'}</Button>
         {hasChanges && (
           <Button onClick={onApply} disabled={isApplying || isLoading}>
             {isApplying && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Apply
+            {isApplying ? 'Applying...' : 'Apply'}
           </Button>
         )}
       </DialogFooter>
@@ -237,8 +303,16 @@ const STEP_DESCRIPTIONS: Record<Step, string> = {
 function SyncPreviewDialogContent({
   step,
   result,
-  preview,
-  apply,
+  previewData,
+  previewRun,
+  isPreviewLoading,
+  isPreviewError,
+  previewErrorMessage,
+  applyError,
+  applyErrorMessage,
+  isApplying,
+  applyProgressPercent,
+  isApplyLikelyStuck,
   previewConfig,
   sourcePlaylistName,
   targetPlaylistName,
@@ -249,8 +323,16 @@ function SyncPreviewDialogContent({
 }: {
   step: Step;
   result: SyncApplyResult | null;
-  preview: ReturnType<typeof useSyncPreview>;
-  apply: ReturnType<typeof useSyncApply>;
+  previewData: SyncPreviewResult | null;
+  previewRun: SyncPreviewRun | null;
+  isPreviewLoading: boolean;
+  isPreviewError: boolean;
+  previewErrorMessage: string;
+  applyError: boolean;
+  applyErrorMessage: string;
+  isApplying: boolean;
+  applyProgressPercent: number;
+  isApplyLikelyStuck: boolean;
   previewConfig: SyncDialogConfig | null;
   sourcePlaylistName: string;
   targetPlaylistName: string;
@@ -266,17 +348,20 @@ function SyncPreviewDialogContent({
   return (
     <PreviewStepContent
       config={previewConfig}
-      previewData={preview.data ?? null}
+      previewData={previewData}
       sourcePlaylistName={sourcePlaylistName}
       targetPlaylistName={targetPlaylistName}
-      isLoading={preview.isPending}
-      previewError={preview.isError}
+      isLoading={isPreviewLoading}
+      previewError={isPreviewError}
       elapsedSeconds={elapsedSeconds}
-      previewRun={preview.previewRun}
-      previewErrorMessage={formatPreviewError(preview.error)}
+      previewRun={previewRun}
+      previewErrorMessage={previewErrorMessage}
       onRetryPreview={onRetryPreview}
-      applyError={apply.isError}
-      isApplying={apply.isPending}
+      applyError={applyError}
+      applyErrorMessage={applyErrorMessage}
+      isApplying={isApplying}
+      applyProgressPercent={applyProgressPercent}
+      isApplyLikelyStuck={isApplyLikelyStuck}
       onApply={onApply}
       onCancel={onClose}
     />
@@ -284,12 +369,23 @@ function SyncPreviewDialogContent({
 }
 
 export function SyncPreviewDialog() {
-  const { isPreviewOpen, previewConfig, closePreview } = useSyncDialogStore();
+  const isPreviewOpen = useSyncDialogStore((s) => s.isPreviewOpen);
+  const previewConfig = useSyncDialogStore((s) => s.previewConfig);
+  const closePreview = useSyncDialogStore((s) => s.closePreview);
+  const startPreviewSession = useSyncDialogStore((s) => s.startPreviewSession);
+  const updatePreviewSessionRun = useSyncDialogStore((s) => s.updatePreviewSessionRun);
+  const completePreviewSession = useSyncDialogStore((s) => s.completePreviewSession);
+  const failPreviewSession = useSyncDialogStore((s) => s.failPreviewSession);
+  const setPreviewSessionApplyResult = useSyncDialogStore((s) => s.setPreviewSessionApplyResult);
+  const setPreviewSessionApplyError = useSyncDialogStore((s) => s.setPreviewSessionApplyError);
+  const clearPreviewSession = useSyncDialogStore((s) => s.clearPreviewSession);
   const [step, setStep] = useState<Step>('preview');
   const [result, setResult] = useState<SyncApplyResult | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const lastPreviewRequestKeyRef = useRef<string | null>(null);
   const activePreviewKeyRef = useRef<string | null>(null);
+  const previewKey = previewConfig ? buildPreviewKey(previewConfig) : null;
+  const previewSession = useSyncDialogStore((s) => (previewKey ? s.previewSessions[previewKey] ?? null : null));
 
   const sourcePlaylistName = usePlaylistName(
     previewConfig?.sourceProvider ?? 'spotify',
@@ -302,24 +398,67 @@ export function SyncPreviewDialog() {
 
   const preview = useSyncPreview();
   const apply = useSyncApply();
+  const { applyProgressPercent, isApplyLikelyStuck } = useApplyProgressState(apply.isPending);
 
   const triggerPreview = useCallback(() => {
-    if (!previewConfig) return;
+    if (!previewConfig || !previewKey) return;
     setElapsedSeconds(0);
-    activePreviewKeyRef.current = buildPreviewKey(previewConfig);
+    setStep('preview');
+    setResult(null);
+    preview.reset();
+    apply.reset();
+    startPreviewSession(previewKey, previewConfig);
+    activePreviewKeyRef.current = previewKey;
     preview.mutate({ ...previewConfig, direction: 'bidirectional' });
-  }, [previewConfig, preview]);
+  }, [previewConfig, previewKey, preview, apply, startPreviewSession]);
+
+  useEffect(() => {
+    const activeKey = activePreviewKeyRef.current;
+    if (!activeKey || !preview.previewRun) return;
+    updatePreviewSessionRun(activeKey, preview.previewRun);
+  }, [preview.previewRun, updatePreviewSessionRun]);
+
+  useEffect(() => {
+    const activeKey = activePreviewKeyRef.current;
+    if (!activeKey || !preview.isSuccess || !preview.data) return;
+    completePreviewSession(activeKey, preview.data, preview.previewRun);
+  }, [preview.isSuccess, preview.data, preview.previewRun, completePreviewSession]);
+
+  useEffect(() => {
+    const activeKey = activePreviewKeyRef.current;
+    if (!activeKey || !preview.isError) return;
+    failPreviewSession(activeKey, formatPreviewError(preview.error), preview.previewRun);
+  }, [preview.isError, preview.error, preview.previewRun, failPreviewSession]);
 
   // Reset state and fetch preview when dialog opens
   useEffect(() => {
-    if (!isPreviewOpen || !previewConfig) {
+    if (!isPreviewOpen || !previewConfig || !previewKey) {
       return;
     }
 
-    const previewKey = buildPreviewKey(previewConfig);
-
     if (preview.isPending && activePreviewKeyRef.current === previewKey) {
       lastPreviewRequestKeyRef.current = previewKey;
+      return;
+    }
+
+    if (previewSession?.status === 'done' && previewSession.result) {
+      lastPreviewRequestKeyRef.current = previewKey;
+      if (previewSession.applyResult) {
+        setStep('result');
+        setResult(previewSession.applyResult);
+      } else {
+        setStep('preview');
+        setResult(null);
+      }
+      setElapsedSeconds(0);
+      return;
+    }
+
+    if (previewSession?.status === 'failed') {
+      lastPreviewRequestKeyRef.current = previewKey;
+      setStep('preview');
+      setResult(null);
+      setElapsedSeconds(0);
       return;
     }
 
@@ -329,36 +468,71 @@ export function SyncPreviewDialog() {
 
     lastPreviewRequestKeyRef.current = previewKey;
 
-    setStep('preview');
-    setResult(null);
-    preview.reset();
-    apply.reset();
     triggerPreview();
-  }, [isPreviewOpen, previewConfig, preview, apply, triggerPreview]);
+  }, [isPreviewOpen, previewConfig, previewKey, preview.isPending, previewSession, triggerPreview]);
 
   useEffect(() => {
-    if (!preview.isPending) return;
+    const isPreviewLoading = preview.isPending || previewSession?.status === 'running';
+    if (!isPreviewLoading) return;
 
     const id = setInterval(() => {
       setElapsedSeconds((prev) => prev + 1);
     }, 1000);
 
     return () => clearInterval(id);
-  }, [preview.isPending]);
+  }, [preview.isPending, previewSession?.status]);
+
+  const previewData = preview.data ?? previewSession?.result ?? null;
+  const previewRun = preview.previewRun ?? previewSession?.run ?? null;
+  const isPreviewLoading = preview.isPending || previewSession?.status === 'running';
+  const isPreviewError = preview.isError || previewSession?.status === 'failed';
+  const previewErrorMessage = preview.isError
+    ? formatPreviewError(preview.error)
+    : (previewSession?.status === 'failed'
+      ? (previewSession.errorMessage ?? 'Failed to generate preview. Please try again.')
+      : '');
+  const applyErrorMessage = apply.isError
+    ? (apply.error instanceof Error ? apply.error.message : 'Sync failed while applying changes.')
+    : (previewSession?.applyErrorMessage ?? 'Sync failed while applying changes.');
+  const hasApplyError = apply.isError || !!previewSession?.applyErrorMessage;
 
   const handleApply = useCallback(() => {
-    const plan = preview.data?.plan;
+    const plan = previewData?.plan;
     if (!plan) return;
     apply.mutate(
       { plan, syncPairId: previewConfig?.syncPairId },
       {
         onSuccess: (data: { result: SyncApplyResult; runId?: string }) => {
+          if (previewKey) {
+            setPreviewSessionApplyResult(previewKey, data.result);
+          }
           setResult(data.result);
           setStep('result');
         },
+        onError: (error: unknown) => {
+          if (!previewKey) return;
+          const message = error instanceof Error && error.message.trim().length > 0
+            ? error.message
+            : 'Sync failed while applying changes.';
+          setPreviewSessionApplyError(previewKey, message);
+        },
       },
     );
-  }, [preview.data, apply, previewConfig?.syncPairId]);
+  }, [previewData, apply, previewConfig?.syncPairId, previewKey, setPreviewSessionApplyResult, setPreviewSessionApplyError]);
+
+  const handleDone = useCallback(() => {
+    if (previewKey) {
+      clearPreviewSession(previewKey);
+    }
+    lastPreviewRequestKeyRef.current = null;
+    activePreviewKeyRef.current = null;
+    setStep('preview');
+    setResult(null);
+    setElapsedSeconds(0);
+    preview.reset();
+    apply.reset();
+    closePreview();
+  }, [previewKey, clearPreviewSession, preview, apply, closePreview]);
 
   return (
     <Dialog open={isPreviewOpen} onOpenChange={(open) => { if (!open) closePreview(); }}>
@@ -371,15 +545,23 @@ export function SyncPreviewDialog() {
         <SyncPreviewDialogContent
           step={step}
           result={result}
-          preview={preview}
-          apply={apply}
+          previewData={previewData}
+          previewRun={previewRun}
+          isPreviewLoading={isPreviewLoading}
+          isPreviewError={isPreviewError}
+          previewErrorMessage={previewErrorMessage}
+          applyError={hasApplyError}
+          applyErrorMessage={applyErrorMessage}
+          isApplying={apply.isPending}
+          applyProgressPercent={applyProgressPercent}
+          isApplyLikelyStuck={isApplyLikelyStuck}
           previewConfig={previewConfig}
           sourcePlaylistName={sourcePlaylistName}
           targetPlaylistName={targetPlaylistName}
           elapsedSeconds={elapsedSeconds}
           onApply={handleApply}
           onRetryPreview={triggerPreview}
-          onClose={closePreview}
+          onClose={step === 'result' ? handleDone : closePreview}
         />
       </DialogContent>
     </Dialog>

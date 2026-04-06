@@ -486,7 +486,10 @@ export function ImportPlaylistsDialog() {
   const { isOpen, targetProvider } = useImportDialogStore();
   const close = useImportDialogStore((s) => s.close);
   const activeJobId = useImportActivityStore((s) => s.activeImportJobId);
+  const isImportActive = useImportActivityStore((s) => s.isImportActive);
+  const hasUnacknowledgedCompletion = useImportActivityStore((s) => s.hasUnacknowledgedCompletion);
   const startImport = useStartImport();
+  const shouldShowProgress = !!activeJobId && (isImportActive || hasUnacknowledgedCompletion);
 
   const handleStartImport = useCallback(
     (
@@ -510,7 +513,7 @@ export function ImportPlaylistsDialog() {
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) close(); }}>
       <DialogContent className="sm:max-w-[520px]">
-        {activeJobId ? (
+        {shouldShowProgress ? (
           <ImportPlaylistsProgressView jobId={activeJobId} />
         ) : (
           <SelectionView

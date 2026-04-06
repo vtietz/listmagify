@@ -5,6 +5,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { useSyncDialogStore } from './useSyncDialogStore';
 import type { SyncDialogConfig } from './useSyncDialogStore';
 import type { SyncManagementDraft } from './useSyncDialogStore';
+import type { SyncPreviewResult, SyncPreviewRun } from '@/lib/sync/types';
 
 const sampleConfig: SyncDialogConfig = {
   sourceProvider: 'spotify',
@@ -22,6 +23,31 @@ const sampleDraft: SyncManagementDraft = {
   syncInterval: '1h',
 };
 
+const samplePreviewRun: SyncPreviewRun = {
+  id: 'preview-run-1',
+  status: 'executing',
+  phase: 'computing_diff',
+  progress: 42,
+  createdBy: 'user-1',
+  errorMessage: null,
+  startedAt: '2026-01-01T00:00:00.000Z',
+  completedAt: null,
+};
+
+const samplePreviewResult: SyncPreviewResult = {
+  plan: {
+    sourceProvider: 'spotify',
+    sourcePlaylistId: 'pl-source',
+    targetProvider: 'tidal',
+    targetPlaylistId: 'pl-target',
+    direction: 'a-to-b',
+    items: [],
+    summary: { toAdd: 0, toRemove: 0, unresolved: 0 },
+  },
+  sourceTracks: [],
+  targetTracks: [],
+};
+
 beforeEach(() => {
   // Reset store to initial state between tests
   useSyncDialogStore.setState({
@@ -30,6 +56,7 @@ beforeEach(() => {
     returnToManagement: false,
     isManagementOpen: false,
     managementDraft: null,
+    previewSessions: {},
   });
 });
 
@@ -107,6 +134,30 @@ describe('useSyncDialogStore', () => {
 
       expect(useSyncDialogStore.getState().isManagementOpen).toBe(false);
     });
+
+    it('restores management draft from preview config when returning to management', () => {
+      useSyncDialogStore.getState().openPreview(sampleConfig, true);
+      useSyncDialogStore.getState().closePreview();
+
+      expect(useSyncDialogStore.getState().managementDraft).toEqual({
+        sourceProvider: sampleConfig.sourceProvider,
+        sourcePlaylistId: sampleConfig.sourcePlaylistId,
+        targetProvider: sampleConfig.targetProvider,
+        targetPlaylistId: sampleConfig.targetPlaylistId,
+        syncInterval: 'off',
+      });
+    });
+
+    it('preserves existing draft sync interval when restoring from preview config', () => {
+      useSyncDialogStore.getState().setManagementDraft({
+        ...sampleDraft,
+        syncInterval: '1h',
+      });
+      useSyncDialogStore.getState().openPreview(sampleConfig, true);
+      useSyncDialogStore.getState().closePreview();
+
+      expect(useSyncDialogStore.getState().managementDraft?.syncInterval).toBe('1h');
+    });
   });
 
   describe('openManagement', () => {
@@ -168,6 +219,55 @@ describe('useSyncDialogStore', () => {
       useSyncDialogStore.getState().clearManagementDraft();
 
       expect(useSyncDialogStore.getState().managementDraft).toBeNull();
+    });
+  });
+
+  describe('preview sessions', () => {
+    it('starts and updates a preview session', () => {
+      const key = 'pair::spotify::a::tidal::b';
+      const store = useSyncDialogStore.getState();
+
+      store.startPreviewSession(key, sampleConfig);
+      store.updatePreviewSessionRun(key, samplePreviewRun);
+
+      const session = useSyncDialogStore.getState().previewSessions[key];
+      expect(session).toBeDefined();
+      expect(session?.status).toBe('running');
+      expect(session?.run).toEqual(samplePreviewRun);
+      expect(session?.result).toBeNull();
+    });
+
+    it('completes and clears a preview session', () => {
+      const key = 'pair::spotify::a::tidal::b';
+      const store = useSyncDialogStore.getState();
+
+      store.startPreviewSession(key, sampleConfig);
+      store.completePreviewSession(key, samplePreviewResult, {
+        ...samplePreviewRun,
+        status: 'done',
+        progress: 100,
+        phase: 'finalizing',
+        completedAt: '2026-01-01T00:00:10.000Z',
+      });
+
+      const completed = useSyncDialogStore.getState().previewSessions[key];
+      expect(completed?.status).toBe('done');
+      expect(completed?.result).toEqual(samplePreviewResult);
+
+      store.clearPreviewSession(key);
+      expect(useSyncDialogStore.getState().previewSessions[key]).toBeUndefined();
+    });
+
+    it('marks a preview session as failed', () => {
+      const key = 'pair::spotify::a::tidal::b';
+      const store = useSyncDialogStore.getState();
+
+      store.startPreviewSession(key, sampleConfig);
+      store.failPreviewSession(key, 'Preview failed due to timeout', samplePreviewRun);
+
+      const failed = useSyncDialogStore.getState().previewSessions[key];
+      expect(failed?.status).toBe('failed');
+      expect(failed?.errorMessage).toBe('Preview failed due to timeout');
     });
   });
 });

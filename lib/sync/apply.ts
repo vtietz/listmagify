@@ -28,6 +28,54 @@ function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
+async function applyLikedTracksBatchWithFallback(
+  provider: MusicProvider,
+  ids: string[],
+  action: 'save' | 'remove',
+): Promise<{ appliedCount: number; failedIds: string[]; fallbackErrors: string[] }> {
+  const failedIds: string[] = [];
+  const fallbackErrors: string[] = [];
+  let appliedCount = 0;
+
+  for (const id of ids) {
+    try {
+      if (action === 'save') {
+        await provider.saveTracks({ ids: [id] });
+      } else {
+        await provider.removeTracks({ ids: [id] });
+      }
+      appliedCount += 1;
+    } catch (err) {
+      failedIds.push(id);
+      if (fallbackErrors.length < 3) {
+        fallbackErrors.push(errorMessage(err));
+      }
+    }
+  }
+
+  return { appliedCount, failedIds, fallbackErrors };
+}
+
+async function verifyTidalLikedBatch(
+  provider: MusicProvider,
+  ids: string[],
+): Promise<{ confirmedCount: number; mismatchCount: number }> {
+  try {
+    const contains = await provider.containsTracks({ ids });
+    const confirmedCount = contains.filter(Boolean).length;
+    return {
+      confirmedCount,
+      mismatchCount: Math.max(0, ids.length - confirmedCount),
+    };
+  } catch (error) {
+    console.warn('[sync/apply] tidal liked verification failed', {
+      error: errorMessage(error),
+      batchSize: ids.length,
+    });
+    return { confirmedCount: ids.length, mismatchCount: 0 };
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Phase: Resolve add items to provider track URIs via materialize
 // ---------------------------------------------------------------------------
@@ -118,12 +166,35 @@ async function applyBatchedAdds(
 
   if (isLiked) {
     for (const batch of chunk(uris, LIKED_TRACKS_BATCH_SIZE)) {
+      const ids = batch.map((uri) => uriToTrackId(providerId, uri));
       try {
-        const ids = batch.map((uri) => uriToTrackId(providerId, uri));
         await provider.saveTracks({ ids });
-        count += batch.length;
+        if (providerId === 'tidal') {
+          const verification = await verifyTidalLikedBatch(provider, ids);
+          count += verification.confirmedCount;
+          if (verification.mismatchCount > 0) {
+            errors.push(
+              `TIDAL verification mismatch after save (${ids.length} tracks): `
+              + `${verification.confirmedCount} confirmed, ${verification.mismatchCount} not confirmed by containsTracks`,
+            );
+          }
+        } else {
+          count += batch.length;
+        }
       } catch (err) {
-        errors.push(`Save-tracks batch failed (${batch.length} tracks): ${errorMessage(err)}`);
+        const fallback = await applyLikedTracksBatchWithFallback(provider, ids, 'save');
+        count += fallback.appliedCount;
+
+        const sampleFailedIds = fallback.failedIds.slice(0, 5).join(', ');
+        const fallbackErrorSummary = fallback.fallbackErrors.length > 0
+          ? `; sample fallback errors: ${fallback.fallbackErrors.join(' | ')}`
+          : '';
+        errors.push(
+          `Save-tracks batch failed (${batch.length} tracks): ${errorMessage(err)}. `
+          + `Recovered ${fallback.appliedCount}, failed ${fallback.failedIds.length}`
+          + (fallback.failedIds.length > 0 ? `; sample failed IDs: ${sampleFailedIds}` : '')
+          + fallbackErrorSummary,
+        );
       }
     }
   } else {
@@ -152,12 +223,24 @@ async function applyBatchedRemoves(
 
   if (isLiked) {
     for (const batch of chunk(uris, LIKED_TRACKS_BATCH_SIZE)) {
+      const ids = batch.map((uri) => uriToTrackId(providerId, uri));
       try {
-        const ids = batch.map((uri) => uriToTrackId(providerId, uri));
         await provider.removeTracks({ ids });
         count += batch.length;
       } catch (err) {
-        errors.push(`Remove-tracks batch failed (${batch.length} tracks): ${errorMessage(err)}`);
+        const fallback = await applyLikedTracksBatchWithFallback(provider, ids, 'remove');
+        count += fallback.appliedCount;
+
+        const sampleFailedIds = fallback.failedIds.slice(0, 5).join(', ');
+        const fallbackErrorSummary = fallback.fallbackErrors.length > 0
+          ? `; sample fallback errors: ${fallback.fallbackErrors.join(' | ')}`
+          : '';
+        errors.push(
+          `Remove-tracks batch failed (${batch.length} tracks): ${errorMessage(err)}. `
+          + `Recovered ${fallback.appliedCount}, failed ${fallback.failedIds.length}`
+          + (fallback.failedIds.length > 0 ? `; sample failed IDs: ${sampleFailedIds}` : '')
+          + fallbackErrorSummary,
+        );
       }
     }
   } else {

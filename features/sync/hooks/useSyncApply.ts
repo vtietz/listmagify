@@ -6,6 +6,8 @@ import { eventBus } from '@/lib/sync/eventBus';
 import { useSyncActivityStore } from '@features/sync/stores/useSyncActivityStore';
 import type { SyncPlan, SyncApplyResult } from '@/lib/sync/types';
 import { playlistTracksByProvider } from '@/lib/api/queryKeys';
+import { isLikedSongsPlaylist } from '@/lib/sync/likedSongs';
+import { useSavedTracksStore } from '@features/playlists/hooks/useSavedTracksIndex';
 
 interface SyncApplyResponse {
   result: SyncApplyResult;
@@ -15,6 +17,41 @@ interface SyncApplyResponse {
 interface SyncApplyInput {
   plan: SyncPlan;
   syncPairId?: string;
+}
+
+function syncLikedCacheFromPlan(plan: SyncPlan): void {
+  const store = useSavedTracksStore.getState();
+  const activeProvider = store.providerId;
+
+  const playlistForProvider: Record<string, string> = {
+    [plan.sourceProvider]: plan.sourcePlaylistId,
+    [plan.targetProvider]: plan.targetPlaylistId,
+  };
+
+  const addIds: string[] = [];
+  const removeIds: string[] = [];
+
+  for (const item of plan.items) {
+    if (item.targetProvider !== activeProvider) continue;
+    if (!isLikedSongsPlaylist(playlistForProvider[item.targetProvider])) continue;
+
+    if (item.action === 'add') {
+      const id = item.resolvedTargetTrackId ?? item.providerTrackId ?? null;
+      if (id) addIds.push(id);
+      continue;
+    }
+
+    if (item.action === 'remove' && item.providerTrackId) {
+      removeIds.push(item.providerTrackId);
+    }
+  }
+
+  if (addIds.length > 0) {
+    store.addToLikedSet(addIds);
+  }
+  if (removeIds.length > 0) {
+    store.removeFromLikedSet(removeIds);
+  }
 }
 
 /**
@@ -53,6 +90,8 @@ export function useSyncApply() {
           queryKey: playlistTracksByProvider(plan.sourcePlaylistId, plan.sourceProvider),
         });
       }
+
+      syncLikedCacheFromPlan(plan);
 
       eventBus.emit('playlist:update', {
         playlistId: plan.targetPlaylistId,

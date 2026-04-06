@@ -341,6 +341,23 @@ function SyncActionButtons({
   disabled: boolean;
 }) {
   const openPreview = useSyncDialogStore((s) => s.openPreview);
+  const isPreviewRunning = useSyncDialogStore((s) => {
+    if (!sourcePlaylistId || !targetPlaylistId) {
+      return false;
+    }
+
+    return Object.values(s.previewSessions).some((session) => {
+      if (session.status !== 'running') return false;
+
+      const config = session.config;
+      return (
+        config.sourceProvider === sourceProvider
+        && config.sourcePlaylistId === sourcePlaylistId
+        && config.targetProvider === targetProvider
+        && config.targetPlaylistId === targetPlaylistId
+      );
+    });
+  });
 
   const pairConfig = {
     sourceProvider,
@@ -355,11 +372,11 @@ function SyncActionButtons({
       variant="ghost"
       size="icon"
       className="h-7 w-7"
-      title="Preview sync"
+      title={isPreviewRunning ? 'Preview is running' : 'Preview sync'}
       disabled={disabled}
       onClick={() => openPreview(pairConfig, true)}
     >
-      <Eye className="h-3.5 w-3.5" />
+      {isPreviewRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eye className="h-3.5 w-3.5" />}
     </Button>
   );
 }
