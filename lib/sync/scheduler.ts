@@ -110,7 +110,7 @@ async function tick(): Promise<void> {
 
   try {
     resetStaleSyncRuns(30 * 60 * 1000); // 30 minutes
-    pruneOldSyncRuns(50);
+    pruneOldSyncRuns(3);
   } catch {
     // Cleanup failure should never break the scheduler
   }

@@ -402,4 +402,16 @@ export const recsMigrations: Migration[] = [
       ALTER TABLE sync_preview_runs ADD COLUMN match_thresholds_json TEXT;
     `,
   },
+  {
+    version: 17,
+    name: 'add_sync_pair_bidirectional_metadata',
+    sql: `
+      ALTER TABLE sync_pairs ADD COLUMN source_membership_baseline_json TEXT;
+      ALTER TABLE sync_pairs ADD COLUMN target_membership_baseline_json TEXT;
+      ALTER TABLE sync_pairs ADD COLUMN source_order_baseline_json TEXT;
+      ALTER TABLE sync_pairs ADD COLUMN target_order_baseline_json TEXT;
+      ALTER TABLE sync_pairs ADD COLUMN source_last_change_at TEXT;
+      ALTER TABLE sync_pairs ADD COLUMN target_last_change_at TEXT;
+    `,
+  },
 ];

@@ -57,6 +57,18 @@ export interface SyncPair {
   sourceSnapshotId: string | null;
   /** Last-seen snapshot ID for the target playlist (Spotify-only; null for TIDAL) */
   targetSnapshotId: string | null;
+  /** Baseline membership canonical IDs for source side used by bidirectional merge. */
+  sourceMembershipBaseline: string[] | null;
+  /** Baseline membership canonical IDs for target side used by bidirectional merge. */
+  targetMembershipBaseline: string[] | null;
+  /** Baseline canonical order for source side used by bidirectional merge. */
+  sourceOrderBaseline: string[] | null;
+  /** Baseline canonical order for target side used by bidirectional merge. */
+  targetOrderBaseline: string[] | null;
+  /** Last observed source-side change timestamp (ISO). */
+  sourceLastChangeAt: string | null;
+  /** Last observed target-side change timestamp (ISO). */
+  targetLastChangeAt: string | null;
   createdAt: string;
   updatedAt: string;
 }

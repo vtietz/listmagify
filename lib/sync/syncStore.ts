@@ -85,8 +85,26 @@ interface SyncPairRow {
   consecutiveFailures: number;
   sourceSnapshotId: string | null;
   targetSnapshotId: string | null;
+  sourceMembershipBaselineJson: string | null;
+  targetMembershipBaselineJson: string | null;
+  sourceOrderBaselineJson: string | null;
+  targetOrderBaselineJson: string | null;
+  sourceLastChangeAt: string | null;
+  targetLastChangeAt: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+function parseStringArray(json: string | null): string[] | null {
+  if (!json) return null;
+  try {
+    const parsed = JSON.parse(json) as unknown;
+    if (!Array.isArray(parsed)) return null;
+    const values = parsed.filter((value): value is string => typeof value === 'string');
+    return values;
+  } catch {
+    return null;
+  }
 }
 
 function mapSyncPairRow(row: SyncPairRow): SyncPair {
@@ -116,6 +134,12 @@ function mapSyncPairRow(row: SyncPairRow): SyncPair {
     consecutiveFailures: row.consecutiveFailures,
     sourceSnapshotId: row.sourceSnapshotId,
     targetSnapshotId: row.targetSnapshotId,
+    sourceMembershipBaseline: parseStringArray(row.sourceMembershipBaselineJson),
+    targetMembershipBaseline: parseStringArray(row.targetMembershipBaselineJson),
+    sourceOrderBaseline: parseStringArray(row.sourceOrderBaselineJson),
+    targetOrderBaseline: parseStringArray(row.targetOrderBaselineJson),
+    sourceLastChangeAt: row.sourceLastChangeAt,
+    targetLastChangeAt: row.targetLastChangeAt,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -153,6 +177,12 @@ const SYNC_PAIR_COLUMNS = `
   consecutive_failures AS consecutiveFailures,
   source_snapshot_id AS sourceSnapshotId,
   target_snapshot_id AS targetSnapshotId,
+  source_membership_baseline_json AS sourceMembershipBaselineJson,
+  target_membership_baseline_json AS targetMembershipBaselineJson,
+  source_order_baseline_json AS sourceOrderBaselineJson,
+  target_order_baseline_json AS targetOrderBaselineJson,
+  source_last_change_at AS sourceLastChangeAt,
+  target_last_change_at AS targetLastChangeAt,
   created_at AS createdAt,
   updated_at AS updatedAt
 `;
@@ -376,6 +406,58 @@ export function updateSyncPairSnapshotIds(
     SET source_snapshot_id = ?, target_snapshot_id = ?, updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
   `).run(sourceSnapshotId, targetSnapshotId, id);
+}
+
+export function updateSyncPairBidirectionalMetadata(
+  id: string,
+  metadata: {
+    sourceMembershipBaseline?: string[] | null;
+    targetMembershipBaseline?: string[] | null;
+    sourceOrderBaseline?: string[] | null;
+    targetOrderBaseline?: string[] | null;
+    sourceLastChangeAt?: string | null;
+    targetLastChangeAt?: string | null;
+  },
+): void {
+  const db = getRecsDb();
+  const setClauses: string[] = [];
+  const params: unknown[] = [];
+
+  if (metadata.sourceMembershipBaseline !== undefined) {
+    setClauses.push('source_membership_baseline_json = ?');
+    params.push(metadata.sourceMembershipBaseline ? JSON.stringify(metadata.sourceMembershipBaseline) : null);
+  }
+  if (metadata.targetMembershipBaseline !== undefined) {
+    setClauses.push('target_membership_baseline_json = ?');
+    params.push(metadata.targetMembershipBaseline ? JSON.stringify(metadata.targetMembershipBaseline) : null);
+  }
+  if (metadata.sourceOrderBaseline !== undefined) {
+    setClauses.push('source_order_baseline_json = ?');
+    params.push(metadata.sourceOrderBaseline ? JSON.stringify(metadata.sourceOrderBaseline) : null);
+  }
+  if (metadata.targetOrderBaseline !== undefined) {
+    setClauses.push('target_order_baseline_json = ?');
+    params.push(metadata.targetOrderBaseline ? JSON.stringify(metadata.targetOrderBaseline) : null);
+  }
+  if (metadata.sourceLastChangeAt !== undefined) {
+    setClauses.push('source_last_change_at = ?');
+    params.push(metadata.sourceLastChangeAt);
+  }
+  if (metadata.targetLastChangeAt !== undefined) {
+    setClauses.push('target_last_change_at = ?');
+    params.push(metadata.targetLastChangeAt);
+  }
+
+  if (setClauses.length === 0) {
+    return;
+  }
+
+  params.push(id);
+  db.prepare(`
+    UPDATE sync_pairs
+    SET ${setClauses.join(', ')}, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `).run(...params);
 }
 
 // -----------------------------------------------------------------------------

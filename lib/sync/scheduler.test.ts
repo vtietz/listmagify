@@ -48,6 +48,12 @@ function createPair(id: string): SyncPair {
     consecutiveFailures: 0,
     sourceSnapshotId: null,
     targetSnapshotId: null,
+    sourceMembershipBaseline: null,
+    targetMembershipBaseline: null,
+    sourceOrderBaseline: null,
+    targetOrderBaseline: null,
+    sourceLastChangeAt: null,
+    targetLastChangeAt: null,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
