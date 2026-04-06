@@ -491,7 +491,7 @@ async function applySide(
   allErrors.push(...removeResult.errors);
 
   // Reorder to match desired track order if provided (skip for liked songs — order is by date-added)
-  if (!isLiked && desiredOrder && desiredOrder.length > 0 && (addResult.count > 0 || removeResult.count > 0)) {
+  if (!isLiked && desiredOrder && desiredOrder.length > 0) {
     try {
       await reorderPlaylist(provider, providerId, playlistId, desiredOrder);
     } catch (err) {
@@ -544,7 +544,16 @@ export async function applySyncPlan(
   const allUnresolved: UnresolvedEntry[] = [];
   const allErrors: string[] = [];
 
-  for (const [providerId, items] of itemsByProvider) {
+  const targetOrderProviders = new Set(
+    Object.keys(plan.targetOrder ?? {}) as MusicProviderId[],
+  );
+  const providersToApply = new Set<MusicProviderId>([
+    ...itemsByProvider.keys(),
+    ...targetOrderProviders,
+  ]);
+
+  for (const providerId of providersToApply) {
+    const items = itemsByProvider.get(providerId) ?? [];
     const playlistId = playlistForProvider[providerId];
     if (!playlistId) {
       allErrors.push(`No playlist ID for provider ${providerId}`);
