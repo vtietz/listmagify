@@ -15,11 +15,11 @@ function makeTrack(overrides: Partial<Track> = {}): Track {
 }
 
 describe('getCanonicalTrackKey', () => {
-  it('produces a pipe-delimited key from normalized title and sorted artists', () => {
+  it('produces a text-prefixed key from normalized title and sorted artists', () => {
     const track = makeTrack({ name: 'My Song', artists: ['Artist A'] });
     const key = getCanonicalTrackKey(track);
 
-    expect(key).toBe('my song|artist a');
+    expect(key).toBe('text:my song|artist a');
   });
 
   it('strips parenthetical suffixes from the title', () => {
@@ -27,35 +27,35 @@ describe('getCanonicalTrackKey', () => {
     const key = getCanonicalTrackKey(track);
 
     // normalizeText removes "(Remastered 2011)" and the leftover "remastered" keyword
-    expect(key).toBe('song|artist');
+    expect(key).toBe('text:song|artist');
   });
 
   it('strips bracketed suffixes from the title', () => {
     const track = makeTrack({ name: 'Song [Live Version]', artists: ['Artist'] });
     const key = getCanonicalTrackKey(track);
 
-    expect(key).toBe('song|artist');
+    expect(key).toBe('text:song|artist');
   });
 
   it('sorts multiple artists alphabetically', () => {
     const track = makeTrack({ name: 'Collab', artists: ['Zara', 'Alice', 'Mika'] });
     const key = getCanonicalTrackKey(track);
 
-    expect(key).toBe('collab|alice mika zara');
+    expect(key).toBe('text:collab|alice mika zara');
   });
 
   it('produces a key with empty artist segment when artists array is empty', () => {
     const track = makeTrack({ name: 'Instrumental', artists: [] });
     const key = getCanonicalTrackKey(track);
 
-    expect(key).toBe('instrumental|');
+    expect(key).toBe('text:instrumental|');
   });
 
   it('handles unicode characters in title and artists', () => {
     const track = makeTrack({ name: 'Despacito', artists: ['Luis Fonsi'] });
     const key = getCanonicalTrackKey(track);
 
-    expect(key).toBe('despacito|luis fonsi');
+    expect(key).toBe('text:despacito|luis fonsi');
   });
 
   it('preserves non-Latin unicode letters', () => {
@@ -75,10 +75,10 @@ describe('getCanonicalTrackKey', () => {
     const key = getCanonicalTrackKey(track);
 
     // "Artist (Remastered)" -> normalizeText -> "artist"
-    expect(key).toBe('song|artist');
+    expect(key).toBe('text:song|artist');
   });
 
-  it('produces the same key for the same song on different providers (cross-provider match)', () => {
+  it('produces the same composite key when ISRC matches across providers', () => {
     const spotifyTrack = makeTrack({
       id: 'spotify-id-123',
       uri: 'spotify:track:abc123',
@@ -98,6 +98,32 @@ describe('getCanonicalTrackKey', () => {
     });
 
     expect(getCanonicalTrackKey(spotifyTrack)).toBe(getCanonicalTrackKey(tidalTrack));
+  });
+
+  it('includes both ISRC and text keys when ISRC is available', () => {
+    const track = makeTrack({
+      name: 'Bohemian Rhapsody',
+      artists: ['Queen'],
+      isrc: 'GBUM71029604',
+    });
+
+    expect(getCanonicalTrackKey(track)).toBe('isrc:gbum71029604||text:bohemian rhapsody|queen');
+  });
+
+  it('retains text fallback segment even when ISRC differs', () => {
+    const trackA = makeTrack({
+      name: 'Song',
+      artists: ['Artist'],
+      isrc: 'AAA111',
+    });
+    const trackB = makeTrack({
+      name: 'Song',
+      artists: ['Artist'],
+      isrc: 'BBB222',
+    });
+
+    expect(getCanonicalTrackKey(trackA)).toBe('isrc:aaa111||text:song|artist');
+    expect(getCanonicalTrackKey(trackB)).toBe('isrc:bbb222||text:song|artist');
   });
 
   it('produces different keys for tracks with different titles', () => {
@@ -125,7 +151,7 @@ describe('getCanonicalTrackKey', () => {
     const track = makeTrack({ name: '  Hello   World  ', artists: ['A'] });
     const key = getCanonicalTrackKey(track);
 
-    expect(key).toBe('hello world|a');
+    expect(key).toBe('text:hello world|a');
   });
 
   it('strips special characters from titles', () => {
@@ -133,7 +159,7 @@ describe('getCanonicalTrackKey', () => {
     const key = getCanonicalTrackKey(track);
 
     // "&" and "!" are non-\p{L}\p{N} so they become spaces, then collapsed
-    expect(key).toBe('rock roll|band');
+    expect(key).toBe('text:rock roll|band');
   });
 
   it('handles cross-provider match with remaster suffix differences', () => {

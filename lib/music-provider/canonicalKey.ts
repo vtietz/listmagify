@@ -8,5 +8,13 @@ import type { Track } from './types';
 export function getCanonicalTrackKey(track: Track): string {
   const title = normalizeText(track.name);
   const artists = normalizeArtists(track.artists);
-  return `${title}|${artists}`;
+  const textKey = `text:${title}|${artists}`;
+
+  const isrc = track.isrc?.trim().toLowerCase();
+  if (isrc) {
+    // Expose both keys so compare mode can use ISRC first and fall back to text.
+    return `isrc:${isrc}||${textKey}`;
+  }
+
+  return textKey;
 }

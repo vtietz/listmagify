@@ -6,9 +6,13 @@
 'use client';
 
 import { useEffect, useCallback, useMemo } from 'react';
-import { useCompareModeStore, getTrackCompareColor } from '@features/split-editor/stores/useCompareModeStore';
+import { useCompareModeStore, getCompareColor, getTrackCompareColor } from '@features/split-editor/stores/useCompareModeStore';
 import { getCanonicalTrackKey } from '@/lib/music-provider/canonicalKey';
 import type { Track } from '@/lib/music-provider/types';
+
+function splitCompareKeys(key: string): string[] {
+  return key.split('||').map((part) => part.trim()).filter(Boolean);
+}
 
 export function useCompareModeIntegration(
   panelId: string,
@@ -24,7 +28,7 @@ export function useCompareModeIntegration(
   // but actual keys are the same (e.g., query re-fetches)
   const canonicalKeys = useMemo(() => {
     if (!tracks || tracks.length === 0) return [];
-    return tracks.map((t: Track) => getCanonicalTrackKey(t));
+    return tracks.flatMap((t: Track) => splitCompareKeys(getCanonicalTrackKey(t)));
   }, [tracks]);
 
   // Serialize keys for dependency comparison (only re-register if keys actually changed)
@@ -44,7 +48,28 @@ export function useCompareModeIntegration(
 
   const getCompareColorForTrack = useCallback(
     (canonicalKey: string) => {
-      return getTrackCompareColor(canonicalKey, compareDistribution, isCompareEnabled);
+      const keys = splitCompareKeys(canonicalKey);
+      if (keys.length <= 1) {
+        return getTrackCompareColor(canonicalKey, compareDistribution, isCompareEnabled);
+      }
+
+      if (!isCompareEnabled || !compareDistribution || compareDistribution.totalPanels <= 1) {
+        return 'transparent';
+      }
+
+      let bestCount = 0;
+      for (const key of keys) {
+        const count = compareDistribution.trackToPanels.get(key)?.size ?? 0;
+        if (count > bestCount) {
+          bestCount = count;
+        }
+      }
+
+      if (bestCount === 0) {
+        return getCompareColor(1, compareDistribution.totalPanels);
+      }
+
+      return getCompareColor(bestCount, compareDistribution.totalPanels);
     },
     [compareDistribution, isCompareEnabled]
   );
