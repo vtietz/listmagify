@@ -110,6 +110,9 @@ export function PlaylistsGrid({
   const isCompact = clientCompact;
   const handledPlaylistIdRef = useRef<string | null>(null);
   const refreshInFlightRef = useRef(false);
+  const itemsRef = useRef<Playlist[]>([]);
+  const onRefreshCompleteRef = useRef(onRefreshComplete);
+  const onLoadErrorRef = useRef(onLoadError);
   
   // Auto-load all playlists for instant search
   const { items, isAutoLoading, setItems, setNextCursor } = useAutoLoadPaginated({
@@ -122,6 +125,18 @@ export function PlaylistsGrid({
   // Get cached liked songs total (fetches on mount if not cached)
   const likedSongsTotal = useLikedSongsTotal(true, providerId);
   const likedPlaylistMetadata = useMemo(() => getLikedPlaylistMetadata(providerId), [providerId]);
+
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
+
+  useEffect(() => {
+    onRefreshCompleteRef.current = onRefreshComplete;
+  }, [onRefreshComplete]);
+
+  useEffect(() => {
+    onLoadErrorRef.current = onLoadError;
+  }, [onLoadError]);
 
   // Add newly created playlist to items immediately for instant feedback
   useEffect(() => {
@@ -159,11 +174,11 @@ export function PlaylistsGrid({
 
         setItems(data.items || []);
         setNextCursor(data.nextCursor);
-        onRefreshComplete(data.items || [], data.nextCursor);
+        onRefreshCompleteRef.current(data.items || [], data.nextCursor);
       } catch (error) {
         if (cancelled) return;
 
-        handleRefreshError(error, items, onRefreshComplete, onLoadError);
+        handleRefreshError(error, itemsRef.current, onRefreshCompleteRef.current, onLoadErrorRef.current);
       } finally {
         refreshInFlightRef.current = false;
       }
@@ -174,7 +189,7 @@ export function PlaylistsGrid({
     return () => {
       cancelled = true;
     };
-  }, [isRefreshing, items, setItems, setNextCursor, onRefreshComplete, providerId, onLoadError]);
+  }, [isRefreshing, providerId, setItems, setNextCursor]);
 
   // Virtual playlist for Liked Songs (shown first)
   // Uses cached total from saved tracks index (populated when user visits split-editor)

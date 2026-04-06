@@ -22,6 +22,16 @@ import type { SyncApplyResult, SyncPreviewResult, SyncPreviewRun } from '@/lib/s
 
 type Step = 'preview' | 'result';
 
+function buildPreviewKey(config: SyncDialogConfig): string {
+  return [
+    config.syncPairId ?? '',
+    config.sourceProvider,
+    config.sourcePlaylistId,
+    config.targetProvider,
+    config.targetPlaylistId,
+  ].join('::');
+}
+
 function getPreviewProgressLabel(elapsedSeconds: number): string {
   if (elapsedSeconds < 8) {
     return 'Fetching playlist snapshots...';
@@ -279,6 +289,7 @@ export function SyncPreviewDialog() {
   const [result, setResult] = useState<SyncApplyResult | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const lastPreviewRequestKeyRef = useRef<string | null>(null);
+  const activePreviewKeyRef = useRef<string | null>(null);
 
   const sourcePlaylistName = usePlaylistName(
     previewConfig?.sourceProvider ?? 'spotify',
@@ -295,23 +306,22 @@ export function SyncPreviewDialog() {
   const triggerPreview = useCallback(() => {
     if (!previewConfig) return;
     setElapsedSeconds(0);
+    activePreviewKeyRef.current = buildPreviewKey(previewConfig);
     preview.mutate({ ...previewConfig, direction: 'bidirectional' });
   }, [previewConfig, preview]);
 
   // Reset state and fetch preview when dialog opens
   useEffect(() => {
     if (!isPreviewOpen || !previewConfig) {
-      lastPreviewRequestKeyRef.current = null;
       return;
     }
 
-    const previewKey = [
-      previewConfig.syncPairId ?? '',
-      previewConfig.sourceProvider,
-      previewConfig.sourcePlaylistId,
-      previewConfig.targetProvider,
-      previewConfig.targetPlaylistId,
-    ].join('::');
+    const previewKey = buildPreviewKey(previewConfig);
+
+    if (preview.isPending && activePreviewKeyRef.current === previewKey) {
+      lastPreviewRequestKeyRef.current = previewKey;
+      return;
+    }
 
     if (lastPreviewRequestKeyRef.current === previewKey) {
       return;
