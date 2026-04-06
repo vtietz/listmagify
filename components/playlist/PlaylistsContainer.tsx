@@ -184,6 +184,7 @@ export function PlaylistsContainer({
   useEffect(() => {
     if (prevProviderRef.current !== activeProviderId) {
       prevProviderRef.current = activeProviderId;
+      setPlaylistsAreaError(null);
       setIsRefreshing(true);
     }
   }, [activeProviderId]);

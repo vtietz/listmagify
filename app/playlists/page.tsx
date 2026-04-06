@@ -140,11 +140,14 @@ export default async function PlaylistsPage({
   const resolvedSearchParams = await searchParams;
   let providerId: MusicProviderId = resolvePreferredProviderFromSession(typedSession, availableProviders, fallbackProvider);
 
-  try {
-    const parsed = parseMusicProviderId(resolvedSearchParams?.provider);
-    providerId = availableProviders.includes(parsed) ? parsed : fallbackProvider;
-  } catch {
-    providerId = fallbackProvider;
+  const requestedProvider = resolvedSearchParams?.provider;
+  if (requestedProvider) {
+    try {
+      const parsed = parseMusicProviderId(requestedProvider);
+      providerId = availableProviders.includes(parsed) ? parsed : fallbackProvider;
+    } catch {
+      providerId = fallbackProvider;
+    }
   }
 
   const initialState: PlaylistsInitialState = await getCurrentUserPlaylists(50, undefined, providerId)
