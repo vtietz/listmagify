@@ -1,4 +1,4 @@
-import { claimNextPendingSyncPreviewRun } from '@/lib/sync/previewStore';
+import { claimNextPendingSyncPreviewRun, requeueExecutingSyncPreviewRuns } from '@/lib/sync/previewStore';
 import { executePreviewRun } from '@/lib/sync/runner';
 
 function getPreviewWorkerTickMs(): number {
@@ -29,6 +29,13 @@ async function processOnePreviewRun(): Promise<void> {
 export function startPreviewWorkerLoop(): void {
   if (intervalId) {
     return;
+  }
+
+  const recoveredCount = requeueExecutingSyncPreviewRuns();
+  if (recoveredCount > 0) {
+    console.warn('[sync/preview-worker] recovered orphaned executing runs', {
+      recoveredCount,
+    });
   }
 
   intervalId = setInterval(() => {

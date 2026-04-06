@@ -234,11 +234,32 @@ export async function previewSync(
     ? { resolveOptions: { thresholds: matchThresholds } }
     : undefined;
 
+  const sourceSnapshotProgress = { fetched: 0, total: 1 };
+  const targetSnapshotProgress = { fetched: 0, total: 1 };
+
+  const reportCaptureProgress = () => {
+    const combinedFetched = sourceSnapshotProgress.fetched + targetSnapshotProgress.fetched;
+    const combinedTotal = Math.max(1, sourceSnapshotProgress.total + targetSnapshotProgress.total);
+    const ratio = Math.min(1, combinedFetched / combinedTotal);
+    const progress = PREVIEW_PROGRESS_CAPTURE_START + Math.floor(
+      ratio * (PREVIEW_PROGRESS_CAPTURE_DONE - PREVIEW_PROGRESS_CAPTURE_START),
+    );
+    onProgress?.('capturing_snapshots', progress);
+  };
+
   onProgress?.('capturing_snapshots', PREVIEW_PROGRESS_CAPTURE_START);
 
   const [sourceSnapshot, targetSnapshot] = await Promise.all([
-    captureSnapshot(sourceProvider, config.sourceProvider, config.sourcePlaylistId, snapshotOpts),
-    captureSnapshot(targetProvider, config.targetProvider, config.targetPlaylistId, snapshotOpts),
+    captureSnapshot(sourceProvider, config.sourceProvider, config.sourcePlaylistId, snapshotOpts, (snapshotProgress) => {
+      sourceSnapshotProgress.fetched = snapshotProgress.fetched;
+      sourceSnapshotProgress.total = Math.max(1, snapshotProgress.total);
+      reportCaptureProgress();
+    }),
+    captureSnapshot(targetProvider, config.targetProvider, config.targetPlaylistId, snapshotOpts, (snapshotProgress) => {
+      targetSnapshotProgress.fetched = snapshotProgress.fetched;
+      targetSnapshotProgress.total = Math.max(1, snapshotProgress.total);
+      reportCaptureProgress();
+    }),
   ]);
 
   onProgress?.('capturing_snapshots', PREVIEW_PROGRESS_CAPTURE_DONE);

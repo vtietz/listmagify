@@ -19,8 +19,14 @@ import { usePlaylistName } from '@features/sync/hooks/usePlaylistName';
 import { SyncSplitView } from '@features/sync/ui/SyncSplitView';
 import { SyncRunResultContent } from '@features/sync/ui/SyncRunResultContent';
 import type { SyncApplyResult, SyncPreviewResult, SyncPreviewRun } from '@/lib/sync/types';
+import { apiFetch } from '@/lib/api/client';
 
 type Step = 'preview' | 'result';
+
+interface PreviewStatusResponse {
+  run: SyncPreviewRun | null;
+  result: SyncPreviewResult | null;
+}
 
 function buildPreviewKey(config: SyncDialogConfig): string {
   return [
@@ -60,7 +66,7 @@ function getRunPhaseLabel(run: SyncPreviewRun | null, elapsedSeconds: number): s
 
 function formatPreviewError(error: unknown): string {
   if (error instanceof SyncPreviewTimeoutError) {
-    return 'Preview took too long for this playlist size and was canceled. Try again, or use a smaller source/target while we move large previews to background processing.';
+    return 'Preview is still running in background. Keep this dialog open to follow progress, or close and reopen later.';
   }
 
   if (error instanceof Error && error.message.trim().length > 0) {
@@ -427,8 +433,73 @@ export function SyncPreviewDialog() {
   useEffect(() => {
     const activeKey = activePreviewKeyRef.current;
     if (!activeKey || !preview.isError) return;
+
+    if (preview.error instanceof SyncPreviewTimeoutError) {
+      if (preview.previewRun) {
+        updatePreviewSessionRun(activeKey, preview.previewRun);
+      }
+      return;
+    }
+
     failPreviewSession(activeKey, formatPreviewError(preview.error), preview.previewRun);
-  }, [preview.isError, preview.error, preview.previewRun, failPreviewSession]);
+  }, [preview.isError, preview.error, preview.previewRun, failPreviewSession, updatePreviewSessionRun]);
+
+  useEffect(() => {
+    if (!isPreviewOpen || !previewKey || !previewSession) return;
+    if (preview.isPending) return;
+    if (previewSession.status !== 'running') return;
+    if (!previewSession.run?.id) return;
+
+    let cancelled = false;
+
+    const tick = async () => {
+      try {
+        const status = await apiFetch<PreviewStatusResponse>(`/api/sync/preview/${previewSession.run!.id}`);
+        if (cancelled || !status.run) return;
+
+        if (status.run.status === 'done') {
+          if (status.result) {
+            completePreviewSession(previewKey, status.result, status.run);
+          } else {
+            failPreviewSession(previewKey, 'Preview completed without result payload.', status.run);
+          }
+          return;
+        }
+
+        if (status.run.status === 'failed') {
+          failPreviewSession(previewKey, status.run.errorMessage ?? 'Preview failed.', status.run);
+          return;
+        }
+
+        updatePreviewSessionRun(previewKey, status.run);
+      } catch (error) {
+        if (cancelled) return;
+
+        const message = error instanceof Error && error.message.trim().length > 0
+          ? error.message
+          : 'Failed to refresh preview status.';
+        failPreviewSession(previewKey, message, previewSession.run);
+      }
+    };
+
+    void tick();
+    const id = setInterval(() => {
+      void tick();
+    }, 1000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [
+    isPreviewOpen,
+    previewKey,
+    previewSession,
+    preview.isPending,
+    completePreviewSession,
+    failPreviewSession,
+    updatePreviewSessionRun,
+  ]);
 
   // Reset state and fetch preview when dialog opens
   useEffect(() => {

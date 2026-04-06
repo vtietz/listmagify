@@ -376,3 +376,20 @@ export function claimNextPendingSyncPreviewRun(): SyncPreviewRunRequest | null {
     providerUserIds: request.providerUserIds,
   };
 }
+
+export function requeueExecutingSyncPreviewRuns(): number {
+  const db = getRecsDb();
+
+  const result = db.prepare(`
+    UPDATE sync_preview_runs
+    SET
+      status = 'pending',
+      phase = 'queued',
+      progress = 0,
+      error_message = NULL,
+      completed_at = NULL
+    WHERE status = 'executing'
+  `).run();
+
+  return result.changes;
+}

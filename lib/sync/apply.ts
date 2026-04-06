@@ -28,16 +28,36 @@ function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
+function sanitizeTrackIdsForLibrary(ids: string[]): string[] {
+  const seen = new Set<string>();
+  const sanitized: string[] = [];
+
+  for (const raw of ids) {
+    const id = raw.trim();
+    if (!id) continue;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    sanitized.push(id);
+  }
+
+  return sanitized;
+}
+
 async function applyLikedTracksBatchWithFallback(
   provider: MusicProvider,
   ids: string[],
   action: 'save' | 'remove',
 ): Promise<{ appliedCount: number; failedIds: string[]; fallbackErrors: string[] }> {
+  const sanitizedIds = sanitizeTrackIdsForLibrary(ids);
+  if (sanitizedIds.length === 0) {
+    return { appliedCount: 0, failedIds: [], fallbackErrors: [] };
+  }
+
   const failedIds: string[] = [];
   const fallbackErrors: string[] = [];
   let appliedCount = 0;
 
-  for (const id of ids) {
+  for (const id of sanitizedIds) {
     try {
       if (action === 'save') {
         await provider.saveTracks({ ids: [id] });
@@ -60,12 +80,17 @@ async function verifyTidalLikedBatch(
   provider: MusicProvider,
   ids: string[],
 ): Promise<{ confirmedCount: number; mismatchCount: number }> {
+  const sanitizedIds = sanitizeTrackIdsForLibrary(ids);
+  if (sanitizedIds.length === 0) {
+    return { confirmedCount: 0, mismatchCount: 0 };
+  }
+
   try {
-    const contains = await provider.containsTracks({ ids });
+    const contains = await provider.containsTracks({ ids: sanitizedIds });
     const confirmedCount = contains.filter(Boolean).length;
     return {
       confirmedCount,
-      mismatchCount: Math.max(0, ids.length - confirmedCount),
+      mismatchCount: Math.max(0, sanitizedIds.length - confirmedCount),
     };
   } catch (error) {
     console.warn('[sync/apply] tidal liked verification failed', {
@@ -167,22 +192,24 @@ async function applyBatchedAdds(
   if (isLiked) {
     for (const batch of chunk(uris, LIKED_TRACKS_BATCH_SIZE)) {
       const ids = batch.map((uri) => uriToTrackId(providerId, uri));
+      const sanitizedIds = sanitizeTrackIdsForLibrary(ids);
+      if (sanitizedIds.length === 0) continue;
       try {
-        await provider.saveTracks({ ids });
+        await provider.saveTracks({ ids: sanitizedIds });
         if (providerId === 'tidal') {
-          const verification = await verifyTidalLikedBatch(provider, ids);
+          const verification = await verifyTidalLikedBatch(provider, sanitizedIds);
           count += verification.confirmedCount;
           if (verification.mismatchCount > 0) {
             errors.push(
-              `TIDAL verification mismatch after save (${ids.length} tracks): `
+              `TIDAL verification mismatch after save (${sanitizedIds.length} tracks): `
               + `${verification.confirmedCount} confirmed, ${verification.mismatchCount} not confirmed by containsTracks`,
             );
           }
         } else {
-          count += batch.length;
+          count += sanitizedIds.length;
         }
       } catch (err) {
-        const fallback = await applyLikedTracksBatchWithFallback(provider, ids, 'save');
+        const fallback = await applyLikedTracksBatchWithFallback(provider, sanitizedIds, 'save');
         count += fallback.appliedCount;
 
         const sampleFailedIds = fallback.failedIds.slice(0, 5).join(', ');
@@ -224,11 +251,13 @@ async function applyBatchedRemoves(
   if (isLiked) {
     for (const batch of chunk(uris, LIKED_TRACKS_BATCH_SIZE)) {
       const ids = batch.map((uri) => uriToTrackId(providerId, uri));
+      const sanitizedIds = sanitizeTrackIdsForLibrary(ids);
+      if (sanitizedIds.length === 0) continue;
       try {
-        await provider.removeTracks({ ids });
-        count += batch.length;
+        await provider.removeTracks({ ids: sanitizedIds });
+        count += sanitizedIds.length;
       } catch (err) {
-        const fallback = await applyLikedTracksBatchWithFallback(provider, ids, 'remove');
+        const fallback = await applyLikedTracksBatchWithFallback(provider, sanitizedIds, 'remove');
         count += fallback.appliedCount;
 
         const sampleFailedIds = fallback.failedIds.slice(0, 5).join(', ');

@@ -2,21 +2,15 @@ import { NextRequest } from 'next/server';
 import { assertAuthenticated } from '@/app/api/_shared/guard';
 import { badRequest, fromError } from '@/app/api/_shared/http';
 import { parseMusicProviderId } from '@/lib/music-provider';
-import { getMusicProvider } from '@/lib/music-provider';
-import { executePreviewRun } from '@/lib/sync/runner';
-import { getAllSessionUserIds, getCreatorUserId } from '@/lib/auth/sessionUserIds';
-import { getProviderUserIds } from '@/lib/auth/sessionUserIds';
+import { getAllSessionUserIds, getCreatorUserId, getProviderUserIds } from '@/lib/auth/sessionUserIds';
 import type { SyncDirection } from '@/lib/sync/types';
 import type { SyncMatchThresholds } from '@/lib/sync/executor';
 import { normalizeConvertThreshold, deriveManualThreshold } from '@/lib/matching/config';
 import { getSyncPair } from '@/lib/sync/syncStore';
 import { createSyncPreviewRun } from '@/lib/sync/previewStore';
 import { NextResponse } from 'next/server';
-import { isLikedSongsPlaylist } from '@/lib/sync/likedSongs';
-import type { MusicProvider, MusicProviderId } from '@/lib/music-provider/types';
 
 const VALID_DIRECTIONS = new Set<SyncDirection>(['a-to-b', 'b-to-a', 'bidirectional']);
-const LARGE_PREVIEW_TRACK_THRESHOLD = 400;
 
 function isValidDirection(value: unknown): value is SyncDirection {
   return typeof value === 'string' && VALID_DIRECTIONS.has(value as SyncDirection);
@@ -32,45 +26,6 @@ function parseMatchThresholds(body: Record<string, unknown>): SyncMatchThreshold
   const convert = normalizeConvertThreshold(obj.convert);
   const manual = deriveManualThreshold(convert);
   return { convert, manual };
-}
-
-async function estimatePlaylistSize(
-  provider: MusicProvider,
-  playlistId: string,
-): Promise<number> {
-  if (isLikedSongsPlaylist(playlistId)) {
-    const liked = await provider.getLikedTracks(1);
-    return liked.total;
-  }
-
-  const details = await provider.getPlaylistDetails(playlistId, 'tracks.total');
-  return details.tracksTotal;
-}
-
-async function shouldQueuePreviewToWorker(config: {
-  sourceProvider: MusicProviderId;
-  sourcePlaylistId: string;
-  targetProvider: MusicProviderId;
-  targetPlaylistId: string;
-}): Promise<boolean> {
-  if (isLikedSongsPlaylist(config.sourcePlaylistId) || isLikedSongsPlaylist(config.targetPlaylistId)) {
-    return true;
-  }
-
-  try {
-    const sourceProvider = getMusicProvider(config.sourceProvider);
-    const targetProvider = getMusicProvider(config.targetProvider);
-
-    const [sourceSize, targetSize] = await Promise.all([
-      estimatePlaylistSize(sourceProvider, config.sourcePlaylistId),
-      estimatePlaylistSize(targetProvider, config.targetPlaylistId),
-    ]);
-
-    return sourceSize + targetSize > LARGE_PREVIEW_TRACK_THRESHOLD;
-  } catch {
-    // If size estimation fails, keep previews robust by preferring worker execution.
-    return true;
-  }
 }
 
 /**
@@ -138,17 +93,6 @@ export async function POST(request: NextRequest) {
 
     const providerUserIds = getProviderUserIds(session);
     const run = createSyncPreviewRun(getCreatorUserId(session), config, matchThresholds, providerUserIds);
-
-    const shouldQueue = await shouldQueuePreviewToWorker(config);
-    if (!shouldQueue) {
-      // Keep small previews snappy by executing in web process.
-      executePreviewRun(run.id, config, matchThresholds, providerUserIds).catch((error) => {
-        console.error('[api/sync/preview] inline preview failed', {
-          runId: run.id,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      });
-    }
 
     return NextResponse.json({ previewRunId: run.id }, { status: 202 });
   } catch (error) {

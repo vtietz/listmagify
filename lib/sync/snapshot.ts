@@ -24,6 +24,11 @@ export interface PlaylistSnapshot {
 
 const PAGE_SIZE = 100;
 
+export interface SnapshotFetchProgress {
+  fetched: number;
+  total: number;
+}
+
 /**
  * Lightweight fetch to get only the playlist snapshot ID without loading
  * all tracks. Fetches a single-track page to extract the snapshotId.
@@ -45,6 +50,7 @@ export async function fetchPlaylistSnapshotId(
  */
 async function fetchFullLikedTracks(
   provider: MusicProvider,
+  onProgress?: (progress: SnapshotFetchProgress) => void,
 ): Promise<{ tracks: Track[]; snapshotId: null }> {
   const allTracks: Track[] = [];
   let cursor: string | null = null;
@@ -53,6 +59,10 @@ async function fetchFullLikedTracks(
     const page = await provider.getLikedTracks(PAGE_SIZE, cursor);
     allTracks.push(...page.tracks);
     cursor = page.nextCursor;
+    onProgress?.({
+      fetched: allTracks.length,
+      total: Math.max(page.total, allTracks.length),
+    });
   } while (cursor !== null);
 
   console.debug('[sync/snapshot] fetched full liked tracks', {
@@ -69,9 +79,10 @@ async function fetchFullLikedTracks(
 export async function fetchFullPlaylistTracks(
   provider: MusicProvider,
   playlistId: string,
+  onProgress?: (progress: SnapshotFetchProgress) => void,
 ): Promise<{ tracks: Track[]; snapshotId: string | null }> {
   if (isLikedSongsPlaylist(playlistId)) {
-    return fetchFullLikedTracks(provider);
+    return fetchFullLikedTracks(provider, onProgress);
   }
 
   const allTracks: Track[] = [];
@@ -87,6 +98,10 @@ export async function fetchFullPlaylistTracks(
 
     allTracks.push(...page.tracks);
     cursor = page.nextCursor;
+    onProgress?.({
+      fetched: allTracks.length,
+      total: Math.max(page.total, allTracks.length),
+    });
   } while (cursor !== null);
 
   console.debug('[sync/snapshot] fetched full playlist tracks', {
@@ -162,7 +177,8 @@ export async function captureSnapshot(
   providerId: MusicProviderId,
   playlistId: string,
   options?: SnapshotOptions,
+  onProgress?: (progress: SnapshotFetchProgress) => void,
 ): Promise<PlaylistSnapshot> {
-  const { tracks, snapshotId } = await fetchFullPlaylistTracks(provider, playlistId);
+  const { tracks, snapshotId } = await fetchFullPlaylistTracks(provider, playlistId, onProgress);
   return canonicalizeSnapshot(providerId, playlistId, tracks, snapshotId, options);
 }

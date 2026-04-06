@@ -6,12 +6,12 @@ import { apiFetch } from '@/lib/api/client';
 import { getConfiguredMatchThresholds } from '@/lib/matching/config';
 import type { SyncPreviewResult, SyncConfig, SyncPreviewRun } from '@/lib/sync/types';
 
-const PREVIEW_TIMEOUT_MS = 10 * 60_000;
+const PREVIEW_TIMEOUT_MS = 30 * 60_000;
 const PREVIEW_POLL_INTERVAL_MS = 1000;
 
 export class SyncPreviewTimeoutError extends Error {
   constructor(timeoutMs: number) {
-    super(`Preview timed out after ${Math.round(timeoutMs / 1000)}s.`);
+    super(`Preview is still running after ${Math.round(timeoutMs / 60_000)} minutes. It continues in the background.`);
     this.name = 'SyncPreviewTimeoutError';
   }
 }
@@ -29,6 +29,66 @@ interface PreviewStatusResponse {
   result: SyncPreviewResult | null;
 }
 
+function isAbortLikeError(error: unknown): boolean {
+  if (error instanceof DOMException && error.name === 'AbortError') {
+    return true;
+  }
+
+  return error instanceof Error && /signal is aborted|aborted without reason|abort/i.test(error.message);
+}
+
+async function startPreviewRun(
+  config: SyncConfig,
+  signal: AbortSignal,
+): Promise<string> {
+  const matchThresholds = getConfiguredMatchThresholds();
+  const started = await apiFetch<PreviewStartResponse>('/api/sync/preview', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...config, matchThresholds }),
+    signal,
+  });
+
+  return started.previewRunId;
+}
+
+async function pollPreviewResult(
+  previewRunId: string,
+  signal: AbortSignal,
+  onRunUpdate: (run: SyncPreviewRun) => void,
+): Promise<SyncPreviewResult> {
+  const startedAtMs = Date.now();
+
+  while (true) {
+    const status = await apiFetch<PreviewStatusResponse>(`/api/sync/preview/${previewRunId}`, {
+      signal,
+    });
+
+    if (!status.run) {
+      throw new Error('Preview run not found.');
+    }
+
+    onRunUpdate(status.run);
+
+    if (status.run.status === 'done') {
+      if (!status.result) {
+        throw new Error('Preview completed without result payload.');
+      }
+      return status.result;
+    }
+
+    if (status.run.status === 'failed') {
+      throw new Error(status.run.errorMessage ?? 'Preview failed.');
+    }
+
+    if (Date.now() - startedAtMs > PREVIEW_TIMEOUT_MS) {
+      throw new SyncPreviewTimeoutError(PREVIEW_TIMEOUT_MS);
+    }
+
+    await sleep(PREVIEW_POLL_INTERVAL_MS);
+  }
+}
+
 /**
  * Mutation hook to fetch a sync preview (diff plan) between two playlists.
  * Returns the SyncPreviewResult with plan, source tracks, and target tracks.
@@ -39,54 +99,14 @@ export function useSyncPreview() {
 
   const mutation = useMutation({
     mutationFn: async (config: SyncConfig) => {
-      const matchThresholds = getConfiguredMatchThresholds();
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), PREVIEW_TIMEOUT_MS);
 
       try {
-        const started = await apiFetch<PreviewStartResponse>('/api/sync/preview', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...config, matchThresholds }),
-          signal: controller.signal,
-        });
-
-        const startedAtMs = Date.now();
-        while (true) {
-          const status = await apiFetch<PreviewStatusResponse>(`/api/sync/preview/${started.previewRunId}`, {
-            signal: controller.signal,
-          });
-
-          if (!status.run) {
-            throw new Error('Preview run not found.');
-          }
-
-          setPreviewRun(status.run);
-
-          if (status.run.status === 'done') {
-            if (!status.result) {
-              throw new Error('Preview completed without result payload.');
-            }
-            return status.result;
-          }
-
-          if (status.run.status === 'failed') {
-            throw new Error(status.run.errorMessage ?? 'Preview failed.');
-          }
-
-          if (Date.now() - startedAtMs > PREVIEW_TIMEOUT_MS) {
-            throw new SyncPreviewTimeoutError(PREVIEW_TIMEOUT_MS);
-          }
-
-          await sleep(PREVIEW_POLL_INTERVAL_MS);
-        }
+        const previewRunId = await startPreviewRun(config, controller.signal);
+        return await pollPreviewResult(previewRunId, controller.signal, setPreviewRun);
       } catch (error) {
-        if (error instanceof DOMException && error.name === 'AbortError') {
-          throw new SyncPreviewTimeoutError(PREVIEW_TIMEOUT_MS);
-        }
-
-        // Some fetch implementations surface aborts as generic Errors.
-        if (error instanceof Error && /signal is aborted|aborted without reason|abort/i.test(error.message)) {
+        if (isAbortLikeError(error)) {
           throw new SyncPreviewTimeoutError(PREVIEW_TIMEOUT_MS);
         }
         throw error;
