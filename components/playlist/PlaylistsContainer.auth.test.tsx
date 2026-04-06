@@ -92,4 +92,37 @@ describe('PlaylistsContainer auth behavior', () => {
     expect(screen.getByTestId('playlists-grid')).toBeInTheDocument();
     expect(screen.queryByTestId('inline-signin-card')).not.toBeInTheDocument();
   });
+
+  it('shows a localized playlists error while keeping provider controls available', () => {
+    vi.mocked(useAuthSummary).mockReturnValue({
+      spotify: { provider: 'spotify', code: 'ok', canAttemptRefresh: true, updatedAt: Date.now() },
+      tidal: { provider: 'tidal', code: 'ok', canAttemptRefresh: true, updatedAt: Date.now() },
+      anyAuthenticated: true,
+    });
+    vi.mocked(useProviderAuth).mockReturnValue({
+      provider: 'spotify',
+      code: 'ok',
+      canAttemptRefresh: true,
+      updatedAt: Date.now(),
+    });
+
+    render(
+      <PlaylistsContainer
+        initialItems={[]}
+        initialNextCursor={null}
+        initialLoadError={{
+          kind: 'rate_limited',
+          message: 'Spotify rate limit exceeded. Retry after 4 seconds.',
+          retryAfterSeconds: 4,
+        }}
+        providerId="spotify"
+        availableProviders={['spotify', 'tidal']}
+      />,
+    );
+
+    expect(screen.getByTestId('playlists-toolbar')).toBeInTheDocument();
+    expect(screen.getByText('Provider rate limit reached')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
+    expect(screen.queryByTestId('playlists-grid')).not.toBeInTheDocument();
+  });
 });

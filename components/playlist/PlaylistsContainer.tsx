@@ -40,12 +40,84 @@ type PlaylistsAreaError = PlaylistsInitialLoadError | {
   retryAfterSeconds?: number;
 };
 
+type ProviderAuthCode = ReturnType<typeof useProviderAuth>['code'];
+
 function formatRetryWindow(seconds: number | undefined): string {
   if (!seconds || seconds <= 0) {
     return 'Try again shortly.';
   }
 
   return `Try again in ${seconds} second${seconds === 1 ? '' : 's'}.`;
+}
+
+function resolveActiveProviderId(
+  preferredProviderId: MusicProviderId,
+  connectedProviders: MusicProviderId[],
+): MusicProviderId {
+  if (connectedProviders.length === 0) {
+    return preferredProviderId;
+  }
+
+  if (connectedProviders.includes(preferredProviderId)) {
+    return preferredProviderId;
+  }
+
+  return connectedProviders[0]!;
+}
+
+function shouldShowProviderSignIn(
+  hydrated: boolean,
+  noProvidersConnected: boolean,
+  providerAuthCode: ProviderAuthCode,
+): boolean {
+  if (noProvidersConnected || !hydrated) {
+    return false;
+  }
+
+  return providerAuthCode === 'unauthenticated'
+    || providerAuthCode === 'expired'
+    || providerAuthCode === 'invalid';
+}
+
+function withProviderQuery(
+  pathname: string,
+  searchParams: URLSearchParams | null,
+  providerId: MusicProviderId,
+): string {
+  const params = new URLSearchParams(searchParams?.toString() ?? '');
+  params.set('provider', providerId);
+  const query = params.toString();
+
+  return query.length > 0 ? `${pathname}?${query}` : pathname;
+}
+
+interface PlaylistsAreaErrorNoticeProps {
+  error: PlaylistsAreaError;
+  onRetry: () => void;
+}
+
+function PlaylistsAreaErrorNotice({ error, onRetry }: PlaylistsAreaErrorNoticeProps) {
+  const title = error.kind === 'rate_limited' ? 'Provider rate limit reached' : 'Could not load playlists';
+  const details = error.kind === 'rate_limited'
+    ? formatRetryWindow(error.retryAfterSeconds)
+    : 'Switch provider or try again.';
+
+  return (
+    <div className="rounded-lg border border-amber-200 bg-amber-50 p-5 text-amber-900 space-y-3">
+      <h2 className="text-base font-semibold">{title}</h2>
+      <p className="text-sm">{details}</p>
+      <p className="text-xs opacity-80">{error.message}</p>
+      <div>
+        <button
+          type="button"
+          onClick={onRetry}
+          className="inline-flex items-center justify-center rounded-md bg-amber-900 text-white px-3 py-1.5 text-sm font-medium hover:bg-amber-800 transition-colors"
+        >
+          Try again
+        </button>
+      </div>
+    </div>
+  );
 }
 
 /**
@@ -81,15 +153,7 @@ export function PlaylistsContainer({
   const activeProviderId: MusicProviderId = useMemo(() => {
     const preferred = queryProviderId ?? providerId;
 
-    if (connectedProviders.length === 0) {
-      return preferred;
-    }
-
-    if (connectedProviders.includes(preferred)) {
-      return preferred;
-    }
-
-    return connectedProviders[0]!;
+    return resolveActiveProviderId(preferred, connectedProviders);
   }, [connectedProviders, providerId, queryProviderId]);
 
   const providerAuth = useProviderAuth(activeProviderId);
@@ -106,7 +170,7 @@ export function PlaylistsContainer({
   const hydrated = useAuthRegistryHydrated();
   const isProviderConnected = providerAuth.code === 'ok';
   const noProvidersConnected = hydrated && connectedProviders.length === 0;
-  const shouldShowProviderCta = !noProvidersConnected && hydrated && (providerAuth.code === 'unauthenticated' || providerAuth.code === 'expired' || providerAuth.code === 'invalid');
+  const shouldShowProviderCta = shouldShowProviderSignIn(hydrated, noProvidersConnected, providerAuth.code);
 
   // Redirect to landing page when all providers are disconnected
   useEffect(() => {
@@ -136,10 +200,7 @@ export function PlaylistsContainer({
 
     setPlaylistsAreaError(null);
 
-    const params = new URLSearchParams(searchParams?.toString() ?? '');
-    params.set('provider', nextProviderId);
-    const query = params.toString();
-    router.push(query.length > 0 ? `${pathname}?${query}` : pathname);
+    router.push(withProviderQuery(pathname, searchParams, nextProviderId));
   }, [activeProviderId, pathname, router, searchParams]);
 
   useEffect(() => {
@@ -147,10 +208,7 @@ export function PlaylistsContainer({
       return;
     }
 
-    const params = new URLSearchParams(searchParams?.toString() ?? '');
-    params.set('provider', activeProviderId);
-    const query = params.toString();
-    router.replace(query.length > 0 ? `${pathname}?${query}` : pathname);
+    router.replace(withProviderQuery(pathname, searchParams, activeProviderId));
   }, [activeProviderId, pathname, providerFromQuery, router, searchParams]);
 
   const handleRefreshComplete = useCallback(() => {
@@ -203,24 +261,7 @@ export function PlaylistsContainer({
         {shouldShowProviderCta ? (
           <InlineSignInCard provider={activeProviderId} reason={providerAuth.code} />
         ) : shouldShowPlaylistsAreaError ? (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 p-5 text-amber-900 space-y-3">
-            <h2 className="text-base font-semibold">{playlistsAreaError.kind === 'rate_limited' ? 'Provider rate limit reached' : 'Could not load playlists'}</h2>
-            <p className="text-sm">
-              {playlistsAreaError.kind === 'rate_limited'
-                ? formatRetryWindow(playlistsAreaError.retryAfterSeconds)
-                : 'Switch provider or try again.'}
-            </p>
-            <p className="text-xs opacity-80">{playlistsAreaError.message}</p>
-            <div>
-              <button
-                type="button"
-                onClick={handleRefresh}
-                className="inline-flex items-center justify-center rounded-md bg-amber-900 text-white px-3 py-1.5 text-sm font-medium hover:bg-amber-800 transition-colors"
-              >
-                Try again
-              </button>
-            </div>
-          </div>
+          <PlaylistsAreaErrorNotice error={playlistsAreaError} onRetry={handleRefresh} />
         ) : (
           <PlaylistsGrid
             providerId={activeProviderId}

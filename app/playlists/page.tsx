@@ -86,7 +86,7 @@ function toInitialLoadError(error: ProviderApiError): PlaylistsInitialLoadError 
     return {
       kind: 'rate_limited',
       message: error.message,
-      retryAfterSeconds,
+      ...(retryAfterSeconds !== undefined ? { retryAfterSeconds } : {}),
     };
   }
 
@@ -94,6 +94,28 @@ function toInitialLoadError(error: ProviderApiError): PlaylistsInitialLoadError 
     kind: 'provider_error',
     message: error.message,
   };
+}
+
+function toUnknownInitialLoadError(error: Error): PlaylistsInitialLoadError | null {
+  const lowerMessage = error.message.toLowerCase();
+  if (lowerMessage.includes('rate limit') || lowerMessage.includes('retry after')) {
+    const retryAfterSeconds = parseRetryAfterSeconds(error.message);
+
+    if (retryAfterSeconds !== undefined) {
+      return {
+        kind: 'rate_limited',
+        message: error.message,
+        retryAfterSeconds,
+      };
+    }
+
+    return {
+      kind: 'rate_limited',
+      message: error.message,
+    };
+  }
+
+  return null;
 }
 
 /**
@@ -129,7 +151,7 @@ export default async function PlaylistsPage({
     .then((page) => ({
       items: page.items,
       nextCursor: page.nextCursor,
-      total: page.total,
+      total: page.total ?? page.items.length,
       initialLoadError: null,
     }))
     .catch((error) => {
@@ -149,6 +171,18 @@ export default async function PlaylistsPage({
           total: 0,
           initialLoadError: toInitialLoadError(error),
         };
+      }
+
+      if (error instanceof Error) {
+        const unknownInitialLoadError = toUnknownInitialLoadError(error);
+        if (unknownInitialLoadError) {
+          return {
+            items: [],
+            nextCursor: null,
+            total: 0,
+            initialLoadError: unknownInitialLoadError,
+          };
+        }
       }
 
       throw error;

@@ -23,7 +23,7 @@ export interface PlaylistsGridProps {
   onRefreshComplete: (items: Playlist[], nextCursor: string | null) => void;
   newlyCreatedPlaylist?: Playlist | null;
   onNewPlaylistAdded?: () => void;
-  onLoadError?: (error: { kind: 'rate_limited'; message: string; retryAfterSeconds?: number }) => void;
+  onLoadError?: (error: PlaylistsGridLoadError) => void;
 }
 
 function toRetryAfterSeconds(value: number | undefined): number | undefined {
@@ -32,6 +32,56 @@ function toRetryAfterSeconds(value: number | undefined): number | undefined {
   }
 
   return Math.max(1, Math.ceil(value / 1000));
+}
+
+type PlaylistsGridLoadError = {
+  kind: 'rate_limited';
+  message: string;
+  retryAfterSeconds?: number;
+};
+
+function toRateLimitLoadError(message: string, retryAfterMs?: number): PlaylistsGridLoadError {
+  const retryAfterSeconds = toRetryAfterSeconds(retryAfterMs);
+
+  if (retryAfterSeconds !== undefined) {
+    return {
+      kind: 'rate_limited',
+      message,
+      retryAfterSeconds,
+    };
+  }
+
+  return {
+    kind: 'rate_limited',
+    message,
+  };
+}
+
+function handleRefreshError(
+  error: unknown,
+  items: Playlist[],
+  onRefreshComplete: (items: Playlist[], nextCursor: string | null) => void,
+  onLoadError?: (error: PlaylistsGridLoadError) => void,
+): void {
+  if (error instanceof ProviderAuthError && error.code === 'rate_limited') {
+    onLoadError?.(toRateLimitLoadError(error.message, error.retryAfterMs));
+    onRefreshComplete(items, null);
+    return;
+  }
+
+  if (error instanceof RateLimitApiError) {
+    onLoadError?.(toRateLimitLoadError(error.message, error.retryAfterMs));
+    onRefreshComplete(items, null);
+    return;
+  }
+
+  if (error instanceof ApiError && !error.isUnauthorized) {
+    if (error.isRateLimited) {
+      onLoadError?.(toRateLimitLoadError(error.message));
+    }
+
+    onRefreshComplete(items, null);
+  }
 }
 
 /**
@@ -113,36 +163,7 @@ export function PlaylistsGrid({
       } catch (error) {
         if (cancelled) return;
 
-        if (error instanceof ProviderAuthError && error.code === 'rate_limited') {
-          onLoadError?.({
-            kind: 'rate_limited',
-            message: error.message,
-            retryAfterSeconds: toRetryAfterSeconds(error.retryAfterMs),
-          });
-          onRefreshComplete(items, null);
-          return;
-        }
-
-        if (error instanceof RateLimitApiError) {
-          onLoadError?.({
-            kind: 'rate_limited',
-            message: error.message,
-            retryAfterSeconds: toRetryAfterSeconds(error.retryAfterMs),
-          });
-          onRefreshComplete(items, null);
-          return;
-        }
-
-        if (error instanceof ApiError && !error.isUnauthorized) {
-          if (error.isRateLimited) {
-            onLoadError?.({
-              kind: 'rate_limited',
-              message: error.message,
-            });
-          }
-
-          onRefreshComplete(items, null);
-        }
+        handleRefreshError(error, items, onRefreshComplete, onLoadError);
       } finally {
         refreshInFlightRef.current = false;
       }
@@ -153,7 +174,7 @@ export function PlaylistsGrid({
     return () => {
       cancelled = true;
     };
-  }, [isRefreshing, items, setItems, setNextCursor, onRefreshComplete, providerId]);
+  }, [isRefreshing, items, setItems, setNextCursor, onRefreshComplete, providerId, onLoadError]);
 
   // Virtual playlist for Liked Songs (shown first)
   // Uses cached total from saved tracks index (populated when user visits split-editor)
