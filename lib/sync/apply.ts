@@ -13,7 +13,7 @@ const BATCH_SIZE = 100;
 
 function toTrackUri(providerId: MusicProviderId, trackId: string): string {
   if (trackId.includes(':')) return trackId; // already a URI
-  return providerId === 'spotify' ? `spotify:track:${trackId}` : trackId;
+  return providerId === 'spotify' ? `spotify:track:${trackId}` : `tidal:track:${trackId}`;
 }
 
 function chunk<T>(arr: T[], size: number): T[][] {

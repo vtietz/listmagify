@@ -26,6 +26,9 @@ export function uriToTrackId(providerId: MusicProviderId, uri: string): string {
   if (providerId === 'spotify' && uri.startsWith('spotify:track:')) {
     return uri.slice('spotify:track:'.length);
   }
+  if (providerId === 'tidal' && uri.startsWith('tidal:track:')) {
+    return uri.slice('tidal:track:'.length);
+  }
   return uri; // TIDAL uses plain numeric IDs
 }
 
