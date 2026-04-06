@@ -21,7 +21,8 @@ function hasAuthError(pair: SyncPairWithRun): boolean {
  * Used to show a warning badge on the Sync nav button.
  */
 export function useSyncAttention(enabled = true) {
-  const { data: pairs } = useSyncPairs(enabled);
+  // Header badges can refresh less aggressively than management UI polling.
+  const { data: pairs } = useSyncPairs(enabled, { refetchIntervalMs: 60_000 });
 
   const attentionCount = useMemo(() => {
     if (!pairs) return 0;

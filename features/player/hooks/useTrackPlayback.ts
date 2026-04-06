@@ -6,6 +6,7 @@
 import { useCallback, useState, useRef } from 'react';
 import { useProviderPlayer } from './useSpotifyPlayer';
 import { useMusicProviderId } from '@features/auth/hooks/useMusicProviderId';
+import { supportsProviderPlaybackControl } from '@/lib/music-provider/capabilities';
 
 interface UseTrackPlaybackOptions {
   /** All track URIs in the current playlist (for auto-play next) */
@@ -20,9 +21,14 @@ interface UseTrackPlaybackOptions {
 
 export function useTrackPlayback(options: UseTrackPlaybackOptions) {
   const { trackUris, playlistId, playlistUri, sourceId } = options;
-  const { play, pause, isPlaying, currentTrackId, isLoading } = useProviderPlayer();
+  // Track-row controls don't need to run their own polling loop.
+  // They consume shared player store state and rely on the visible player UI
+  // (full/mini player) to drive active polling when needed.
+  const { play, pause, isPlaying, currentTrackId, isLoading } = useProviderPlayer({
+    enableStatePolling: false,
+  });
   const providerId = useMusicProviderId();
-  const isPlaybackSupported = providerId === 'spotify';
+  const isPlaybackSupported = supportsProviderPlaybackControl(providerId);
   
   // Track which track we're loading (for showing spinner)
   const [loadingTrackUri, setLoadingTrackUri] = useState<string | null>(null);

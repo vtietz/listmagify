@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { useSpotifyPlayer } from '@features/player/hooks/useSpotifyPlayer';
 import { useMusicProviderId } from '@features/auth/hooks/useMusicProviderId';
+import { supportsProviderPlaybackControl } from '@/lib/music-provider/capabilities';
 import { useSavedTracksIndex } from '@features/playlists/hooks/useSavedTracksIndex';
 import { useInsertionPointsStore, computeInsertionPositions } from '@features/split-editor/playlist/hooks/useInsertionPointsStore';
 import { useAddTracks } from '@/lib/spotify/playlistMutations';
@@ -439,7 +440,7 @@ function shouldRenderMiniPlayer(
   track: PlaybackTrack | null | undefined,
   providerId: ReturnType<typeof useMusicProviderId>,
 ): track is PlaybackTrack {
-  return Boolean(isVisible && track && providerId === 'spotify');
+  return Boolean(isVisible && track && supportsProviderPlaybackControl(providerId));
 }
 
 export function MiniPlayer({ isVisible, onHide, onTrackClick }: MiniPlayerProps) {
@@ -458,7 +459,7 @@ export function MiniPlayer({ isVisible, onHide, onTrackClick }: MiniPlayerProps)
     closeDeviceSelector,
     transferPlayback,
     refreshDevices,
-  } = useSpotifyPlayer();
+  } = useSpotifyPlayer({ enableStatePolling: isVisible });
 
   const isAutoScrollEnabled = useHydratedAutoScrollText();
 

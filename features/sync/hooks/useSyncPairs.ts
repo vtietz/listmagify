@@ -20,10 +20,16 @@ interface DeleteSyncPairResponse {
   deleted: boolean;
 }
 
+interface UseSyncPairsOptions {
+  refetchIntervalMs?: number;
+}
+
 /**
  * Query hook to fetch all saved sync pairs.
  */
-export function useSyncPairs(enabled = true) {
+export function useSyncPairs(enabled = true, options?: UseSyncPairsOptions) {
+  const refetchIntervalMs = options?.refetchIntervalMs ?? 10_000;
+
   return useQuery({
     queryKey: SYNC_PAIRS_KEY,
     queryFn: async () => {
@@ -33,7 +39,7 @@ export function useSyncPairs(enabled = true) {
     enabled,
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
-    refetchInterval: enabled ? 10_000 : false,
+    refetchInterval: enabled ? refetchIntervalMs : false,
   });
 }
 
