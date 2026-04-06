@@ -1,6 +1,7 @@
 import type { MusicProviderId } from '@/lib/music-provider/types';
 import { getCanonicalTrackMetadata, toProviderTrack, upsertProviderMap } from '@/lib/resolver/canonicalResolver';
 import { scoreToConfidence, DEFAULT_MATCH_THRESHOLDS } from '@/lib/matching/config';
+import { computeWeightedScore, durationSimilarity, tokenSimilarity } from '@/lib/matching/scoring-core';
 
 export interface MaterializeSearchCandidate {
   id: string;
@@ -23,6 +24,7 @@ export interface MaterializeCanonicalInput {
   provider: MusicProviderId;
   canonicalTrackIds: string[];
   adapter?: MaterializeProviderAdapter;
+  thresholds?: { convert: number; manual: number };
   onCanonicalProcessed?: () => void;
 }
 
@@ -32,71 +34,71 @@ export interface MaterializeCanonicalResult {
   partial: boolean;
 }
 
-function isDurationCompatible(
-  targetDuration: number | null,
-  candidateDuration: number | null | undefined,
-): boolean {
-  if (targetDuration == null || candidateDuration == null) {
-    return true;
+function computeCandidateScore(
+  metadata: NonNullable<ReturnType<typeof getCanonicalTrackMetadata>>,
+  candidate: MaterializeSearchCandidate,
+): number {
+  if (metadata.isrc && candidate.isrc && metadata.isrc === candidate.isrc) {
+    return 1;
   }
 
-  // Allow up to 10 seconds difference — different masters/providers
-  // often have slight duration variations
-  return Math.abs(targetDuration - candidateDuration) <= 10;
+  const titleScore = tokenSimilarity(metadata.titleNorm, candidate.title);
+  const artistScore = tokenSimilarity(metadata.artistNorm, candidate.artists.join(' '));
+
+  const durationScore =
+    metadata.durationSec != null && candidate.durationSec != null
+      ? durationSimilarity(metadata.durationSec, candidate.durationSec * 1000)
+      : 0;
+
+  return computeWeightedScore({
+    titleScore,
+    artistScore,
+    durationScore,
+  });
 }
 
-function isLikelyArtistMatch(sourceArtistNorm: string, candidateArtists: string[]): boolean {
-  if (!sourceArtistNorm) return false;
-  const sourceTokens = new Set(sourceArtistNorm.split(' ').filter(Boolean));
-  if (sourceTokens.size === 0) return false;
-
-  const candidateNorm = candidateArtists.join(' ').toLowerCase();
-  let matched = 0;
-  for (const token of sourceTokens) {
-    if (candidateNorm.includes(token)) {
-      matched += 1;
-    }
-  }
-
-  // Require at least one token match; for multi-token artists require
-  // at least a third (rounded up) to account for name variations
-  // across providers (e.g. "DJ Hell" vs "DJ Hell Remix")
-  return matched >= Math.max(1, Math.ceil(sourceTokens.size / 3));
+function buildTrackSignature(candidate: MaterializeSearchCandidate): string {
+  return `${candidate.title.toLowerCase()}::${candidate.artists.join(',').toLowerCase()}`;
 }
 
 function findCompatibleCandidate(
   candidates: MaterializeSearchCandidate[],
   metadata: NonNullable<ReturnType<typeof getCanonicalTrackMetadata>>,
   seenTrackSignatures: Set<string>,
-): MaterializeSearchCandidate | undefined {
-  return candidates.find((candidate) => {
-    if (!isDurationCompatible(metadata.durationSec, candidate.durationSec)) {
-      return false;
-    }
+  thresholds: { convert: number; manual: number },
+): { match: MaterializeSearchCandidate | null; score: number } {
+  let bestMatch: MaterializeSearchCandidate | null = null;
+  let bestScore = 0;
 
-    if (!isLikelyArtistMatch(metadata.artistNorm, candidate.artists)) {
-      return false;
-    }
-
-    const signature = `${candidate.title.toLowerCase()}::${candidate.artists.join(',').toLowerCase()}`;
+  for (const candidate of candidates) {
+    const signature = buildTrackSignature(candidate);
     if (seenTrackSignatures.has(signature)) {
-      return false;
+      continue;
     }
 
-    seenTrackSignatures.add(signature);
-    return true;
-  });
+    const score = computeCandidateScore(metadata, candidate);
+    if (score > bestScore) {
+      bestScore = score;
+      bestMatch = candidate;
+    }
+  }
+
+  if (!bestMatch || bestScore < thresholds.convert) {
+    return { match: null, score: bestScore };
+  }
+
+  seenTrackSignatures.add(buildTrackSignature(bestMatch));
+  return { match: bestMatch, score: bestScore };
 }
 
 function persistDiscoveredMapping(
   provider: MusicProviderId,
   canonicalTrackId: string,
-  metadata: NonNullable<ReturnType<typeof getCanonicalTrackMetadata>>,
   match: MaterializeSearchCandidate,
+  matchScore: number,
+  thresholds: { convert: number; manual: number },
 ): void {
-  const isIsrcMatch = !!(metadata.isrc && match.isrc && metadata.isrc === match.isrc);
-  const matchScore = isIsrcMatch ? 1.0 : 0.8;
-  const confidence = scoreToConfidence(matchScore, DEFAULT_MATCH_THRESHOLDS);
+  const confidence = scoreToConfidence(matchScore, thresholds);
 
   upsertProviderMap({
     provider,
@@ -111,6 +113,7 @@ function persistDiscoveredMapping(
 export async function materializeCanonicalTrackIds(
   input: MaterializeCanonicalInput,
 ): Promise<MaterializeCanonicalResult> {
+  const thresholds = input.thresholds ?? DEFAULT_MATCH_THRESHOLDS;
   const trackIds: string[] = [];
   const unresolvedCanonicalIds: string[] = [];
   const seenProviderTrackIds = new Set<string>();
@@ -145,9 +148,31 @@ export async function materializeCanonicalTrackIds(
         durationSec: metadata.durationSec,
       });
 
-      const match = findCompatibleCandidate(candidates, metadata, seenTrackSignatures);
+      const { match, score } = findCompatibleCandidate(
+        candidates,
+        metadata,
+        seenTrackSignatures,
+        thresholds,
+      );
 
       if (!match || seenProviderTrackIds.has(match.id)) {
+        if (!match && candidates.length > 0) {
+          console.debug('[recs/materialize] unresolved despite search results', {
+            provider: input.provider,
+            canonicalTrackId,
+            titleNorm: metadata.titleNorm,
+            artistNorm: metadata.artistNorm,
+            durationSec: metadata.durationSec,
+            candidateCount: candidates.length,
+            topCandidates: candidates.slice(0, 3).map((candidate) => ({
+              id: candidate.id,
+              title: candidate.title,
+              artists: candidate.artists,
+              durationSec: candidate.durationSec ?? null,
+              isrc: candidate.isrc ?? null,
+            })),
+          });
+        }
         unresolvedCanonicalIds.push(canonicalTrackId);
         continue;
       }
@@ -155,7 +180,7 @@ export async function materializeCanonicalTrackIds(
       seenProviderTrackIds.add(match.id);
       trackIds.push(match.id);
       // Write back the discovered mapping so future syncs hit the cache.
-      persistDiscoveredMapping(input.provider, canonicalTrackId, metadata, match);
+      persistDiscoveredMapping(input.provider, canonicalTrackId, match, score, thresholds);
     } catch (error) {
       console.warn('[recs/materialize] provider search failed', {
         provider: input.provider,

@@ -116,6 +116,7 @@ function markAllNotFound(items: SyncDiffItem[]): void {
 async function validateMaterialization(
   plan: SyncPlan,
   providers: Map<MusicProviderId, MusicProvider>,
+  matchThresholds?: SyncMatchThresholds,
   onProgress?: (phase: string, progress: number) => void,
 ): Promise<void> {
   const addsByProvider = groupAddItemsByProvider(plan.items);
@@ -144,7 +145,7 @@ async function validateMaterialization(
       continue;
     }
 
-      await resolveProviderItems(providerId, provider, items, () => {
+      await resolveProviderItems(providerId, provider, items, matchThresholds, () => {
         processedAdds += 1;
       reportProgress();
     });
@@ -166,6 +167,7 @@ async function resolveProviderItems(
   providerId: MusicProviderId,
   provider: MusicProvider,
   items: SyncDiffItem[],
+  matchThresholds?: SyncMatchThresholds,
   onItemProcessed?: () => void,
 ): Promise<void> {
   const adapter = createSyncMaterializeAdapter(provider, providerId);
@@ -180,6 +182,7 @@ async function resolveProviderItems(
           provider: providerId,
           canonicalTrackIds: batchIds,
           adapter,
+          ...(matchThresholds ? { thresholds: matchThresholds } : {}),
           ...(onItemProcessed ? { onCanonicalProcessed: onItemProcessed } : {}),
         };
 
@@ -274,7 +277,7 @@ export async function previewSync(
     [config.targetProvider, targetProvider],
   ]);
   onProgress?.('validating_matches', PREVIEW_PROGRESS_VALIDATION_START);
-  await validateMaterialization(plan, providerMap);
+  await validateMaterialization(plan, providerMap, matchThresholds);
   onProgress?.('finalizing', PREVIEW_PROGRESS_FINALIZING);
 
   console.debug('[sync/runner] preview complete', {
