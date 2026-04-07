@@ -53,7 +53,12 @@ function formatRetryWindow(seconds: number | undefined): string {
 function resolveActiveProviderId(
   preferredProviderId: MusicProviderId,
   connectedProviders: MusicProviderId[],
+  hasExplicitProviderSelection: boolean,
 ): MusicProviderId {
+  if (hasExplicitProviderSelection) {
+    return preferredProviderId;
+  }
+
   if (connectedProviders.length === 0) {
     return preferredProviderId;
   }
@@ -152,8 +157,9 @@ export function PlaylistsContainer({
 
   const activeProviderId: MusicProviderId = useMemo(() => {
     const preferred = queryProviderId ?? providerId;
+    const hasExplicitProviderSelection = queryProviderId !== null;
 
-    return resolveActiveProviderId(preferred, connectedProviders);
+    return resolveActiveProviderId(preferred, connectedProviders, hasExplicitProviderSelection);
   }, [connectedProviders, providerId, queryProviderId]);
 
   const providerAuth = useProviderAuth(activeProviderId);

@@ -2,13 +2,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { PlaylistsContainer } from '@/components/playlist/PlaylistsContainer';
 
+let mockProviderQuery = 'provider=spotify';
+
 vi.mock('next/navigation', () => ({
   useRouter: () => ({
     push: vi.fn(),
     replace: vi.fn(),
   }),
   usePathname: () => '/playlists',
-  useSearchParams: () => new URLSearchParams('provider=spotify'),
+  useSearchParams: () => new URLSearchParams(mockProviderQuery),
 }));
 
 vi.mock('@features/auth/hooks/useAuth', () => ({
@@ -40,6 +42,35 @@ import { useAuthSummary, useProviderAuth } from '@features/auth/hooks/useAuth';
 describe('PlaylistsContainer auth behavior', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockProviderQuery = 'provider=spotify';
+  });
+
+  it('keeps explicit tidal selection and shows tidal sign-in when tidal is disconnected', () => {
+    mockProviderQuery = 'provider=tidal';
+
+    vi.mocked(useAuthSummary).mockReturnValue({
+      spotify: { provider: 'spotify', code: 'ok', canAttemptRefresh: true, updatedAt: Date.now() },
+      tidal: { provider: 'tidal', code: 'unauthenticated', canAttemptRefresh: false, updatedAt: Date.now() },
+      anyAuthenticated: true,
+    });
+    vi.mocked(useProviderAuth).mockReturnValue({
+      provider: 'tidal',
+      code: 'unauthenticated',
+      canAttemptRefresh: false,
+      updatedAt: Date.now(),
+    });
+
+    render(
+      <PlaylistsContainer
+        initialItems={[]}
+        initialNextCursor={null}
+        providerId="spotify"
+        availableProviders={['spotify', 'tidal']}
+      />,
+    );
+
+    expect(screen.getByTestId('inline-signin-card')).toHaveTextContent('tidal:unauthenticated');
+    expect(screen.queryByTestId('playlists-grid')).not.toBeInTheDocument();
   });
 
   it('shows inline sign-in card for expired provider', () => {
