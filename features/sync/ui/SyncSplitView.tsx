@@ -234,6 +234,21 @@ export function SyncSplitView({
           ))}
         </div>
       </div>
+
+      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+        <span className="inline-flex items-center gap-1">
+          <AlertTriangle className="h-3 w-3 text-yellow-500" />
+          Not found on target provider
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="text-green-500 font-bold">+</span>
+          Will be added
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="text-red-500 font-bold">-</span>
+          Will be removed
+        </span>
+      </div>
     </div>
   );
 }

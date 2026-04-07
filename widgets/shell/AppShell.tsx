@@ -29,7 +29,6 @@ import {
 } from "./HeaderComponents";
 import { SyncPreviewDialog } from "@features/sync/ui/SyncPreviewDialog";
 import { SyncManagementDialog } from "@features/sync/ui/SyncManagementDialog";
-import { useAutoSyncRunner } from "@features/sync/hooks/useAutoSyncRunner";
 import { ImportManagementDialog } from "@features/import/ui/ImportManagementDialog";
 import { ImportPlaylistsDialog } from "@features/import/ui/ImportPlaylistsDialog";
 import { useImportBackgroundDetection } from "@features/import/hooks/useImportBackgroundDetection";
@@ -63,7 +62,6 @@ export function AppShell({ headerTitle = "Listmagify", children }: AppShellProps
   const isBrowsePanelOpen = useBrowsePanelStore((state) => state.isOpen);
   const { authenticated } = useSessionUser();
   const { isPhone } = useDeviceType();
-  useAutoSyncRunner();
   useImportBackgroundDetection();
   const { mode, supportsBrowsePanel } = useAppShellLayout({
     pathname,
