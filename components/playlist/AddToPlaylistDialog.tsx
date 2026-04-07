@@ -19,13 +19,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { apiFetch } from '@/lib/api/client';
-import { userPlaylists, playlistTracksInfinite } from '@/lib/api/queryKeys';
+import { userPlaylistsByProvider, playlistTracksInfiniteByProvider } from '@/lib/api/queryKeys';
 import { usePlaylistTrackCheck } from '@features/playlists/hooks/usePlaylistTrackCheck';
 import { useAddTracks, useRemoveTracks } from '@/lib/spotify/playlistMutations';
 import { useSessionUser } from '@features/auth/hooks/useSessionUser';
+import { useMusicProviderId } from '@features/auth/hooks/useMusicProviderId';
 import { usePlayerStore } from '@features/player/hooks/usePlayerStore';
 import { useSplitGridStore, flattenPanels } from '@features/split-editor/stores/useSplitGridStore';
 import { matchesAllWords } from '@/lib/utils';
+import { isPlaylistIdCompatibleWithProvider } from '@/lib/providers/playlistIdCompat';
 import { AddToPlaylistDialogPlaylistList } from './AddToPlaylistDialogPlaylistList';
 import type { Playlist, Track } from '@/lib/music-provider/types';
 
@@ -63,6 +65,7 @@ const checkedPlaylists = new Set<string>();
 export function AddToPlaylistDialog({ isOpen, onClose, trackUri, trackName, trackArtists = [], currentPlaylistId = null }: AddToPlaylistDialogProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const { user } = useSessionUser();
+  const providerId = useMusicProviderId();
   const playbackContext = usePlayerStore((s) => s.playbackContext);
   const { getPlaylistTrackUris, getTrackPositions } = usePlaylistTrackCheck();
   const addTracksMutation = useAddTracks();
@@ -106,7 +109,7 @@ export function AddToPlaylistDialog({ isOpen, onClose, trackUri, trackName, trac
     hasNextPage,
     isFetchingNextPage,
   } = useInfiniteQuery({
-    queryKey: userPlaylists(),
+    queryKey: userPlaylistsByProvider(providerId),
     queryFn: async ({ pageParam }: { pageParam: string | null }): Promise<PlaylistsResponse> => {
       const url = pageParam
         ? `/api/me/playlists?nextCursor=${encodeURIComponent(pageParam)}`
@@ -141,9 +144,12 @@ export function AddToPlaylistDialog({ isOpen, onClose, trackUri, trackName, trac
       // 2. Collaborative playlists (followers can edit)
       const isOwned = user?.id && p.owner?.id === user.id;
       const isCollaborative = p.collaborative === true;
-      return isOwned || isCollaborative;
+      if (!(isOwned || isCollaborative)) return false;
+
+      // Guard against cross-provider cache bleed (e.g. Spotify IDs while provider is TIDAL).
+      return isPlaylistIdCompatibleWithProvider(p.id, providerId);
     });
-  }, [data, user?.id]);
+  }, [data, user?.id, providerId]);
 
   // Check which playlists contain the track (from cache)
   const playlistsWithTrackFromCache = useMemo(() => {
@@ -238,7 +244,7 @@ export function AddToPlaylistDialog({ isOpen, onClose, trackUri, trackName, trac
     }
 
     // Check if we already have cached data
-    const cachedData = queryClient.getQueryData(playlistTracksInfinite(playlistId));
+    const cachedData = queryClient.getQueryData(playlistTracksInfiniteByProvider(playlistId, providerId));
     if (cachedData) {
       checkedPlaylists.add(playlistId);
       setPendingVersion(v => v + 1);
@@ -257,7 +263,7 @@ export function AddToPlaylistDialog({ isOpen, onClose, trackUri, trackName, trac
       );
       
       // Store in query cache
-      queryClient.setQueryData(playlistTracksInfinite(playlistId), {
+      queryClient.setQueryData(playlistTracksInfiniteByProvider(playlistId, providerId), {
         pages: [firstPage],
         pageParams: [null],
       });
@@ -277,7 +283,7 @@ export function AddToPlaylistDialog({ isOpen, onClose, trackUri, trackName, trac
       // Process next item after a small delay
       setTimeout(() => processCheckQueue(), 50);
     }
-  }, [queryClient]);
+  }, [queryClient, providerId]);
 
   // Add a playlist to the check queue
   const queuePlaylistCheck = useCallback((playlistId: string) => {
@@ -367,7 +373,7 @@ export function AddToPlaylistDialog({ isOpen, onClose, trackUri, trackName, trac
         const snapshot = new Set<string>();
         allPlaylists.forEach(playlist => {
           // Check if playlist tracks are already in cache
-          const cachedData = queryClient.getQueryData(playlistTracksInfinite(playlist.id));
+          const cachedData = queryClient.getQueryData(playlistTracksInfiniteByProvider(playlist.id, providerId));
           if (cachedData) {
             // Mark as checked so status shows instantly
             checkedPlaylists.add(playlist.id);
@@ -390,7 +396,7 @@ export function AddToPlaylistDialog({ isOpen, onClose, trackUri, trackName, trac
         setPendingVersion(v => v + 1);
       }
     }
-  }, [isOpen, allPlaylists, trackUri, getPlaylistTrackUris, queryClient]);
+  }, [isOpen, allPlaylists, trackUri, getPlaylistTrackUris, queryClient, providerId]);
 
   // Reset sort state when dialog closes
   useEffect(() => {
