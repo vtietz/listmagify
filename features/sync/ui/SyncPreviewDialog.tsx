@@ -231,6 +231,7 @@ function PreviewStepContent({
 }) {
   const plan = previewData?.plan ?? null;
   const hasChanges = plan !== null && (plan.summary.toAdd > 0 || plan.summary.toRemove > 0);
+  const isNoopPreview = plan !== null && !hasChanges && !isLoading && !previewError && !applyError;
 
   return (
     <div className="space-y-4">
@@ -285,7 +286,12 @@ function PreviewStepContent({
             Sync continues in background if you close.
           </span>
         )}
-        <Button variant="outline" onClick={onCancel}>{isApplying ? 'Close' : 'Cancel'}</Button>
+        {isNoopPreview && !isApplying && (
+          <span className="mr-auto text-xs text-muted-foreground">
+            No differences found. Close this preview when you are done.
+          </span>
+        )}
+        <Button variant="outline" onClick={onCancel}>{isApplying || isNoopPreview ? 'Close' : 'Cancel'}</Button>
         {hasChanges && (
           <Button onClick={onApply} disabled={isApplying || isLoading}>
             {isApplying && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

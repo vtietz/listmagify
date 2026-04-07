@@ -32,6 +32,50 @@ type CanonicalCandidate = {
   duration_sec: number | null;
 };
 
+function getCanonicalCandidateById(canonicalTrackId: string): CanonicalCandidate | null {
+  const db = getRecsDb();
+  const row = db.prepare(`
+    SELECT id, isrc, title_norm, artist_norm, duration_sec
+    FROM canonical_tracks
+    WHERE id = ?
+  `).get(canonicalTrackId) as CanonicalCandidate | undefined;
+
+  return row ?? null;
+}
+
+function isCachedMappingCompatible(
+  input: ResolveProviderTrackInput,
+  cachedCanonicalTrackId: string,
+  acceptThreshold: number,
+): boolean {
+  const candidate = getCanonicalCandidateById(cachedCanonicalTrackId);
+  if (!candidate) {
+    return false;
+  }
+
+  // Strong guard: if both sides have ISRC and they differ, force re-resolution.
+  if (input.isrc && candidate.isrc && input.isrc !== candidate.isrc) {
+    return false;
+  }
+
+  const signals = normalizeTrackSignals({
+    title: input.title,
+    artists: input.artists,
+    ...(input.durationMs !== undefined ? { durationMs: input.durationMs } : {}),
+  });
+
+  const score = scoreCanonicalCandidate(signals, candidate, input.isrc);
+  return score >= acceptThreshold;
+}
+
+function deleteProviderMapping(provider: MusicProviderId, providerTrackId: string): void {
+  const db = getRecsDb();
+  db.prepare(`
+    DELETE FROM provider_track_map
+    WHERE provider = ? AND provider_track_id = ?
+  `).run(provider, providerTrackId);
+}
+
 function scoreCanonicalCandidate(
   source: ReturnType<typeof normalizeTrackSignals>,
   candidate: CanonicalCandidate,
@@ -39,6 +83,11 @@ function scoreCanonicalCandidate(
 ): number {
   if (isrc && candidate.isrc && isrc === candidate.isrc) {
     return 1;
+  }
+
+  // If both tracks have ISRC and they disagree, they are different recordings.
+  if (isrc && candidate.isrc && isrc !== candidate.isrc) {
+    return 0;
   }
 
   const titleScore = tokenSimilarity(source.titleNorm, candidate.title_norm);
@@ -225,6 +274,7 @@ export function fromProviderTrackBatch(
 
   // Phase 1: batch cache lookup
   const cached = batchLookupProviderTrackMap(provider, providerTrackIds);
+  const thresholds = options?.thresholds ?? DEFAULT_MATCH_THRESHOLDS;
 
   const db = getRecsDb();
   const results: CanonicalMappingResult[] = [];
@@ -232,6 +282,13 @@ export function fromProviderTrackBatch(
   for (const input of inputs) {
     const hit = cached.get(input.providerTrackId);
     if (hit) {
+      const cacheCompatible = isCachedMappingCompatible(input, hit.canonicalTrackId, thresholds.manual);
+      if (!cacheCompatible) {
+        deleteProviderMapping(input.provider, input.providerTrackId);
+        results.push(fromProviderTrack(input, options));
+        continue;
+      }
+
       // Backfill ISRC on cached entries that were stored without it
       if (input.isrc && !hit.isrc) {
         db.prepare(`
@@ -289,6 +346,12 @@ export function fromProviderTrack(
     | undefined;
 
   if (existing) {
+    const cacheCompatible = isCachedMappingCompatible(input, existing.canonicalTrackId, thresholds.manual);
+    if (!cacheCompatible) {
+      deleteProviderMapping(input.provider, input.providerTrackId);
+      return fromProviderTrack(input, options);
+    }
+
     // Backfill ISRC on cached entries that were stored without it
     if (input.isrc) {
       db.prepare(`
@@ -334,9 +397,9 @@ export function fromProviderTrack(
     ) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     ON CONFLICT(id) DO UPDATE SET
       isrc = COALESCE(excluded.isrc, canonical_tracks.isrc),
-      title_norm = COALESCE(NULLIF(excluded.title_norm, ''), canonical_tracks.title_norm),
-      artist_norm = COALESCE(NULLIF(excluded.artist_norm, ''), canonical_tracks.artist_norm),
-      duration_sec = COALESCE(excluded.duration_sec, canonical_tracks.duration_sec),
+      title_norm = canonical_tracks.title_norm,
+      artist_norm = canonical_tracks.artist_norm,
+      duration_sec = COALESCE(canonical_tracks.duration_sec, excluded.duration_sec),
       album_upc = COALESCE(excluded.album_upc, canonical_tracks.album_upc),
       updated_at = CURRENT_TIMESTAMP
   `).run(
