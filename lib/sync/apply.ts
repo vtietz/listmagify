@@ -125,7 +125,9 @@ async function resolveAddUris(
   // Use pre-resolved target track IDs from preview when available
   const preResolved = adds.filter((i) => i.resolvedTargetTrackId && i.materializeStatus === 'resolved');
   const preUnresolved = adds.filter((i) => i.materializeStatus === 'not_found');
-  const needsResolution = adds.filter((i) => !i.materializeStatus || i.materializeStatus === 'unchecked');
+  const needsResolution = adds.filter(
+    (i) => !i.materializeStatus || i.materializeStatus === 'unchecked' || i.materializeStatus === 'timed_out',
+  );
 
   // Deduplicate URIs
   const seenUris = new Set<string>();

@@ -15,6 +15,8 @@ import { createBackgroundProvider } from '@/lib/sync/backgroundProvider';
 
 const PREVIEW_VALIDATION_BATCH_SIZE = 50;
 const PREVIEW_VALIDATION_BATCH_TIMEOUT_MS = 20_000;
+const PREVIEW_VALIDATION_BATCH_TIMEOUT_BACKOFF_MS = 10_000;
+const PREVIEW_VALIDATION_MAX_ATTEMPTS = 3;
 const PREVIEW_RUN_TIMEOUT_MS = 10 * 60_000;
 const PREVIEW_PROGRESS_CAPTURE_START = 5;
 const PREVIEW_PROGRESS_CAPTURE_DONE = 35;
@@ -87,16 +89,49 @@ function buildResolvedMap(
 function applyResolutionToItems(
   items: SyncDiffItem[],
   resolvedMap: Map<string, string>,
+  timedOutIds?: Set<string>,
 ): void {
   for (const item of items) {
     const resolved = resolvedMap.get(item.canonicalTrackId);
     if (resolved) {
       item.resolvedTargetTrackId = resolved;
       item.materializeStatus = 'resolved';
+    } else if (timedOutIds?.has(item.canonicalTrackId)) {
+      item.materializeStatus = 'timed_out';
     } else {
       item.materializeStatus = 'not_found';
     }
   }
+}
+
+function isMaterializationTimeoutError(error: unknown): boolean {
+  return error instanceof Error && error.message.includes('Materialization batch timed out after');
+}
+
+async function materializeBatchWithTimeout(
+  providerId: MusicProviderId,
+  batchIds: string[],
+  adapter: ReturnType<typeof createSyncMaterializeAdapter>,
+  timeoutMs: number,
+  matchThresholds?: SyncMatchThresholds,
+  onItemProcessed?: () => void,
+): Promise<{ trackIds: string[]; unresolvedCanonicalIds: string[] }> {
+  const materializeInput = {
+    provider: providerId,
+    canonicalTrackIds: batchIds,
+    adapter,
+    ...(matchThresholds ? { thresholds: matchThresholds } : {}),
+    ...(onItemProcessed ? { onCanonicalProcessed: onItemProcessed } : {}),
+  };
+
+  return Promise.race([
+    materializeCanonicalTrackIds(materializeInput),
+    new Promise<never>((_, reject) => {
+      setTimeout(() => {
+        reject(new Error(`Materialization batch timed out after ${timeoutMs}ms`));
+      }, timeoutMs);
+    }),
+  ]);
 }
 
 /**
@@ -145,15 +180,15 @@ async function validateMaterialization(
       continue;
     }
 
-      await resolveProviderItems(providerId, provider, items, matchThresholds, () => {
-        processedAdds += 1;
+    await resolveProviderItems(providerId, provider, items, matchThresholds, () => {
+      processedAdds += 1;
       reportProgress();
     });
   }
 
   // Update summary unresolved count based on actual materialization
   plan.summary.unresolved = plan.items.filter(
-    (i) => i.action === 'add' && i.materializeStatus === 'not_found',
+    (i) => i.action === 'add' && (i.materializeStatus === 'not_found' || i.materializeStatus === 'timed_out'),
   ).length;
 
   onProgress?.('validating_matches', PREVIEW_PROGRESS_VALIDATION_END);
@@ -173,28 +208,50 @@ async function resolveProviderItems(
   const adapter = createSyncMaterializeAdapter(provider, providerId);
   const resolvedMap = new Map<string, string>();
   const unresolved = new Set<string>();
+  const timedOut = new Set<string>();
   const canonicalIds = items.map((i) => i.canonicalTrackId);
 
   for (let i = 0; i < canonicalIds.length; i += PREVIEW_VALIDATION_BATCH_SIZE) {
     const batchIds = canonicalIds.slice(i, i + PREVIEW_VALIDATION_BATCH_SIZE);
-    try {
-        const materializeInput = {
-          provider: providerId,
-          canonicalTrackIds: batchIds,
+    let result: { trackIds: string[]; unresolvedCanonicalIds: string[] } | null = null;
+    let batchTimedOut = false;
+
+    for (let attempt = 1; attempt <= PREVIEW_VALIDATION_MAX_ATTEMPTS; attempt += 1) {
+      const timeoutMs = PREVIEW_VALIDATION_BATCH_TIMEOUT_MS
+        + PREVIEW_VALIDATION_BATCH_TIMEOUT_BACKOFF_MS * (attempt - 1);
+
+      try {
+        result = await materializeBatchWithTimeout(
+          providerId,
+          batchIds,
           adapter,
-          ...(matchThresholds ? { thresholds: matchThresholds } : {}),
-          ...(onItemProcessed ? { onCanonicalProcessed: onItemProcessed } : {}),
-        };
+          timeoutMs,
+          matchThresholds,
+          onItemProcessed,
+        );
+        batchTimedOut = false;
+        break;
+      } catch (error) {
+        const timedOutError = isMaterializationTimeoutError(error);
+        batchTimedOut = batchTimedOut || timedOutError;
+        const canRetry = timedOutError && attempt < PREVIEW_VALIDATION_MAX_ATTEMPTS;
 
-      const result = await Promise.race([
-          materializeCanonicalTrackIds(materializeInput),
-        new Promise<never>((_, reject) => {
-          setTimeout(() => {
-            reject(new Error(`Materialization batch timed out after ${PREVIEW_VALIDATION_BATCH_TIMEOUT_MS}ms`));
-          }, PREVIEW_VALIDATION_BATCH_TIMEOUT_MS);
-        }),
-      ]);
+        console.warn('[sync/runner] materialization validation batch failed', {
+          providerId,
+          attempt,
+          maxAttempts: PREVIEW_VALIDATION_MAX_ATTEMPTS,
+          timeoutMs,
+          canRetry,
+          error,
+        });
 
+        if (!canRetry) {
+          break;
+        }
+      }
+    }
+
+    if (result) {
       const batchResolved = buildResolvedMap(batchIds, result);
       for (const [canonicalId, trackId] of batchResolved.entries()) {
         resolvedMap.set(canonicalId, trackId);
@@ -202,22 +259,22 @@ async function resolveProviderItems(
       for (const unresolvedId of result.unresolvedCanonicalIds) {
         unresolved.add(unresolvedId);
       }
-    } catch (error) {
-      console.warn('[sync/runner] materialization validation batch failed', {
-        providerId,
-        error,
-      });
-      for (const batchId of batchIds) {
-        unresolved.add(batchId);
+      continue;
+    }
+
+    for (const batchId of batchIds) {
+      unresolved.add(batchId);
+      if (batchTimedOut) {
+        timedOut.add(batchId);
       }
-      }
+    }
   }
 
   for (const unresolvedId of unresolved) {
     resolvedMap.delete(unresolvedId);
   }
 
-  applyResolutionToItems(items, resolvedMap);
+  applyResolutionToItems(items, resolvedMap, timedOut);
 }
 
 /**

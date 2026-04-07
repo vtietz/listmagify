@@ -97,7 +97,7 @@ export interface SyncConfig {
   direction: SyncDirection;
 }
 
-export type MaterializeStatus = 'resolved' | 'not_found' | 'unchecked';
+export type MaterializeStatus = 'resolved' | 'not_found' | 'timed_out' | 'unchecked';
 
 export interface SyncDiffItem {
   canonicalTrackId: string;

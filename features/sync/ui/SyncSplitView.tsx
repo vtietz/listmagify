@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Clock3 } from 'lucide-react';
 import { ProviderGlyph } from '@/components/auth/ProviderStatusDropdown';
 import { cn } from '@/lib/utils';
 import type { SyncPreviewTrack, SyncPlan, SyncDiffItem } from '@/lib/sync/types';
@@ -15,7 +15,7 @@ interface SyncSplitViewProps {
   targetPlaylistName: string;
 }
 
-type CellState = 'present' | 'added' | 'removed' | 'unresolved' | 'empty';
+type CellState = 'present' | 'added' | 'removed' | 'unresolved' | 'timed_out' | 'empty';
 
 interface CellData {
   track: { title: string; artists: string[] } | null;
@@ -42,6 +42,7 @@ function TrackCell({ cell }: { cell: CellData }) {
         state === 'added' && 'bg-green-500/10',
         state === 'removed' && 'bg-red-500/10',
         state === 'unresolved' && 'bg-yellow-500/10',
+        state === 'timed_out' && 'bg-orange-500/10',
       )}
     >
       {state === 'added' && (
@@ -53,11 +54,15 @@ function TrackCell({ cell }: { cell: CellData }) {
       {state === 'unresolved' && (
         <AlertTriangle className="h-3 w-3 text-yellow-500 shrink-0" />
       )}
+      {state === 'timed_out' && (
+        <Clock3 className="h-3 w-3 text-orange-500 shrink-0" />
+      )}
       <span
         className={cn(
           'truncate font-medium',
           state === 'removed' && 'line-through text-muted-foreground',
           state === 'unresolved' && 'text-yellow-600 dark:text-yellow-400',
+          state === 'timed_out' && 'text-orange-600 dark:text-orange-400',
         )}
       >
         {track.title}
@@ -104,7 +109,11 @@ function cellForSide(
 
   const addItem = adds.get(key);
   if (addItem) {
-    const state = addItem.materializeStatus === 'not_found' ? 'unresolved' : 'added';
+    const state = addItem.materializeStatus === 'timed_out'
+      ? 'timed_out'
+      : addItem.materializeStatus === 'not_found'
+        ? 'unresolved'
+        : 'added';
     return { track: { title: addItem.title, artists: addItem.artists }, state };
   }
 
@@ -119,10 +128,10 @@ function countChanges(rows: AlignedRow[]) {
   for (const row of rows) {
     if (row.left.state === 'added') sourceAdded++;
     if (row.left.state === 'removed') sourceRemoved++;
-    if (row.left.state === 'unresolved') sourceUnresolved++;
+    if (row.left.state === 'unresolved' || row.left.state === 'timed_out') sourceUnresolved++;
     if (row.right.state === 'added') targetAdded++;
     if (row.right.state === 'removed') targetRemoved++;
-    if (row.right.state === 'unresolved') targetUnresolved++;
+    if (row.right.state === 'unresolved' || row.right.state === 'timed_out') targetUnresolved++;
   }
 
   return { sourceAdded, sourceRemoved, sourceUnresolved, targetAdded, targetRemoved, targetUnresolved };
@@ -239,6 +248,10 @@ export function SyncSplitView({
         <span className="inline-flex items-center gap-1">
           <AlertTriangle className="h-3 w-3 text-yellow-500" />
           Not found on target provider
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <Clock3 className="h-3 w-3 text-orange-500" />
+          Lookup timed out (try again)
         </span>
         <span className="inline-flex items-center gap-1">
           <span className="text-green-500 font-bold">+</span>
