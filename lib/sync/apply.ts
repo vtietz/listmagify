@@ -215,12 +215,23 @@ async function applyBatchedAdds(
         const fallbackErrorSummary = fallback.fallbackErrors.length > 0
           ? `; sample fallback errors: ${fallback.fallbackErrors.join(' | ')}`
           : '';
-        errors.push(
-          `Save-tracks batch failed (${batch.length} tracks): ${errorMessage(err)}. `
-          + `Recovered ${fallback.appliedCount}, failed ${fallback.failedIds.length}`
-          + (fallback.failedIds.length > 0 ? `; sample failed IDs: ${sampleFailedIds}` : '')
-          + fallbackErrorSummary,
-        );
+        const fullyRecovered = fallback.failedIds.length === 0 && fallback.fallbackErrors.length === 0;
+
+        if (fullyRecovered) {
+          console.warn('[sync/apply] save-tracks batch recovered via fallback', {
+            provider: providerId,
+            batchSize: batch.length,
+            recovered: fallback.appliedCount,
+            cause: errorMessage(err),
+          });
+        } else {
+          errors.push(
+            `Save-tracks batch failed (${batch.length} tracks): ${errorMessage(err)}. `
+            + `Recovered ${fallback.appliedCount}, failed ${fallback.failedIds.length}`
+            + (fallback.failedIds.length > 0 ? `; sample failed IDs: ${sampleFailedIds}` : '')
+            + fallbackErrorSummary,
+          );
+        }
       }
     }
   } else {
@@ -263,12 +274,23 @@ async function applyBatchedRemoves(
         const fallbackErrorSummary = fallback.fallbackErrors.length > 0
           ? `; sample fallback errors: ${fallback.fallbackErrors.join(' | ')}`
           : '';
-        errors.push(
-          `Remove-tracks batch failed (${batch.length} tracks): ${errorMessage(err)}. `
-          + `Recovered ${fallback.appliedCount}, failed ${fallback.failedIds.length}`
-          + (fallback.failedIds.length > 0 ? `; sample failed IDs: ${sampleFailedIds}` : '')
-          + fallbackErrorSummary,
-        );
+        const fullyRecovered = fallback.failedIds.length === 0 && fallback.fallbackErrors.length === 0;
+
+        if (fullyRecovered) {
+          console.warn('[sync/apply] remove-tracks batch recovered via fallback', {
+            provider: providerId,
+            batchSize: batch.length,
+            recovered: fallback.appliedCount,
+            cause: errorMessage(err),
+          });
+        } else {
+          errors.push(
+            `Remove-tracks batch failed (${batch.length} tracks): ${errorMessage(err)}. `
+            + `Recovered ${fallback.appliedCount}, failed ${fallback.failedIds.length}`
+            + (fallback.failedIds.length > 0 ? `; sample failed IDs: ${sampleFailedIds}` : '')
+            + fallbackErrorSummary,
+          );
+        }
       }
     }
   } else {
