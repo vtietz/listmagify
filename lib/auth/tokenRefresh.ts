@@ -134,6 +134,17 @@ export async function refreshSpotifyAccessToken(token: ProviderJwtToken): Promis
 // TIDAL
 // ---------------------------------------------------------------------------
 
+export function resolveTidalClientCredentials(token: ProviderJwtToken): { clientId: string; clientSecret: string } {
+  const clientId = token.byok?.clientId ?? serverEnv.TIDAL_CLIENT_ID;
+  const clientSecret = token.byok?.clientSecret ?? serverEnv.TIDAL_CLIENT_SECRET;
+
+  if (!clientId || !clientSecret) {
+    throw new Error('Missing TIDAL client credentials for token refresh');
+  }
+
+  return { clientId, clientSecret };
+}
+
 export function buildRefreshedTidalToken(token: ProviderJwtToken, data: any): ProviderJwtToken {
   const expiresInMs = (data.expires_in ?? 3600) * 1000;
   const refreshToken = data.refresh_token ?? token.refreshToken;
@@ -146,6 +157,8 @@ export function buildRefreshedTidalToken(token: ProviderJwtToken, data: any): Pr
     accessToken: data.access_token,
     accessTokenExpires: Date.now() + expiresInMs,
     ...(typeof refreshToken === 'string' ? { refreshToken } : {}),
+    ...(token.isByok ? { isByok: true as const } : {}),
+    ...(token.byok ? { byok: token.byok } : {}),
   };
 
   delete refreshedToken.error;
@@ -157,15 +170,13 @@ export async function refreshTidalAccessToken(token: ProviderJwtToken): Promise<
     throw new Error('Missing refresh token');
   }
 
-  if (!serverEnv.TIDAL_CLIENT_ID || !serverEnv.TIDAL_CLIENT_SECRET) {
-    throw new Error('TIDAL client credentials are not configured');
-  }
+  const { clientId, clientSecret } = resolveTidalClientCredentials(token);
 
   const params = new URLSearchParams({
     grant_type: 'refresh_token',
     refresh_token: token.refreshToken,
-    client_id: serverEnv.TIDAL_CLIENT_ID,
-    client_secret: serverEnv.TIDAL_CLIENT_SECRET,
+    client_id: clientId,
+    client_secret: clientSecret,
   });
 
   try {

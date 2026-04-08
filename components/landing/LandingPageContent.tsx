@@ -67,24 +67,92 @@ function appendProviderToPath(path: string, providerId: MusicProviderId): string
 
 const getProviderLabel = getProviderDisplayName;
 
+function ProviderDropdownContent({
+  provider,
+  isConnected,
+  isAccessRequestEnabled,
+  isByokEnabled,
+  hasCredentials,
+  onLogout,
+}: {
+  provider: MusicProviderId;
+  isConnected: boolean;
+  isAccessRequestEnabled: boolean;
+  isByokEnabled: boolean;
+  hasCredentials: boolean;
+  onLogout: (provider: MusicProviderId) => void;
+}) {
+  if (isConnected) {
+    return (
+      <button
+        type="button"
+        onClick={() => onLogout(provider)}
+        className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+      >
+        <LogOut className="h-3.5 w-3.5" />
+        Logout
+      </button>
+    );
+  }
+
+  return (
+    <div className="space-y-1">
+      {provider === 'spotify' && isAccessRequestEnabled && !hasCredentials && (
+        <AccessRequestDialog
+          trigger={(
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+            >
+              <UserPlus className="h-3.5 w-3.5" />
+              Request Access
+            </button>
+          )}
+        />
+      )}
+
+      {isByokEnabled && (
+        <ByokDialog
+          providerId={provider}
+          trigger={(
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+            >
+              {hasCredentials ? (
+                <CheckCircle className="h-3.5 w-3.5 text-green-500" />
+              ) : (
+                <Key className="h-3.5 w-3.5" />
+              )}
+              Use Your Own API Key
+            </button>
+          )}
+        />
+      )}
+    </div>
+  );
+}
+
 function ProviderAuthButton({
   provider,
   status,
   returnTo,
   isAccessRequestEnabled,
-  hasCredentials,
+  byokEnabledMap,
   onLogout,
 }: {
   provider: MusicProviderId;
   status: 'connected' | 'disconnected';
   returnTo: string;
   isAccessRequestEnabled: boolean;
-  hasCredentials: boolean;
+  byokEnabledMap: Record<MusicProviderId, boolean>;
   onLogout: (provider: MusicProviderId) => void;
 }) {
+  const { hasCredentials } = useByokCredentials(provider);
   const isConnected = status === 'connected';
   const providerLabel = getProviderLabel(provider);
-  const hasActionMenu = isConnected || provider === 'spotify';
+  const isByokEnabled = byokEnabledMap[provider] ?? false;
+  const hasActionMenu = isConnected || (provider === 'spotify' && isAccessRequestEnabled) || isByokEnabled;
 
   return (
     <div className="inline-flex rounded-md border border-border overflow-hidden bg-background">
@@ -122,50 +190,14 @@ function ProviderAuthButton({
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="center" className="w-56 p-1.5">
-          {isConnected ? (
-            <button
-              type="button"
-              onClick={() => onLogout(provider)}
-              className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
-            >
-              <LogOut className="h-3.5 w-3.5" />
-              Logout
-            </button>
-          ) : (
-            <div className="space-y-1">
-              {provider === 'spotify' && isAccessRequestEnabled && !hasCredentials && (
-                <AccessRequestDialog
-                  trigger={(
-                    <button
-                      type="button"
-                      className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
-                    >
-                      <UserPlus className="h-3.5 w-3.5" />
-                      Request Access
-                    </button>
-                  )}
-                />
-              )}
-
-              {provider === 'spotify' && (
-                <ByokDialog
-                  trigger={(
-                    <button
-                      type="button"
-                      className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
-                    >
-                      {hasCredentials ? (
-                        <CheckCircle className="h-3.5 w-3.5 text-green-500" />
-                      ) : (
-                        <Key className="h-3.5 w-3.5" />
-                      )}
-                      Use Your Own API Key
-                    </button>
-                  )}
-                />
-              )}
-            </div>
-          )}
+          <ProviderDropdownContent
+            provider={provider}
+            isConnected={isConnected}
+            isAccessRequestEnabled={isAccessRequestEnabled}
+            isByokEnabled={isByokEnabled}
+            hasCredentials={hasCredentials}
+            onLogout={onLogout}
+          />
         </DropdownMenuContent>
       </DropdownMenu>
       )}
@@ -180,7 +212,7 @@ function LandingAuthActions({
   returnTo,
   onOpenApp,
   isAccessRequestEnabled,
-  hasCredentials,
+  byokEnabledMap,
   onProviderLogout,
 }: {
   isAuthenticated: boolean;
@@ -189,7 +221,7 @@ function LandingAuthActions({
   returnTo: string;
   onOpenApp: () => void;
   isAccessRequestEnabled: boolean;
-  hasCredentials: boolean;
+  byokEnabledMap: Record<MusicProviderId, boolean>;
   onProviderLogout: (provider: MusicProviderId) => void;
 }) {
   return (
@@ -209,7 +241,7 @@ function LandingAuthActions({
           status={providerStatusMap[provider]}
           returnTo={returnTo}
           isAccessRequestEnabled={isAccessRequestEnabled}
-          hasCredentials={hasCredentials}
+          byokEnabledMap={byokEnabledMap}
           onLogout={onProviderLogout}
         />
       ))}
@@ -228,12 +260,12 @@ export function LandingPageContent({
 }: LandingPageContentProps) {
   const router = useRouter();
   const panels = useSplitGridStore((state) => state.panels);
-  const [byokEnabled, setByokEnabled] = useState<boolean | null>(null);
+  const [byokEnabledMap, setByokEnabledMap] = useState<Record<MusicProviderId, boolean>>({ spotify: false, tidal: false });
   const [availableProviders, setAvailableProviders] = useState<MusicProviderId[]>(['spotify']);
-  const { hasCredentials } = useByokCredentials();
   const { update } = useSession();
   const authSummary = useAuthSummary();
   const isE2EMode = process.env.NEXT_PUBLIC_E2E_MODE === '1';
+  const anyByokEnabled = byokEnabledMap.spotify || byokEnabledMap.tidal;
 
   const providerStatusMap: ProviderStatusMap = {
     spotify: authSummary.spotify.code === 'ok' ? 'connected' : 'disconnected',
@@ -266,14 +298,17 @@ export function LandingPageContent({
   useEffect(() => {
     fetch('/api/config')
       .then((res) => res.json())
-      .then((json: { byokEnabled?: boolean; availableProviders?: MusicProviderId[] }) => {
-        setByokEnabled(json.byokEnabled ?? false);
+      .then((json: { byokEnabled?: boolean; tidalByokEnabled?: boolean; availableProviders?: MusicProviderId[] }) => {
+        setByokEnabledMap({
+          spotify: json.byokEnabled ?? false,
+          tidal: json.tidalByokEnabled ?? false,
+        });
         const providers = json.availableProviders;
         if (Array.isArray(providers) && providers.length > 0) {
           setAvailableProviders(providers);
         }
       })
-      .catch(() => setByokEnabled(false));
+      .catch(() => setByokEnabledMap({ spotify: false, tidal: false }));
   }, []);
 
   // Log OAuth error (failed login attempt) when detected
@@ -323,7 +358,7 @@ export function LandingPageContent({
             Professional playlist management for {formatProviderNames(availableProviders)}. Edit multiple playlists side-by-side with drag-and-drop.
           </p>
           <p className="text-sm text-muted-foreground">
-            Open source • Free to use • Your data stays with your music provider
+            Your data stays with your music provider
           </p>
           <div className="flex flex-wrap justify-center gap-4 pt-4">
             <LandingAuthActions
@@ -333,7 +368,7 @@ export function LandingPageContent({
               returnTo={returnTo}
               onOpenApp={handleGetStarted}
               isAccessRequestEnabled={isAccessRequestEnabled}
-              hasCredentials={hasCredentials}
+              byokEnabledMap={byokEnabledMap}
               onProviderLogout={handleProviderLogout}
             />
           </div>
@@ -343,7 +378,7 @@ export function LandingPageContent({
             <div className="mt-6 max-w-xl mx-auto">
               <DevModeNotice
                 showRequestAccessHint={isAccessRequestEnabled}
-                showByokHint={byokEnabled === true}
+                showByokHint={anyByokEnabled}
               />
             </div>
           )}
@@ -401,7 +436,7 @@ export function LandingPageContent({
               returnTo={returnTo}
               onOpenApp={handleGetStarted}
               isAccessRequestEnabled={isAccessRequestEnabled}
-              hasCredentials={hasCredentials}
+              byokEnabledMap={byokEnabledMap}
               onProviderLogout={handleProviderLogout}
             />
           </div>

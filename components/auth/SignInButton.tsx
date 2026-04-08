@@ -40,7 +40,7 @@ export function SignInButton({
   providerId = 'spotify',
   onClick,
 }: Props) {
-  const { credentials, hasCredentials } = useByokCredentials();
+  const { credentials, hasCredentials } = useByokCredentials(providerId);
   const [isLoading, setIsLoading] = useState(false);
   const isE2EMode = process.env.NEXT_PUBLIC_E2E_MODE === '1';
 
@@ -67,16 +67,14 @@ export function SignInButton({
       return;
     }
 
-    if (providerId !== 'spotify') {
-      signIn(providerId, { callbackUrl: callbackUrlWithProvider });
-      return;
-    }
-
     // If BYOK credentials are available, use them
     if (hasCredentials && credentials) {
       setIsLoading(true);
+      const byokEndpoint = providerId === 'spotify'
+        ? '/api/auth/byok'
+        : `/api/auth/byok/${providerId}`;
       try {
-        const response = await fetch('/api/auth/byok', {
+        const response = await fetch(byokEndpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

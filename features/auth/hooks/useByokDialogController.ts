@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from '@/lib/ui/toast';
 import { useByokCredentials } from '@features/auth/hooks/useByokCredentials';
+import type { MusicProviderId } from '@/lib/music-provider/types';
 
 type UseByokDialogControllerInput = {
   onCredentialsSaved: (() => void) | undefined;
+  providerId?: MusicProviderId;
 };
 
 function validateCredentials(clientId: string, clientSecret: string): string | null {
@@ -29,7 +31,7 @@ function validateCredentials(clientId: string, clientSecret: string): string | n
   return null;
 }
 
-export function useByokDialogController({ onCredentialsSaved }: UseByokDialogControllerInput) {
+export function useByokDialogController({ onCredentialsSaved, providerId = 'spotify' }: UseByokDialogControllerInput) {
   const [open, setOpen] = useState(false);
   const [clientId, setClientId] = useState('');
   const [clientSecret, setClientSecret] = useState('');
@@ -38,15 +40,18 @@ export function useByokDialogController({ onCredentialsSaved }: UseByokDialogCon
   const [redirectUriCopied, setRedirectUriCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const { credentials, hasCredentials, saveCredentials, clearCredentials } = useByokCredentials();
+  const { credentials, hasCredentials, saveCredentials, clearCredentials } = useByokCredentials(providerId);
 
   const redirectUri = useMemo(() => {
     if (typeof window === 'undefined') {
       return '';
     }
 
-    return `${window.location.origin}/api/auth/byok/callback`;
-  }, []);
+    const origin = window.location.origin;
+    return providerId === 'spotify'
+      ? `${origin}/api/auth/byok/callback`
+      : `${origin}/api/auth/byok/${providerId}/callback`;
+  }, [providerId]);
 
   useEffect(() => {
     if (!open || !credentials) {

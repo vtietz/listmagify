@@ -1,11 +1,11 @@
 import SpotifyProvider from 'next-auth/providers/spotify';
 import { serverEnv } from '@/lib/env';
 
-const TIDAL_AUTHORIZATION_URL = 'https://login.tidal.com/authorize';
+export const TIDAL_AUTHORIZATION_URL = 'https://login.tidal.com/authorize';
 const TIDAL_TOKEN_URL = 'https://auth.tidal.com/v1/oauth2/token';
-const TIDAL_USERINFO_URL = 'https://openapi.tidal.com/v2/users/me';
-const TIDAL_JSON_API_CONTENT_TYPE = 'application/vnd.api+json';
-const TIDAL_SCOPES = 'user.read playlists.read playlists.write collection.read collection.write search.read';
+export const TIDAL_USERINFO_URL = 'https://openapi.tidal.com/v2/users/me';
+export const TIDAL_JSON_API_CONTENT_TYPE = 'application/vnd.api+json';
+export const TIDAL_SCOPES = 'user.read playlists.read playlists.write collection.read collection.write search.read';
 
 function toTidalProfileData(profile: any): Record<string, any> {
   if (profile && typeof profile === 'object' && profile.data) {
@@ -31,7 +31,7 @@ function getTidalDisplayName(username: string | null, email: string | null): str
   return 'TIDAL User';
 }
 
-function mapTidalProfile(profile: any): { id: string; name: string; email: string | null; image: null } {
+export function mapTidalProfile(profile: any): { id: string; name: string; email: string | null; image: null } {
   const rawData = toTidalProfileData(profile);
   const attributes = (rawData.attributes ?? {}) as Record<string, unknown>;
   const id = String(rawData.id ?? '');

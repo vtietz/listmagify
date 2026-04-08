@@ -14,18 +14,21 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Key, Eye, EyeOff, ExternalLink, AlertTriangle, Trash2, Copy, Check } from 'lucide-react';
 import { useByokDialogController } from '@features/auth/hooks/useByokDialogController';
+import { getProviderDisplayName } from '@/lib/music-provider/providerLabels';
 import type { ReactNode } from 'react';
+import type { MusicProviderId } from '@/lib/music-provider/types';
 
 interface ByokDialogProps {
   trigger?: ReactNode;
   onCredentialsSaved?: () => void;
+  providerId?: MusicProviderId;
 }
 
 /**
  * Dialog for users to enter their own Spotify API credentials.
  * Stores credentials in localStorage for use with authentication.
  */
-export function ByokDialog({ trigger, onCredentialsSaved }: ByokDialogProps) {
+export function ByokDialog({ trigger, onCredentialsSaved, providerId = 'spotify' }: ByokDialogProps) {
   const {
     open,
     clientId,
@@ -44,12 +47,13 @@ export function ByokDialog({ trigger, onCredentialsSaved }: ByokDialogProps) {
     handleClear,
     handleOpenChange,
     handleCopyRedirectUri,
-  } = useByokDialogController({ onCredentialsSaved });
+  } = useByokDialogController({ onCredentialsSaved, providerId });
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <ByokDialogTrigger trigger={trigger} hasCredentials={hasCredentials} />
       <ByokDialogBody
+        providerId={providerId}
         hasCredentials={hasCredentials}
         redirectUri={redirectUri}
         redirectUriCopied={redirectUriCopied}
@@ -85,6 +89,7 @@ function ByokDialogTrigger({ trigger, hasCredentials }: { trigger?: ReactNode; h
 }
 
 function ByokDialogBody({
+  providerId,
   hasCredentials,
   redirectUri,
   redirectUriCopied,
@@ -102,6 +107,7 @@ function ByokDialogBody({
   onClear,
   onCancel,
 }: {
+  providerId: MusicProviderId;
   hasCredentials: boolean;
   redirectUri: string;
   redirectUriCopied: boolean;
@@ -119,19 +125,22 @@ function ByokDialogBody({
   onClear: () => void;
   onCancel: () => void;
 }) {
+  const providerLabel = getProviderDisplayName(providerId);
+
   return (
     <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
       <DialogHeader>
         <DialogTitle className="flex items-center gap-2">
           <Key className="h-5 w-5" />
-          {hasCredentials ? 'Edit API Credentials' : 'Use Your Own Spotify API Key'}
+          {hasCredentials ? 'Edit API Credentials' : `Use Your Own ${providerLabel} API Key`}
         </DialogTitle>
         <DialogDescription>
-          Use your own Spotify Developer app credentials to sign in. This lets you use the app without being added as an approved user.
+          Use your own {providerLabel} Developer app credentials to sign in. This lets you use the app without being added as an approved user.
         </DialogDescription>
       </DialogHeader>
 
       <ByokInstructions
+        providerId={providerId}
         redirectUri={redirectUri}
         redirectUriCopied={redirectUriCopied}
         onCopyRedirectUri={onCopyRedirectUri}
@@ -142,7 +151,7 @@ function ByokDialogBody({
         <div className="text-xs">
           <span className="font-medium text-foreground">Privacy Note:</span>{' '}
           Your credentials are stored only in this browser&apos;s localStorage on this machine.
-          They are never sent to our servers and are only used to authenticate directly with Spotify.
+          They are never sent to our servers and are only used to authenticate directly with {providerLabel}.
         </div>
       </div>
 
@@ -156,7 +165,7 @@ function ByokDialogBody({
         <CredentialField
           id="clientId"
           label="Client ID"
-          placeholder="Enter your Spotify Client ID"
+          placeholder={`Enter your ${providerLabel} Client ID`}
           value={clientId}
           onChange={onClientIdChange}
           visible={showClientId}
@@ -168,7 +177,7 @@ function ByokDialogBody({
         <CredentialField
           id="clientSecret"
           label="Client Secret"
-          placeholder="Enter your Spotify Client Secret"
+          placeholder={`Enter your ${providerLabel} Client Secret`}
           value={clientSecret}
           onChange={onClientSecretChange}
           visible={showClientSecret}
@@ -203,7 +212,38 @@ function ByokDialogBody({
   );
 }
 
-function ByokInstructions({
+function RedirectUriCopyButton({
+  redirectUri,
+  redirectUriCopied,
+  onCopyRedirectUri,
+}: {
+  redirectUri: string;
+  redirectUriCopied: boolean;
+  onCopyRedirectUri: () => Promise<void>;
+}) {
+  return (
+    <li className="break-all">
+      <span className="inline-flex items-center gap-1.5 flex-wrap">
+        <span>Redirect URI:</span>
+        <code className="text-xs bg-background px-1 py-0.5 rounded break-all">{redirectUri || 'Loading...'}</code>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-6 w-6 p-0"
+          onClick={onCopyRedirectUri}
+          disabled={!redirectUri}
+          aria-label="Copy Redirect URI"
+          title="Copy Redirect URI"
+        >
+          {redirectUriCopied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
+        </Button>
+      </span>
+    </li>
+  );
+}
+
+function SpotifyByokInstructions({
   redirectUri,
   redirectUriCopied,
   onCopyRedirectUri,
@@ -235,24 +275,11 @@ function ByokInstructions({
           <ul className="list-disc list-inside ml-3 sm:ml-4 mt-1 space-y-1 text-xs sm:text-sm">
             <li>App name: anything (e.g., &quot;My Listmagify&quot;)</li>
             <li>App description: anything</li>
-            <li className="break-all">
-              <span className="inline-flex items-center gap-1.5 flex-wrap">
-                <span>Redirect URI:</span>
-                <code className="text-xs bg-background px-1 py-0.5 rounded break-all">{redirectUri || 'Loading...'}</code>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 w-6 p-0"
-                  onClick={onCopyRedirectUri}
-                  disabled={!redirectUri}
-                  aria-label="Copy Redirect URI"
-                  title="Copy Redirect URI"
-                >
-                  {redirectUriCopied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
-                </Button>
-              </span>
-            </li>
+            <RedirectUriCopyButton
+              redirectUri={redirectUri}
+              redirectUriCopied={redirectUriCopied}
+              onCopyRedirectUri={onCopyRedirectUri}
+            />
             <li className="font-medium text-foreground">
               APIs: Check <strong>Web API</strong> and <strong>Web Playback SDK</strong>
             </li>
@@ -261,6 +288,84 @@ function ByokInstructions({
         <li>Go to your app&apos;s Settings and copy the Client ID and Client Secret</li>
       </ol>
     </div>
+  );
+}
+
+function TidalByokInstructions({
+  redirectUri,
+  redirectUriCopied,
+  onCopyRedirectUri,
+}: {
+  redirectUri: string;
+  redirectUriCopied: boolean;
+  onCopyRedirectUri: () => Promise<void>;
+}) {
+  return (
+    <div className="rounded-lg bg-muted/50 p-3 sm:p-4 space-y-2 sm:space-y-3 text-sm">
+      <p className="font-medium">How to get TIDAL API credentials:</p>
+      <ol className="list-decimal list-inside space-y-1.5 sm:space-y-2 text-muted-foreground text-xs sm:text-sm">
+        <li>
+          Go to the{' '}
+          <a
+            href="https://developer.tidal.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary hover:underline inline-flex items-center gap-1"
+          >
+            TIDAL Developer Portal
+            <ExternalLink className="h-3 w-3" />
+          </a>
+        </li>
+        <li>Sign in with your TIDAL account</li>
+        <li>Navigate to &quot;Dashboard&quot; and click &quot;Create App&quot;</li>
+        <li>
+          Fill in the app details:
+          <ul className="list-disc list-inside ml-3 sm:ml-4 mt-1 space-y-1 text-xs sm:text-sm">
+            <li>App Name: Choose any name (e.g., &quot;Listmagify&quot;)</li>
+            <RedirectUriCopyButton
+              redirectUri={redirectUri}
+              redirectUriCopied={redirectUriCopied}
+              onCopyRedirectUri={onCopyRedirectUri}
+            />
+          </ul>
+        </li>
+        <li>After creating the app, find your Client ID and Client Secret on the app details page</li>
+        <li>Copy both values and paste them below</li>
+      </ol>
+      <p className="text-xs text-muted-foreground font-medium">
+        Make sure to add the exact Redirect URI shown above to your TIDAL app settings.
+      </p>
+    </div>
+  );
+}
+
+function ByokInstructions({
+  providerId,
+  redirectUri,
+  redirectUriCopied,
+  onCopyRedirectUri,
+}: {
+  providerId: MusicProviderId;
+  redirectUri: string;
+  redirectUriCopied: boolean;
+  onCopyRedirectUri: () => Promise<void>;
+}) {
+  if (providerId === 'tidal') {
+    return (
+      <TidalByokInstructions
+        redirectUri={redirectUri}
+        redirectUriCopied={redirectUriCopied}
+        onCopyRedirectUri={onCopyRedirectUri}
+      />
+    );
+  }
+
+  return (
+    <SpotifyByokInstructions
+      redirectUri={redirectUri}
+      redirectUriCopied={redirectUriCopied}
+      onCopyRedirectUri={onCopyRedirectUri}
+    />
   );
 }
 

@@ -229,18 +229,6 @@ function buildProviderTokenFromAccount(
     );
   }
 
-  if (providerId !== 'spotify') {
-    const nextProviderToken: ProviderJwtToken = {
-      ...previousToken,
-      accessToken: accountData.access_token,
-      refreshToken: accountData.refresh_token ?? previousToken.refreshToken,
-      accessTokenExpires: expiresAt,
-    };
-
-    delete nextProviderToken.error;
-    return nextProviderToken;
-  }
-
   const byok = nextToken.byok ?? previousToken.byok;
 
   const nextProviderToken: ProviderJwtToken = {
