@@ -330,60 +330,45 @@ export function fromProviderTrackBatch(
 // Single-track resolution
 // ---------------------------------------------------------------------------
 
-export function fromProviderTrack(
+function backfillCachedIsrc(
   input: ResolveProviderTrackInput,
-  options?: ResolveOptions,
-): CanonicalMappingResult {
-  const db = getRecsDb();
-  const thresholds = options?.thresholds ?? DEFAULT_MATCH_THRESHOLDS;
+  canonicalTrackId: string,
+): void {
+  if (!input.isrc) {
+    return;
+  }
 
-  const existing = db.prepare(`
+  const db = getRecsDb();
+  db.prepare(`
+    UPDATE canonical_tracks SET isrc = ?
+    WHERE id = ? AND isrc IS NULL
+  `).run(input.isrc, canonicalTrackId);
+
+  db.prepare(`
+    UPDATE provider_track_map SET isrc = ?
+    WHERE provider = ? AND provider_track_id = ? AND isrc IS NULL
+  `).run(input.isrc, input.provider, input.providerTrackId);
+}
+
+function getExistingProviderMapping(input: ResolveProviderTrackInput):
+  | { canonicalTrackId: string; matchScore: number; confidence: MappingConfidence }
+  | undefined {
+  const db = getRecsDb();
+  return db.prepare(`
     SELECT canonical_track_id as canonicalTrackId, match_score as matchScore, confidence
     FROM provider_track_map
     WHERE provider = ? AND provider_track_id = ?
   `).get(input.provider, input.providerTrackId) as
     | { canonicalTrackId: string; matchScore: number; confidence: MappingConfidence }
     | undefined;
+}
 
-  if (existing) {
-    const cacheCompatible = isCachedMappingCompatible(input, existing.canonicalTrackId, thresholds.manual);
-    if (!cacheCompatible) {
-      deleteProviderMapping(input.provider, input.providerTrackId);
-      return fromProviderTrack(input, options);
-    }
-
-    // Backfill ISRC on cached entries that were stored without it
-    if (input.isrc) {
-      db.prepare(`
-        UPDATE canonical_tracks SET isrc = ?
-        WHERE id = ? AND isrc IS NULL
-      `).run(input.isrc, existing.canonicalTrackId);
-
-      db.prepare(`
-        UPDATE provider_track_map SET isrc = ?
-        WHERE provider = ? AND provider_track_id = ? AND isrc IS NULL
-      `).run(input.isrc, input.provider, input.providerTrackId);
-    }
-
-    return {
-      canonicalTrackId: existing.canonicalTrackId,
-      matchScore: existing.matchScore,
-      confidence: existing.confidence,
-      fromCache: true,
-    };
-  }
-
-  const signals = normalizeTrackSignals({
-    title: input.title,
-    artists: input.artists,
-    ...(input.durationMs !== undefined ? { durationMs: input.durationMs } : {}),
-  });
-
-  const { candidateId, score } = findBestCanonicalCandidate(input, thresholds.manual);
-  const canonicalTrackId = candidateId ?? randomUUID();
-  const matchScore = candidateId ? score : 1;
-  const confidence = candidateId ? scoreToConfidence(score, thresholds) : 'high';
-
+function upsertCanonicalTrack(
+  input: ResolveProviderTrackInput,
+  canonicalTrackId: string,
+  signals: ReturnType<typeof normalizeTrackSignals>,
+): void {
+  const db = getRecsDb();
   db.prepare(`
     INSERT INTO canonical_tracks (
       id,
@@ -410,6 +395,44 @@ export function fromProviderTrack(
     signals.durationSec,
     input.albumUpc ?? null,
   );
+}
+
+export function fromProviderTrack(
+  input: ResolveProviderTrackInput,
+  options?: ResolveOptions,
+): CanonicalMappingResult {
+  const thresholds = options?.thresholds ?? DEFAULT_MATCH_THRESHOLDS;
+  const existing = getExistingProviderMapping(input);
+
+  if (existing) {
+    const cacheCompatible = isCachedMappingCompatible(input, existing.canonicalTrackId, thresholds.manual);
+    if (!cacheCompatible) {
+      deleteProviderMapping(input.provider, input.providerTrackId);
+      return fromProviderTrack(input, options);
+    }
+
+    backfillCachedIsrc(input, existing.canonicalTrackId);
+
+    return {
+      canonicalTrackId: existing.canonicalTrackId,
+      matchScore: existing.matchScore,
+      confidence: existing.confidence,
+      fromCache: true,
+    };
+  }
+
+  const signals = normalizeTrackSignals({
+    title: input.title,
+    artists: input.artists,
+    ...(input.durationMs !== undefined ? { durationMs: input.durationMs } : {}),
+  });
+
+  const { candidateId, score } = findBestCanonicalCandidate(input, thresholds.manual);
+  const canonicalTrackId = candidateId ?? randomUUID();
+  const matchScore = candidateId ? score : 1;
+  const confidence = candidateId ? scoreToConfidence(score, thresholds) : 'high';
+
+  upsertCanonicalTrack(input, canonicalTrackId, signals);
 
   upsertProviderMap({
     provider: input.provider,

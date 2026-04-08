@@ -11,6 +11,11 @@ import { captureSnapshot, fetchPlaylistSnapshotId } from '@/lib/sync/snapshot';
 import type { SnapshotOptions } from '@/lib/sync/snapshot';
 import { computeSyncDiff } from '@/lib/sync/diff';
 import { applySyncPlan } from '@/lib/sync/apply';
+import {
+  computeBidirectionalPlanWithMetadata,
+  orderCanonicalIds,
+  uniqueCanonicalIds,
+} from '@/lib/sync/bidirectionalPlan';
 import { getSessionFromDb } from '@/lib/auth/sessionFromDb';
 import {
   createSyncRun,
@@ -22,9 +27,8 @@ import {
   updateSyncPairSnapshotIds,
   updateSyncPairBidirectionalMetadata,
 } from '@/lib/sync/syncStore';
-import type { SyncPair, SyncTrigger, SyncWarning, SyncApplyResult, SyncPlan, SyncDiffItem } from '@/lib/sync/types';
-import { getCanonicalTrackMetadata } from '@/lib/resolver/canonicalResolver';
-import type { PlaylistSnapshot, CanonicalSnapshotItem } from '@/lib/sync/snapshot';
+import type { SyncPair, SyncTrigger, SyncWarning, SyncApplyResult, SyncPlan } from '@/lib/sync/types';
+import type { PlaylistSnapshot } from '@/lib/sync/snapshot';
 import type { MusicProvider, MusicProviderId } from '@/lib/music-provider/types';
 import { ProviderApiError } from '@/lib/music-provider/types';
 import { RateLimitError } from '@/lib/spotify/rateLimit';
@@ -173,213 +177,6 @@ function buildRunUpdate(result: SyncApplyResult): Record<string, unknown> {
   };
 }
 
-function uniqueCanonicalIds(snapshot: PlaylistSnapshot): string[] {
-  return Array.from(new Set(snapshot.items.map((item) => item.canonicalTrackId))).sort();
-}
-
-function orderCanonicalIds(snapshot: PlaylistSnapshot): string[] {
-  return snapshot.items.map((item) => item.canonicalTrackId);
-}
-
-function arraysEqual(a: string[] | null | undefined, b: string[] | null | undefined): boolean {
-  if (!a || !b) return false;
-  if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i += 1) {
-    if (a[i] !== b[i]) return false;
-  }
-  return true;
-}
-
-function buildSnapshotIndex(snapshot: PlaylistSnapshot): Map<string, CanonicalSnapshotItem> {
-  const index = new Map<string, CanonicalSnapshotItem>();
-  for (const item of snapshot.items) {
-    if (!index.has(item.canonicalTrackId)) {
-      index.set(item.canonicalTrackId, item);
-    }
-  }
-  return index;
-}
-
-function buildDiffItemFromSnapshots(
-  canonicalTrackId: string,
-  action: 'add' | 'remove',
-  targetProvider: MusicProviderId,
-  sourceIndex: Map<string, CanonicalSnapshotItem>,
-  targetIndex: Map<string, CanonicalSnapshotItem>,
-): SyncDiffItem {
-  const snapshotItem = sourceIndex.get(canonicalTrackId) ?? targetIndex.get(canonicalTrackId);
-  if (snapshotItem) {
-    return {
-      canonicalTrackId,
-      action,
-      targetProvider,
-      title: snapshotItem.title,
-      artists: snapshotItem.artists,
-      durationMs: snapshotItem.durationMs,
-      confidence: snapshotItem.matchScore,
-      providerTrackId: snapshotItem.providerTrackId,
-    };
-  }
-
-  const meta = getCanonicalTrackMetadata(canonicalTrackId);
-  return {
-    canonicalTrackId,
-    action,
-    targetProvider,
-    title: meta?.titleNorm ?? '',
-    artists: meta?.artistNorm ? [meta.artistNorm] : [],
-    durationMs: meta?.durationSec ? meta.durationSec * 1000 : 0,
-    confidence: 0,
-    providerTrackId: null,
-  };
-}
-
-function chooseOrderWinner(
-  pair: SyncPair,
-  sourceOrderChanged: boolean,
-  targetOrderChanged: boolean,
-): MusicProviderId {
-  if (sourceOrderChanged && !targetOrderChanged) return pair.sourceProvider;
-  if (targetOrderChanged && !sourceOrderChanged) return pair.targetProvider;
-  if (!sourceOrderChanged && !targetOrderChanged) return pair.sourceProvider;
-
-  const sourceTs = pair.sourceLastChangeAt ? Date.parse(pair.sourceLastChangeAt) : Number.NaN;
-  const targetTs = pair.targetLastChangeAt ? Date.parse(pair.targetLastChangeAt) : Number.NaN;
-  if (Number.isFinite(sourceTs) && Number.isFinite(targetTs) && sourceTs !== targetTs) {
-    return sourceTs > targetTs ? pair.sourceProvider : pair.targetProvider;
-  }
-
-  return pair.sourceProvider;
-}
-
-function buildUnifiedOrder(
-  mergedSet: Set<string>,
-  winnerOrder: string[],
-  loserOrder: string[],
-): string[] {
-  const unified: string[] = [];
-  const seen = new Set<string>();
-
-  const appendFrom = (arr: string[]) => {
-    for (const id of arr) {
-      if (!mergedSet.has(id) || seen.has(id)) continue;
-      unified.push(id);
-      seen.add(id);
-    }
-  };
-
-  appendFrom(winnerOrder);
-  appendFrom(loserOrder);
-
-  const missing = Array.from(mergedSet).filter((id) => !seen.has(id)).sort();
-  unified.push(...missing);
-  return unified;
-}
-
-function computeBidirectionalPlanWithMetadata(
-  pair: SyncPair,
-  sourceSnapshot: PlaylistSnapshot,
-  targetSnapshot: PlaylistSnapshot,
-  manualThreshold: number,
-): {
-  plan: SyncPlan;
-  sourceMembershipChanged: boolean;
-  targetMembershipChanged: boolean;
-  sourceOrderChanged: boolean;
-  targetOrderChanged: boolean;
-} {
-  const sourceCurrentMembership = uniqueCanonicalIds(sourceSnapshot);
-  const targetCurrentMembership = uniqueCanonicalIds(targetSnapshot);
-  const sourceCurrentOrder = orderCanonicalIds(sourceSnapshot);
-  const targetCurrentOrder = orderCanonicalIds(targetSnapshot);
-
-  const sourceBaselineMembership = pair.sourceMembershipBaseline ?? sourceCurrentMembership;
-  const targetBaselineMembership = pair.targetMembershipBaseline ?? targetCurrentMembership;
-  const sourceBaselineOrder = pair.sourceOrderBaseline ?? sourceCurrentOrder;
-  const targetBaselineOrder = pair.targetOrderBaseline ?? targetCurrentOrder;
-
-  const sourceMembershipChanged = !arraysEqual(sourceCurrentMembership, sourceBaselineMembership);
-  const targetMembershipChanged = !arraysEqual(targetCurrentMembership, targetBaselineMembership);
-  const sourceOrderChanged = !arraysEqual(sourceCurrentOrder, sourceBaselineOrder);
-  const targetOrderChanged = !arraysEqual(targetCurrentOrder, targetBaselineOrder);
-
-  const baselineSet = new Set<string>([
-    ...sourceBaselineMembership,
-    ...targetBaselineMembership,
-  ]);
-  const sourceSet = new Set<string>(sourceCurrentMembership);
-  const targetSet = new Set<string>(targetCurrentMembership);
-
-  const sourceAdds = new Set<string>(Array.from(sourceSet).filter((id) => !baselineSet.has(id)));
-  const targetAdds = new Set<string>(Array.from(targetSet).filter((id) => !baselineSet.has(id)));
-  const sourceRemoves = new Set<string>(Array.from(baselineSet).filter((id) => !sourceSet.has(id)));
-  const targetRemoves = new Set<string>(Array.from(baselineSet).filter((id) => !targetSet.has(id)));
-  const removedByAny = new Set<string>([...sourceRemoves, ...targetRemoves]);
-
-  const mergedSet = new Set<string>([
-    ...baselineSet,
-    ...sourceAdds,
-    ...targetAdds,
-  ]);
-  for (const removed of removedByAny) {
-    mergedSet.delete(removed);
-  }
-
-  const sourceIndex = buildSnapshotIndex(sourceSnapshot);
-  const targetIndex = buildSnapshotIndex(targetSnapshot);
-  const items: SyncDiffItem[] = [];
-
-  for (const id of mergedSet) {
-    if (!sourceSet.has(id)) {
-      items.push(buildDiffItemFromSnapshots(id, 'add', pair.sourceProvider, sourceIndex, targetIndex));
-    }
-    if (!targetSet.has(id)) {
-      items.push(buildDiffItemFromSnapshots(id, 'add', pair.targetProvider, sourceIndex, targetIndex));
-    }
-  }
-
-  for (const id of sourceSet) {
-    if (!mergedSet.has(id)) {
-      items.push(buildDiffItemFromSnapshots(id, 'remove', pair.sourceProvider, sourceIndex, targetIndex));
-    }
-  }
-  for (const id of targetSet) {
-    if (!mergedSet.has(id)) {
-      items.push(buildDiffItemFromSnapshots(id, 'remove', pair.targetProvider, sourceIndex, targetIndex));
-    }
-  }
-
-  const winner = chooseOrderWinner(pair, sourceOrderChanged, targetOrderChanged);
-  const winnerOrder = winner === pair.sourceProvider ? sourceCurrentOrder : targetCurrentOrder;
-  const loserOrder = winner === pair.sourceProvider ? targetCurrentOrder : sourceCurrentOrder;
-  const unifiedOrder = buildUnifiedOrder(mergedSet, winnerOrder, loserOrder);
-
-  const plan: SyncPlan = {
-    sourceProvider: pair.sourceProvider,
-    sourcePlaylistId: pair.sourcePlaylistId,
-    targetProvider: pair.targetProvider,
-    targetPlaylistId: pair.targetPlaylistId,
-    direction: pair.direction,
-    items,
-    targetOrder: {
-      [pair.sourceProvider]: unifiedOrder,
-      [pair.targetProvider]: unifiedOrder,
-    },
-    summary: {
-      toAdd: items.filter((item) => item.action === 'add').length,
-      toRemove: items.filter((item) => item.action === 'remove').length,
-      unresolved: items.filter((item) => item.confidence < manualThreshold).length,
-    },
-  };
-
-  return {
-    plan,
-    sourceMembershipChanged,
-    targetMembershipChanged,
-    sourceOrderChanged,
-    targetOrderChanged,
-  };
-}
 
 /**
  * Check whether both playlists are unchanged since the last sync by
@@ -433,101 +230,11 @@ export async function executeSyncRun(
   runId: string,
   options: ExecuteSyncOptions,
 ): Promise<void> {
-  const { pair, triggeredBy, matchThresholds } = options;
+  const { pair, triggeredBy } = options;
   const isScheduled = triggeredBy === 'scheduler';
 
   try {
-    const sessions = await resolveProviderSessions(pair);
-    if (sessions.missingProvider && sessions.missingUserId) {
-      markRunFailedForMissingSession(runId, pair, isScheduled, sessions.missingProvider, sessions.missingUserId);
-      return;
-    }
-
-    updateSyncRun(runId, { status: 'executing' });
-
-    const sourceProvider = await createBackgroundProvider(sessions.sourceUserId, pair.sourceProvider);
-    const targetProvider = await createBackgroundProvider(sessions.targetUserId, pair.targetProvider);
-
-    // Snapshot short-circuit: if both playlists are unchanged, skip the sync
-    if (await arePlaylistsUnchanged(pair, sourceProvider, targetProvider)) {
-      updateSyncRun(runId, {
-        status: 'done',
-        tracksAdded: 0,
-        tracksRemoved: 0,
-        tracksUnresolved: 0,
-        completedAt: new Date().toISOString(),
-      });
-      finishScheduledSuccess(pair);
-      console.debug('[sync/executor] skipped — both playlists unchanged', {
-        runId,
-        pairId: pair.id,
-      });
-      return;
-    }
-
-    const snapshotOpts: SnapshotOptions | undefined = matchThresholds
-      ? { resolveOptions: { thresholds: matchThresholds } }
-      : undefined;
-
-    const [sourceSnapshot, targetSnapshot] = await Promise.all([
-      captureSnapshot(sourceProvider, pair.sourceProvider, pair.sourcePlaylistId, snapshotOpts),
-      captureSnapshot(targetProvider, pair.targetProvider, pair.targetPlaylistId, snapshotOpts),
-    ]);
-
-    const diffOpts = matchThresholds ? { thresholds: matchThresholds } : undefined;
-    const manualThreshold = matchThresholds?.manual ?? DEFAULT_MATCH_THRESHOLDS.manual;
-    const bidirectionalPlan = pair.direction === 'bidirectional'
-      ? computeBidirectionalPlanWithMetadata(pair, sourceSnapshot, targetSnapshot, manualThreshold)
-      : null;
-    const plan = bidirectionalPlan
-      ? bidirectionalPlan.plan
-      : computeSyncDiff(sourceSnapshot, targetSnapshot, pair.direction, diffOpts);
-
-    const providerOverrides: Partial<Record<MusicProviderId, typeof sourceProvider>> = {
-      [pair.sourceProvider]: sourceProvider,
-      [pair.targetProvider]: targetProvider,
-    };
-    const result = await applySyncPlan(plan, providerOverrides);
-
-    updateSyncRun(runId, buildRunUpdate(result));
-
-    // Persist snapshot IDs so subsequent syncs can short-circuit
-    updateSyncPairSnapshotIds(
-      pair.id,
-      sourceSnapshot.snapshotId,
-      targetSnapshot.snapshotId,
-    );
-
-    const [postSourceSnapshot, postTargetSnapshot] = await Promise.all([
-      captureSnapshot(sourceProvider, pair.sourceProvider, pair.sourcePlaylistId, snapshotOpts),
-      captureSnapshot(targetProvider, pair.targetProvider, pair.targetPlaylistId, snapshotOpts),
-    ]);
-
-    const nowIso = new Date().toISOString();
-    updateSyncPairBidirectionalMetadata(pair.id, {
-      sourceMembershipBaseline: uniqueCanonicalIds(postSourceSnapshot),
-      targetMembershipBaseline: uniqueCanonicalIds(postTargetSnapshot),
-      sourceOrderBaseline: orderCanonicalIds(postSourceSnapshot),
-      targetOrderBaseline: orderCanonicalIds(postTargetSnapshot),
-      ...(bidirectionalPlan && (bidirectionalPlan.sourceMembershipChanged || bidirectionalPlan.sourceOrderChanged)
-        ? { sourceLastChangeAt: nowIso }
-        : {}),
-      ...(bidirectionalPlan && (bidirectionalPlan.targetMembershipChanged || bidirectionalPlan.targetOrderChanged)
-        ? { targetLastChangeAt: nowIso }
-        : {}),
-    });
-
-    // Any successful sync resets failures and advances the schedule
-    finishScheduledSuccess(pair);
-
-    console.debug('[sync/executor] complete', {
-      runId,
-      pairId: pair.id,
-      triggeredBy,
-      added: result.added,
-      removed: result.removed,
-      unresolved: result.unresolved.length,
-    });
+    await executeSyncRunInternal(runId, options, isScheduled);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     updateSyncRun(runId, {
@@ -542,6 +249,148 @@ export async function executeSyncRun(
 
     console.error('[sync/executor] failed', { pairId: pair.id, runId, triggeredBy, error: message });
   }
+}
+
+async function executeSyncRunInternal(
+  runId: string,
+  options: ExecuteSyncOptions,
+  isScheduled: boolean,
+): Promise<void> {
+  const { pair, triggeredBy, matchThresholds } = options;
+  const providers = await resolveExecutionProviders(runId, pair, isScheduled);
+  if (!providers) {
+    return;
+  }
+  const { sourceProvider, targetProvider } = providers;
+
+  if (await arePlaylistsUnchanged(pair, sourceProvider, targetProvider)) {
+    markRunSkippedUnchanged(runId, pair);
+    return;
+  }
+
+  const snapshotOpts = buildSnapshotOptions(matchThresholds);
+
+  const [sourceSnapshot, targetSnapshot] = await Promise.all([
+    captureSnapshot(sourceProvider, pair.sourceProvider, pair.sourcePlaylistId, snapshotOpts),
+    captureSnapshot(targetProvider, pair.targetProvider, pair.targetPlaylistId, snapshotOpts),
+  ]);
+
+  const { plan, bidirectionalPlan } = buildExecutionPlan(pair, sourceSnapshot, targetSnapshot, matchThresholds);
+
+  const providerOverrides: Partial<Record<MusicProviderId, typeof sourceProvider>> = {
+    [pair.sourceProvider]: sourceProvider,
+    [pair.targetProvider]: targetProvider,
+  };
+  const result = await applySyncPlan(plan, providerOverrides);
+
+  updateSyncRun(runId, buildRunUpdate(result));
+  updateSyncPairSnapshotIds(pair.id, sourceSnapshot.snapshotId, targetSnapshot.snapshotId);
+
+  await refreshBidirectionalMetadata({
+    pair,
+    sourceProvider,
+    targetProvider,
+    snapshotOpts,
+    bidirectionalPlan,
+  });
+
+  finishScheduledSuccess(pair);
+  console.debug('[sync/executor] complete', {
+    runId,
+    pairId: pair.id,
+    triggeredBy,
+    added: result.added,
+    removed: result.removed,
+    unresolved: result.unresolved.length,
+  });
+}
+
+async function refreshBidirectionalMetadata(params: {
+  pair: SyncPair;
+  sourceProvider: MusicProvider;
+  targetProvider: MusicProvider;
+  snapshotOpts: SnapshotOptions | undefined;
+  bidirectionalPlan: ReturnType<typeof computeBidirectionalPlanWithMetadata> | null;
+}): Promise<void> {
+  const { pair, sourceProvider, targetProvider, snapshotOpts, bidirectionalPlan } = params;
+
+  const [postSourceSnapshot, postTargetSnapshot] = await Promise.all([
+    captureSnapshot(sourceProvider, pair.sourceProvider, pair.sourcePlaylistId, snapshotOpts),
+    captureSnapshot(targetProvider, pair.targetProvider, pair.targetPlaylistId, snapshotOpts),
+  ]);
+
+  const nowIso = new Date().toISOString();
+  updateSyncPairBidirectionalMetadata(pair.id, {
+    sourceMembershipBaseline: uniqueCanonicalIds(postSourceSnapshot),
+    targetMembershipBaseline: uniqueCanonicalIds(postTargetSnapshot),
+    sourceOrderBaseline: orderCanonicalIds(postSourceSnapshot),
+    targetOrderBaseline: orderCanonicalIds(postTargetSnapshot),
+    ...(bidirectionalPlan && (bidirectionalPlan.sourceMembershipChanged || bidirectionalPlan.sourceOrderChanged)
+      ? { sourceLastChangeAt: nowIso }
+      : {}),
+    ...(bidirectionalPlan && (bidirectionalPlan.targetMembershipChanged || bidirectionalPlan.targetOrderChanged)
+      ? { targetLastChangeAt: nowIso }
+      : {}),
+  });
+}
+
+async function resolveExecutionProviders(
+  runId: string,
+  pair: SyncPair,
+  isScheduled: boolean,
+): Promise<{ sourceProvider: MusicProvider; targetProvider: MusicProvider } | null> {
+  const sessions = await resolveProviderSessions(pair);
+  if (sessions.missingProvider && sessions.missingUserId) {
+    markRunFailedForMissingSession(runId, pair, isScheduled, sessions.missingProvider, sessions.missingUserId);
+    return null;
+  }
+
+  updateSyncRun(runId, { status: 'executing' });
+
+  const sourceProvider = await createBackgroundProvider(sessions.sourceUserId, pair.sourceProvider);
+  const targetProvider = await createBackgroundProvider(sessions.targetUserId, pair.targetProvider);
+  return { sourceProvider, targetProvider };
+}
+
+function markRunSkippedUnchanged(runId: string, pair: SyncPair): void {
+  updateSyncRun(runId, {
+    status: 'done',
+    tracksAdded: 0,
+    tracksRemoved: 0,
+    tracksUnresolved: 0,
+    completedAt: new Date().toISOString(),
+  });
+  finishScheduledSuccess(pair);
+  console.debug('[sync/executor] skipped — both playlists unchanged', {
+    runId,
+    pairId: pair.id,
+  });
+}
+
+function buildSnapshotOptions(matchThresholds?: SyncMatchThresholds): SnapshotOptions | undefined {
+  return matchThresholds ? { resolveOptions: { thresholds: matchThresholds } } : undefined;
+}
+
+function buildExecutionPlan(
+  pair: SyncPair,
+  sourceSnapshot: PlaylistSnapshot,
+  targetSnapshot: PlaylistSnapshot,
+  matchThresholds?: SyncMatchThresholds,
+): { plan: SyncPlan; bidirectionalPlan: ReturnType<typeof computeBidirectionalPlanWithMetadata> | null } {
+  const diffOpts = matchThresholds ? { thresholds: matchThresholds } : undefined;
+  const manualThreshold = matchThresholds?.manual ?? DEFAULT_MATCH_THRESHOLDS.manual;
+  const bidirectionalPlan = pair.direction === 'bidirectional'
+    ? computeBidirectionalPlanWithMetadata(pair, sourceSnapshot, targetSnapshot, manualThreshold)
+    : null;
+
+  if (bidirectionalPlan) {
+    return { plan: bidirectionalPlan.plan, bidirectionalPlan };
+  }
+
+  return {
+    plan: computeSyncDiff(sourceSnapshot, targetSnapshot, pair.direction, diffOpts),
+    bidirectionalPlan: null,
+  };
 }
 
 /**

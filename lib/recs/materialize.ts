@@ -110,6 +110,66 @@ function persistDiscoveredMapping(
   });
 }
 
+async function resolveCanonicalTrackId(
+  input: MaterializeCanonicalInput,
+  canonicalTrackId: string,
+  thresholds: { convert: number; manual: number },
+  seenProviderTrackIds: Set<string>,
+  seenTrackSignatures: Set<string>,
+): Promise<{ trackId: string | null; unresolved: boolean }> {
+  const mapped = toProviderTrack(input.provider, canonicalTrackId);
+  if (mapped?.providerTrackId && !seenProviderTrackIds.has(mapped.providerTrackId)) {
+    return { trackId: mapped.providerTrackId, unresolved: false };
+  }
+
+  if (!input.adapter) {
+    return { trackId: null, unresolved: true };
+  }
+
+  const metadata = getCanonicalTrackMetadata(canonicalTrackId);
+  if (!metadata) {
+    return { trackId: null, unresolved: true };
+  }
+
+  const candidates = await input.adapter.searchTrack({
+    title: metadata.titleNorm,
+    artist: metadata.artistNorm,
+    isrc: metadata.isrc,
+    durationSec: metadata.durationSec,
+  });
+
+  const { match, score } = findCompatibleCandidate(
+    candidates,
+    metadata,
+    seenTrackSignatures,
+    thresholds,
+  );
+
+  if (!match || seenProviderTrackIds.has(match.id)) {
+    if (!match && candidates.length > 0) {
+      console.debug('[recs/materialize] unresolved despite search results', {
+        provider: input.provider,
+        canonicalTrackId,
+        titleNorm: metadata.titleNorm,
+        artistNorm: metadata.artistNorm,
+        durationSec: metadata.durationSec,
+        candidateCount: candidates.length,
+        topCandidates: candidates.slice(0, 3).map((candidate) => ({
+          id: candidate.id,
+          title: candidate.title,
+          artists: candidate.artists,
+          durationSec: candidate.durationSec ?? null,
+          isrc: candidate.isrc ?? null,
+        })),
+      });
+    }
+    return { trackId: null, unresolved: true };
+  }
+
+  persistDiscoveredMapping(input.provider, canonicalTrackId, match, score, thresholds);
+  return { trackId: match.id, unresolved: false };
+}
+
 export async function materializeCanonicalTrackIds(
   input: MaterializeCanonicalInput,
 ): Promise<MaterializeCanonicalResult> {
@@ -121,66 +181,20 @@ export async function materializeCanonicalTrackIds(
 
   for (const canonicalTrackId of input.canonicalTrackIds) {
     try {
-      const mapped = toProviderTrack(input.provider, canonicalTrackId);
-      if (mapped?.providerTrackId && !seenProviderTrackIds.has(mapped.providerTrackId)) {
-        seenProviderTrackIds.add(mapped.providerTrackId);
-        trackIds.push(mapped.providerTrackId);
-        continue;
-      }
-
-      if (!input.adapter) {
-        unresolvedCanonicalIds.push(canonicalTrackId);
-        continue;
-      }
-
-      const metadata = getCanonicalTrackMetadata(canonicalTrackId);
-      if (!metadata) {
-        unresolvedCanonicalIds.push(canonicalTrackId);
-        continue;
-      }
-
-      const artist = metadata.artistNorm;
-
-      const candidates = await input.adapter.searchTrack({
-        title: metadata.titleNorm,
-        artist,
-        isrc: metadata.isrc,
-        durationSec: metadata.durationSec,
-      });
-
-      const { match, score } = findCompatibleCandidate(
-        candidates,
-        metadata,
-        seenTrackSignatures,
+      const resolved = await resolveCanonicalTrackId(
+        input,
+        canonicalTrackId,
         thresholds,
+        seenProviderTrackIds,
+        seenTrackSignatures,
       );
-
-      if (!match || seenProviderTrackIds.has(match.id)) {
-        if (!match && candidates.length > 0) {
-          console.debug('[recs/materialize] unresolved despite search results', {
-            provider: input.provider,
-            canonicalTrackId,
-            titleNorm: metadata.titleNorm,
-            artistNorm: metadata.artistNorm,
-            durationSec: metadata.durationSec,
-            candidateCount: candidates.length,
-            topCandidates: candidates.slice(0, 3).map((candidate) => ({
-              id: candidate.id,
-              title: candidate.title,
-              artists: candidate.artists,
-              durationSec: candidate.durationSec ?? null,
-              isrc: candidate.isrc ?? null,
-            })),
-          });
-        }
+      if (!resolved.trackId || resolved.unresolved) {
         unresolvedCanonicalIds.push(canonicalTrackId);
         continue;
       }
 
-      seenProviderTrackIds.add(match.id);
-      trackIds.push(match.id);
-      // Write back the discovered mapping so future syncs hit the cache.
-      persistDiscoveredMapping(input.provider, canonicalTrackId, match, score, thresholds);
+      seenProviderTrackIds.add(resolved.trackId);
+      trackIds.push(resolved.trackId);
     } catch (error) {
       console.warn('[recs/materialize] provider search failed', {
         provider: input.provider,

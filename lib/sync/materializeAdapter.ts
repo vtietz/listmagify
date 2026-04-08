@@ -21,6 +21,100 @@ function buildNarrowArtistVariant(artist: string): string {
   return words.slice(0, 2).join(' ');
 }
 
+function toCandidate(track: Awaited<ReturnType<MusicProvider['searchTracks']>>['tracks'][number]): MaterializeSearchCandidate {
+  return {
+    id: track.id ?? track.uri,
+    title: track.name,
+    artists: track.artists,
+    durationSec: track.durationMs
+      ? Math.round(track.durationMs / 1000)
+      : null,
+    isrc: track.isrc ?? null,
+  };
+}
+
+async function lookupTrackByIsrc(
+  provider: MusicProvider,
+  providerId: MusicProviderId | undefined,
+  isrc: string | null | undefined,
+): Promise<MaterializeSearchCandidate[] | null> {
+  if (!isrc || !provider.getTrackByIsrc) {
+    return null;
+  }
+
+  try {
+    const track = await withLookupTimeout(
+      provider.getTrackByIsrc(isrc),
+      `[sync/materialize] ISRC lookup (${providerId ?? 'unknown'})`,
+    );
+    if (!track?.id) {
+      return null;
+    }
+
+    return [{
+      id: track.id,
+      title: track.name,
+      artists: track.artists,
+      durationSec: track.durationMs
+        ? Math.round(track.durationMs / 1000)
+        : null,
+      isrc: track.isrc ?? null,
+    }];
+  } catch {
+    return null;
+  }
+}
+
+function buildSearchQuery(
+  providerId: MusicProviderId | undefined,
+  title: string,
+  artist: string,
+): string {
+  return providerId
+    ? buildProviderSearchQuery({ title, artist }, providerId)
+    : `${title} ${artist}`.trim();
+}
+
+async function runSearch(
+  provider: MusicProvider,
+  providerId: MusicProviderId | undefined,
+  query: string,
+  label: string,
+) {
+  return withLookupTimeout(
+    provider.searchTracks(query, MATERIALIZE_SEARCH_LIMIT),
+    `[sync/materialize] ${label} (${providerId ?? 'unknown'})`,
+  );
+}
+
+async function searchWithFallback(
+  provider: MusicProvider,
+  providerId: MusicProviderId | undefined,
+  title: string,
+  artist: string,
+): Promise<MaterializeSearchCandidate[]> {
+  const searchQuery = buildSearchQuery(providerId, title, artist);
+  if (!searchQuery) {
+    return [];
+  }
+
+  const primaryResult = await runSearch(provider, providerId, searchQuery, 'text search');
+  if (primaryResult.tracks.length > 0 || !title.trim() || !artist.trim()) {
+    return primaryResult.tracks.map(toCandidate);
+  }
+
+  const fallbackArtist = buildNarrowArtistVariant(artist);
+  const fallbackQuery = providerId
+    ? buildProviderFallbackQuery({ title, artist: fallbackArtist }, providerId)
+    : `${title.trim()} ${fallbackArtist}`.trim();
+  if (!fallbackQuery) {
+    return [];
+  }
+
+  const fallbackResult = await runSearch(provider, providerId, fallbackQuery, 'fallback search');
+  return fallbackResult.tracks.map(toCandidate);
+}
+
 async function withLookupTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
   return Promise.race([
     promise,
@@ -42,69 +136,12 @@ export function createSyncMaterializeAdapter(
 ): MaterializeProviderAdapter {
   return {
     async searchTrack(query) {
-      // Fast-path: ISRC lookup
-      if (query.isrc && provider.getTrackByIsrc) {
-        try {
-          const track = await withLookupTimeout(
-            provider.getTrackByIsrc(query.isrc),
-            `[sync/materialize] ISRC lookup (${providerId ?? 'unknown'})`,
-          );
-          if (track?.id) {
-            return [{
-              id: track.id,
-              title: track.name,
-              artists: track.artists,
-              durationSec: track.durationMs
-                ? Math.round(track.durationMs / 1000)
-                : null,
-              isrc: track.isrc ?? null,
-            }];
-          }
-        } catch {
-          // ISRC lookup failed — fall through to text search
-        }
+      const isrcHit = await lookupTrackByIsrc(provider, providerId, query.isrc);
+      if (isrcHit) {
+        return isrcHit;
       }
 
-      // Fallback: text search (structured for Spotify, plain for TIDAL)
-      const searchQuery = providerId
-        ? buildProviderSearchQuery({ title: query.title, artist: query.artist }, providerId)
-        : `${query.title} ${query.artist}`.trim();
-      if (!searchQuery) return [];
-
-      const result = await withLookupTimeout(
-        provider.searchTracks(searchQuery, MATERIALIZE_SEARCH_LIMIT),
-        `[sync/materialize] text search (${providerId ?? 'unknown'})`,
-      );
-
-      let tracks = result.tracks;
-
-      // Retry with title + narrower artist when primary results are empty.
-      if (tracks.length === 0 && query.title.trim() && query.artist.trim()) {
-        const fallbackArtist = buildNarrowArtistVariant(query.artist);
-        const fallbackQuery = providerId
-          ? buildProviderFallbackQuery({ title: query.title, artist: fallbackArtist }, providerId)
-          : `${query.title.trim()} ${fallbackArtist}`.trim();
-
-        if (fallbackQuery) {
-          const fallbackResult = await withLookupTimeout(
-            provider.searchTracks(fallbackQuery, MATERIALIZE_SEARCH_LIMIT),
-            `[sync/materialize] fallback search (${providerId ?? 'unknown'})`,
-          );
-          tracks = fallbackResult.tracks;
-        }
-      }
-
-      return tracks.map(
-        (track): MaterializeSearchCandidate => ({
-          id: track.id ?? track.uri,
-          title: track.name,
-          artists: track.artists,
-          durationSec: track.durationMs
-            ? Math.round(track.durationMs / 1000)
-            : null,
-          isrc: track.isrc ?? null,
-        }),
-      );
+      return searchWithFallback(provider, providerId, query.title, query.artist);
     },
   };
 }

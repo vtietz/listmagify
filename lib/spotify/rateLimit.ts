@@ -118,6 +118,143 @@ function getRetryAfterDelayMs(
   return Number.isFinite(waitSec) ? waitSec * 1000 : getBackoffDelayMs(attempt, cfg);
 }
 
+function buildRateLimitContext(
+  requestPathOrContext?: string | RateLimitLogContext,
+): { context: RateLimitLogContext; requestPath: string | undefined; logTag: string; retryScope: string } {
+  const context: RateLimitLogContext = typeof requestPathOrContext === 'string'
+    ? { requestPath: requestPathOrContext }
+    : (requestPathOrContext ?? {});
+  return {
+    context,
+    requestPath: context.requestPath,
+    logTag: context.providerId ? `[provider:${context.providerId}]` : '[provider]',
+    retryScope: context.providerId ?? 'unknown',
+  };
+}
+
+async function handleNetworkError(params: {
+  err: unknown;
+  attempt: number;
+  cfg: Required<BackoffOptions>;
+  logTag: string;
+  shouldAbortForStreak: (kind: RetryKind) => boolean;
+}): Promise<boolean> {
+  const { err, attempt, cfg, logTag, shouldAbortForStreak } = params;
+  if (shouldAbortForStreak('network')) {
+    throw new Error(`${logTag} aborting after ${cfg.sameKindAbortAfterRetries} consecutive network retries`);
+  }
+
+  if (attempt > cfg.maxRetries) {
+    throw err;
+  }
+
+  const delay = getBackoffDelayMs(attempt, cfg);
+  console.warn(`${logTag} network error, retrying in ${delay}ms (attempt ${attempt}/${cfg.maxRetries})`, err);
+  await sleep(delay);
+  return true;
+}
+
+async function handleRateLimitResponse(params: {
+  res: Response;
+  attempt: number;
+  cfg: Required<BackoffOptions>;
+  requestPath: string | undefined;
+  logTag: string;
+  maxWaitMs: number;
+  shouldAbortForStreak: (kind: RetryKind) => boolean;
+}): Promise<boolean> {
+  const { res, attempt, cfg, requestPath, logTag, maxWaitMs, shouldAbortForStreak } = params;
+  const delayMs = getRetryAfterDelayMs(res.headers.get('Retry-After'), attempt, cfg);
+
+  if (shouldAbortForStreak('rate-limit')) {
+    throw new RateLimitError(delayMs, requestPath);
+  }
+
+  if (delayMs > maxWaitMs) {
+    console.warn(`${logTag} 429 with long wait (${Math.ceil(delayMs / 1000)}s), throwing RateLimitError`);
+    throw new RateLimitError(delayMs, requestPath);
+  }
+
+  if (attempt > cfg.maxRetries) {
+    console.warn(`${logTag} 429 and maxRetries reached, throwing RateLimitError`);
+    throw new RateLimitError(delayMs, requestPath);
+  }
+
+  console.warn(`${logTag} 429 received, retry after ${delayMs}ms (attempt ${attempt}/${cfg.maxRetries})`);
+  await sleep(delayMs);
+  return true;
+}
+
+async function handleServerErrorResponse(params: {
+  res: Response;
+  attempt: number;
+  cfg: Required<BackoffOptions>;
+  logTag: string;
+  shouldAbortForStreak: (kind: RetryKind) => boolean;
+}): Promise<boolean> {
+  const { res, attempt, cfg, logTag, shouldAbortForStreak } = params;
+  const isRetryable = res.status >= 500 && res.status < 600 && attempt <= cfg.maxRetries;
+  if (!isRetryable) {
+    return false;
+  }
+
+  if (shouldAbortForStreak('server-5xx')) {
+    throw new Error(`${logTag} aborting after ${cfg.sameKindAbortAfterRetries} consecutive 5xx retries`);
+  }
+
+  const delay = getBackoffDelayMs(attempt, cfg);
+  console.warn(`${logTag} ${res.status} server error, retrying in ${delay}ms (attempt ${attempt}/${cfg.maxRetries})`);
+  await sleep(delay);
+  return true;
+}
+
+type RetryDecision =
+  | { type: 'return'; response: Response }
+  | { type: 'retry' };
+
+async function resolveRetryDecision(params: {
+  res: Response;
+  attempt: number;
+  cfg: Required<BackoffOptions>;
+  requestPath: string | undefined;
+  logTag: string;
+  maxWaitMs: number;
+  shouldAbortForStreak: (kind: RetryKind) => boolean;
+}): Promise<RetryDecision> {
+  const {
+    res,
+    attempt,
+    cfg,
+    requestPath,
+    logTag,
+    maxWaitMs,
+    shouldAbortForStreak,
+  } = params;
+
+  if (res.ok) {
+    return { type: 'return', response: res };
+  }
+
+  if (res.status === 429) {
+    await handleRateLimitResponse({
+      res,
+      attempt,
+      cfg,
+      requestPath,
+      logTag,
+      maxWaitMs,
+      shouldAbortForStreak,
+    });
+    return { type: 'retry' };
+  }
+
+  if (await handleServerErrorResponse({ res, attempt, cfg, logTag, shouldAbortForStreak })) {
+    return { type: 'retry' };
+  }
+
+  return { type: 'return', response: res };
+}
+
 /**
  * Wrap a fetch-call factory with retry/backoff.
  * The factory is re-invoked for each retry to allow recalculating headers/etc.
@@ -140,12 +277,7 @@ export async function withRateLimitRetry(
     sameKindAbortAfterRetries,
   };
   const maxWaitMs = 60 * 60 * 1000;
-  const context: RateLimitLogContext = typeof requestPathOrContext === 'string'
-    ? { requestPath: requestPathOrContext }
-    : (requestPathOrContext ?? {});
-  const requestPath = context.requestPath;
-  const logTag = context.providerId ? `[provider:${context.providerId}]` : '[provider]';
-  const retryScope = context.providerId ?? 'unknown';
+  const { requestPath, logTag, retryScope } = buildRateLimitContext(requestPathOrContext);
 
   const shouldAbortForStreak = (kind: RetryKind): boolean => {
     const streak = noteRetry(retryScope, kind);
@@ -158,64 +290,26 @@ export async function withRateLimitRetry(
     try {
       res = await fetchFactory();
     } catch (err) {
-      if (shouldAbortForStreak('network')) {
-        throw new Error(`${logTag} aborting after ${cfg.sameKindAbortAfterRetries} consecutive network retries`);
-      }
-
-      if (attempt > cfg.maxRetries) {
-        throw err;
-      }
-
-      const delay = getBackoffDelayMs(attempt, cfg);
-      console.warn(`${logTag} network error, retrying in ${delay}ms (attempt ${attempt}/${cfg.maxRetries})`, err);
-      await sleep(delay);
+      await handleNetworkError({ err, attempt, cfg, logTag, shouldAbortForStreak });
       continue;
     }
 
-    // Success
-    if (res.ok) {
+    const decision = await resolveRetryDecision({
+      res,
+      attempt,
+      cfg,
+      requestPath,
+      logTag,
+      maxWaitMs,
+      shouldAbortForStreak,
+    });
+
+    if (decision.type === 'return') {
       clearRetryStreak(retryScope);
-      return res;
+      return decision.response;
     }
 
-    // 429 Too Many Requests - honor Retry-After
-    if (res.status === 429) {
-      const delayMs = getRetryAfterDelayMs(res.headers.get('Retry-After'), attempt, cfg);
-
-      if (shouldAbortForStreak('rate-limit')) {
-        throw new RateLimitError(delayMs, requestPath);
-      }
-
-      // If retry time is very long (> 1 hour), don't wait - throw immediately
-      if (delayMs > maxWaitMs) {
-        console.warn(`${logTag} 429 with long wait (${Math.ceil(delayMs / 1000)}s), throwing RateLimitError`);
-        throw new RateLimitError(delayMs, requestPath);
-      }
-
-      if (attempt > cfg.maxRetries) {
-        console.warn(`${logTag} 429 and maxRetries reached, throwing RateLimitError`);
-        throw new RateLimitError(delayMs, requestPath);
-      }
-
-      console.warn(`${logTag} 429 received, retry after ${delayMs}ms (attempt ${attempt}/${cfg.maxRetries})`);
-      await sleep(delayMs);
-      continue;
-    }
-
-    // Retry select transient 5xx
-    if (res.status >= 500 && res.status < 600 && attempt <= cfg.maxRetries) {
-      if (shouldAbortForStreak('server-5xx')) {
-        throw new Error(`${logTag} aborting after ${cfg.sameKindAbortAfterRetries} consecutive 5xx retries`);
-      }
-
-      const delay = getBackoffDelayMs(attempt, cfg);
-      console.warn(`${logTag} ${res.status} server error, retrying in ${delay}ms (attempt ${attempt}/${cfg.maxRetries})`);
-      await sleep(delay);
-      continue;
-    }
-
-    // Non-retryable or retries exhausted
-    return res;
+    continue;
   }
 
   throw new Error(`${logTag} retry loop exhausted unexpectedly`);

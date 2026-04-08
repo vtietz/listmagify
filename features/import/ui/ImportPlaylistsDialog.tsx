@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useCallback } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -17,23 +17,13 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Import, Loader2, Search } from 'lucide-react';
+import { Import, Loader2 } from 'lucide-react';
 import { useImportDialogStore } from '@/features/import/stores/useImportDialogStore';
 import { useImportActivityStore } from '@/features/import/stores/useImportActivityStore';
 import { useStartImport } from '@/features/import/hooks/useStartImport';
-import {
-  useProviderPlaylists,
-  usePlaylistSelection,
-  useFilteredPlaylists,
-} from '@/features/import/hooks/useProviderPlaylists';
-import {
-  ImportPlaylistSelectionRow,
-} from '@/features/import/ui/ImportPlaylistStatusRow';
 import { ImportPlaylistsProgressView } from '@/features/import/ui/ImportPlaylistsProgressView';
-import { useSyncPairs } from '@features/sync/hooks/useSyncPairs';
-import { useMaxSyncTasksPerUser, useSyncIntervalOptions } from '@shared/hooks/useAppConfig';
-import type { Playlist } from '@/lib/music-provider/types';
+import { SourcePlaylistPicker } from '@/features/import/ui/SourcePlaylistPicker';
+import { useSelectionViewState } from '@/features/import/ui/useSelectionViewState';
 import type { MusicProviderId } from '@/lib/music-provider/types';
 import type { SyncIntervalOption } from '@/lib/sync/types';
 
@@ -51,127 +41,6 @@ function ImportButtonLabel({ count, isPending }: { count: number; isPending: boo
     <>
       {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
       Import {count > 0 ? `${count} Playlist${count === 1 ? '' : 's'}` : 'Playlists'}
-    </>
-  );
-}
-
-function PlaylistListContent({
-  isLoading,
-  allPlaylistsLength,
-  filteredPlaylists,
-  selectedIds,
-  targetNamesLower,
-  onToggle,
-}: {
-  isLoading: boolean;
-  allPlaylistsLength: number;
-  filteredPlaylists: Playlist[];
-  selectedIds: Set<string>;
-  targetNamesLower: Set<string>;
-  onToggle: (id: string) => void;
-}) {
-  if (isLoading && allPlaylistsLength === 0) {
-    return (
-      <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        Loading playlists...
-      </div>
-    );
-  }
-
-  if (filteredPlaylists.length === 0) {
-    return (
-      <div className="py-8 text-center text-sm text-muted-foreground">
-        No playlists found.
-      </div>
-    );
-  }
-
-  return (
-    <>
-      {filteredPlaylists.map((playlist) => (
-        <ImportPlaylistSelectionRow
-          key={playlist.id}
-          playlist={playlist}
-          isSelected={selectedIds.has(playlist.id)}
-          onToggle={onToggle}
-          hasDuplicate={targetNamesLower.has(playlist.name.toLowerCase())}
-        />
-      ))}
-    </>
-  );
-}
-
-function SourcePlaylistPicker({
-  sourceProvider,
-  sourceLabel,
-  allPlaylists,
-  isLoading,
-  isFetchingNextPage,
-  filteredPlaylists,
-  selectedIds,
-  targetNamesLower,
-  togglePlaylist,
-  toggleAll,
-  allFilteredSelected,
-  searchQuery,
-  onSearchChange,
-}: {
-  sourceProvider: string;
-  sourceLabel: string;
-  allPlaylists: Playlist[];
-  isLoading: boolean;
-  isFetchingNextPage: boolean;
-  filteredPlaylists: Playlist[];
-  selectedIds: Set<string>;
-  targetNamesLower: Set<string>;
-  togglePlaylist: (id: string) => void;
-  toggleAll: () => void;
-  allFilteredSelected: boolean;
-  searchQuery: string;
-  onSearchChange: (q: string) => void;
-}) {
-  if (!sourceProvider) return null;
-
-  return (
-    <>
-      <div className="relative">
-        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder={`Search ${sourceLabel} playlists...`}
-          value={searchQuery}
-          onChange={(e) => onSearchChange(e.target.value)}
-          className="pl-8 h-9"
-        />
-      </div>
-
-      <div className="flex items-center justify-between px-1">
-        <span className="text-xs text-muted-foreground">
-          {allPlaylists.length} playlists loaded
-          {isFetchingNextPage && ' (loading more...)'}
-        </span>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={toggleAll}
-          disabled={filteredPlaylists.length === 0}
-          className="h-7 text-xs"
-        >
-          {allFilteredSelected ? 'Deselect All' : 'Select All'}
-        </Button>
-      </div>
-
-      <div className="max-h-64 overflow-auto rounded-md border border-input">
-        <PlaylistListContent
-          isLoading={isLoading}
-          allPlaylistsLength={allPlaylists.length}
-          filteredPlaylists={filteredPlaylists}
-          selectedIds={selectedIds}
-          targetNamesLower={targetNamesLower}
-          onToggle={togglePlaylist}
-        />
-      </div>
     </>
   );
 }
@@ -337,11 +206,6 @@ function SelectionFooter({ selectedCount, isPending, canSubmit, transferMode, on
   );
 }
 
-function buildTransferOptions(mode: 'import' | 'sync', interval: string) {
-  if (mode === 'sync') return { createSyncPair: true, syncInterval: interval };
-  return { createSyncPair: false };
-}
-
 function getTransferButtonLabel(mode: 'import' | 'sync', count: number): string | null {
   if (mode !== 'sync') return null;
   const suffix = count === 1 ? '' : 's';
@@ -362,82 +226,37 @@ function SelectionView({
   ) => void;
   isPending: boolean;
 }) {
-  const [sourceProvider, setSourceProvider] = useState<string>('');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [localTargetProvider, setLocalTargetProvider] = useState<string>(targetProvider ?? '');
-  const [transferMode, setTransferMode] = useState<'import' | 'sync'>('import');
-  const syncIntervalOptions = useSyncIntervalOptions();
-  const maxSyncTasksPerUser = useMaxSyncTasksPerUser();
-  const { data: existingSyncPairs } = useSyncPairs();
-  const [syncInterval, setSyncInterval] = useState<string>(() => syncIntervalOptions[0] ?? '1h');
-
-  const effectiveTarget = targetProvider ?? localTargetProvider;
-
-  const sourceOptions = useMemo(
-    () => AVAILABLE_PROVIDERS.filter((p) => p.id !== effectiveTarget),
-    [effectiveTarget],
-  );
-
-  // Auto-select the only available source when there is exactly one option
-  useEffect(() => {
-    if (sourceOptions.length === 1 && sourceOptions[0]) {
-      setSourceProvider(sourceOptions[0].id);
-    }
-  }, [sourceOptions]);
-
-  // Reset source if it collides with newly selected target
-  useEffect(() => {
-    if (sourceProvider && sourceProvider === effectiveTarget) {
-      setSourceProvider('');
-    }
-  }, [sourceProvider, effectiveTarget]);
-
-  useEffect(() => {
-    if (!syncIntervalOptions.includes(syncInterval as SyncIntervalOption)) {
-      setSyncInterval(syncIntervalOptions[0] ?? '1h');
-    }
-  }, [syncInterval, syncIntervalOptions]);
-
-  const { allPlaylists, isLoading, isFetchingNextPage } = useProviderPlaylists(
-    sourceProvider || null,
-  );
-
-  const { allPlaylists: targetPlaylists } = useProviderPlaylists(effectiveTarget || null);
-
-  const targetNamesLower = useMemo(() => {
-    const names = new Set<string>();
-    for (const p of targetPlaylists) {
-      names.add(p.name.toLowerCase());
-    }
-    return names;
-  }, [targetPlaylists]);
-
-  const filteredPlaylists = useFilteredPlaylists(allPlaylists, searchQuery);
-
-  const { selectedIds, togglePlaylist, toggleAll, allFilteredSelected } =
-    usePlaylistSelection(filteredPlaylists);
-
-  const handleImport = useCallback(() => {
-    const selected = allPlaylists
-      .filter((p) => selectedIds.has(p.id))
-      .map((p) => ({ id: p.id, name: p.name }));
-    if (selected.length === 0 || !effectiveTarget) return;
-    const options = buildTransferOptions(transferMode, syncInterval);
-    onStartImport(sourceProvider, effectiveTarget, selected, options);
-  }, [allPlaylists, selectedIds, sourceProvider, effectiveTarget, onStartImport, transferMode, syncInterval]);
-
-  const selectedCount = selectedIds.size;
-  const existingSyncTaskCount = existingSyncPairs?.length ?? 0;
-  const remainingSyncSlots = maxSyncTasksPerUser === null
-    ? Number.POSITIVE_INFINITY
-    : Math.max(0, maxSyncTasksPerUser - existingSyncTaskCount);
-  const isSyncModeDisabled = remainingSyncSlots <= 0;
-
-  useEffect(() => {
-    if (isSyncModeDisabled && transferMode === 'sync') {
-      setTransferMode('import');
-    }
-  }, [isSyncModeDisabled, transferMode]);
+  const {
+    sourceProvider,
+    setSourceProvider,
+    searchQuery,
+    setSearchQuery,
+    localTargetProvider,
+    setLocalTargetProvider,
+    transferMode,
+    setTransferMode,
+    syncInterval,
+    setSyncInterval,
+    syncIntervalOptions,
+    sourceOptions,
+    allPlaylists,
+    isLoading,
+    isFetchingNextPage,
+    filteredPlaylists,
+    selectedIds,
+    togglePlaylist,
+    toggleAll,
+    allFilteredSelected,
+    targetNamesLower,
+    selectedCount,
+    isSyncModeDisabled,
+    syncCapacityMessage,
+    canSubmit,
+    handleImport,
+  } = useSelectionViewState({
+    targetProvider,
+    onStartImport,
+  });
 
   return (
     <>
@@ -472,13 +291,9 @@ function SelectionView({
           syncDisabled={isSyncModeDisabled}
         />
 
-        {maxSyncTasksPerUser !== null && (
+        {syncCapacityMessage && (
           <p className="text-xs text-muted-foreground">
-            {isSyncModeDisabled
-              ? `Sync task limit reached (${existingSyncTaskCount}/${maxSyncTasksPerUser}).`
-              : transferMode === 'sync' && Number.isFinite(remainingSyncSlots) && selectedCount > remainingSyncSlots
-                ? `Only ${remainingSyncSlots} of ${selectedCount} selected playlists can become sync tasks (${existingSyncTaskCount}/${maxSyncTasksPerUser} already used).`
-                : `${remainingSyncSlots} sync task slot${remainingSyncSlots === 1 ? '' : 's'} remaining (${existingSyncTaskCount}/${maxSyncTasksPerUser} used).`}
+            {syncCapacityMessage}
           </p>
         )}
 
@@ -502,7 +317,7 @@ function SelectionView({
       <SelectionFooter
         selectedCount={selectedCount}
         isPending={isPending}
-        canSubmit={selectedCount > 0 && !!sourceProvider && !!effectiveTarget && (transferMode !== 'sync' || remainingSyncSlots > 0)}
+        canSubmit={canSubmit}
         transferMode={transferMode}
         onImport={handleImport}
       />

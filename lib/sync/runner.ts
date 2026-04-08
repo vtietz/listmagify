@@ -213,43 +213,13 @@ async function resolveProviderItems(
 
   for (let i = 0; i < canonicalIds.length; i += PREVIEW_VALIDATION_BATCH_SIZE) {
     const batchIds = canonicalIds.slice(i, i + PREVIEW_VALIDATION_BATCH_SIZE);
-    let result: { trackIds: string[]; unresolvedCanonicalIds: string[] } | null = null;
-    let batchTimedOut = false;
-
-    for (let attempt = 1; attempt <= PREVIEW_VALIDATION_MAX_ATTEMPTS; attempt += 1) {
-      const timeoutMs = PREVIEW_VALIDATION_BATCH_TIMEOUT_MS
-        + PREVIEW_VALIDATION_BATCH_TIMEOUT_BACKOFF_MS * (attempt - 1);
-
-      try {
-        result = await materializeBatchWithTimeout(
-          providerId,
-          batchIds,
-          adapter,
-          timeoutMs,
-          matchThresholds,
-          onItemProcessed,
-        );
-        batchTimedOut = false;
-        break;
-      } catch (error) {
-        const timedOutError = isMaterializationTimeoutError(error);
-        batchTimedOut = batchTimedOut || timedOutError;
-        const canRetry = timedOutError && attempt < PREVIEW_VALIDATION_MAX_ATTEMPTS;
-
-        console.warn('[sync/runner] materialization validation batch failed', {
-          providerId,
-          attempt,
-          maxAttempts: PREVIEW_VALIDATION_MAX_ATTEMPTS,
-          timeoutMs,
-          canRetry,
-          error,
-        });
-
-        if (!canRetry) {
-          break;
-        }
-      }
-    }
+    const { result, batchTimedOut } = await resolveProviderItemsBatch(
+      providerId,
+      batchIds,
+      adapter,
+      matchThresholds,
+      onItemProcessed,
+    );
 
     if (result) {
       const batchResolved = buildResolvedMap(batchIds, result);
@@ -275,6 +245,53 @@ async function resolveProviderItems(
   }
 
   applyResolutionToItems(items, resolvedMap, timedOut);
+}
+
+async function resolveProviderItemsBatch(
+  providerId: MusicProviderId,
+  batchIds: string[],
+  adapter: ReturnType<typeof createSyncMaterializeAdapter>,
+  matchThresholds?: SyncMatchThresholds,
+  onItemProcessed?: () => void,
+): Promise<{ result: { trackIds: string[]; unresolvedCanonicalIds: string[] } | null; batchTimedOut: boolean }> {
+  let result: { trackIds: string[]; unresolvedCanonicalIds: string[] } | null = null;
+  let batchTimedOut = false;
+
+  for (let attempt = 1; attempt <= PREVIEW_VALIDATION_MAX_ATTEMPTS; attempt += 1) {
+    const timeoutMs = PREVIEW_VALIDATION_BATCH_TIMEOUT_MS
+      + PREVIEW_VALIDATION_BATCH_TIMEOUT_BACKOFF_MS * (attempt - 1);
+
+    try {
+      result = await materializeBatchWithTimeout(
+        providerId,
+        batchIds,
+        adapter,
+        timeoutMs,
+        matchThresholds,
+        onItemProcessed,
+      );
+      return { result, batchTimedOut: false };
+    } catch (error) {
+      const timedOutError = isMaterializationTimeoutError(error);
+      batchTimedOut = batchTimedOut || timedOutError;
+      const canRetry = timedOutError && attempt < PREVIEW_VALIDATION_MAX_ATTEMPTS;
+
+      console.warn('[sync/runner] materialization validation batch failed', {
+        providerId,
+        attempt,
+        maxAttempts: PREVIEW_VALIDATION_MAX_ATTEMPTS,
+        timeoutMs,
+        canRetry,
+        error,
+      });
+
+      if (!canRetry) {
+        return { result: null, batchTimedOut };
+      }
+    }
+  }
+
+  return { result: null, batchTimedOut };
 }
 
 /**

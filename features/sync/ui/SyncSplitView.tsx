@@ -28,6 +28,38 @@ interface AlignedRow {
   right: CellData;
 }
 
+const stateBgClass: Partial<Record<CellState, string>> = {
+  added: 'bg-green-500/10',
+  removed: 'bg-red-500/10',
+  unresolved: 'bg-yellow-500/10',
+  timed_out: 'bg-orange-500/10',
+};
+
+const stateTitleClass: Partial<Record<CellState, string>> = {
+  removed: 'line-through text-muted-foreground',
+  unresolved: 'text-yellow-600 dark:text-yellow-400',
+  timed_out: 'text-orange-600 dark:text-orange-400',
+};
+
+const stateArtistClass: Partial<Record<CellState, string>> = {
+  removed: 'line-through',
+};
+
+function StateIndicator({ state }: { state: CellState }) {
+  switch (state) {
+    case 'added':
+      return <span className="text-green-500 font-bold shrink-0">+</span>;
+    case 'removed':
+      return <span className="text-red-500 font-bold shrink-0">-</span>;
+    case 'unresolved':
+      return <AlertTriangle className="h-3 w-3 text-yellow-500 shrink-0" />;
+    case 'timed_out':
+      return <Clock3 className="h-3 w-3 text-orange-500 shrink-0" />;
+    default:
+      return null;
+  }
+}
+
 function TrackCell({ cell }: { cell: CellData }) {
   if (cell.state === 'empty' || !cell.track) {
     return <div className="px-2 py-0.5 text-xs">&nbsp;</div>;
@@ -39,30 +71,14 @@ function TrackCell({ cell }: { cell: CellData }) {
     <div
       className={cn(
         'flex items-center gap-1.5 px-2 py-0.5 text-xs min-w-0',
-        state === 'added' && 'bg-green-500/10',
-        state === 'removed' && 'bg-red-500/10',
-        state === 'unresolved' && 'bg-yellow-500/10',
-        state === 'timed_out' && 'bg-orange-500/10',
+        stateBgClass[state],
       )}
     >
-      {state === 'added' && (
-        <span className="text-green-500 font-bold shrink-0">+</span>
-      )}
-      {state === 'removed' && (
-        <span className="text-red-500 font-bold shrink-0">-</span>
-      )}
-      {state === 'unresolved' && (
-        <AlertTriangle className="h-3 w-3 text-yellow-500 shrink-0" />
-      )}
-      {state === 'timed_out' && (
-        <Clock3 className="h-3 w-3 text-orange-500 shrink-0" />
-      )}
+      <StateIndicator state={state} />
       <span
         className={cn(
           'truncate font-medium',
-          state === 'removed' && 'line-through text-muted-foreground',
-          state === 'unresolved' && 'text-yellow-600 dark:text-yellow-400',
-          state === 'timed_out' && 'text-orange-600 dark:text-orange-400',
+          stateTitleClass[state],
         )}
       >
         {track.title}
@@ -70,7 +86,7 @@ function TrackCell({ cell }: { cell: CellData }) {
       <span
         className={cn(
           'truncate text-muted-foreground',
-          state === 'removed' && 'line-through',
+          stateArtistClass[state],
         )}
       >
         {track.artists.join(', ')}
