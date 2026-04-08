@@ -14,6 +14,8 @@ export async function GET() {
     playlistPollIntervalSeconds: serverEnv.PLAYLIST_POLL_INTERVAL_SECONDS ?? null,
     // Whether Spotify BYOK (Bring Your Own Key) is enabled
     byokEnabled: serverEnv.SPOTIFY_BYOK_ENABLED ?? false,
+    // Whether TIDAL BYOK (Bring Your Own Key) is enabled
+    tidalByokEnabled: serverEnv.TIDAL_BYOK_ENABLED ?? false,
     // Enabled music providers (controlled by MUSIC_PROVIDERS env var)
     availableProviders: getEnabledMusicProviders(),
     // Whether the background sync scheduler is enabled
@@ -22,5 +24,7 @@ export async function GET() {
     syncSchedulerTickMs: Number(process.env.SYNC_TICK_MS ?? 60_000),
     // User-configurable sync interval options for UI dropdowns
     syncIntervalOptions: serverEnv.SYNC_INTERVAL_OPTIONS,
+    // Maximum number of sync pairs allowed per user (null = unlimited)
+    maxSyncTasksPerUser: serverEnv.SYNC_MAX_TASKS_PER_USER ?? null,
   });
 }

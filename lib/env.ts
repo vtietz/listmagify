@@ -62,8 +62,22 @@ const serverSchema = z.object({
     .string()
     .optional()
     .transform((val) => parseSyncIntervalOptions(val)),
+  // Optional: maximum number of sync tasks (sync pairs) each user can create
+  SYNC_MAX_TASKS_PER_USER: z
+    .string()
+    .optional()
+    .transform((val) => {
+      if (!val) return undefined;
+      const num = parseInt(val, 10);
+      return Number.isNaN(num) || num <= 0 ? undefined : num;
+    }),
   // Optional: allow users to bring their own Spotify API keys
   SPOTIFY_BYOK_ENABLED: z
+    .string()
+    .optional()
+    .transform((val) => val === 'true'),
+  // Optional: allow users to bring their own TIDAL API keys
+  TIDAL_BYOK_ENABLED: z
     .string()
     .optional()
     .transform((val) => val === 'true'),
@@ -143,7 +157,9 @@ export const serverEnv: ServerEnv = (() => {
       MUSIC_PROVIDERS: [...DEFAULT_MUSIC_PROVIDERS],
       PLAYLIST_POLL_INTERVAL_SECONDS: undefined,
       SYNC_INTERVAL_OPTIONS: parseSyncIntervalOptions(undefined),
+      SYNC_MAX_TASKS_PER_USER: undefined,
       SPOTIFY_BYOK_ENABLED: false,
+      TIDAL_BYOK_ENABLED: false,
       ACCESS_REQUEST_ENABLED: false,
       ACCESS_REQUEST_EMAIL_VERIFICATION_ENABLED: false,
     };
@@ -158,7 +174,9 @@ export const serverEnv: ServerEnv = (() => {
     MUSIC_PROVIDERS: process.env.MUSIC_PROVIDERS,
     PLAYLIST_POLL_INTERVAL_SECONDS: process.env.PLAYLIST_POLL_INTERVAL_SECONDS,
     SYNC_INTERVAL_OPTIONS: process.env.SYNC_INTERVAL_OPTIONS,
+    SYNC_MAX_TASKS_PER_USER: process.env.SYNC_MAX_TASKS_PER_USER,
     SPOTIFY_BYOK_ENABLED: process.env.SPOTIFY_BYOK_ENABLED ?? process.env.BYOK_ENABLED,
+    TIDAL_BYOK_ENABLED: process.env.TIDAL_BYOK_ENABLED,
     ACCESS_REQUEST_ENABLED: process.env.ACCESS_REQUEST_ENABLED,
     ACCESS_REQUEST_EMAIL_VERIFICATION_ENABLED: process.env.ACCESS_REQUEST_EMAIL_VERIFICATION_ENABLED,
   });
@@ -175,6 +193,7 @@ export function summarizeEnv(): string {
     `NEXTAUTH_SECRET=${serverEnv.NEXTAUTH_SECRET ? "[set]" : "[missing]"}`,
     `MUSIC_PROVIDERS=${serverEnv.MUSIC_PROVIDERS.join(',')}`,
     `SYNC_INTERVAL_OPTIONS=${serverEnv.SYNC_INTERVAL_OPTIONS.join(',')}`,
+    `SYNC_MAX_TASKS_PER_USER=${serverEnv.SYNC_MAX_TASKS_PER_USER ?? '[unset]'}`,
     `SPOTIFY_CLIENT_ID=${serverEnv.SPOTIFY_CLIENT_ID ? "[set]" : "[missing]"}`,
     `SPOTIFY_CLIENT_SECRET=${serverEnv.SPOTIFY_CLIENT_SECRET ? "[set]" : "[missing]"}`,
     `TIDAL_CLIENT_ID=${serverEnv.TIDAL_CLIENT_ID ? "[set]" : "[missing]"}`,

@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { assertAuthenticated } from '@/app/api/_shared/guard';
-import { ok, created, badRequest, fromError } from '@/app/api/_shared/http';
+import { ok, created, badRequest, conflict, fromError } from '@/app/api/_shared/http';
 import { parseMusicProviderId } from '@/lib/music-provider';
 import { createSyncPair, listSyncPairs, getLatestSyncRun } from '@/lib/sync/syncStore';
 import { getAllSessionUserIds, getCreatorUserId, getProviderUserIds } from '@/lib/auth/sessionUserIds';
@@ -135,6 +135,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const session = await assertAuthenticated();
+    const sessionUserIds = getAllSessionUserIds(session);
     const parsedBody = normalizeCreateSyncPairBody(await request.json());
 
     if ('error' in parsedBody) {
@@ -142,6 +143,17 @@ export async function POST(request: NextRequest) {
     }
 
     const body = parsedBody.value;
+
+    const maxSyncTasksPerUser = serverEnv.SYNC_MAX_TASKS_PER_USER;
+    if (maxSyncTasksPerUser) {
+      const currentSyncTasks = listSyncPairs(sessionUserIds).length;
+      if (currentSyncTasks >= maxSyncTasksPerUser) {
+        return conflict(
+          'Sync task limit reached',
+          `Maximum ${maxSyncTasksPerUser} sync tasks allowed per user`,
+        );
+      }
+    }
 
     const pair = createSyncPair({
       sourceProvider: parseMusicProviderId(body.sourceProvider),

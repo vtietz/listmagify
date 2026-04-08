@@ -10,6 +10,7 @@ interface AppConfigResponse {
   syncSchedulerEnabled?: boolean;
   syncSchedulerTickMs?: number;
   syncIntervalOptions?: SyncIntervalOption[];
+  maxSyncTasksPerUser?: number | null;
 }
 
 /**
@@ -50,4 +51,9 @@ export function useSyncIntervalOptions(): SyncIntervalOption[] {
 export function useSyncSchedulerTickMs(): number {
   const config = useAppConfig();
   return config.syncSchedulerTickMs ?? 60_000;
+}
+
+export function useMaxSyncTasksPerUser(): number | null {
+  const config = useAppConfig();
+  return config.maxSyncTasksPerUser ?? null;
 }

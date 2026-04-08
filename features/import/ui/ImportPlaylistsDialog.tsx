@@ -31,7 +31,8 @@ import {
   ImportPlaylistSelectionRow,
 } from '@/features/import/ui/ImportPlaylistStatusRow';
 import { ImportPlaylistsProgressView } from '@/features/import/ui/ImportPlaylistsProgressView';
-import { useSyncIntervalOptions } from '@shared/hooks/useAppConfig';
+import { useSyncPairs } from '@features/sync/hooks/useSyncPairs';
+import { useMaxSyncTasksPerUser, useSyncIntervalOptions } from '@shared/hooks/useAppConfig';
 import type { Playlist } from '@/lib/music-provider/types';
 import type { MusicProviderId } from '@/lib/music-provider/types';
 import type { SyncIntervalOption } from '@/lib/sync/types';
@@ -181,12 +182,14 @@ function TransferModePicker({
   interval,
   intervalOptions,
   onIntervalChange,
+  syncDisabled,
 }: {
   mode: 'import' | 'sync';
   onModeChange: (mode: 'import' | 'sync') => void;
   interval: string;
   intervalOptions: SyncIntervalOption[];
   onIntervalChange: (interval: string) => void;
+  syncDisabled: boolean;
 }) {
   return (
     <div className="grid gap-2">
@@ -210,6 +213,7 @@ function TransferModePicker({
             value="sync"
             checked={mode === 'sync'}
             onChange={() => onModeChange('sync')}
+            disabled={syncDisabled}
             className="accent-primary"
           />
           Keep in sync
@@ -363,6 +367,8 @@ function SelectionView({
   const [localTargetProvider, setLocalTargetProvider] = useState<string>(targetProvider ?? '');
   const [transferMode, setTransferMode] = useState<'import' | 'sync'>('import');
   const syncIntervalOptions = useSyncIntervalOptions();
+  const maxSyncTasksPerUser = useMaxSyncTasksPerUser();
+  const { data: existingSyncPairs } = useSyncPairs();
   const [syncInterval, setSyncInterval] = useState<string>(() => syncIntervalOptions[0] ?? '1h');
 
   const effectiveTarget = targetProvider ?? localTargetProvider;
@@ -421,6 +427,17 @@ function SelectionView({
   }, [allPlaylists, selectedIds, sourceProvider, effectiveTarget, onStartImport, transferMode, syncInterval]);
 
   const selectedCount = selectedIds.size;
+  const existingSyncTaskCount = existingSyncPairs?.length ?? 0;
+  const remainingSyncSlots = maxSyncTasksPerUser === null
+    ? Number.POSITIVE_INFINITY
+    : Math.max(0, maxSyncTasksPerUser - existingSyncTaskCount);
+  const isSyncModeDisabled = remainingSyncSlots <= 0;
+
+  useEffect(() => {
+    if (isSyncModeDisabled && transferMode === 'sync') {
+      setTransferMode('import');
+    }
+  }, [isSyncModeDisabled, transferMode]);
 
   return (
     <>
@@ -452,7 +469,18 @@ function SelectionView({
           interval={syncInterval}
           intervalOptions={syncIntervalOptions}
           onIntervalChange={setSyncInterval}
+          syncDisabled={isSyncModeDisabled}
         />
+
+        {maxSyncTasksPerUser !== null && (
+          <p className="text-xs text-muted-foreground">
+            {isSyncModeDisabled
+              ? `Sync task limit reached (${existingSyncTaskCount}/${maxSyncTasksPerUser}).`
+              : transferMode === 'sync' && Number.isFinite(remainingSyncSlots) && selectedCount > remainingSyncSlots
+                ? `Only ${remainingSyncSlots} of ${selectedCount} selected playlists can become sync tasks (${existingSyncTaskCount}/${maxSyncTasksPerUser} already used).`
+                : `${remainingSyncSlots} sync task slot${remainingSyncSlots === 1 ? '' : 's'} remaining (${existingSyncTaskCount}/${maxSyncTasksPerUser} used).`}
+          </p>
+        )}
 
         <SourcePlaylistPicker
           sourceProvider={sourceProvider}
@@ -474,7 +502,7 @@ function SelectionView({
       <SelectionFooter
         selectedCount={selectedCount}
         isPending={isPending}
-        canSubmit={selectedCount > 0 && !!sourceProvider && !!effectiveTarget}
+        canSubmit={selectedCount > 0 && !!sourceProvider && !!effectiveTarget && (transferMode !== 'sync' || remainingSyncSlots > 0)}
         transferMode={transferMode}
         onImport={handleImport}
       />

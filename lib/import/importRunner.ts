@@ -6,7 +6,7 @@ import {
   updateImportJobPlaylist,
 } from './importStore';
 import { createBackgroundProvider } from '@/lib/sync/backgroundProvider';
-import { createSyncPair } from '@/lib/sync/syncStore';
+import { createSyncPair, listSyncPairs } from '@/lib/sync/syncStore';
 import type { SyncInterval } from '@/lib/sync/types';
 import { fetchFullPlaylistTracks, canonicalizeSnapshot } from '@/lib/sync/snapshot';
 import { createSyncMaterializeAdapter } from '@/lib/sync/materializeAdapter';
@@ -24,6 +24,7 @@ import {
 } from '@/lib/sync/likedSongs';
 import { RateLimitError } from '@/lib/spotify/rateLimit';
 import { ProviderApiError } from '@/lib/music-provider/types';
+import { serverEnv } from '@/lib/env';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -276,7 +277,27 @@ function createSyncPairsForJob(
   syncInterval: SyncInterval,
   providerUserIds: Record<string, string>,
 ): void {
+  const maxSyncTasksPerUser = serverEnv.SYNC_MAX_TASKS_PER_USER;
+  const currentSyncTasks = listSyncPairs(createdBy).length;
+  const remainingSlots = maxSyncTasksPerUser
+    ? Math.max(0, maxSyncTasksPerUser - currentSyncTasks)
+    : Number.POSITIVE_INFINITY;
+  let createdCount = 0;
+
+  if (remainingSlots === 0) {
+    console.debug('[import/runner] sync pair creation skipped: user limit reached', {
+      jobId,
+      maxSyncTasksPerUser,
+      currentSyncTasks,
+    });
+    return;
+  }
+
   for (const playlist of playlists) {
+    if (createdCount >= remainingSlots) {
+      break;
+    }
+
     if (
       (playlist.status === 'done' || playlist.status === 'partial') &&
       playlist.targetPlaylistId
@@ -302,6 +323,7 @@ function createSyncPairsForJob(
           syncInterval,
           providerUserIds,
         });
+        createdCount += 1;
         console.debug('[import/runner] sync pair created', {
           jobId,
           sourcePlaylistId: playlist.sourcePlaylistId,
@@ -316,6 +338,7 @@ function createSyncPairsForJob(
       }
     }
   }
+
 }
 
 // ---------------------------------------------------------------------------
