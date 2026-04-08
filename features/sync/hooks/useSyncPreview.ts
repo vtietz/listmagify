@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api/client';
 import { getConfiguredMatchThresholds } from '@/lib/matching/config';
@@ -96,10 +96,13 @@ async function pollPreviewResult(
  */
 export function useSyncPreview() {
   const [previewRun, setPreviewRun] = useState<SyncPreviewRun | null>(null);
+  const activeControllerRef = useRef<AbortController | null>(null);
 
   const mutation = useMutation({
     mutationFn: async (config: SyncConfig) => {
+      activeControllerRef.current?.abort();
       const controller = new AbortController();
+      activeControllerRef.current = controller;
       const timeoutId = setTimeout(() => controller.abort(), PREVIEW_TIMEOUT_MS);
 
       try {
@@ -112,18 +115,28 @@ export function useSyncPreview() {
         throw error;
       } finally {
         clearTimeout(timeoutId);
+        if (activeControllerRef.current === controller) {
+          activeControllerRef.current = null;
+        }
       }
     },
   });
 
-  const reset = () => {
+  const cancelCurrentRun = useCallback(() => {
+    activeControllerRef.current?.abort();
+  }, []);
+
+  const reset = useCallback(() => {
+    activeControllerRef.current?.abort();
+    activeControllerRef.current = null;
     mutation.reset();
     setPreviewRun(null);
-  };
+  }, [mutation]);
 
   return {
     ...mutation,
     previewRun,
+    cancelCurrentRun,
     reset,
   };
 }

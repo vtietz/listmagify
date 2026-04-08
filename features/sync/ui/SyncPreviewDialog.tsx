@@ -9,10 +9,20 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { useSyncDialogStore } from '@features/sync/stores/useSyncDialogStore';
-import type { SyncDialogConfig } from '@features/sync/stores/useSyncDialogStore';
+import type { SyncDialogConfig, SyncPreviewSession } from '@features/sync/stores/useSyncDialogStore';
 import { SyncPreviewTimeoutError, useSyncPreview } from '@features/sync/hooks/useSyncPreview';
 import { useSyncApply } from '@features/sync/hooks/useSyncApply';
 import { usePlaylistName } from '@features/sync/hooks/usePlaylistName';
@@ -75,6 +85,22 @@ function formatPreviewError(error: unknown): string {
   }
 
   return 'Failed to generate preview. Please try again.';
+}
+
+function getPreviewErrorMessage(
+  isPreviewError: boolean,
+  previewError: unknown,
+  previewSession: SyncPreviewSession | null,
+): string {
+  if (isPreviewError) {
+    return formatPreviewError(previewError);
+  }
+
+  if (previewSession?.status === 'failed') {
+    return previewSession.errorMessage ?? 'Failed to generate preview. Please try again.';
+  }
+
+  return '';
 }
 
 function useApplyProgressState(isApplying: boolean): {
@@ -209,7 +235,9 @@ function PreviewStepContent({
   applyProgressPercent,
   isApplyLikelyStuck,
   onApply,
-  onCancel,
+  isCancelingPreview,
+  onCancelPreview,
+  onClose,
 }: {
   config: { sourceProvider: string; targetProvider: string } | null;
   previewData: SyncPreviewResult | null;
@@ -227,11 +255,14 @@ function PreviewStepContent({
   applyProgressPercent: number;
   isApplyLikelyStuck: boolean;
   onApply: () => void;
-  onCancel: () => void;
+  isCancelingPreview: boolean;
+  onCancelPreview: () => void;
+  onClose: () => void;
 }) {
   const plan = previewData?.plan ?? null;
   const hasChanges = plan !== null && (plan.summary.toAdd > 0 || plan.summary.toRemove > 0);
   const isNoopPreview = plan !== null && !hasChanges && !isLoading && !previewError && !applyError;
+  const canCancelPreview = isLoading;
 
   return (
     <div className="space-y-4">
@@ -291,7 +322,13 @@ function PreviewStepContent({
             No differences found. Close this preview when you are done.
           </span>
         )}
-        <Button variant="outline" onClick={onCancel}>{isApplying || isNoopPreview ? 'Close' : 'Cancel'}</Button>
+        <Button variant="outline" onClick={onClose}>Close</Button>
+        {canCancelPreview && (
+          <Button variant="destructive" onClick={onCancelPreview} disabled={isCancelingPreview}>
+            {isCancelingPreview && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Cancel preview
+          </Button>
+        )}
         {hasChanges && (
           <Button onClick={onApply} disabled={isApplying || isLoading}>
             {isApplying && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -330,8 +367,10 @@ function SyncPreviewDialogContent({
   sourcePlaylistName,
   targetPlaylistName,
   elapsedSeconds,
+  isCancelingPreview,
   onApply,
   onRetryPreview,
+  onCancelPreview,
   onClose,
 }: {
   step: Step;
@@ -350,8 +389,10 @@ function SyncPreviewDialogContent({
   sourcePlaylistName: string;
   targetPlaylistName: string;
   elapsedSeconds: number;
+  isCancelingPreview: boolean;
   onApply: () => void;
   onRetryPreview: () => void;
+  onCancelPreview: () => void;
   onClose: () => void;
 }) {
   if (step === 'result' && result) {
@@ -376,7 +417,9 @@ function SyncPreviewDialogContent({
       applyProgressPercent={applyProgressPercent}
       isApplyLikelyStuck={isApplyLikelyStuck}
       onApply={onApply}
-      onCancel={onClose}
+      isCancelingPreview={isCancelingPreview}
+      onCancelPreview={onCancelPreview}
+      onClose={onClose}
     />
   );
 }
@@ -395,6 +438,8 @@ export function SyncPreviewDialog() {
   const [step, setStep] = useState<Step>('preview');
   const [result, setResult] = useState<SyncApplyResult | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [isCancelingPreview, setIsCancelingPreview] = useState(false);
+  const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
   const lastPreviewRequestKeyRef = useRef<string | null>(null);
   const activePreviewKeyRef = useRef<string | null>(null);
   const previewKey = previewConfig ? buildPreviewKey(previewConfig) : null;
@@ -564,15 +609,59 @@ export function SyncPreviewDialog() {
   const previewRun = preview.previewRun ?? previewSession?.run ?? null;
   const isPreviewLoading = preview.isPending || previewSession?.status === 'running';
   const isPreviewError = preview.isError || previewSession?.status === 'failed';
-  const previewErrorMessage = preview.isError
-    ? formatPreviewError(preview.error)
-    : (previewSession?.status === 'failed'
-      ? (previewSession.errorMessage ?? 'Failed to generate preview. Please try again.')
-      : '');
+  const previewErrorMessage = getPreviewErrorMessage(preview.isError, preview.error, previewSession);
   const applyErrorMessage = apply.isError
     ? (apply.error instanceof Error ? apply.error.message : 'Sync failed while applying changes.')
     : (previewSession?.applyErrorMessage ?? 'Sync failed while applying changes.');
   const hasApplyError = apply.isError || !!previewSession?.applyErrorMessage;
+
+  const handleCancelPreview = useCallback(() => {
+    setIsCancelConfirmOpen(true);
+  }, []);
+
+  const handleConfirmCancelPreview = useCallback(async () => {
+    if (!isPreviewLoading || isCancelingPreview) {
+      return;
+    }
+
+    setIsCancelConfirmOpen(false);
+    setIsCancelingPreview(true);
+    try {
+      preview.cancelCurrentRun();
+
+      const runId = previewRun?.id ?? previewSession?.run?.id;
+      if (runId) {
+        await apiFetch<{ canceled: boolean }>(`/api/sync/preview/${runId}`, {
+          method: 'DELETE',
+        });
+      }
+
+      if (previewKey) {
+        failPreviewSession(previewKey, 'Preview canceled by user.', previewSession?.run ?? null);
+      }
+
+      closePreview();
+    } catch (error) {
+      const message = error instanceof Error && error.message.trim().length > 0
+        ? error.message
+        : 'Failed to cancel preview.';
+
+      if (previewKey) {
+        failPreviewSession(previewKey, message, previewSession?.run ?? null);
+      }
+    } finally {
+      setIsCancelingPreview(false);
+    }
+  }, [
+    isPreviewLoading,
+    isCancelingPreview,
+    preview,
+    previewRun?.id,
+    previewSession?.run,
+    previewKey,
+    failPreviewSession,
+    closePreview,
+  ]);
 
   const handleApply = useCallback(() => {
     const plan = previewData?.plan;
@@ -613,35 +702,60 @@ export function SyncPreviewDialog() {
   }, [previewKey, clearPreviewSession, preview, apply, closePreview]);
 
   return (
-    <Dialog open={isPreviewOpen} onOpenChange={(open) => { if (!open) closePreview(); }}>
-      <DialogContent className="max-w-3xl">
-        <DialogHeader>
-          <DialogTitle>{STEP_TITLES[step]}</DialogTitle>
-          <DialogDescription>{STEP_DESCRIPTIONS[step]}</DialogDescription>
-        </DialogHeader>
+    <>
+      <Dialog open={isPreviewOpen} onOpenChange={(open) => { if (!open) closePreview(); }}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>{STEP_TITLES[step]}</DialogTitle>
+            <DialogDescription>{STEP_DESCRIPTIONS[step]}</DialogDescription>
+          </DialogHeader>
 
-        <SyncPreviewDialogContent
-          step={step}
-          result={result}
-          previewData={previewData}
-          previewRun={previewRun}
-          isPreviewLoading={isPreviewLoading}
-          isPreviewError={isPreviewError}
-          previewErrorMessage={previewErrorMessage}
-          applyError={hasApplyError}
-          applyErrorMessage={applyErrorMessage}
-          isApplying={apply.isPending}
-          applyProgressPercent={applyProgressPercent}
-          isApplyLikelyStuck={isApplyLikelyStuck}
-          previewConfig={previewConfig}
-          sourcePlaylistName={sourcePlaylistName}
-          targetPlaylistName={targetPlaylistName}
-          elapsedSeconds={elapsedSeconds}
-          onApply={handleApply}
-          onRetryPreview={triggerPreview}
-          onClose={step === 'result' ? handleDone : closePreview}
-        />
-      </DialogContent>
-    </Dialog>
+          <SyncPreviewDialogContent
+            step={step}
+            result={result}
+            previewData={previewData}
+            previewRun={previewRun}
+            isPreviewLoading={isPreviewLoading}
+            isPreviewError={isPreviewError}
+            previewErrorMessage={previewErrorMessage}
+            applyError={hasApplyError}
+            applyErrorMessage={applyErrorMessage}
+            isApplying={apply.isPending}
+            applyProgressPercent={applyProgressPercent}
+            isApplyLikelyStuck={isApplyLikelyStuck}
+            previewConfig={previewConfig}
+            sourcePlaylistName={sourcePlaylistName}
+            targetPlaylistName={targetPlaylistName}
+            elapsedSeconds={elapsedSeconds}
+            isCancelingPreview={isCancelingPreview}
+            onApply={handleApply}
+            onRetryPreview={triggerPreview}
+            onCancelPreview={handleCancelPreview}
+            onClose={step === 'result' ? handleDone : closePreview}
+          />
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={isCancelConfirmOpen} onOpenChange={setIsCancelConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel sync preview?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will stop the currently running preview task. You can start a new preview anytime.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isCancelingPreview}>Keep running</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => { void handleConfirmCancelPreview(); }}
+              disabled={isCancelingPreview}
+            >
+              {isCancelingPreview ? 'Canceling...' : 'Yes, cancel preview'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

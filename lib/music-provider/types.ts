@@ -4,6 +4,7 @@ export type ProviderClientOptions = {
     maxRetries?: number;
     baseDelayMs?: number;
     maxDelayMs?: number;
+    sameKindAbortAfterRetries?: number;
   };
 };
 

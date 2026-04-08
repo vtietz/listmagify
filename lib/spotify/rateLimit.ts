@@ -8,6 +8,7 @@ export type BackoffOptions = {
   maxRetries?: number;
   baseDelayMs?: number; // initial delay for exponential backoff
   maxDelayMs?: number;  // cap for backoff delay
+  sameKindAbortAfterRetries?: number; // abort after N consecutive retries of the same error kind
 };
 
 export type RateLimitLogContext = {
@@ -59,7 +60,40 @@ const defaultBackoff: Required<BackoffOptions> = {
   maxRetries: 4,
   baseDelayMs: 400,
   maxDelayMs: 8_000,
+  sameKindAbortAfterRetries: 10,
 };
+
+type RetryKind = 'network' | 'rate-limit' | 'server-5xx';
+
+type RetryStreak = {
+  kind: RetryKind;
+  count: number;
+};
+
+const retryStreakByScope = new Map<string, RetryStreak>();
+
+function parseRetryBudgetFromEnv(): number | undefined {
+  const raw = process.env.PROVIDER_SAME_KIND_RETRY_ABORT_AFTER;
+  if (!raw) return undefined;
+
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed)) return undefined;
+  if (parsed <= 0) return undefined;
+  return Math.floor(parsed);
+}
+
+function noteRetry(scope: string, kind: RetryKind): number {
+  const current = retryStreakByScope.get(scope);
+  const next: RetryStreak = current?.kind === kind
+    ? { kind, count: current.count + 1 }
+    : { kind, count: 1 };
+  retryStreakByScope.set(scope, next);
+  return next.count;
+}
+
+function clearRetryStreak(scope: string): void {
+  retryStreakByScope.delete(scope);
+}
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
@@ -95,13 +129,28 @@ export async function withRateLimitRetry(
   opts: BackoffOptions = {},
   requestPathOrContext?: string | RateLimitLogContext
 ): Promise<Response> {
-  const cfg = { ...defaultBackoff, ...opts };
+  const envRetryBudget = parseRetryBudgetFromEnv();
+  const sameKindAbortAfterRetries = opts.sameKindAbortAfterRetries
+    ?? envRetryBudget
+    ?? defaultBackoff.sameKindAbortAfterRetries;
+  const cfg: Required<BackoffOptions> = {
+    maxRetries: opts.maxRetries ?? defaultBackoff.maxRetries,
+    baseDelayMs: opts.baseDelayMs ?? defaultBackoff.baseDelayMs,
+    maxDelayMs: opts.maxDelayMs ?? defaultBackoff.maxDelayMs,
+    sameKindAbortAfterRetries,
+  };
   const maxWaitMs = 60 * 60 * 1000;
   const context: RateLimitLogContext = typeof requestPathOrContext === 'string'
     ? { requestPath: requestPathOrContext }
     : (requestPathOrContext ?? {});
   const requestPath = context.requestPath;
   const logTag = context.providerId ? `[provider:${context.providerId}]` : '[provider]';
+  const retryScope = context.providerId ?? 'unknown';
+
+  const shouldAbortForStreak = (kind: RetryKind): boolean => {
+    const streak = noteRetry(retryScope, kind);
+    return streak >= cfg.sameKindAbortAfterRetries;
+  };
 
   for (let attempt = 1; attempt <= cfg.maxRetries + 1; attempt += 1) {
     let res: Response;
@@ -109,6 +158,10 @@ export async function withRateLimitRetry(
     try {
       res = await fetchFactory();
     } catch (err) {
+      if (shouldAbortForStreak('network')) {
+        throw new Error(`${logTag} aborting after ${cfg.sameKindAbortAfterRetries} consecutive network retries`);
+      }
+
       if (attempt > cfg.maxRetries) {
         throw err;
       }
@@ -120,11 +173,18 @@ export async function withRateLimitRetry(
     }
 
     // Success
-    if (res.ok) return res;
+    if (res.ok) {
+      clearRetryStreak(retryScope);
+      return res;
+    }
 
     // 429 Too Many Requests - honor Retry-After
     if (res.status === 429) {
       const delayMs = getRetryAfterDelayMs(res.headers.get('Retry-After'), attempt, cfg);
+
+      if (shouldAbortForStreak('rate-limit')) {
+        throw new RateLimitError(delayMs, requestPath);
+      }
 
       // If retry time is very long (> 1 hour), don't wait - throw immediately
       if (delayMs > maxWaitMs) {
@@ -144,6 +204,10 @@ export async function withRateLimitRetry(
 
     // Retry select transient 5xx
     if (res.status >= 500 && res.status < 600 && attempt <= cfg.maxRetries) {
+      if (shouldAbortForStreak('server-5xx')) {
+        throw new Error(`${logTag} aborting after ${cfg.sameKindAbortAfterRetries} consecutive 5xx retries`);
+      }
+
       const delay = getBackoffDelayMs(attempt, cfg);
       console.warn(`${logTag} ${res.status} server error, retrying in ${delay}ms (attempt ${attempt}/${cfg.maxRetries})`);
       await sleep(delay);
