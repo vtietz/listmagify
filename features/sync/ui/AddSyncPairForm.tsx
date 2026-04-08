@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, createContext, useContext, useId } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -21,6 +21,22 @@ import { useSyncDialogStore } from '@features/sync/stores/useSyncDialogStore';
 import { useSyncIntervalOptions, useSyncSchedulerEnabled } from '@shared/hooks/useAppConfig';
 import type { MusicProviderId } from '@/lib/music-provider/types';
 import type { SyncPair, SyncInterval } from '@/lib/sync/types';
+
+// Context for coordinating dropdown open/close within a form
+type SyncIntervalContextType = {
+  openDropdownId: string | null;
+  setOpenDropdownId: (id: string | null) => void;
+};
+
+const SyncIntervalContext = createContext<SyncIntervalContextType | undefined>(undefined);
+
+function useSyncIntervalDropdown() {
+  const context = useContext(SyncIntervalContext);
+  if (!context) {
+    throw new Error('useSyncIntervalDropdown must be used within SyncIntervalProvider');
+  }
+  return context;
+}
 
 /** Same grid as SyncPairRow: [left] [arrow] [right] [status] [actions] */
 const ROW_GRID = 'grid grid-cols-[1fr_auto_1fr_auto_auto] items-center gap-x-2';
@@ -120,13 +136,29 @@ function SyncIntervalSelect({
   value,
   options,
   onChange,
+  dropdownId,
 }: {
   value: SyncInterval;
   options: readonly SyncInterval[];
   onChange: (v: SyncInterval) => void;
+  dropdownId: string;
 }) {
+  const { openDropdownId, setOpenDropdownId } = useSyncIntervalDropdown();
+  const isOpen = openDropdownId === dropdownId;
+
   return (
-    <Select value={value} onValueChange={(v) => onChange(v as SyncInterval)}>
+    <Select
+      modal={false}
+      value={value}
+      open={isOpen}
+      onOpenChange={(open) => {
+        setOpenDropdownId(open ? dropdownId : null);
+      }}
+      onValueChange={(v) => {
+        onChange(v as SyncInterval);
+        setOpenDropdownId(null);
+      }}
+    >
       <SelectTrigger className="h-7 w-[68px] text-xs px-2">
         <SelectValue />
       </SelectTrigger>
@@ -139,8 +171,21 @@ function SyncIntervalSelect({
   );
 }
 
-export function AddSyncPairForm(props: AddSyncPairFormProps) {
-  const { popoverContainer, showSyncActions } = props;
+function AddSyncPairFormContent({
+  props,
+  openDropdownId,
+  setOpenDropdownId,
+  formId,
+}: {
+  props: AddSyncPairFormProps;
+  openDropdownId: string | null;
+  setOpenDropdownId: (id: string | null) => void;
+  formId: string;
+}) {
+  const {
+    popoverContainer,
+    showSyncActions,
+  } = props;
   const managementDraft = useSyncDialogStore((s) => s.managementDraft);
   const setManagementDraft = useSyncDialogStore((s) => s.setManagementDraft);
   const clearManagementDraft = useSyncDialogStore((s) => s.clearManagementDraft);
@@ -293,11 +338,14 @@ export function AddSyncPairForm(props: AddSyncPairFormProps) {
       {/* Status column — scheduling dropdown */}
       <div className="flex items-center gap-1.5 shrink-0">
         {schedulerEnabled && (
-          <SyncIntervalSelect
-            value={syncInterval}
-            options={intervalOptions}
-            onChange={setSyncInterval}
-          />
+          <SyncIntervalContext.Provider value={{ openDropdownId, setOpenDropdownId }}>
+            <SyncIntervalSelect
+              value={syncInterval}
+              options={intervalOptions}
+              onChange={setSyncInterval}
+              dropdownId={formId}
+            />
+          </SyncIntervalContext.Provider>
         )}
       </div>
 
@@ -324,6 +372,20 @@ export function AddSyncPairForm(props: AddSyncPairFormProps) {
         </Button>
       </div>
     </div>
+  );
+}
+
+export function AddSyncPairForm(props: AddSyncPairFormProps) {
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+  const formId = useId();
+
+  return (
+    <AddSyncPairFormContent
+      props={props}
+      openDropdownId={openDropdownId}
+      setOpenDropdownId={setOpenDropdownId}
+      formId={formId}
+    />
   );
 }
 

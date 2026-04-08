@@ -122,11 +122,14 @@ function SyncPairStatusCell({ pair, isSyncing, showScheduler, onShowResult }: {
   );
 }
 
-function SyncPairActions({ pair, bothConnected, isSyncing, showScheduler }: {
+function SyncPairActions({ pair, bothConnected, isSyncing, showScheduler, intervalOpen, onIntervalOpenChange, popoverContainer }: {
   pair: SyncPairWithRun;
   bothConnected: boolean;
   isSyncing: boolean;
   showScheduler: boolean;
+  intervalOpen: boolean;
+  onIntervalOpenChange: (open: boolean) => void;
+  popoverContainer: HTMLDivElement | null;
 }) {
   const openPreview = useSyncDialogStore((s) => s.openPreview);
   const isPreviewRunning = useSyncDialogStore((s) => Object.values(s.previewSessions).some((session) => {
@@ -154,6 +157,9 @@ function SyncPairActions({ pair, bothConnected, isSyncing, showScheduler }: {
     <div className="flex items-center gap-0.5 shrink-0">
       {showScheduler && (
         <Select
+          modal={false}
+          open={intervalOpen}
+          onOpenChange={onIntervalOpenChange}
           value={pair.syncInterval ?? 'off'}
           onValueChange={(value) => updatePair.mutate({ id: pair.id, syncInterval: value })}
           disabled={!bothConnected}
@@ -161,7 +167,7 @@ function SyncPairActions({ pair, bothConnected, isSyncing, showScheduler }: {
           <SelectTrigger className="h-7 w-[68px] text-xs px-2">
             <SelectValue />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent container={popoverContainer}>
             {intervalOptions.map((interval) => (
               <SelectItem key={interval} value={interval}>{interval === 'off' ? 'Off' : interval}</SelectItem>
             ))}
@@ -202,7 +208,21 @@ function SyncPairActions({ pair, bothConnected, isSyncing, showScheduler }: {
   );
 }
 
-function SyncPairRow({ pair, bothConnected, showScheduler }: { pair: SyncPairWithRun; bothConnected: boolean; showScheduler: boolean }) {
+function SyncPairRow({
+  pair,
+  bothConnected,
+  showScheduler,
+  isIntervalOpen,
+  onIntervalOpenChange,
+  popoverContainer,
+}: {
+  pair: SyncPairWithRun;
+  bothConnected: boolean;
+  showScheduler: boolean;
+  isIntervalOpen: boolean;
+  onIntervalOpenChange: (open: boolean) => void;
+  popoverContainer: HTMLDivElement | null;
+}) {
   const execute = useSyncExecute();
   const [showResultDialog, setShowResultDialog] = useState(false);
 
@@ -243,6 +263,9 @@ function SyncPairRow({ pair, bothConnected, showScheduler }: { pair: SyncPairWit
           bothConnected={bothConnected}
           isSyncing={isSyncing}
           showScheduler={showScheduler}
+          intervalOpen={isIntervalOpen}
+          onIntervalOpenChange={onIntervalOpenChange}
+          popoverContainer={popoverContainer}
         />
       </div>
 
@@ -260,10 +283,31 @@ function useProviderConnected(providerId: MusicProviderId): boolean {
   return authSummary[providerId].code === 'ok';
 }
 
-function SyncPairRowWithAuth({ pair, showScheduler }: { pair: SyncPairWithRun; showScheduler: boolean }) {
+function SyncPairRowWithAuth({
+  pair,
+  showScheduler,
+  isIntervalOpen,
+  onIntervalOpenChange,
+  popoverContainer,
+}: {
+  pair: SyncPairWithRun;
+  showScheduler: boolean;
+  isIntervalOpen: boolean;
+  onIntervalOpenChange: (open: boolean) => void;
+  popoverContainer: HTMLDivElement | null;
+}) {
   const sourceConnected = useProviderConnected(pair.sourceProvider);
   const targetConnected = useProviderConnected(pair.targetProvider);
-  return <SyncPairRow pair={pair} bothConnected={sourceConnected && targetConnected} showScheduler={showScheduler} />;
+  return (
+    <SyncPairRow
+      pair={pair}
+      bothConnected={sourceConnected && targetConnected}
+      showScheduler={showScheduler}
+      isIntervalOpen={isIntervalOpen}
+      onIntervalOpenChange={onIntervalOpenChange}
+      popoverContainer={popoverContainer}
+    />
+  );
 }
 
 export function SyncManagementDialog() {
@@ -275,11 +319,20 @@ export function SyncManagementDialog() {
   const schedulerTickMs = useSyncSchedulerTickMs();
   const schedulerTickSec = Math.max(1, Math.round(schedulerTickMs / 1000));
   const [overlayEl, setOverlayEl] = useState<HTMLDivElement | null>(null);
+  const [openIntervalPairId, setOpenIntervalPairId] = useState<string | null>(null);
   const overlayRef = useCallback((node: HTMLDivElement | null) => { setOverlayEl(node); }, []);
 
   return (
-    <Dialog open={isManagementOpen} onOpenChange={(open) => { if (!open) closeManagement(); }}>
-      <DialogContent className="max-w-2xl">
+    <Dialog
+      open={isManagementOpen}
+      onOpenChange={(open) => {
+        if (!open) {
+          setOpenIntervalPairId(null);
+          closeManagement();
+        }
+      }}
+    >
+      <DialogContent className="max-w-2xl flex flex-col">
         {/* Overlay layer for popover portals — inside Dialog's DOM tree */}
         <div ref={overlayRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 1 }} />
 
@@ -304,7 +357,7 @@ export function SyncManagementDialog() {
           }
         </div>
 
-        <div className="max-h-[60vh] overflow-y-auto space-y-1.5">
+        <div className="max-h-[60vh] overflow-y-scroll space-y-1.5 flex-1">
           {isLoading && (
             <p className="text-sm text-muted-foreground text-center py-4">Loading sync pairs...</p>
           )}
@@ -320,7 +373,14 @@ export function SyncManagementDialog() {
                 </p>
               )}
               {pairs.map((pair: SyncPairWithRun) => (
-                <SyncPairRowWithAuth key={pair.id} pair={pair} showScheduler={schedulerEnabled} />
+                <SyncPairRowWithAuth
+                  key={pair.id}
+                  pair={pair}
+                  showScheduler={schedulerEnabled}
+                  isIntervalOpen={openIntervalPairId === pair.id}
+                  onIntervalOpenChange={(open) => setOpenIntervalPairId(open ? pair.id : null)}
+                  popoverContainer={overlayEl}
+                />
               ))}
             </div>
           )}
