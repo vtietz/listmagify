@@ -2,13 +2,7 @@
 
 import { useState, useMemo, useEffect, createContext, useContext, useId } from 'react';
 import { Button } from '@/components/ui/button';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { PlaylistSelector } from '@/components/split-editor/playlist/PlaylistSelector';
 import { ProviderStatusDropdown } from '@/components/auth/ProviderStatusDropdown';
 import { useAvailableProviders } from '@shared/hooks/useAvailableProviders';
@@ -16,7 +10,7 @@ import { useAuthSummary } from '@features/auth/hooks/useAuth';
 import { useMusicProviderId } from '@features/auth/hooks/useMusicProviderId';
 import { useCreateSyncPair } from '@features/sync/hooks/useSyncPairs';
 import { usePlaylistName } from '@features/sync/hooks/usePlaylistName';
-import { Save, ArrowLeftRight, Eye, Loader2 } from 'lucide-react';
+import { Save, ArrowLeftRight, Eye, Loader2, ChevronDown, Check } from 'lucide-react';
 import { useSyncDialogStore } from '@features/sync/stores/useSyncDialogStore';
 import { useSyncIntervalOptions, useSyncSchedulerEnabled } from '@shared/hooks/useAppConfig';
 import type { MusicProviderId } from '@/lib/music-provider/types';
@@ -137,37 +131,65 @@ function SyncIntervalSelect({
   options,
   onChange,
   dropdownId,
+  popoverContainer,
 }: {
   value: SyncInterval;
   options: readonly SyncInterval[];
   onChange: (v: SyncInterval) => void;
   dropdownId: string;
+  popoverContainer?: HTMLElement | null | undefined;
 }) {
   const { openDropdownId, setOpenDropdownId } = useSyncIntervalDropdown();
   const isOpen = openDropdownId === dropdownId;
+  const selectedLabel = value === 'off' ? 'Off' : value;
 
   return (
-    <Select
-      modal={false}
-      value={value}
+    <Popover
       open={isOpen}
       onOpenChange={(open) => {
         setOpenDropdownId(open ? dropdownId : null);
       }}
-      onValueChange={(v) => {
-        onChange(v as SyncInterval);
-        setOpenDropdownId(null);
-      }}
     >
-      <SelectTrigger className="h-7 w-[68px] text-xs px-2">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {options.map((interval) => (
-          <SelectItem key={interval} value={interval}>{interval === 'off' ? 'Off' : interval}</SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          className="h-7 w-[68px] justify-between px-2 text-xs"
+          title="Sync interval"
+        >
+          <span>{selectedLabel}</span>
+          <ChevronDown className="h-3 w-3 opacity-70" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        container={popoverContainer}
+        align="end"
+        className="w-[88px] p-1"
+        onOpenAutoFocus={(event) => event.preventDefault()}
+      >
+        <div className="space-y-0.5">
+          {options.map((interval) => {
+            const isSelected = value === interval;
+
+            return (
+              <Button
+                key={interval}
+                type="button"
+                variant="ghost"
+                className="h-7 w-full justify-between px-2 text-xs"
+                onClick={() => {
+                  onChange(interval);
+                  setOpenDropdownId(null);
+                }}
+              >
+                <span>{interval === 'off' ? 'Off' : interval}</span>
+                {isSelected && <Check className="h-3 w-3" />}
+              </Button>
+            );
+          })}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -344,6 +366,7 @@ function AddSyncPairFormContent({
               options={intervalOptions}
               onChange={setSyncInterval}
               dropdownId={formId}
+              popoverContainer={popoverContainer}
             />
           </SyncIntervalContext.Provider>
         )}

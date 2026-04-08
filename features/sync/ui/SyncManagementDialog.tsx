@@ -19,14 +19,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Play, Eye, Trash2, ArrowLeftRight, Loader2 } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Play, Eye, Trash2, ArrowLeftRight, Loader2, ChevronDown, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSyncIntervalOptions, useSyncSchedulerEnabled, useSyncSchedulerTickMs } from '@shared/hooks/useAppConfig';
 import { useProposedSyncPairs } from '@features/sync/hooks/useProposedSyncPairs';
@@ -152,27 +146,52 @@ function SyncPairActions({ pair, bothConnected, isSyncing, showScheduler, interv
   const actionsDisabled = !bothConnected || isSyncing;
   const intervalOptions = ['off', ...configuredSyncIntervals, pair.syncInterval]
     .filter((value, index, all) => all.indexOf(value) === index);
+  const intervalLabel = pair.syncInterval === 'off' ? 'Off' : pair.syncInterval;
 
   return (
     <div className="flex items-center gap-0.5 shrink-0">
       {showScheduler && (
-        <Select
-          modal={false}
-          open={intervalOpen}
-          onOpenChange={onIntervalOpenChange}
-          value={pair.syncInterval ?? 'off'}
-          onValueChange={(value) => updatePair.mutate({ id: pair.id, syncInterval: value })}
-          disabled={!bothConnected}
-        >
-          <SelectTrigger className="h-7 w-[68px] text-xs px-2">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent container={popoverContainer}>
-            {intervalOptions.map((interval) => (
-              <SelectItem key={interval} value={interval}>{interval === 'off' ? 'Off' : interval}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Popover open={intervalOpen} onOpenChange={onIntervalOpenChange}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              className="h-7 w-[68px] text-xs px-2 justify-between"
+              disabled={!bothConnected}
+              title="Sync interval"
+            >
+              <span>{intervalLabel}</span>
+              <ChevronDown className="h-3 w-3 opacity-70" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent
+            container={popoverContainer}
+            align="end"
+            className="w-[88px] p-1"
+            onOpenAutoFocus={(event) => event.preventDefault()}
+          >
+            <div className="space-y-0.5">
+              {intervalOptions.map((interval) => {
+                const isSelected = (pair.syncInterval ?? 'off') === interval;
+
+                return (
+                  <Button
+                    key={interval}
+                    type="button"
+                    variant="ghost"
+                    className="h-7 w-full justify-between px-2 text-xs"
+                    onClick={() => {
+                      updatePair.mutate({ id: pair.id, syncInterval: interval });
+                      onIntervalOpenChange(false);
+                    }}
+                  >
+                    <span>{interval === 'off' ? 'Off' : interval}</span>
+                    {isSelected && <Check className="h-3 w-3" />}
+                  </Button>
+                );
+              })}
+            </div>
+          </PopoverContent>
+        </Popover>
       )}
       <Button
         variant="ghost"
