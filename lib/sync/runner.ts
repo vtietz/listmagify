@@ -10,7 +10,7 @@ import { getSyncPair, createSyncRun, updateSyncRun } from '@/lib/sync/syncStore'
 import type { SyncConfig, SyncPlan, SyncApplyResult, SyncPreviewResult, SyncPreviewTrack, SyncDiffItem } from '@/lib/sync/types';
 import type { PlaylistSnapshot } from '@/lib/sync/snapshot';
 import type { SyncMatchThresholds } from '@/lib/sync/executor';
-import { updateSyncPreviewRun } from '@/lib/sync/previewStore';
+import { isSyncPreviewRunCancellationRequested, updateSyncPreviewRun } from '@/lib/sync/previewStore';
 import { createBackgroundProvider } from '@/lib/sync/backgroundProvider';
 
 const PREVIEW_VALIDATION_BATCH_SIZE = 50;
@@ -461,7 +461,29 @@ export async function executePreviewRun(
   matchThresholds?: SyncMatchThresholds,
   providerUserIds?: Partial<Record<MusicProviderId, string>>,
 ): Promise<void> {
+  class SyncPreviewCancelledError extends Error {
+    constructor() {
+      super('Preview canceled by user.');
+      this.name = 'SyncPreviewCancelledError';
+    }
+  }
+
+  const markCancelled = () => {
+    updateSyncPreviewRun(runId, {
+      status: 'failed',
+      phase: 'cancelled',
+      progress: 100,
+      errorMessage: 'Preview canceled by user.',
+      completedAt: new Date().toISOString(),
+    });
+  };
+
   try {
+    if (isSyncPreviewRunCancellationRequested(runId)) {
+      markCancelled();
+      return;
+    }
+
     updateSyncPreviewRun(runId, { status: 'executing', phase: 'capturing_snapshots', progress: 10 });
 
     let providerOverrides: Partial<Record<MusicProviderId, MusicProvider>> | undefined;
@@ -484,6 +506,10 @@ export async function executePreviewRun(
 
     const result = await Promise.race([
       previewSync(config, matchThresholds, (phase, progress) => {
+        if (isSyncPreviewRunCancellationRequested(runId)) {
+          throw new SyncPreviewCancelledError();
+        }
+
         updateSyncPreviewRun(runId, {
           status: 'executing',
           phase,
@@ -495,6 +521,11 @@ export async function executePreviewRun(
       }),
     ]);
 
+    if (isSyncPreviewRunCancellationRequested(runId)) {
+      markCancelled();
+      return;
+    }
+
     updateSyncPreviewRun(runId, {
       status: 'done',
       phase: 'done',
@@ -503,6 +534,11 @@ export async function executePreviewRun(
       completedAt: new Date().toISOString(),
     });
   } catch (error) {
+    if (error instanceof SyncPreviewCancelledError) {
+      markCancelled();
+      return;
+    }
+
     const message = error instanceof Error ? error.message : String(error);
     updateSyncPreviewRun(runId, {
       status: 'failed',

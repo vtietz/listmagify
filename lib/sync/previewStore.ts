@@ -305,6 +305,7 @@ export function claimNextPendingSyncPreviewRun(): SyncPreviewRunRequest | null {
         match_thresholds_json AS matchThresholdsJson
       FROM sync_preview_runs
       WHERE status = 'pending'
+        AND cancel_requested = 0
       ORDER BY started_at ASC
       LIMIT 1
     `).get() as {
@@ -392,4 +393,44 @@ export function requeueExecutingSyncPreviewRuns(): number {
   `).run();
 
   return result.changes;
+}
+
+export function requestCancelSyncPreviewRun(id: string, createdBy: string | string[]): boolean {
+  const db = getRecsDb();
+  const userIds = Array.isArray(createdBy) ? createdBy : [createdBy];
+  if (userIds.length === 0) {
+    return false;
+  }
+
+  const ownership = ownershipCondition(userIds);
+  const result = db.prepare(`
+    UPDATE sync_preview_runs
+    SET
+      cancel_requested = 1,
+      status = 'failed',
+      phase = 'cancelled',
+      progress = 100,
+      error_message = 'Preview canceled by user.',
+      completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP)
+    WHERE id = ?
+      AND ${ownership.sql}
+      AND status IN ('pending', 'executing')
+  `).run(id, ...ownership.params);
+
+  return result.changes > 0;
+}
+
+export function isSyncPreviewRunCancellationRequested(id: string): boolean {
+  const db = getRecsDb();
+  const row = db.prepare(`
+    SELECT cancel_requested AS cancelRequested
+    FROM sync_preview_runs
+    WHERE id = ?
+  `).get(id) as { cancelRequested: number } | undefined;
+
+  if (!row) {
+    return false;
+  }
+
+  return row.cancelRequested === 1;
 }

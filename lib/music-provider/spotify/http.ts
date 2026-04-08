@@ -94,7 +94,7 @@ export async function executeWithSession(
           headers,
         }),
       opts?.backoff,
-      safePath
+      { requestPath: safePath, providerId: DEFAULT_PROVIDER_ID }
     );
   };
 
@@ -124,7 +124,7 @@ export async function executeWithAccessToken(
         headers,
       }),
     opts?.backoff,
-    safePath
+    { requestPath: safePath, providerId: DEFAULT_PROVIDER_ID }
   );
 }
 

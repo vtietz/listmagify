@@ -144,7 +144,7 @@ export function createTidalTransport(dependencies: TidalProviderDependencies = {
             ...requestInit,
           }),
         opts?.backoff,
-        safePath,
+        { requestPath: safePath, providerId: TIDAL_PROVIDER_ID },
       );
     };
 
@@ -175,7 +175,7 @@ export function createTidalTransport(dependencies: TidalProviderDependencies = {
           headers,
         }),
       opts?.backoff,
-      safePath,
+      { requestPath: safePath, providerId: TIDAL_PROVIDER_ID },
     );
   }
 

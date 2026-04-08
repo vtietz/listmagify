@@ -414,4 +414,11 @@ export const recsMigrations: Migration[] = [
       ALTER TABLE sync_pairs ADD COLUMN target_last_change_at TEXT;
     `,
   },
+  {
+    version: 18,
+    name: 'add_sync_preview_run_cancel_requested',
+    sql: `
+      ALTER TABLE sync_preview_runs ADD COLUMN cancel_requested INTEGER NOT NULL DEFAULT 0;
+    `,
+  },
 ];

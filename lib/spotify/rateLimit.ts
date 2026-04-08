@@ -10,6 +10,11 @@ export type BackoffOptions = {
   maxDelayMs?: number;  // cap for backoff delay
 };
 
+export type RateLimitLogContext = {
+  requestPath?: string;
+  providerId?: string;
+};
+
 /**
  * Custom error for rate limit exceeded (429).
  * Includes retry information for client-side handling.
@@ -88,10 +93,15 @@ function getRetryAfterDelayMs(
 export async function withRateLimitRetry(
   fetchFactory: () => Promise<Response>,
   opts: BackoffOptions = {},
-  requestPath?: string
+  requestPathOrContext?: string | RateLimitLogContext
 ): Promise<Response> {
   const cfg = { ...defaultBackoff, ...opts };
   const maxWaitMs = 60 * 60 * 1000;
+  const context: RateLimitLogContext = typeof requestPathOrContext === 'string'
+    ? { requestPath: requestPathOrContext }
+    : (requestPathOrContext ?? {});
+  const requestPath = context.requestPath;
+  const logTag = context.providerId ? `[provider:${context.providerId}]` : '[provider]';
 
   for (let attempt = 1; attempt <= cfg.maxRetries + 1; attempt += 1) {
     let res: Response;
@@ -104,7 +114,7 @@ export async function withRateLimitRetry(
       }
 
       const delay = getBackoffDelayMs(attempt, cfg);
-      console.warn(`[provider] network error, retrying in ${delay}ms (attempt ${attempt}/${cfg.maxRetries})`, err);
+      console.warn(`${logTag} network error, retrying in ${delay}ms (attempt ${attempt}/${cfg.maxRetries})`, err);
       await sleep(delay);
       continue;
     }
@@ -118,16 +128,16 @@ export async function withRateLimitRetry(
 
       // If retry time is very long (> 1 hour), don't wait - throw immediately
       if (delayMs > maxWaitMs) {
-        console.warn(`[provider] 429 with long wait (${Math.ceil(delayMs / 1000)}s), throwing RateLimitError`);
+        console.warn(`${logTag} 429 with long wait (${Math.ceil(delayMs / 1000)}s), throwing RateLimitError`);
         throw new RateLimitError(delayMs, requestPath);
       }
 
       if (attempt > cfg.maxRetries) {
-        console.warn(`[provider] 429 and maxRetries reached, throwing RateLimitError`);
+        console.warn(`${logTag} 429 and maxRetries reached, throwing RateLimitError`);
         throw new RateLimitError(delayMs, requestPath);
       }
 
-      console.warn(`[provider] 429 received, retry after ${delayMs}ms (attempt ${attempt}/${cfg.maxRetries})`);
+      console.warn(`${logTag} 429 received, retry after ${delayMs}ms (attempt ${attempt}/${cfg.maxRetries})`);
       await sleep(delayMs);
       continue;
     }
@@ -135,7 +145,7 @@ export async function withRateLimitRetry(
     // Retry select transient 5xx
     if (res.status >= 500 && res.status < 600 && attempt <= cfg.maxRetries) {
       const delay = getBackoffDelayMs(attempt, cfg);
-      console.warn(`[provider] ${res.status} server error, retrying in ${delay}ms (attempt ${attempt}/${cfg.maxRetries})`);
+      console.warn(`${logTag} ${res.status} server error, retrying in ${delay}ms (attempt ${attempt}/${cfg.maxRetries})`);
       await sleep(delay);
       continue;
     }
@@ -144,5 +154,5 @@ export async function withRateLimitRetry(
     return res;
   }
 
-  throw new Error('[provider] retry loop exhausted unexpectedly');
+  throw new Error(`${logTag} retry loop exhausted unexpectedly`);
 }
