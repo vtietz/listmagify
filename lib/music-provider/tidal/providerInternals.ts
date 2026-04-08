@@ -10,6 +10,10 @@ export function isNativeReorderEnabled(): boolean {
   return process.env.TIDAL_NATIVE_REORDER === '1';
 }
 
+export function isV1FavoritesMirrorEnabled(): boolean {
+  return process.env.TIDAL_V1_FAVORITES_MIRROR === '1';
+}
+
 function isTidalReorderDebugEnabled(): boolean {
   return process.env.DEBUG_TIDAL_REORDER === '1';
 }

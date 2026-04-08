@@ -13,7 +13,7 @@ import {
 import { extractPlaylistItemReferences } from '@/lib/music-provider/tidal/mappers';
 
 const DEFAULT_BASE = 'https://openapi.tidal.com/v2';
-const REAL_TIDAL_HOSTS = new Set(['openapi.tidal.com', 'auth.tidal.com', 'login.tidal.com']);
+const REAL_TIDAL_HOSTS = new Set(['openapi.tidal.com', 'api.tidal.com', 'auth.tidal.com', 'login.tidal.com']);
 
 type InternalDependencies = {
   fetchImpl: typeof fetch;

@@ -66,13 +66,19 @@ export function usePlaylistDataSource(
   // Saved tracks index for liked status
   const { isLiked, toggleLiked, ensureCoverage } = useSavedTracksIndex(providerId);
 
+  // Keep virtual liked playlist visually consistent with optimistic heart toggles.
+  // When a track is unliked, it should disappear from the My Tracks panel immediately.
+  const visibleTracks = isLikedPlaylist
+    ? tracks.filter((track) => (track.id ? isLiked(track.id) : true))
+    : tracks;
+
   // Ensure saved tracks coverage when tracks load
   useEffect(() => {
-    if (playlistId && tracks.length > 0 && hasLoadedAll) {
-      const trackIds = tracks.map((t) => t.id).filter((id): id is string => id !== null);
+    if (playlistId && !isLikedPlaylist && visibleTracks.length > 0 && hasLoadedAll) {
+      const trackIds = visibleTracks.map((t) => t.id).filter((id): id is string => id !== null);
       ensureCoverage(trackIds);
     }
-  }, [playlistId, tracks, hasLoadedAll, ensureCoverage]);
+  }, [playlistId, isLikedPlaylist, visibleTracks, hasLoadedAll, ensureCoverage]);
 
   // Capture playlist for recommendations
   const capturePlaylist = useCapturePlaylist();
@@ -80,17 +86,17 @@ export function usePlaylistDataSource(
 
   useEffect(() => {
     const captureKey = snapshotId ? `${playlistId}:${snapshotId}` : (playlistId ?? null);
-    if (playlistId && hasLoadedAll && tracks.length > 0 && capturedRef.current !== captureKey) {
+    if (playlistId && hasLoadedAll && visibleTracks.length > 0 && capturedRef.current !== captureKey) {
       capturedRef.current = captureKey;
       capturePlaylist.mutate(
-        { playlistId, tracks, cooccurrenceOnly: isLikedPlaylist },
+        { playlistId, tracks: visibleTracks, cooccurrenceOnly: isLikedPlaylist },
         { onError: () => {} }
       );
     }
-  }, [playlistId, isLikedPlaylist, hasLoadedAll, tracks, snapshotId, capturePlaylist]);
+  }, [playlistId, isLikedPlaylist, hasLoadedAll, visibleTracks, snapshotId, capturePlaylist]);
 
   return {
-    tracks,
+    tracks: visibleTracks,
     snapshotId,
     isLoading,
     isAutoLoading,

@@ -320,7 +320,7 @@ export function useSavedTracksIndex(providerId?: MusicProviderId) {
     
     prefetchInitiatedRef.current = true;
     
-    // If force refresh, clear existing data first
+    // If force refresh, clear existing data first.
     if (forceRefresh) {
       reset();
     }

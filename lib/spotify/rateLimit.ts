@@ -104,7 +104,7 @@ export async function withRateLimitRetry(
       }
 
       const delay = getBackoffDelayMs(attempt, cfg);
-      console.warn(`[spotify] network error, retrying in ${delay}ms (attempt ${attempt}/${cfg.maxRetries})`, err);
+      console.warn(`[provider] network error, retrying in ${delay}ms (attempt ${attempt}/${cfg.maxRetries})`, err);
       await sleep(delay);
       continue;
     }
@@ -118,16 +118,16 @@ export async function withRateLimitRetry(
 
       // If retry time is very long (> 1 hour), don't wait - throw immediately
       if (delayMs > maxWaitMs) {
-        console.warn(`[spotify] 429 with long wait (${Math.ceil(delayMs / 1000)}s), throwing RateLimitError`);
+        console.warn(`[provider] 429 with long wait (${Math.ceil(delayMs / 1000)}s), throwing RateLimitError`);
         throw new RateLimitError(delayMs, requestPath);
       }
 
       if (attempt > cfg.maxRetries) {
-        console.warn(`[spotify] 429 and maxRetries reached, throwing RateLimitError`);
+        console.warn(`[provider] 429 and maxRetries reached, throwing RateLimitError`);
         throw new RateLimitError(delayMs, requestPath);
       }
 
-      console.warn(`[spotify] 429 received, retry after ${delayMs}ms (attempt ${attempt}/${cfg.maxRetries})`);
+      console.warn(`[provider] 429 received, retry after ${delayMs}ms (attempt ${attempt}/${cfg.maxRetries})`);
       await sleep(delayMs);
       continue;
     }
@@ -135,7 +135,7 @@ export async function withRateLimitRetry(
     // Retry select transient 5xx
     if (res.status >= 500 && res.status < 600 && attempt <= cfg.maxRetries) {
       const delay = getBackoffDelayMs(attempt, cfg);
-      console.warn(`[spotify] ${res.status} server error, retrying in ${delay}ms (attempt ${attempt}/${cfg.maxRetries})`);
+      console.warn(`[provider] ${res.status} server error, retrying in ${delay}ms (attempt ${attempt}/${cfg.maxRetries})`);
       await sleep(delay);
       continue;
     }
@@ -144,5 +144,5 @@ export async function withRateLimitRetry(
     return res;
   }
 
-  throw new Error('[spotify] retry loop exhausted unexpectedly');
+  throw new Error('[provider] retry loop exhausted unexpectedly');
 }
