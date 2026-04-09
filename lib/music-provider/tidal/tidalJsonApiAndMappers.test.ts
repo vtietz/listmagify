@@ -210,6 +210,37 @@ describe('tidal jsonApi and mappers', () => {
     });
   });
 
+    it('prefers meta total for track list pages when available', () => {
+      const raw: JsonApiDocument<JsonApiIdentifier[]> & {
+        meta?: { totalNumberOfItems?: number };
+      } = {
+        data: [
+          { id: 'track-1', type: 'tracks' },
+        ],
+        included: [
+          {
+            id: 'track-1',
+            type: 'tracks',
+            attributes: {
+              title: 'Only track in this page',
+              duration: 210,
+            },
+            relationships: {
+              artists: { data: [] },
+              albums: { data: [] },
+            },
+          },
+        ],
+        meta: {
+          totalNumberOfItems: 123,
+        },
+      };
+
+      const page = mapTrackListDocument(raw);
+      expect(page.total).toBe(123);
+      expect(page.tracks).toHaveLength(1);
+    });
+
   it('extracts playlist item references and preserves optional meta fields', () => {
     const raw: JsonApiDocument<JsonApiIdentifier[]> = {
       data: [

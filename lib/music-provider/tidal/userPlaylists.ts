@@ -103,6 +103,67 @@ function createUserPlaylistsFetcher(
   };
 }
 
+async function fetchUserPlaylistsPageSafely(params: {
+  fetchPage: (path: string) => Promise<ReturnType<typeof mapUserPlaylistsPage>>;
+  cursor: string;
+  hasAggregatedItems: boolean;
+}): Promise<ReturnType<typeof mapUserPlaylistsPage> | null> {
+  const { fetchPage, cursor, hasAggregatedItems } = params;
+
+  try {
+    return await fetchPage(cursor);
+  } catch (error) {
+    if (!hasAggregatedItems) {
+      throw error;
+    }
+
+    console.warn('[tidal] getUserPlaylists pagination stopped early, returning partial results', error);
+    return null;
+  }
+}
+
+function appendUniquePlaylists(params: {
+  aggregated: Playlist[];
+  seenPlaylistIds: Set<string>;
+  incoming: Playlist[];
+}): number {
+  const { aggregated, seenPlaylistIds, incoming } = params;
+  let newItemsInPage = 0;
+
+  for (const playlist of incoming) {
+    if (seenPlaylistIds.has(playlist.id)) {
+      continue;
+    }
+
+    seenPlaylistIds.add(playlist.id);
+    aggregated.push(playlist);
+    newItemsInPage += 1;
+  }
+
+  return newItemsInPage;
+}
+
+function resolveNextPlaylistCursor(params: {
+  page: ReturnType<typeof mapUserPlaylistsPage>;
+  newItemsInPage: number;
+  fallbackOffset: number;
+  boundedLimit: number;
+}): string | null {
+  const { page, newItemsInPage, fallbackOffset, boundedLimit } = params;
+
+  if (page.nextCursor) {
+    return page.nextCursor;
+  }
+
+  // Some TIDAL environments cap page size (e.g. 20) without returning links.next.
+  // Continue with explicit offset while pages still yield unseen playlists.
+  if (page.items.length > 0 && newItemsInPage > 0) {
+    return buildUserPlaylistsPath(boundedLimit, fallbackOffset);
+  }
+
+  return null;
+}
+
 async function fetchAllUserPlaylists(
   boundedLimit: number,
   fetchPage: (path: string) => Promise<ReturnType<typeof mapUserPlaylistsPage>>,
@@ -117,7 +178,15 @@ async function fetchAllUserPlaylists(
 
   while (cursor && pageCount < MAX_PAGES && !seenCursors.has(cursor)) {
     seenCursors.add(cursor);
-    const page = await fetchPage(cursor);
+    const page = await fetchUserPlaylistsPageSafely({
+      fetchPage,
+      cursor,
+      hasAggregatedItems: aggregated.length > 0,
+    });
+    if (!page) {
+      break;
+    }
+
     pageCount += 1;
     fallbackOffset += page.items.length;
 
@@ -125,30 +194,18 @@ async function fetchAllUserPlaylists(
       expectedTotal = Math.max(expectedTotal ?? 0, page.total);
     }
 
-    let newItemsInPage = 0;
-    for (const playlist of page.items) {
-      if (seenPlaylistIds.has(playlist.id)) {
-        continue;
-      }
+    const newItemsInPage = appendUniquePlaylists({
+      aggregated,
+      seenPlaylistIds,
+      incoming: page.items,
+    });
 
-      seenPlaylistIds.add(playlist.id);
-      aggregated.push(playlist);
-      newItemsInPage += 1;
-    }
-
-    if (page.nextCursor) {
-      cursor = page.nextCursor;
-      continue;
-    }
-
-    // Some TIDAL environments cap page size (e.g. 20) without returning links.next.
-    // Continue with explicit offset while pages still yield unseen playlists.
-    if (page.items.length > 0 && newItemsInPage > 0) {
-      cursor = buildUserPlaylistsPath(boundedLimit, fallbackOffset);
-      continue;
-    }
-
-    cursor = null;
+    cursor = resolveNextPlaylistCursor({
+      page,
+      newItemsInPage,
+      fallbackOffset,
+      boundedLimit,
+    });
   }
 
   return {

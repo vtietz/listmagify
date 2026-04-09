@@ -43,6 +43,7 @@ import {
 } from '@/lib/music-provider/tidal/mappers';
 import { createTidalTransport, type TidalProviderDependencies } from '@/lib/music-provider/tidal/transport';
 import { getUserPlaylistsPage } from '@/lib/music-provider/tidal/userPlaylists';
+import { getLikedTracksPage } from '@/lib/music-provider/tidal/likedTracks';
 import {
   DEFAULT_PROVIDER_ID,
   NATIVE_REORDER_FALLBACK_STATUSES,
@@ -176,16 +177,7 @@ export function createTidalProvider(dependencies: TidalProviderDependencies = {}
 
     async getLikedTracks(limit = 50, nextCursor?: string | null): Promise<LikedTracksPageResult<Track>> {
       const boundedLimit = Math.min(Math.max(limit, 1), 100);
-      const basePath = `/userCollectionTracks/me/relationships/items?include=items,items.artists,items.albums&page[size]=${boundedLimit}`;
-      const path = nextCursor ?? basePath;
-      const response = await transport.executeWithSession(path, { method: 'GET' }, undefined);
-      if (!response.ok) {
-        throwProviderError(response, await readJsonApiErrorDetails(response), 'getLikedTracks');
-      }
-
-      const raw = (await response.json()) as JsonApiDocument<JsonApiIdentifier[]>;
-      const page = mapTrackListDocument(raw);
-      return { tracks: page.tracks, total: page.total, nextCursor: page.nextCursor };
+      return getLikedTracksPage(transport.executeWithSession, boundedLimit, nextCursor);
     },
 
     async searchTracks(query: string, _limit = 50, offset = 0): Promise<TrackSearchResult<Track>> {

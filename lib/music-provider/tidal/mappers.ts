@@ -1,16 +1,6 @@
 import type { Artist, CurrentUserResult, Image, Playlist, PlaylistTracksPageResult, SearchArtistResult, SearchAlbumResult, Track } from '@/lib/music-provider/types';
-import type {
-  JsonApiDocument,
-  JsonApiIdentifier,
-  JsonApiResource,
-  PlaylistItemReference,
-} from './jsonApi';
-import {
-  buildIncludedIndex,
-  getFirstRelationshipResource,
-  getIncludedResource,
-  toTrackUri,
-} from './jsonApi';
+import type { JsonApiDocument, JsonApiIdentifier, JsonApiResource, PlaylistItemReference } from './jsonApi';
+import { buildIncludedIndex, getFirstRelationshipResource, getIncludedResource, toTrackUri } from './jsonApi';
 
 function parseDurationToMs(duration: unknown): number {
   if (typeof duration !== 'string' || duration.length === 0) {
@@ -60,7 +50,6 @@ type JsonApiFile = {
     height?: unknown;
   } | null;
 };
-
 type UnknownRecord = Record<string, unknown>;
 
 function asOptionalString(value: unknown): string | null {
@@ -76,7 +65,6 @@ const TIDAL_UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-
 function buildTidalImageUrl(uuid: string, size = 640): string {
   return `https://resources.tidal.com/images/${uuid.replace(/-/g, '/')}/${size}x${size}.jpg`;
 }
-
 function clampToTrackPopularityRange(value: number): number {
   if (value < 0) {
     return 0;
@@ -111,7 +99,6 @@ function mapImageFromStringCandidate(candidate: string): Image {
   if (TIDAL_UUID_PATTERN.test(candidate)) {
     return { url: buildTidalImageUrl(candidate), width: 640, height: 640 };
   }
-
   return { url: candidate, width: null, height: null };
 }
 
@@ -544,9 +531,38 @@ export function mapTrackListDocument(
   return {
     tracks,
     snapshotId: null,
-    total: tracks.length,
+    total: resolveTrackCollectionTotal(rawDocument, tracks.length),
     nextCursor: rawDocument.links?.next ?? null,
   };
+}
+
+function resolveTrackCollectionTotal(
+  rawDocument: JsonApiDocument<JsonApiIdentifier[]>,
+  fallback: number,
+): number {
+  const metadata = rawDocument as JsonApiDocument<JsonApiIdentifier[]> & {
+    meta?: {
+      total?: unknown;
+      totalNumberOfItems?: unknown;
+      page?: {
+        total?: unknown;
+        totalNumberOfItems?: unknown;
+      };
+    };
+  };
+  const candidates: unknown[] = [
+    metadata.meta?.total,
+    metadata.meta?.totalNumberOfItems,
+    metadata.meta?.page?.total,
+    metadata.meta?.page?.totalNumberOfItems,
+  ];
+  for (const candidate of candidates) {
+    const parsed = asOptionalNumber(candidate);
+    if (parsed != null) {
+      return parsed;
+    }
+  }
+  return fallback;
 }
 
 export function extractPlaylistItemReferences(rawDocument: JsonApiDocument<JsonApiIdentifier[]>): PlaylistItemReference[] {

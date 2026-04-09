@@ -14,6 +14,7 @@ export type BackoffOptions = {
 export type RateLimitLogContext = {
   requestPath?: string;
   providerId?: string;
+  retryScope?: string;
 };
 
 /**
@@ -71,6 +72,7 @@ type RetryStreak = {
 };
 
 const retryStreakByScope = new Map<string, RetryStreak>();
+const cooldownUntilByScope = new Map<string, number>();
 
 function parseRetryBudgetFromEnv(): number | undefined {
   const raw = process.env.PROVIDER_SAME_KIND_RETRY_ABORT_AFTER;
@@ -93,6 +95,22 @@ function noteRetry(scope: string, kind: RetryKind): number {
 
 function clearRetryStreak(scope: string): void {
   retryStreakByScope.delete(scope);
+}
+
+function noteRateLimitCooldown(scope: string, delayMs: number): void {
+  const nextCooldownUntil = Date.now() + Math.max(0, delayMs);
+  const current = cooldownUntilByScope.get(scope) ?? 0;
+  cooldownUntilByScope.set(scope, Math.max(current, nextCooldownUntil));
+}
+
+function getCooldownDelayMs(scope: string): number {
+  const cooldownUntil = cooldownUntilByScope.get(scope);
+  if (!cooldownUntil) {
+    return 0;
+  }
+
+  const remaining = cooldownUntil - Date.now();
+  return remaining > 0 ? remaining : 0;
 }
 
 function sleep(ms: number): Promise<void> {
@@ -124,11 +142,12 @@ function buildRateLimitContext(
   const context: RateLimitLogContext = typeof requestPathOrContext === 'string'
     ? { requestPath: requestPathOrContext }
     : (requestPathOrContext ?? {});
+  const retryScope = context.retryScope ?? context.providerId ?? 'unknown';
   return {
     context,
     requestPath: context.requestPath,
     logTag: context.providerId ? `[provider:${context.providerId}]` : '[provider]',
-    retryScope: context.providerId ?? 'unknown',
+    retryScope,
   };
 }
 
@@ -162,9 +181,11 @@ async function handleRateLimitResponse(params: {
   logTag: string;
   maxWaitMs: number;
   shouldAbortForStreak: (kind: RetryKind) => boolean;
+  noteCooldown: (delayMs: number) => void;
 }): Promise<boolean> {
-  const { res, attempt, cfg, requestPath, logTag, maxWaitMs, shouldAbortForStreak } = params;
+  const { res, attempt, cfg, requestPath, logTag, maxWaitMs, shouldAbortForStreak, noteCooldown } = params;
   const delayMs = getRetryAfterDelayMs(res.headers.get('Retry-After'), attempt, cfg);
+  noteCooldown(delayMs);
 
   if (shouldAbortForStreak('rate-limit')) {
     throw new RateLimitError(delayMs, requestPath);
@@ -220,6 +241,7 @@ async function resolveRetryDecision(params: {
   logTag: string;
   maxWaitMs: number;
   shouldAbortForStreak: (kind: RetryKind) => boolean;
+  noteCooldown: (delayMs: number) => void;
 }): Promise<RetryDecision> {
   const {
     res,
@@ -229,6 +251,7 @@ async function resolveRetryDecision(params: {
     logTag,
     maxWaitMs,
     shouldAbortForStreak,
+    noteCooldown,
   } = params;
 
   if (res.ok) {
@@ -244,6 +267,7 @@ async function resolveRetryDecision(params: {
       logTag,
       maxWaitMs,
       shouldAbortForStreak,
+      noteCooldown,
     });
     return { type: 'retry' };
   }
@@ -284,8 +308,18 @@ export async function withRateLimitRetry(
     return streak >= cfg.sameKindAbortAfterRetries;
   };
 
+  const noteCooldown = (delayMs: number): void => {
+    noteRateLimitCooldown(retryScope, delayMs);
+  };
+
   for (let attempt = 1; attempt <= cfg.maxRetries + 1; attempt += 1) {
     let res: Response;
+
+    const cooldownDelay = getCooldownDelayMs(retryScope);
+    if (cooldownDelay > 0) {
+      console.warn(`${logTag} respecting cooldown, waiting ${cooldownDelay}ms before attempt ${attempt}/${cfg.maxRetries}`);
+      await sleep(cooldownDelay);
+    }
 
     try {
       res = await fetchFactory();
@@ -302,6 +336,7 @@ export async function withRateLimitRetry(
       logTag,
       maxWaitMs,
       shouldAbortForStreak,
+      noteCooldown,
     });
 
     if (decision.type === 'return') {

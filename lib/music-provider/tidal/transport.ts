@@ -85,6 +85,14 @@ function buildPathWithCursor(basePath: string, nextCursor?: string | null): stri
   return nextCursor ?? basePath;
 }
 
+function buildRetryScope(providerId: string, userId?: string): string {
+  if (!userId) {
+    return providerId;
+  }
+
+  return `${providerId}:user:${userId}`;
+}
+
 const MUTATION_METHODS: ReadonlySet<string> = new Set(['POST', 'PATCH', 'DELETE', 'PUT']);
 
 function isMutationMethod(method: string | undefined): boolean {
@@ -144,7 +152,11 @@ export function createTidalTransport(dependencies: TidalProviderDependencies = {
             ...requestInit,
           }),
         opts?.backoff,
-        { requestPath: safePath, providerId: TIDAL_PROVIDER_ID },
+        {
+          requestPath: safePath,
+          providerId: TIDAL_PROVIDER_ID,
+          retryScope: buildRetryScope(TIDAL_PROVIDER_ID, session.user?.id),
+        },
       );
     };
 
@@ -175,7 +187,7 @@ export function createTidalTransport(dependencies: TidalProviderDependencies = {
           headers,
         }),
       opts?.backoff,
-      { requestPath: safePath, providerId: TIDAL_PROVIDER_ID },
+      { requestPath: safePath, providerId: TIDAL_PROVIDER_ID, retryScope: TIDAL_PROVIDER_ID },
     );
   }
 

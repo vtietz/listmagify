@@ -64,6 +64,14 @@ function buildHeaders(token: string, initHeaders?: HeadersInit): Headers {
   return headers;
 }
 
+function buildRetryScope(providerId: string, userId?: string): string {
+  if (!userId) {
+    return providerId;
+  }
+
+  return `${providerId}:user:${userId}`;
+}
+
 export async function executeWithSession(
   path: string,
   init: RequestInit | undefined,
@@ -94,7 +102,11 @@ export async function executeWithSession(
           headers,
         }),
       opts?.backoff,
-      { requestPath: safePath, providerId: DEFAULT_PROVIDER_ID }
+      {
+        requestPath: safePath,
+        providerId: DEFAULT_PROVIDER_ID,
+        retryScope: buildRetryScope(DEFAULT_PROVIDER_ID, session.user?.id),
+      }
     );
   };
 
