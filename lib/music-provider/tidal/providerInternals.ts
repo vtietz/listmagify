@@ -60,7 +60,7 @@ export function toRelationArray(data: unknown): JsonApiIdentifier[] {
   return Array.isArray(data) ? data : [data as JsonApiIdentifier];
 }
 
-const USER_COLLECTION_TRACKS_PATH = '/userCollectionTracks/me/relationships/items?include=items,items.artists,items.albums';
+const USER_COLLECTION_TRACKS_PATH = '/userCollectionTracks/me/relationships/items?page[size]=100';
 const MAX_USER_COLLECTION_PAGES = 500;
 
 type SessionTransport = Pick<ReturnType<typeof createTidalTransport>, 'executeWithSession'>;
