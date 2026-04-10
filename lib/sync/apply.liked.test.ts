@@ -7,10 +7,7 @@ describe('applySyncPlan for liked playlists', () => {
   it('uses saveTracks/removeTracks for liked target playlist', async () => {
     const saveTracks = vi.fn().mockResolvedValue(undefined);
     const removeTracks = vi.fn().mockResolvedValue(undefined);
-    const containsTracks = vi
-      .fn()
-      .mockResolvedValueOnce([false])
-      .mockResolvedValueOnce([true]);
+    const containsTracks = vi.fn().mockResolvedValue([true]);
 
     const provider = {
       saveTracks,

@@ -6,6 +6,7 @@ import type { SyncDiffItem, UnresolvedTrackInfo } from '@/lib/sync/types';
 import { createSyncMaterializeAdapter } from '@/lib/sync/materializeAdapter';
 import { isLikedSongsPlaylist } from '@/lib/sync/likedSongs';
 import { applyBatchedLikedAdds, applyBatchedLikedRemoves } from '@/lib/sync/applyLikedTracks';
+import { requiresLikedTracksVerification } from '@/lib/music-provider/capabilities';
 
 const BATCH_SIZE = 100;
 
@@ -167,6 +168,12 @@ async function filterAlreadyPresent(
   isLiked: boolean,
 ): Promise<string[]> {
   if (uris.length === 0) return uris;
+
+  // For providers that verify liked writes after saveTracks, skip pre-filtering
+  // so we do not silently drop tracks due to stale/partial contains checks.
+  if (isLiked && requiresLikedTracksVerification(providerId)) {
+    return uris;
+  }
 
   try {
     if (isLiked) {
