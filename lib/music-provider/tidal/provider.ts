@@ -47,10 +47,10 @@ import { getLikedTracksPage } from '@/lib/music-provider/tidal/likedTracks';
 import {
   DEFAULT_PROVIDER_ID,
   NATIVE_REORDER_FALLBACK_STATUSES,
+  PLAYLIST_RELATIONSHIP_MAX_BATCH_SIZE,
   appendPlaylistTracks,
   deletePlaylistTrackItems,
   findTracksInUserCollection,
-  isV1FavoritesMirrorEnabled,
   isNativeReorderEnabled,
   logReorderDebug,
   makeSnapshotId,
@@ -64,68 +64,6 @@ import {
 export function createTidalProvider(dependencies: TidalProviderDependencies = {}): MusicProvider {
   const transport = createTidalTransport(dependencies);
 
-  const V1_SUCCESS_ADD_STATUSES = new Set([200, 201, 204, 409]);
-  const V1_SUCCESS_REMOVE_STATUSES = new Set([200, 202, 204, 404]);
-
-  function getTidalV1BaseUrl(): string {
-    if (process.env.E2E_MODE === '1') {
-      return process.env.TIDAL_V1_BASE_URL ?? 'http://tidal-mock:8081/v1';
-    }
-
-    return process.env.TIDAL_V1_BASE_URL ?? 'https://api.tidal.com/v1';
-  }
-
-  async function tryResolveCurrentUserId(): Promise<string | null> {
-    const response = await transport.executeWithSession('/users/me', { method: 'GET' }, undefined);
-    if (!response.ok) {
-      return null;
-    }
-
-    const raw = (await response.json()) as JsonApiDocument<JsonApiResource>;
-    const id = String(raw?.data?.id ?? '').trim();
-    return id.length > 0 ? id : null;
-  }
-
-  async function mirrorV1FavoritesWrite(trackIds: string[], mode: 'add' | 'remove'): Promise<void> {
-    if (!isV1FavoritesMirrorEnabled() || trackIds.length === 0) {
-      return;
-    }
-
-    try {
-      const userId = await tryResolveCurrentUserId();
-      if (!userId) {
-        console.warn('[tidal] V1 favorites mirror skipped: unable to resolve current user ID');
-        return;
-      }
-
-      const basePath = `${getTidalV1BaseUrl()}/users/${encodeURIComponent(userId)}/favorites/tracks`;
-
-      for (const trackId of trackIds) {
-        const path = mode === 'add'
-          ? `${basePath}?trackId=${encodeURIComponent(trackId)}`
-          : `${basePath}/${encodeURIComponent(trackId)}`;
-
-        const response = await transport.executeWithSession(
-          path,
-          { method: mode === 'add' ? 'POST' : 'DELETE' },
-          undefined,
-        );
-
-        const successStatuses = mode === 'add' ? V1_SUCCESS_ADD_STATUSES : V1_SUCCESS_REMOVE_STATUSES;
-        if (successStatuses.has(response.status)) {
-          continue;
-        }
-
-        const details = await response.text().catch(() => '');
-        console.warn(
-          `[tidal] V1 favorites mirror ${mode} failed for track ${redactId(trackId)}: ${response.status} ${response.statusText}${details ? ` ${details}` : ''}`,
-        );
-      }
-    } catch (error) {
-      console.warn('[tidal] V1 favorites mirror write failed', error);
-    }
-  }
-
   return {
     async saveTracks(payload: TrackSavePayload): Promise<void> {
       const trackIds = dedupeTrackIds(payload.ids);
@@ -133,17 +71,18 @@ export function createTidalProvider(dependencies: TidalProviderDependencies = {}
         return;
       }
 
-      const response = await transport.executeWithSession(
-        '/userCollectionTracks/me/relationships/items',
-        { method: 'POST', body: buildJsonApiDataPayload(trackIds.map((id) => ({ id, type: 'tracks' }))) },
-        undefined,
-      );
+      for (let i = 0; i < trackIds.length; i += PLAYLIST_RELATIONSHIP_MAX_BATCH_SIZE) {
+        const batch = trackIds.slice(i, i + PLAYLIST_RELATIONSHIP_MAX_BATCH_SIZE);
+        const response = await transport.executeWithSession(
+          '/userCollectionTracks/me/relationships/items',
+          { method: 'POST', body: buildJsonApiDataPayload(batch.map((id) => ({ id, type: 'tracks' }))) },
+          undefined,
+        );
 
-      if (!response.ok) {
-        throwProviderError(response, await readJsonApiErrorDetails(response), 'saveTracks');
+        if (!response.ok) {
+          throwProviderError(response, await readJsonApiErrorDetails(response), 'saveTracks');
+        }
       }
-
-      await mirrorV1FavoritesWrite(trackIds, 'add');
     },
 
     async removeTracks(payload: TrackSavePayload): Promise<void> {
@@ -152,17 +91,18 @@ export function createTidalProvider(dependencies: TidalProviderDependencies = {}
         return;
       }
 
-      const response = await transport.executeWithSession(
-        '/userCollectionTracks/me/relationships/items',
-        { method: 'DELETE', body: buildJsonApiDataPayload(trackIds.map((id) => ({ id, type: 'tracks' }))) },
-        undefined,
-      );
+      for (let i = 0; i < trackIds.length; i += PLAYLIST_RELATIONSHIP_MAX_BATCH_SIZE) {
+        const batch = trackIds.slice(i, i + PLAYLIST_RELATIONSHIP_MAX_BATCH_SIZE);
+        const response = await transport.executeWithSession(
+          '/userCollectionTracks/me/relationships/items',
+          { method: 'DELETE', body: buildJsonApiDataPayload(batch.map((id) => ({ id, type: 'tracks' }))) },
+          undefined,
+        );
 
-      if (!response.ok) {
-        throwProviderError(response, await readJsonApiErrorDetails(response), 'removeTracks');
+        if (!response.ok) {
+          throwProviderError(response, await readJsonApiErrorDetails(response), 'removeTracks');
+        }
       }
-
-      await mirrorV1FavoritesWrite(trackIds, 'remove');
     },
 
     async containsTracks(payload: TrackSavePayload): Promise<boolean[]> {

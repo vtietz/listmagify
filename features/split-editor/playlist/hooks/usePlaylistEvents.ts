@@ -39,6 +39,10 @@ export function usePlaylistEvents({
       }
 
       queryClient.invalidateQueries({ queryKey: playlistMetaByProvider(playlistId, providerId) });
+      if (isLikedPlaylist) {
+        queryClient.invalidateQueries({ queryKey: likedPlaylistKey(providerId) });
+        return;
+      }
       queryClient.invalidateQueries({
         queryKey: playlistTracksInfiniteByProvider(playlistId, providerId),
       });

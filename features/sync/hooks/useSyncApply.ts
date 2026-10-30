@@ -5,9 +5,12 @@ import { apiFetch } from '@/lib/api/client';
 import { eventBus } from '@/lib/sync/eventBus';
 import { useSyncActivityStore } from '@features/sync/stores/useSyncActivityStore';
 import type { SyncPlan, SyncApplyResult } from '@/lib/sync/types';
-import { playlistTracksByProvider } from '@/lib/api/queryKeys';
+import { playlistTracksInfiniteByProvider } from '@/lib/api/queryKeys';
 import { isLikedSongsPlaylist } from '@/lib/sync/likedSongs';
 import { useSavedTracksStore } from '@features/playlists/hooks/useSavedTracksIndex';
+import { useSplitGridStore } from '@features/split-editor/stores/useSplitGridStore';
+import type { MusicProviderId } from '@/lib/music-provider/types';
+import { likedPlaylistKey } from '@features/playlists/hooks/useLikedVirtualPlaylist';
 
 interface SyncApplyResponse {
   result: SyncApplyResult;
@@ -17,6 +20,77 @@ interface SyncApplyResponse {
 interface SyncApplyInput {
   plan: SyncPlan;
   syncPairId?: string;
+}
+
+type PlaylistRef = {
+  playlistId: string;
+  providerId: MusicProviderId;
+};
+
+function getAffectedPlaylists(plan: SyncPlan): PlaylistRef[] {
+  if (plan.direction === 'bidirectional') {
+    return [
+      { playlistId: plan.targetPlaylistId, providerId: plan.targetProvider },
+      { playlistId: plan.sourcePlaylistId, providerId: plan.sourceProvider },
+    ];
+  }
+
+  return [{ playlistId: plan.targetPlaylistId, providerId: plan.targetProvider }];
+}
+
+function getOpenPanelPlaylistSet(): Set<string> {
+  const panels = useSplitGridStore.getState().panels;
+  const openKeys = new Set<string>();
+
+  for (const panel of panels) {
+    if (!panel.playlistId) continue;
+    openKeys.add(`${panel.providerId}:${panel.playlistId}`);
+  }
+
+  return openKeys;
+}
+
+function isApplyResultUncertain(result: SyncApplyResult): boolean {
+  return result.errors.length > 0 || result.unresolved.length > 0;
+}
+
+function shouldRefetchAfterApply(result: SyncApplyResult): boolean {
+  return result.added > 0 || result.removed > 0 || isApplyResultUncertain(result);
+}
+
+async function refreshOpenSyncedPanels(params: {
+  queryClient: ReturnType<typeof useQueryClient>;
+  plan: SyncPlan;
+  result: SyncApplyResult;
+}): Promise<void> {
+  const { queryClient, plan, result } = params;
+
+  if (!shouldRefetchAfterApply(result)) {
+    return;
+  }
+
+  const openPanelPlaylists = getOpenPanelPlaylistSet();
+  const affected = getAffectedPlaylists(plan).filter((entry) => openPanelPlaylists.has(`${entry.providerId}:${entry.playlistId}`));
+
+  if (affected.length === 0) {
+    return;
+  }
+
+  const uncertain = isApplyResultUncertain(result);
+
+  for (const entry of affected) {
+    const queryKey = isLikedSongsPlaylist(entry.playlistId)
+      ? likedPlaylistKey(entry.providerId)
+      : playlistTracksInfiniteByProvider(entry.playlistId, entry.providerId);
+
+    if (uncertain) {
+      queryClient.removeQueries({ queryKey, exact: true });
+      await queryClient.refetchQueries({ queryKey, exact: true, type: 'active' });
+      continue;
+    }
+
+    await queryClient.refetchQueries({ queryKey, exact: true, type: 'active' });
+  }
 }
 
 function syncLikedCacheFromPlan(plan: SyncPlan): void {
@@ -77,19 +151,15 @@ export function useSyncApply() {
         throw err;
       }
     },
-    onSuccess: (_data: SyncApplyResponse, variables: SyncApplyInput) => {
+    onSuccess: async (data: SyncApplyResponse, variables: SyncApplyInput) => {
       decrementActive();
       const plan = variables.plan;
 
-      queryClient.invalidateQueries({
-        queryKey: playlistTracksByProvider(plan.targetPlaylistId, plan.targetProvider),
+      await refreshOpenSyncedPanels({
+        queryClient,
+        plan,
+        result: data.result,
       });
-
-      if (plan.direction === 'bidirectional') {
-        queryClient.invalidateQueries({
-          queryKey: playlistTracksByProvider(plan.sourcePlaylistId, plan.sourceProvider),
-        });
-      }
 
       syncLikedCacheFromPlan(plan);
 

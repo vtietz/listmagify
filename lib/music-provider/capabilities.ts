@@ -12,7 +12,7 @@ const PROVIDER_CAPABILITIES: Record<MusicProviderId, ProviderCapabilities> = {
   },
   tidal: {
     playbackControl: false,
-    verifyLikedTracksAfterWrite: true,
+    verifyLikedTracksAfterWrite: false,
   },
 };
 

@@ -392,64 +392,36 @@ describe('tidal provider reorder', () => {
     expect(result.items.map((playlist) => playlist.id)).toEqual(['pl-1', 'pl-2', 'pl-3']);
   });
 
-  it('continues loading liked tracks with offset fallback when next cursor is absent', async () => {
+  it('returns a single page of liked tracks with nextCursor from links.next', async () => {
+    const nextPageUrl = '/userCollectionTracks/me/relationships/items?include=items&page[cursor]=abc123';
     const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async (input) => {
       const url = String(input);
       if (!url.includes('/userCollectionTracks/me/relationships/items')) {
         throw new Error(`Unexpected request in test: ${url}`);
       }
 
-      if (url.includes('page[offset]=0')) {
-        return jsonResponse(200, {
-          data: [
-            { id: 'track-1', type: 'tracks' },
-            { id: 'track-2', type: 'tracks' },
-          ],
-          included: [
-            {
-              id: 'track-1',
-              type: 'tracks',
-              attributes: { title: 'Track 1', duration: 200 },
-              relationships: { artists: { data: [] }, albums: { data: [] } },
-            },
-            {
-              id: 'track-2',
-              type: 'tracks',
-              attributes: { title: 'Track 2', duration: 210 },
-              relationships: { artists: { data: [] }, albums: { data: [] } },
-            },
-          ],
-          links: { next: null },
-          meta: { totalNumberOfItems: 3 },
-        });
-      }
-
-      if (url.includes('page[offset]=2')) {
-        return jsonResponse(200, {
-          data: [{ id: 'track-3', type: 'tracks' }],
-          included: [
-            {
-              id: 'track-3',
-              type: 'tracks',
-              attributes: { title: 'Track 3', duration: 220 },
-              relationships: { artists: { data: [] }, albums: { data: [] } },
-            },
-          ],
-          links: { next: null },
-          meta: { totalNumberOfItems: 3 },
-        });
-      }
-
-      if (url.includes('page[offset]=3')) {
-        return jsonResponse(200, {
-          data: [],
-          included: [],
-          links: { next: null },
-          meta: { totalNumberOfItems: 3 },
-        });
-      }
-
-      throw new Error(`Unexpected request URL in test: ${url}`);
+      return jsonResponse(200, {
+        data: [
+          { id: 'track-1', type: 'tracks' },
+          { id: 'track-2', type: 'tracks' },
+        ],
+        included: [
+          {
+            id: 'track-1',
+            type: 'tracks',
+            attributes: { title: 'Track 1', duration: 200 },
+            relationships: { artists: { data: [] }, albums: { data: [] } },
+          },
+          {
+            id: 'track-2',
+            type: 'tracks',
+            attributes: { title: 'Track 2', duration: 210 },
+            relationships: { artists: { data: [] }, albums: { data: [] } },
+          },
+        ],
+        links: { next: nextPageUrl },
+        meta: { totalNumberOfItems: 3 },
+      });
     });
 
     const provider = createTidalProvider({
@@ -459,10 +431,10 @@ describe('tidal provider reorder', () => {
 
     const result = await provider.getLikedTracks(2);
 
-    expect(fetchImpl).toHaveBeenCalledTimes(3);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
     expect(result.total).toBe(3);
-    expect(result.nextCursor).toBeNull();
-    expect(result.tracks.map((track) => track.id)).toEqual(['track-1', 'track-2', 'track-3']);
+    expect(result.nextCursor).toBe(nextPageUrl);
+    expect(result.tracks.map((track) => track.id)).toEqual(['track-1', 'track-2']);
   });
 
   it('returns partial playlists when a later paginated page fails', async () => {
@@ -508,36 +480,16 @@ describe('tidal provider reorder', () => {
     expect(result.total).toBe(2);
   });
 
-  it('returns partial liked tracks when a later paginated page fails', async () => {
+  it('throws RateLimitError when liked tracks page fetch fails with 429', async () => {
     const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async (input) => {
       const url = String(input);
       if (!url.includes('/userCollectionTracks/me/relationships/items')) {
         throw new Error(`Unexpected request in test: ${url}`);
       }
 
-      if (url.includes('page[offset]=0')) {
-        return jsonResponse(200, {
-          data: [{ id: 'track-1', type: 'tracks' }],
-          included: [
-            {
-              id: 'track-1',
-              type: 'tracks',
-              attributes: { title: 'Track 1', duration: 200 },
-              relationships: { artists: { data: [] }, albums: { data: [] } },
-            },
-          ],
-          links: { next: null },
-          meta: { totalNumberOfItems: 2 },
-        });
-      }
-
-      if (url.includes('page[offset]=1')) {
-        return jsonResponse(429, {
-          errors: [{ detail: 'Rate limited' }],
-        });
-      }
-
-      throw new Error(`Unexpected request URL in test: ${url}`);
+      return jsonResponse(429, {
+        errors: [{ detail: 'Rate limited' }],
+      });
     });
 
     const provider = createTidalProvider({
@@ -545,9 +497,9 @@ describe('tidal provider reorder', () => {
       getSession: vi.fn().mockResolvedValue({ accessToken: 'token', user: { id: 'user-1' } }),
     });
 
-    const result = await provider.getLikedTracks(1);
-
-    expect(result.tracks.map((track) => track.id)).toEqual(['track-1']);
-    expect(result.total).toBe(2);
+    await expect(provider.getLikedTracks(1)).rejects.toMatchObject({
+      statusCode: 429,
+      name: 'RateLimitError',
+    });
   });
 });
