@@ -65,6 +65,37 @@ export function dedupeTrackIds(input: string[]): string[] {
   return Array.from(unique);
 }
 
+export type SearchRelationship = 'tracks' | 'artists' | 'albums';
+
+/**
+ * Builds a search request. TIDAL takes the query as `filter[query]` on the
+ * `/searchResults` collection; the old `/searchResults/{query}/...` form is rejected
+ * with INVALID_RESOURCE_ID.
+ */
+export function buildSearchPath(query: string, include: string): string {
+  const params = new URLSearchParams();
+  params.set('filter[query]', query);
+  params.set('include', include);
+  return `/searchResults?${params.toString()}`;
+}
+
+/**
+ * Reshapes a `/searchResults` response (`data: [searchResult]`) into a plain list
+ * document whose `data` holds the ordered identifiers of one relationship.
+ */
+export function extractSearchRelationship(
+  raw: JsonApiDocument<JsonApiResource | JsonApiResource[] | null>,
+  relationship: SearchRelationship,
+): JsonApiDocument<JsonApiIdentifier[]> {
+  const searchResult = Array.isArray(raw.data) ? raw.data[0] : raw.data;
+  const relation = searchResult?.relationships?.[relationship]?.data;
+
+  return {
+    data: Array.isArray(relation) ? relation : [],
+    ...(raw.included ? { included: raw.included } : {}),
+  };
+}
+
 export function buildJsonApiDataPayload(data: JsonApiIdentifier[]): string {
   return JSON.stringify({ data });
 }

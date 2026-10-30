@@ -28,7 +28,9 @@ import {
   buildNativeReorderPayload,
   buildIncludedIndex,
   buildJsonApiDataPayload,
+  buildSearchPath,
   dedupeTrackIds,
+  extractSearchRelationship,
   readJsonApiErrorDetails,
   fromTrackUri,
   toTrackUri,
@@ -127,14 +129,14 @@ export function createTidalProvider(dependencies: TidalProviderDependencies = {}
         return { tracks: [], total: 0, nextOffset: null };
       }
 
-      const path = `/searchResults/${encodeURIComponent(query)}/relationships/tracks?include=tracks,tracks.artists,tracks.albums`;
+      const path = buildSearchPath(query, 'tracks,tracks.artists,tracks.albums');
       const response = await transport.executeWithSession(path, { method: 'GET' }, undefined);
       if (!response.ok) {
         throwProviderError(response, await readJsonApiErrorDetails(response), 'searchTracks');
       }
 
-      const raw = (await response.json()) as JsonApiDocument<JsonApiIdentifier[]>;
-      const page = mapTrackListDocument(raw);
+      const raw = (await response.json()) as JsonApiDocument<JsonApiResource[]>;
+      const page = mapTrackListDocument(extractSearchRelationship(raw, 'tracks'));
       return { tracks: page.tracks, total: page.tracks.length, nextOffset: null };
     },
 
@@ -162,14 +164,14 @@ export function createTidalProvider(dependencies: TidalProviderDependencies = {}
         return { artists: [], total: 0, nextOffset: null };
       }
 
-      const path = `/searchResults/${encodeURIComponent(query)}/relationships/artists?include=artists`;
+      const path = buildSearchPath(query, 'artists');
       const response = await transport.executeWithSession(path, { method: 'GET' }, undefined);
       if (!response.ok) {
         throwProviderError(response, await readJsonApiErrorDetails(response), 'searchArtists');
       }
 
-      const raw = (await response.json()) as JsonApiDocument<JsonApiIdentifier[]>;
-      const result = mapArtistListDocument(raw);
+      const raw = (await response.json()) as JsonApiDocument<JsonApiResource[]>;
+      const result = mapArtistListDocument(extractSearchRelationship(raw, 'artists'));
       return { ...result, nextOffset: null };
     },
 
@@ -178,14 +180,14 @@ export function createTidalProvider(dependencies: TidalProviderDependencies = {}
         return { albums: [], total: 0, nextOffset: null };
       }
 
-      const path = `/searchResults/${encodeURIComponent(query)}/relationships/albums?include=albums,albums.artists,albums.coverArt`;
+      const path = buildSearchPath(query, 'albums,albums.artists,albums.coverArt');
       const response = await transport.executeWithSession(path, { method: 'GET' }, undefined);
       if (!response.ok) {
         throwProviderError(response, await readJsonApiErrorDetails(response), 'searchAlbums');
       }
 
-      const raw = (await response.json()) as JsonApiDocument<JsonApiIdentifier[]>;
-      const result = mapAlbumListDocument(raw);
+      const raw = (await response.json()) as JsonApiDocument<JsonApiResource[]>;
+      const result = mapAlbumListDocument(extractSearchRelationship(raw, 'albums'));
       return { ...result, nextOffset: null };
     },
 

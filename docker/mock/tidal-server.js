@@ -570,20 +570,19 @@ app.delete(`${BASE}/userCollectionTracks/me/relationships/items`, (req, res) => 
   res.status(200).json({ data: [] });
 });
 
-app.get(`${BASE}/searchResults/:query/relationships/tracks`, (req, res) => {
-  const query = String(req.params.query ?? '').toLowerCase();
+app.get(`${BASE}/searchResults`, (req, res) => {
+  // Express may parse `filter[query]` as nested (qs) or as a flat key
+  const rawQuery = req.query.filter?.query ?? req.query['filter[query]'] ?? '';
+  const query = String(rawQuery).toLowerCase();
   const matchedTrackIds = Object.entries(tracksFixture)
     .filter(([, track]) => String(track.title ?? '').toLowerCase().includes(query))
     .slice(0, 20)
     .map(([trackId]) => trackId);
+  const tracks = { data: matchedTrackIds.map((trackId) => ({ id: trackId, type: 'tracks' })) };
 
   res.json({
-    data: matchedTrackIds.map((trackId) => ({ id: trackId, type: 'tracks' })),
+    data: [{ id: Buffer.from(query).toString('base64url'), type: 'searchResults', relationships: { tracks } }],
     included: buildTrackIncluded(matchedTrackIds),
-    links: {
-      self: `http://tidal-mock:8081${BASE}/searchResults/${encodeURIComponent(req.params.query)}/relationships/tracks?include=tracks`,
-      next: null,
-    },
   });
 });
 
