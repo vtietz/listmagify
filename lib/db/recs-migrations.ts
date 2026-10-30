@@ -421,4 +421,12 @@ export const recsMigrations: Migration[] = [
       ALTER TABLE sync_preview_runs ADD COLUMN cancel_requested INTEGER NOT NULL DEFAULT 0;
     `,
   },
+  {
+    version: 19,
+    name: 'add_manual_track_mappings_and_sync_skips',
+    sql: `
+      ALTER TABLE provider_track_map ADD COLUMN source TEXT NOT NULL DEFAULT 'auto';
+      ALTER TABLE sync_pairs ADD COLUMN skipped_canonical_ids_json TEXT;
+    `,
+  },
 ];

@@ -4,12 +4,13 @@ import { captureSnapshot } from '@/lib/sync/snapshot';
 import type { SnapshotOptions } from '@/lib/sync/snapshot';
 import { computeSyncDiff } from '@/lib/sync/diff';
 import { applySyncPlan } from '@/lib/sync/apply';
+import { markSkippedItems } from '@/lib/sync/skipped';
 import { createSyncMaterializeAdapter } from '@/lib/sync/materializeAdapter';
 import { materializeCanonicalTrackIds } from '@/lib/recs/materialize';
 import { getSyncPair, createSyncRun, updateSyncRun } from '@/lib/sync/syncStore';
 import type { SyncConfig, SyncPlan, SyncApplyResult, SyncPreviewResult, SyncPreviewTrack, SyncDiffItem } from '@/lib/sync/types';
 import type { PlaylistSnapshot } from '@/lib/sync/snapshot';
-import type { SyncMatchThresholds } from '@/lib/sync/executor';
+import { refreshBidirectionalMetadata, type SyncMatchThresholds } from '@/lib/sync/executor';
 import { isSyncPreviewRunCancellationRequested, updateSyncPreviewRun } from '@/lib/sync/previewStore';
 import { createBackgroundProvider } from '@/lib/sync/backgroundProvider';
 
@@ -51,6 +52,9 @@ function groupAddItemsByProvider(
   for (const item of items) {
     if (item.action !== 'add') {
       item.materializeStatus = 'unchecked';
+      continue;
+    }
+    if (item.materializeStatus === 'skipped') {
       continue;
     }
     const existing = addsByProvider.get(item.targetProvider) ?? [];
@@ -344,6 +348,7 @@ export async function previewSync(
 
   const diffOpts = matchThresholds ? { thresholds: matchThresholds } : undefined;
   const plan = computeSyncDiff(sourceSnapshot, targetSnapshot, config.direction, diffOpts);
+  markSkippedItems(plan, config.skippedCanonicalIds);
 
   // Validate which tracks can actually be found on the target providers
   const providerMap = new Map<MusicProviderId, MusicProvider>([
@@ -385,6 +390,7 @@ function buildRunUpdate(result: SyncApplyResult): Record<string, unknown> {
     title: info.title,
     artists: info.artists,
     reason: formatUnresolvedReason(info.reason),
+    ...(info.targetProvider ? { targetProvider: info.targetProvider } : {}),
   }));
 
   return {
@@ -406,6 +412,30 @@ function buildRunUpdate(result: SyncApplyResult): Record<string, unknown> {
  * Apply a pre-computed `SyncPlan` without re-running preview.
  * When a `syncPairId` is supplied, a `SyncRun` record is created and tracked.
  */
+/**
+ * Records the post-apply state as the pair's baseline, like scheduled runs do.
+ * Failures are logged only: the plan itself was applied successfully.
+ */
+async function refreshPairBaselines(syncPairId: string): Promise<void> {
+  const pair = getSyncPair(syncPairId);
+  if (!pair) return;
+
+  try {
+    await refreshBidirectionalMetadata({
+      pair,
+      sourceProvider: getMusicProvider(pair.sourceProvider),
+      targetProvider: getMusicProvider(pair.targetProvider),
+      snapshotOpts: undefined,
+      bidirectionalPlan: null,
+    });
+  } catch (error) {
+    console.warn('[sync/runner] failed to refresh pair baselines', {
+      syncPairId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
 export async function applySyncPlanWithRun(
   plan: SyncPlan,
   syncPairId?: string,
@@ -423,6 +453,7 @@ export async function applySyncPlanWithRun(
   try {
     const result = await applySyncPlan(plan);
     updateSyncRun(runId, buildRunUpdate(result));
+    await refreshPairBaselines(syncPairId);
     return { result, runId };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

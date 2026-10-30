@@ -6,6 +6,8 @@ import { durationSimilarity, computeWeightedScore } from '@/lib/matching/scoring
 import { DEFAULT_MATCH_THRESHOLDS, scoreToConfidence } from '@/lib/matching/config';
 
 export type MappingConfidence = 'high' | 'medium' | 'low';
+/** `manual` mappings were chosen by a user and are never replaced by automatic matching. */
+export type MappingSource = 'auto' | 'manual';
 
 export interface ResolveProviderTrackInput {
   provider: MusicProviderId;
@@ -47,7 +49,13 @@ function isCachedMappingCompatible(
   input: ResolveProviderTrackInput,
   cachedCanonicalTrackId: string,
   acceptThreshold: number,
+  source: MappingSource = 'auto',
 ): boolean {
+  // A mapping the user picked by hand is authoritative, even for another release.
+  if (source === 'manual') {
+    return true;
+  }
+
   const candidate = getCanonicalCandidateById(cachedCanonicalTrackId);
   if (!candidate) {
     return false;
@@ -128,6 +136,7 @@ export function upsertProviderMap(input: {
       match_score = excluded.match_score,
       confidence = excluded.confidence,
       resolved_at = excluded.resolved_at
+    WHERE provider_track_map.source != 'manual'
   `).run(
     input.provider,
     input.providerTrackId,
@@ -136,6 +145,36 @@ export function upsertProviderMap(input: {
     input.matchScore,
     input.confidence,
   );
+}
+
+/**
+ * Stores a mapping the user picked by hand. It takes precedence over automatic
+ * mappings for this canonical track and is never overwritten by them.
+ */
+export function setManualProviderMapping(input: {
+  provider: MusicProviderId;
+  providerTrackId: string;
+  canonicalTrackId: string;
+}): void {
+  const db = getRecsDb();
+  db.prepare(`
+    INSERT INTO provider_track_map (
+      provider,
+      provider_track_id,
+      canonical_track_id,
+      isrc,
+      match_score,
+      confidence,
+      source,
+      resolved_at
+    ) VALUES (?, ?, ?, NULL, 1, 'high', 'manual', CURRENT_TIMESTAMP)
+    ON CONFLICT(provider, provider_track_id) DO UPDATE SET
+      canonical_track_id = excluded.canonical_track_id,
+      match_score = excluded.match_score,
+      confidence = excluded.confidence,
+      source = excluded.source,
+      resolved_at = excluded.resolved_at
+  `).run(input.provider, input.providerTrackId, input.canonicalTrackId);
 }
 
 function findBestCanonicalCandidate(
@@ -211,6 +250,7 @@ interface CachedMapping {
   matchScore: number;
   confidence: MappingConfidence;
   isrc: string | null;
+  source: MappingSource;
 }
 
 function batchLookupProviderTrackMap(
@@ -230,7 +270,8 @@ function batchLookupProviderTrackMap(
         canonical_track_id AS canonicalTrackId,
         match_score AS matchScore,
         confidence,
-        isrc
+        isrc,
+        source
       FROM provider_track_map
       WHERE provider = ? AND provider_track_id IN (${placeholders})
     `).all(provider, ...chunk) as Array<{
@@ -239,6 +280,7 @@ function batchLookupProviderTrackMap(
       matchScore: number;
       confidence: MappingConfidence;
       isrc: string | null;
+      source: MappingSource;
     }>;
 
     for (const row of rows) {
@@ -247,10 +289,26 @@ function batchLookupProviderTrackMap(
         matchScore: row.matchScore,
         confidence: row.confidence,
         isrc: row.isrc,
+        source: row.source,
       });
     }
   }
 
+  return result;
+}
+
+/**
+ * Read-only reverse lookup: provider track ID -> canonical track ID for every
+ * ID that already has a mapping. Unmapped IDs are absent from the result.
+ */
+export function lookupCanonicalTrackIds(
+  provider: MusicProviderId,
+  providerTrackIds: string[],
+): Map<string, string> {
+  const result = new Map<string, string>();
+  for (const [providerTrackId, mapping] of batchLookupProviderTrackMap(provider, providerTrackIds)) {
+    result.set(providerTrackId, mapping.canonicalTrackId);
+  }
   return result;
 }
 
@@ -282,7 +340,7 @@ export function fromProviderTrackBatch(
   for (const input of inputs) {
     const hit = cached.get(input.providerTrackId);
     if (hit) {
-      const cacheCompatible = isCachedMappingCompatible(input, hit.canonicalTrackId, thresholds.manual);
+      const cacheCompatible = isCachedMappingCompatible(input, hit.canonicalTrackId, thresholds.manual, hit.source);
       if (!cacheCompatible) {
         deleteProviderMapping(input.provider, input.providerTrackId);
         results.push(fromProviderTrack(input, options));
@@ -351,15 +409,15 @@ function backfillCachedIsrc(
 }
 
 function getExistingProviderMapping(input: ResolveProviderTrackInput):
-  | { canonicalTrackId: string; matchScore: number; confidence: MappingConfidence }
+  | { canonicalTrackId: string; matchScore: number; confidence: MappingConfidence; source: MappingSource }
   | undefined {
   const db = getRecsDb();
   return db.prepare(`
-    SELECT canonical_track_id as canonicalTrackId, match_score as matchScore, confidence
+    SELECT canonical_track_id as canonicalTrackId, match_score as matchScore, confidence, source
     FROM provider_track_map
     WHERE provider = ? AND provider_track_id = ?
   `).get(input.provider, input.providerTrackId) as
-    | { canonicalTrackId: string; matchScore: number; confidence: MappingConfidence }
+    | { canonicalTrackId: string; matchScore: number; confidence: MappingConfidence; source: MappingSource }
     | undefined;
 }
 
@@ -405,7 +463,12 @@ export function fromProviderTrack(
   const existing = getExistingProviderMapping(input);
 
   if (existing) {
-    const cacheCompatible = isCachedMappingCompatible(input, existing.canonicalTrackId, thresholds.manual);
+    const cacheCompatible = isCachedMappingCompatible(
+      input,
+      existing.canonicalTrackId,
+      thresholds.manual,
+      existing.source,
+    );
     if (!cacheCompatible) {
       deleteProviderMapping(input.provider, input.providerTrackId);
       return fromProviderTrack(input, options);
@@ -471,6 +534,7 @@ export function toProviderTrack(
     FROM provider_track_map
     WHERE provider = ? AND canonical_track_id = ?
     ORDER BY
+      CASE source WHEN 'manual' THEN 0 ELSE 1 END,
       CASE confidence
         WHEN 'high' THEN 1
         WHEN 'medium' THEN 2

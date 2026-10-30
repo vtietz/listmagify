@@ -243,6 +243,7 @@ function SyncPairRow({
   popoverContainer: HTMLDivElement | null;
 }) {
   const execute = useSyncExecute();
+  const openPreview = useSyncDialogStore((s) => s.openPreview);
   const [showResultDialog, setShowResultDialog] = useState(false);
 
   const fetchedSourceName = usePlaylistName(pair.sourceProvider, pair.sourcePlaylistId);
@@ -292,6 +293,10 @@ function SyncPairRow({
         run={pair.latestRun ?? null}
         open={showResultDialog}
         onClose={() => setShowResultDialog(false)}
+        onSyncAgain={() => {
+          setShowResultDialog(false);
+          openPreview(buildPairConfig(pair), true);
+        }}
       />
     </div>
   );

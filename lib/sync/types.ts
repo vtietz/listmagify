@@ -35,6 +35,8 @@ export interface SyncWarning {
   title: string;
   artists: string[];
   reason: string;
+  /** Provider the track could not be added to (absent on runs recorded before this was tracked) */
+  targetProvider?: MusicProviderId;
 }
 
 export interface SyncPair {
@@ -69,6 +71,8 @@ export interface SyncPair {
   sourceLastChangeAt: string | null;
   /** Last observed target-side change timestamp (ISO). */
   targetLastChangeAt: string | null;
+  /** Canonical track IDs the user chose to leave out of this pair's syncs. */
+  skippedCanonicalIds: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -95,9 +99,12 @@ export interface SyncConfig {
   targetProvider: MusicProviderId;
   targetPlaylistId: string;
   direction: SyncDirection;
+  /** Canonical track IDs that are left out of the sync (from the saved pair) */
+  skippedCanonicalIds?: string[];
 }
 
-export type MaterializeStatus = 'resolved' | 'not_found' | 'timed_out' | 'unchecked';
+/** `skipped`: the user chose to leave this track out of the pair's syncs. */
+export type MaterializeStatus = 'resolved' | 'not_found' | 'timed_out' | 'unchecked' | 'skipped';
 
 export interface SyncDiffItem {
   canonicalTrackId: string;
@@ -113,6 +120,8 @@ export interface SyncDiffItem {
   resolvedTargetTrackId?: string | null;
   /** Whether the track was found on the target provider during preview */
   materializeStatus?: MaterializeStatus;
+  /** Set when the user picked the target track by hand in the preview */
+  manualMatch?: boolean;
 }
 
 export interface SyncPlan {
@@ -137,6 +146,8 @@ export interface UnresolvedTrackInfo {
   artists: string[];
   durationMs: number;
   reason: 'not_found' | 'materialize_failed' | 'no_provider_mapping';
+  /** Provider the track could not be added to / removed from */
+  targetProvider?: MusicProviderId;
 }
 
 export interface SyncApplyResult {

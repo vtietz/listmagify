@@ -1,12 +1,26 @@
 'use client';
 
+import { Ban, Link2 } from 'lucide-react';
 import type { SyncRun, SyncApplyResult } from '@/lib/sync/types';
+import type { MusicProviderId } from '@/lib/music-provider/types';
+import { ManualMatchPicker } from '@features/sync/ui/ManualMatchPicker';
+import { resolutionKey } from '@features/sync/model/manualResolutions';
+import type { ManualResolutionsState } from '@features/sync/hooks/useManualResolutions';
+
+interface ResultWarning {
+  canonicalTrackId: string;
+  title: string;
+  artists: string[];
+  reason: string;
+  durationMs: number;
+  targetProvider?: MusicProviderId | undefined;
+}
 
 interface ResultData {
   added: number;
   removed: number;
   errors: string[];
-  warnings: { canonicalTrackId: string; title: string; artists: string[]; reason: string }[];
+  warnings: ResultWarning[];
 }
 
 function toResultData(source: SyncApplyResult | SyncRun): ResultData {
@@ -16,7 +30,7 @@ function toResultData(source: SyncApplyResult | SyncRun): ResultData {
       added: source.tracksAdded,
       removed: source.tracksRemoved,
       errors: source.errorMessage ? [source.errorMessage] : [],
-      warnings: source.warnings,
+      warnings: source.warnings.map((warning) => ({ ...warning, durationMs: 0 })),
     };
   }
   // SyncApplyResult
@@ -31,15 +45,95 @@ function toResultData(source: SyncApplyResult | SyncRun): ResultData {
       reason: info.reason === 'not_found' ? 'Not found'
         : info.reason === 'materialize_failed' ? 'Search failed'
         : 'No mapping',
+      durationMs: info.durationMs,
+      targetProvider: info.targetProvider,
     })),
   };
 }
 
 interface SyncRunResultContentProps {
   source: SyncApplyResult | SyncRun;
+  /** Enables manual matching / skipping of the unresolved tracks */
+  manual?: ManualResolutionsState;
 }
 
-export function SyncRunResultContent({ source }: SyncRunResultContentProps) {
+const actionClass = 'shrink-0 rounded px-1 text-muted-foreground underline-offset-2 hover:text-foreground hover:underline disabled:opacity-50';
+
+function WarningStatus({ warning, manual }: { warning: ResultWarning; manual: ManualResolutionsState | undefined }) {
+  const provider = warning.targetProvider;
+  if (!manual || !provider) {
+    return <span className="text-muted-foreground shrink-0">{warning.reason}</span>;
+  }
+
+  const target = { canonicalTrackId: warning.canonicalTrackId, targetProvider: provider };
+  const key = resolutionKey(provider, warning.canonicalTrackId);
+  const resolution = manual.resolutions[key];
+
+  if (resolution?.kind === 'matched') {
+    return (
+      <span className="flex min-w-0 shrink items-center gap-1 text-green-500">
+        <Link2 className="h-3 w-3 shrink-0" />
+        <span className="truncate">{resolution.title}</span>
+      </span>
+    );
+  }
+
+  if (resolution?.kind === 'skipped') {
+    return (
+      <span className="flex shrink-0 items-center gap-1 text-muted-foreground">
+        <Ban className="h-3 w-3" /> Skipped
+        <button type="button" className={actionClass} disabled={manual.isSaving} onClick={() => void manual.unskip(target, false)}>
+          Undo
+        </button>
+      </span>
+    );
+  }
+
+  return (
+    <span className="flex shrink-0 items-center gap-1">
+      <span className="text-muted-foreground">{warning.reason}</span>
+      <button
+        type="button"
+        className={actionClass}
+        onClick={() => manual.setOpenKey(manual.openKey === key ? null : key)}
+      >
+        Find match
+      </button>
+    </span>
+  );
+}
+
+function WarningRow({ warning, manual }: { warning: ResultWarning; manual: ManualResolutionsState | undefined }) {
+  const provider = warning.targetProvider;
+  const isPickerOpen = !!manual && !!provider && manual.openKey === resolutionKey(provider, warning.canonicalTrackId);
+  const target = provider ? { canonicalTrackId: warning.canonicalTrackId, targetProvider: provider } : null;
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 py-0.5 text-[10px] border-l-2 border-yellow-500 pl-2">
+        <div className="flex-1 min-w-0">
+          <div className="truncate font-medium">{warning.title}</div>
+          <div className="truncate text-muted-foreground">
+            {warning.artists.join(', ')}
+          </div>
+        </div>
+        <WarningStatus warning={warning} manual={manual} />
+      </div>
+      {isPickerOpen && manual && target && (
+        <ManualMatchPicker
+          source={{ title: warning.title, artists: warning.artists, durationMs: warning.durationMs }}
+          targetProvider={target.targetProvider}
+          isSaving={manual.isSaving}
+          onPick={(track) => void manual.pick(target, track)}
+          {...(manual.canSkip ? { onSkip: () => void manual.skip(target) } : {})}
+          onClose={() => manual.setOpenKey(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+export function SyncRunResultContent({ source, manual }: SyncRunResultContentProps) {
   const data = toResultData(source);
   const hasErrors = data.errors.length > 0;
   const hasWarnings = data.warnings.length > 0;
@@ -62,22 +156,13 @@ export function SyncRunResultContent({ source }: SyncRunResultContentProps) {
           <div className="font-medium text-yellow-500">
             {data.warnings.length} unresolved track(s)
           </div>
-          <div className="mt-1.5 max-h-[200px] overflow-y-auto space-y-0.5">
-            {data.warnings.map((track) => (
-              <div
-                key={track.canonicalTrackId}
-                className="flex items-center gap-2 py-0.5 text-[10px] border-l-2 border-yellow-500 pl-2"
-              >
-                <div className="flex-1 min-w-0">
-                  <div className="truncate font-medium">{track.title}</div>
-                  <div className="truncate text-muted-foreground">
-                    {track.artists.join(', ')}
-                  </div>
-                </div>
-                <span className="text-muted-foreground shrink-0">
-                  {track.reason}
-                </span>
-              </div>
+          <div className="mt-1.5 max-h-[260px] overflow-y-auto space-y-0.5">
+            {data.warnings.map((warning) => (
+              <WarningRow
+                key={`${warning.targetProvider ?? ''}::${warning.canonicalTrackId}`}
+                warning={warning}
+                manual={manual}
+              />
             ))}
           </div>
         </div>

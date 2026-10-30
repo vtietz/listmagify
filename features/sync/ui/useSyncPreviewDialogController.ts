@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type { MutableRefObject } from 'react';
 import { useSyncDialogStore } from '@features/sync/stores/useSyncDialogStore';
 import type { SyncApplyResult, SyncPreviewResult, SyncPreviewRun } from '@/lib/sync/types';
@@ -6,6 +6,8 @@ import type { SyncPreviewSession } from '@features/sync/stores/useSyncDialogStor
 import { SyncPreviewTimeoutError, useSyncPreview } from '@features/sync/hooks/useSyncPreview';
 import { useSyncApply } from '@features/sync/hooks/useSyncApply';
 import { usePlaylistName } from '@features/sync/hooks/usePlaylistName';
+import { useManualResolutions } from '@features/sync/hooks/useManualResolutions';
+import { applyResolutionsToPlan } from '@features/sync/model/manualResolutions';
 import {
   buildApplyErrorMessage,
   buildPreviewKey,
@@ -248,6 +250,8 @@ export function useSyncPreviewDialogController() {
 
   const preview = useSyncPreview();
   const apply = useSyncApply();
+  const manual = useManualResolutions(previewConfig?.syncPairId);
+  const resetManual = manual.reset;
   const { applyProgressPercent, isApplyLikelyStuck } = useApplyProgressState(apply.isPending);
 
   const triggerPreview = useCallback(() => {
@@ -258,10 +262,11 @@ export function useSyncPreviewDialogController() {
     setResult(null);
     preview.reset();
     apply.reset();
+    resetManual();
     startPreviewSession(previewKey, previewConfig);
     activePreviewKeyRef.current = previewKey;
     preview.mutate({ ...previewConfig, direction: 'bidirectional' });
-  }, [previewConfig, previewKey, preview, apply, startPreviewSession]);
+  }, [previewConfig, previewKey, preview, apply, startPreviewSession, resetManual]);
 
   usePreviewSessionSync({
     preview,
@@ -308,7 +313,13 @@ export function useSyncPreviewDialogController() {
   const isPreviewLoading = preview.isPending || previewSession?.status === 'running';
   usePreviewTicker(isPreviewLoading, setElapsedSeconds);
 
-  const previewData = preview.data ?? previewSession?.result ?? null;
+  const rawPreviewData = preview.data ?? previewSession?.result ?? null;
+  const previewData = useMemo(
+    () => (rawPreviewData
+      ? { ...rawPreviewData, plan: applyResolutionsToPlan(rawPreviewData.plan, manual.resolutions) }
+      : null),
+    [rawPreviewData, manual.resolutions],
+  );
   const previewRun = preview.previewRun ?? previewSession?.run ?? null;
   const isPreviewError = preview.isError || previewSession?.status === 'failed';
   const previewErrorMessage = getPreviewErrorMessage(preview.isError, preview.error, previewSession);
@@ -361,9 +372,10 @@ export function useSyncPreviewDialogController() {
     if (previewKey) {
       setPreviewSessionApplyResult(previewKey, data.result);
     }
+    resetManual();
     setResult(data.result);
     setStep('result');
-  }, [previewKey, setPreviewSessionApplyResult]);
+  }, [previewKey, setPreviewSessionApplyResult, resetManual]);
 
   const handleApplyError = useCallback((error: unknown) => {
     if (!previewKey) return;
@@ -399,8 +411,9 @@ export function useSyncPreviewDialogController() {
     setElapsedSeconds(0);
     preview.reset();
     apply.reset();
+    resetManual();
     closePreview();
-  }, [previewKey, clearPreviewSession, preview, apply, closePreview]);
+  }, [previewKey, clearPreviewSession, preview, apply, closePreview, resetManual]);
 
   return {
     isPreviewOpen,
@@ -420,6 +433,7 @@ export function useSyncPreviewDialogController() {
     previewConfig,
     sourcePlaylistName,
     targetPlaylistName,
+    manual,
     elapsedSeconds,
     isCancelingPreview,
     isCancelConfirmOpen,

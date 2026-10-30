@@ -58,6 +58,7 @@ export function SyncPreviewDialog() {
             onRetryPreview={controller.triggerPreview}
             onCancelPreview={controller.handleCancelPreview}
             onClose={controller.step === 'result' ? controller.handleDone : controller.closePreview}
+            manual={controller.manual}
           />
         </DialogContent>
       </Dialog>

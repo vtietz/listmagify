@@ -13,6 +13,7 @@ const BATCH_SIZE = 100;
 interface UnresolvedEntry {
   canonicalTrackId: string;
   reason: UnresolvedTrackInfo['reason'];
+  targetProvider?: MusicProviderId;
 }
 
 export interface SideResult {
@@ -208,6 +209,35 @@ async function filterAlreadyPresent(
   }
 }
 
+/**
+ * Sorts the playlist's current entries by the desired canonical order.
+ *
+ * Entries are mapped to canonical IDs from the URIs actually in the playlist, so a
+ * track whose playlist entry is a different release than the preferred mapping is
+ * still placed correctly. The sort is stable: duplicates stay together and entries
+ * without a known position keep their relative order at the end. No entry is
+ * dropped.
+ */
+export function buildReorderedUris(
+  currentUris: string[],
+  canonicalByUri: Map<string, string>,
+  desiredCanonicalOrder: string[],
+): string[] {
+  const rank = new Map<string, number>();
+  desiredCanonicalOrder.forEach((canonicalId, index) => {
+    if (!rank.has(canonicalId)) rank.set(canonicalId, index);
+  });
+
+  const unranked = Number.MAX_SAFE_INTEGER;
+  return currentUris
+    .map((uri, index) => {
+      const canonicalId = canonicalByUri.get(uri);
+      return { uri, index, rank: (canonicalId ? rank.get(canonicalId) : undefined) ?? unranked };
+    })
+    .sort((a, b) => a.rank - b.rank || a.index - b.index)
+    .map((entry) => entry.uri);
+}
+
 async function reorderPlaylist(
   provider: MusicProvider,
   providerId: MusicProviderId,
@@ -217,38 +247,17 @@ async function reorderPlaylist(
   const currentUris = await provider.getPlaylistTrackUris(playlistId);
   if (currentUris.length <= 1) return;
 
-  const { toProviderTrack } = await import('@/lib/resolver/canonicalResolver');
+  const { lookupCanonicalTrackIds } = await import('@/lib/resolver/canonicalResolver');
 
-  const canonicalToUri = new Map<string, string>();
-  const currentUriSet = new Set(currentUris);
+  const providerTrackIds = currentUris.map((uri) => toProviderTrackId(providerId, uri));
+  const canonicalById = lookupCanonicalTrackIds(providerId, Array.from(new Set(providerTrackIds)));
+  const canonicalByUri = new Map<string, string>();
+  currentUris.forEach((uri, index) => {
+    const canonicalId = canonicalById.get(providerTrackIds[index]!);
+    if (canonicalId) canonicalByUri.set(uri, canonicalId);
+  });
 
-  for (const canonicalId of desiredCanonicalOrder) {
-    const mapping = toProviderTrack(providerId, canonicalId);
-    if (!mapping) continue;
-
-    const uri = toProviderTrackUri(providerId, mapping.providerTrackId);
-    if (currentUriSet.has(uri)) {
-      canonicalToUri.set(canonicalId, uri);
-    }
-  }
-
-  const orderedUris: string[] = [];
-  const placed = new Set<string>();
-
-  for (const canonicalId of desiredCanonicalOrder) {
-    const uri = canonicalToUri.get(canonicalId);
-    if (uri && !placed.has(uri)) {
-      orderedUris.push(uri);
-      placed.add(uri);
-    }
-  }
-
-  for (const uri of currentUris) {
-    if (!placed.has(uri)) {
-      orderedUris.push(uri);
-      placed.add(uri);
-    }
-  }
+  const orderedUris = buildReorderedUris(currentUris, canonicalByUri, desiredCanonicalOrder);
 
   const unchanged = orderedUris.length === currentUris.length
     && orderedUris.every((uri, i) => uri === currentUris[i]);
@@ -281,7 +290,8 @@ export async function applySide(
   const resolved = await resolveAddUris(adds, provider, providerId);
   const removeResolved = resolveRemoveUris(removes, providerId);
 
-  const allUnresolved = [...resolved.unresolved, ...removeResolved.unresolved];
+  const allUnresolved = [...resolved.unresolved, ...removeResolved.unresolved]
+    .map((entry) => ({ ...entry, targetProvider: providerId }));
   const allErrors = [...resolved.errors];
 
   const addUris = await filterAlreadyPresent(resolved.uris, provider, providerId, playlistId, isLiked);

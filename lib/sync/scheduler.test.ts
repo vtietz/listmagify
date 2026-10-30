@@ -54,6 +54,7 @@ function createPair(id: string): SyncPair {
     targetOrderBaseline: null,
     sourceLastChangeAt: null,
     targetLastChangeAt: null,
+    skippedCanonicalIds: [],
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };

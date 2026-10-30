@@ -11,6 +11,7 @@ import { captureSnapshot, fetchPlaylistSnapshotId } from '@/lib/sync/snapshot';
 import type { SnapshotOptions } from '@/lib/sync/snapshot';
 import { computeSyncDiff } from '@/lib/sync/diff';
 import { applySyncPlan } from '@/lib/sync/apply';
+import { markSkippedItems } from '@/lib/sync/skipped';
 import {
   computeBidirectionalPlanWithMetadata,
   orderCanonicalIds,
@@ -305,7 +306,11 @@ async function executeSyncRunInternal(
   });
 }
 
-async function refreshBidirectionalMetadata(params: {
+/**
+ * Stores post-sync membership/order baselines so the next bidirectional run can
+ * tell which side changed. Also used after applying a plan from the preview dialog.
+ */
+export async function refreshBidirectionalMetadata(params: {
   pair: SyncPair;
   sourceProvider: MusicProvider;
   targetProvider: MusicProvider;
@@ -383,14 +388,11 @@ function buildExecutionPlan(
     ? computeBidirectionalPlanWithMetadata(pair, sourceSnapshot, targetSnapshot, manualThreshold)
     : null;
 
-  if (bidirectionalPlan) {
-    return { plan: bidirectionalPlan.plan, bidirectionalPlan };
-  }
+  const plan = bidirectionalPlan?.plan
+    ?? computeSyncDiff(sourceSnapshot, targetSnapshot, pair.direction, diffOpts);
+  markSkippedItems(plan, pair.skippedCanonicalIds);
 
-  return {
-    plan: computeSyncDiff(sourceSnapshot, targetSnapshot, pair.direction, diffOpts),
-    bidirectionalPlan: null,
-  };
+  return { plan, bidirectionalPlan };
 }
 
 /**

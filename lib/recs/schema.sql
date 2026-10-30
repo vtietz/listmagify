@@ -81,6 +81,7 @@ CREATE TABLE IF NOT EXISTS provider_track_map (
   isrc TEXT,
   match_score REAL NOT NULL,
   confidence TEXT NOT NULL CHECK(confidence IN ('high','medium','low')),
+  source TEXT NOT NULL DEFAULT 'auto', -- 'manual' = picked by the user, never overwritten
   resolved_at TEXT NOT NULL,
   UNIQUE(provider, provider_track_id)
 );

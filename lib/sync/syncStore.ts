@@ -91,6 +91,7 @@ interface SyncPairRow {
   targetOrderBaselineJson: string | null;
   sourceLastChangeAt: string | null;
   targetLastChangeAt: string | null;
+  skippedCanonicalIdsJson: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -140,6 +141,7 @@ function mapSyncPairRow(row: SyncPairRow): SyncPair {
     targetOrderBaseline: parseStringArray(row.targetOrderBaselineJson),
     sourceLastChangeAt: row.sourceLastChangeAt,
     targetLastChangeAt: row.targetLastChangeAt,
+    skippedCanonicalIds: parseStringArray(row.skippedCanonicalIdsJson) ?? [],
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -183,6 +185,7 @@ const SYNC_PAIR_COLUMNS = `
   target_order_baseline_json AS targetOrderBaselineJson,
   source_last_change_at AS sourceLastChangeAt,
   target_last_change_at AS targetLastChangeAt,
+  skipped_canonical_ids_json AS skippedCanonicalIdsJson,
   created_at AS createdAt,
   updated_at AS updatedAt
 `;
@@ -393,6 +396,29 @@ export function updateSyncPairAutoSync(id: string, autoSync: boolean, createdBy?
     'UPDATE sync_pairs SET auto_sync = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
   ).run(value, id);
   return result.changes > 0;
+}
+
+/**
+ * Marks a track as skipped (or un-skips it) for a pair. Skipped tracks are left out
+ * of the pair's syncs instead of being reported as unresolved every time.
+ */
+export function setSyncPairTrackSkipped(
+  id: string,
+  canonicalTrackId: string,
+  skipped: boolean,
+  createdBy: string | string[],
+): SyncPair | null {
+  const pair = getSyncPair(id, createdBy);
+  if (!pair) return null;
+
+  const next = new Set(pair.skippedCanonicalIds);
+  if (skipped) next.add(canonicalTrackId);
+  else next.delete(canonicalTrackId);
+
+  getRecsDb().prepare('UPDATE sync_pairs SET skipped_canonical_ids_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+    .run(next.size > 0 ? JSON.stringify(Array.from(next)) : null, id);
+
+  return { ...pair, skippedCanonicalIds: Array.from(next) };
 }
 
 export function updateSyncPairSnapshotIds(

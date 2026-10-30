@@ -1,11 +1,14 @@
 'use client';
 
 import { useMemo } from 'react';
-import { AlertTriangle, Clock3 } from 'lucide-react';
+import { AlertTriangle, Ban, Clock3, Link2 } from 'lucide-react';
 import { ProviderGlyph } from '@/components/auth/ProviderStatusDropdown';
 import { cn } from '@/lib/utils';
 import type { SyncPreviewTrack, SyncPlan, SyncDiffItem } from '@/lib/sync/types';
 import type { MusicProviderId } from '@/lib/music-provider/types';
+import { ManualMatchPicker } from '@features/sync/ui/ManualMatchPicker';
+import { resolutionKey } from '@features/sync/model/manualResolutions';
+import type { ManualResolutionsState } from '@features/sync/hooks/useManualResolutions';
 
 interface SyncSplitViewProps {
   plan: SyncPlan;
@@ -13,13 +16,17 @@ interface SyncSplitViewProps {
   targetTracks: SyncPreviewTrack[];
   sourcePlaylistName: string;
   targetPlaylistName: string;
+  /** Enables manual matching / skipping of unresolved tracks */
+  manual?: ManualResolutionsState;
 }
 
-type CellState = 'present' | 'added' | 'removed' | 'unresolved' | 'timed_out' | 'empty';
+type CellState = 'present' | 'added' | 'matched' | 'removed' | 'unresolved' | 'timed_out' | 'skipped' | 'empty';
 
 interface CellData {
   track: { title: string; artists: string[] } | null;
   state: CellState;
+  /** The plan item behind an added / unresolved cell */
+  item?: SyncDiffItem;
 }
 
 interface AlignedRow {
@@ -30,6 +37,7 @@ interface AlignedRow {
 
 const stateBgClass: Partial<Record<CellState, string>> = {
   added: 'bg-green-500/10',
+  matched: 'bg-green-500/10',
   removed: 'bg-red-500/10',
   unresolved: 'bg-yellow-500/10',
   timed_out: 'bg-orange-500/10',
@@ -39,11 +47,17 @@ const stateTitleClass: Partial<Record<CellState, string>> = {
   removed: 'line-through text-muted-foreground',
   unresolved: 'text-yellow-600 dark:text-yellow-400',
   timed_out: 'text-orange-600 dark:text-orange-400',
+  skipped: 'text-muted-foreground line-through',
 };
 
 const stateArtistClass: Partial<Record<CellState, string>> = {
   removed: 'line-through',
+  skipped: 'line-through',
 };
+
+function isUnresolvedState(state: CellState): boolean {
+  return state === 'unresolved' || state === 'timed_out';
+}
 
 function StateIndicator({ state }: { state: CellState }) {
   switch (state) {
@@ -55,12 +69,53 @@ function StateIndicator({ state }: { state: CellState }) {
       return <AlertTriangle className="h-3 w-3 text-yellow-500 shrink-0" />;
     case 'timed_out':
       return <Clock3 className="h-3 w-3 text-orange-500 shrink-0" />;
+    case 'matched':
+      return <Link2 className="h-3 w-3 text-green-500 shrink-0" />;
+    case 'skipped':
+      return <Ban className="h-3 w-3 text-muted-foreground shrink-0" />;
     default:
       return null;
   }
 }
 
-function TrackCell({ cell }: { cell: CellData }) {
+function CellAction({ cell, manual }: { cell: CellData; manual: ManualResolutionsState | undefined }) {
+  const item = cell.item;
+  if (!manual || !item) return null;
+
+  const target = { canonicalTrackId: item.canonicalTrackId, targetProvider: item.targetProvider };
+  const buttonClass = 'ml-auto shrink-0 rounded px-1 text-[11px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline disabled:opacity-50';
+
+  if (isUnresolvedState(cell.state)) {
+    const key = resolutionKey(item.targetProvider, item.canonicalTrackId);
+    return (
+      <button
+        type="button"
+        className={buttonClass}
+        onClick={() => manual.setOpenKey(manual.openKey === key ? null : key)}
+      >
+        Find match
+      </button>
+    );
+  }
+
+  if (cell.state === 'skipped' && manual.canSkip) {
+    const skippedHere = manual.resolutions[resolutionKey(item.targetProvider, item.canonicalTrackId)]?.kind === 'skipped';
+    return (
+      <button
+        type="button"
+        className={buttonClass}
+        disabled={manual.isSaving}
+        onClick={() => void manual.unskip(target, !skippedHere)}
+      >
+        Undo skip
+      </button>
+    );
+  }
+
+  return null;
+}
+
+function TrackCell({ cell, manual }: { cell: CellData; manual?: ManualResolutionsState | undefined }) {
   if (cell.state === 'empty' || !cell.track) {
     return <div className="px-2 py-0.5 text-xs">&nbsp;</div>;
   }
@@ -91,8 +146,18 @@ function TrackCell({ cell }: { cell: CellData }) {
       >
         {track.artists.join(', ')}
       </span>
+      <CellAction cell={cell} manual={manual} />
     </div>
   );
+}
+
+function addCellState(item: SyncDiffItem): CellState {
+  switch (item.materializeStatus) {
+    case 'timed_out': return 'timed_out';
+    case 'not_found': return 'unresolved';
+    case 'skipped': return 'skipped';
+    default: return item.manualMatch ? 'matched' : 'added';
+  }
 }
 
 /** Indexes plan items into add/remove maps keyed by `provider::canonicalTrackId` */
@@ -125,12 +190,7 @@ function cellForSide(
 
   const addItem = adds.get(key);
   if (addItem) {
-    const state = addItem.materializeStatus === 'timed_out'
-      ? 'timed_out'
-      : addItem.materializeStatus === 'not_found'
-        ? 'unresolved'
-        : 'added';
-    return { track: { title: addItem.title, artists: addItem.artists }, state };
+    return { track: { title: addItem.title, artists: addItem.artists }, state: addCellState(addItem), item: addItem };
   }
 
   return { track: null, state: 'empty' };
@@ -142,19 +202,53 @@ function countChanges(rows: AlignedRow[]) {
   let targetAdded = 0, targetRemoved = 0, targetUnresolved = 0;
 
   for (const row of rows) {
-    if (row.left.state === 'added') sourceAdded++;
+    if (isAddedState(row.left.state)) sourceAdded++;
     if (row.left.state === 'removed') sourceRemoved++;
-    if (row.left.state === 'unresolved' || row.left.state === 'timed_out') sourceUnresolved++;
-    if (row.right.state === 'added') targetAdded++;
+    if (isUnresolvedState(row.left.state)) sourceUnresolved++;
+    if (isAddedState(row.right.state)) targetAdded++;
     if (row.right.state === 'removed') targetRemoved++;
-    if (row.right.state === 'unresolved' || row.right.state === 'timed_out') targetUnresolved++;
+    if (isUnresolvedState(row.right.state)) targetUnresolved++;
   }
 
   return { sourceAdded, sourceRemoved, sourceUnresolved, targetAdded, targetRemoved, targetUnresolved };
 }
 
+function isAddedState(state: CellState): boolean {
+  return state === 'added' || state === 'matched';
+}
+
 function isVisibleOnSide(state: CellState): boolean {
-  return state !== 'empty' && state !== 'removed';
+  return state !== 'empty' && state !== 'removed' && state !== 'skipped';
+}
+
+/** The unresolved cell of a row whose match picker is open, if any. */
+function openPickerCell(row: AlignedRow, manual: ManualResolutionsState | undefined): CellData | null {
+  if (!manual?.openKey) return null;
+  for (const cell of [row.left, row.right]) {
+    if (cell.item && isUnresolvedState(cell.state)
+      && resolutionKey(cell.item.targetProvider, cell.item.canonicalTrackId) === manual.openKey) {
+      return cell;
+    }
+  }
+  return null;
+}
+
+function RowMatchPicker({ cell, manual }: { cell: CellData; manual: ManualResolutionsState }) {
+  const item = cell.item!;
+  const target = { canonicalTrackId: item.canonicalTrackId, targetProvider: item.targetProvider };
+
+  return (
+    <div className="col-span-2">
+      <ManualMatchPicker
+        source={{ title: item.title, artists: item.artists, durationMs: item.durationMs }}
+        targetProvider={item.targetProvider}
+        isSaving={manual.isSaving}
+        onPick={(track) => void manual.pick(target, track)}
+        {...(manual.canSkip ? { onSkip: () => void manual.skip(target) } : {})}
+        onClose={() => manual.setOpenKey(null)}
+      />
+    </div>
+  );
 }
 
 /**
@@ -207,6 +301,7 @@ export function SyncSplitView({
   targetTracks,
   sourcePlaylistName,
   targetPlaylistName,
+  manual,
 }: SyncSplitViewProps) {
   const anticipated = useAlignedAnticipatedResult(sourceTracks, targetTracks, plan);
 
@@ -244,19 +339,23 @@ export function SyncSplitView({
 
         {/* Scrollable aligned rows */}
         <div className="max-h-[350px] overflow-y-auto">
-          {anticipated.rows.map((row) => (
-            <div
-              key={row.id}
-              className="grid grid-cols-2 border-b border-border/50 last:border-b-0"
-            >
-              <div className="border-r border-border/50 min-w-0">
-                <TrackCell cell={row.left} />
+          {anticipated.rows.map((row) => {
+            const pickerCell = openPickerCell(row, manual);
+            return (
+              <div
+                key={row.id}
+                className="grid grid-cols-2 border-b border-border/50 last:border-b-0"
+              >
+                <div className="border-r border-border/50 min-w-0">
+                  <TrackCell cell={row.left} manual={manual} />
+                </div>
+                <div className="min-w-0">
+                  <TrackCell cell={row.right} manual={manual} />
+                </div>
+                {pickerCell && manual && <RowMatchPicker cell={pickerCell} manual={manual} />}
               </div>
-              <div className="min-w-0">
-                <TrackCell cell={row.right} />
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -273,6 +372,12 @@ export function SyncSplitView({
           <span className="text-green-500 font-bold">+</span>
           Will be added
         </span>
+        {manual && (
+          <span className="inline-flex items-center gap-1">
+            <Link2 className="h-3 w-3 text-green-500" />
+            Matched manually
+          </span>
+        )}
         <span className="inline-flex items-center gap-1">
           <span className="text-red-500 font-bold">-</span>
           Will be removed

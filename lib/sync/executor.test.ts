@@ -75,6 +75,7 @@ function createPair(): SyncPair {
     targetOrderBaseline: ['a', 'b'],
     sourceLastChangeAt: '2026-04-06T10:00:00.000Z',
     targetLastChangeAt: '2026-04-06T12:00:00.000Z',
+    skippedCanonicalIds: [],
     createdAt: '2026-04-06T00:00:00.000Z',
     updatedAt: '2026-04-06T00:00:00.000Z',
   };

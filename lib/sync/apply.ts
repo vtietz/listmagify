@@ -5,6 +5,7 @@ import type { SyncDiffItem, SyncPlan, SyncApplyResult, UnresolvedTrackInfo } fro
 interface UnresolvedEntry {
   canonicalTrackId: string;
   reason: UnresolvedTrackInfo['reason'];
+  targetProvider?: MusicProviderId;
 }
 
 // ---------------------------------------------------------------------------
@@ -88,6 +89,7 @@ export async function applySyncPlan(
       artists: diffItem?.artists ?? [],
       durationMs: diffItem?.durationMs ?? 0,
       reason: entry.reason,
+      ...(entry.targetProvider ? { targetProvider: entry.targetProvider } : {}),
     };
   });
 

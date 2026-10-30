@@ -6,6 +6,7 @@ import { SyncRunResultContent } from '@features/sync/ui/SyncRunResultContent';
 import type { SyncApplyResult, SyncPreviewResult, SyncPreviewRun } from '@/lib/sync/types';
 import type { SyncDialogConfig } from '@features/sync/stores/useSyncDialogStore';
 import { getRunPhaseLabel } from '@features/sync/ui/syncPreviewDialogUtils';
+import type { ManualResolutionsState } from '@features/sync/hooks/useManualResolutions';
 
 export type Step = 'preview' | 'result';
 
@@ -29,9 +30,13 @@ export function getStepDescription(step: Step): string {
 
 function ResultStep({
   result,
+  manual,
+  onSyncAgain,
   onDone,
 }: {
   result: SyncApplyResult;
+  manual: ManualResolutionsState;
+  onSyncAgain: () => void;
   onDone: () => void;
 }) {
   const hasErrors = result.errors.length > 0;
@@ -50,9 +55,14 @@ function ResultStep({
         </p>
       </div>
 
-      <SyncRunResultContent source={result} />
+      <SyncRunResultContent source={result} manual={manual} />
 
       <DialogFooter>
+        {manual.resolvedCount > 0 && (
+          <Button variant="outline" onClick={onSyncAgain}>
+            Sync again ({manual.resolvedCount} resolved)
+          </Button>
+        )}
         <Button onClick={onDone}>Done</Button>
       </DialogFooter>
     </div>
@@ -211,7 +221,9 @@ function PreviewStepContent({
   isCancelingPreview,
   onCancelPreview,
   onClose,
+  manual,
 }: {
+  manual: ManualResolutionsState;
   config: SyncDialogConfig | null;
   previewData: SyncPreviewResult | null;
   sourcePlaylistName: string;
@@ -262,6 +274,7 @@ function PreviewStepContent({
           targetTracks={previewData.targetTracks}
           sourcePlaylistName={sourcePlaylistName}
           targetPlaylistName={targetPlaylistName}
+          manual={manual}
         />
       )}
 
@@ -308,7 +321,9 @@ export function SyncPreviewDialogContent({
   onRetryPreview,
   onCancelPreview,
   onClose,
+  manual,
 }: {
+  manual: ManualResolutionsState;
   step: Step;
   result: SyncApplyResult | null;
   previewData: SyncPreviewResult | null;
@@ -332,7 +347,7 @@ export function SyncPreviewDialogContent({
   onClose: () => void;
 }) {
   if (step === 'result' && result) {
-    return <ResultStep result={result} onDone={onClose} />;
+    return <ResultStep result={result} manual={manual} onSyncAgain={onRetryPreview} onDone={onClose} />;
   }
 
   return (
@@ -356,6 +371,7 @@ export function SyncPreviewDialogContent({
       isCancelingPreview={isCancelingPreview}
       onCancelPreview={onCancelPreview}
       onClose={onClose}
+      manual={manual}
     />
   );
 }
