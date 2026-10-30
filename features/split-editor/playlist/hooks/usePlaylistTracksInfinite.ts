@@ -4,7 +4,7 @@
  * This hook uses TanStack Query's useInfiniteQuery as the single source of truth
  * for playlist track data. Key features:
  * 
- * 1. Prefetches all pages on initial load for instant search
+ * 1. Loads all pages (and keeps loading after refetches) for instant search
  * 2. Uses placeholderData to prevent undefined flashes during refetch
  * 3. Disables background refetches to prevent data resets during DnD
  * 4. Supports optimistic updates for reorder/add/remove operations
@@ -12,7 +12,7 @@
 
 'use client';
 
-import { useEffect, useRef, useCallback, useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useInfiniteQuery, type InfiniteData } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api/client';
 import { playlistTracksInfiniteByProvider } from '@/lib/api/queryKeys';
@@ -70,26 +70,6 @@ function getPlaylistTracksQueryKey(
     : (['playlist-tracks-infinite', null] as const);
 }
 
-function shouldPrefetchRemainingPages({
-  playlistId,
-  data,
-  hasNextPage,
-  isFetchingNextPage,
-  prefetchedPlaylistId,
-}: {
-  playlistId: string | null | undefined;
-  data: InfiniteData<PlaylistTracksPage> | undefined;
-  hasNextPage: boolean;
-  isFetchingNextPage: boolean;
-  prefetchedPlaylistId: string | null;
-}) {
-  if (!playlistId || !data || !hasNextPage || isFetchingNextPage) {
-    return false;
-  }
-
-  return prefetchedPlaylistId !== playlistId;
-}
-
 function buildPlaylistTracksUrl(
   playlistId: string,
   providerId: MusicProviderId,
@@ -115,31 +95,23 @@ function createPlaylistTracksQueryFn(
   };
 }
 
-async function prefetchRemainingPages(
-  fetchNextPage: () => Promise<{
-    hasNextPage: boolean;
-    data?: InfiniteData<PlaylistTracksPage>;
-    error?: Error | null;
-  }>
-): Promise<void> {
-  let hasMore = true;
-
-  while (hasMore) {
-    const result = await fetchNextPage();
-    hasMore = !!result.hasNextPage;
-
-    if (!result.data || result.error) {
-      break;
-    }
-  }
-}
-
-function shouldAutoPrefetch(
-  pageCount: number | undefined,
-  hasNextPage: boolean,
-  isFetchingNextPage: boolean
-): boolean {
-  return pageCount === 1 && hasNextPage && !isFetchingNextPage;
+/**
+ * Whether another page should be loaded now. Re-evaluated after every fetch, so
+ * refetches that end early (playlist grew, cache rebuilt from page 1) keep loading
+ * until the server reports no further pages.
+ */
+function shouldLoadNextPage(params: {
+  playlistId: string | null | undefined;
+  hasNextPage: boolean;
+  isFetching: boolean;
+  isFetchNextPageError: boolean;
+  isPlaceholderData: boolean;
+}): boolean {
+  return !!params.playlistId
+    && params.hasNextPage
+    && !params.isFetching
+    && !params.isFetchNextPageError
+    && !params.isPlaceholderData;
 }
 
 function flattenTracksWithGlobalPositions(pages: PlaylistTracksPage[] | undefined): Track[] {
@@ -163,54 +135,6 @@ function flattenTracksWithGlobalPositions(pages: PlaylistTracksPage[] | undefine
 
 function shouldEnablePlaylistTracksQuery(enabled: boolean, playlistId: string | null | undefined): boolean {
   return enabled && !!playlistId;
-}
-
-async function maybePrefetchAllPages(params: {
-  playlistId: string | null | undefined;
-  data: InfiniteData<PlaylistTracksPage> | undefined;
-  hasNextPage: boolean;
-  isFetchingNextPage: boolean;
-  prefetchedRef: React.MutableRefObject<string | null>;
-  fetchNextPage: () => Promise<{
-    hasNextPage: boolean;
-    data?: InfiniteData<PlaylistTracksPage>;
-    error?: Error | null;
-  }>;
-}): Promise<void> {
-  if (!shouldPrefetchRemainingPages({
-    playlistId: params.playlistId,
-    data: params.data,
-    hasNextPage: params.hasNextPage,
-    isFetchingNextPage: params.isFetchingNextPage,
-    prefetchedPlaylistId: params.prefetchedRef.current,
-  })) {
-    return;
-  }
-
-  params.prefetchedRef.current = params.playlistId ?? null;
-  await prefetchRemainingPages(params.fetchNextPage);
-}
-
-function triggerPrefetchOnFirstPage(params: {
-  pageCount: number | undefined;
-  hasNextPage: boolean;
-  isFetchingNextPage: boolean;
-  prefetchAllPages: () => Promise<void>;
-}): void {
-  if (!shouldAutoPrefetch(params.pageCount, params.hasNextPage, params.isFetchingNextPage)) {
-    return;
-  }
-
-  void params.prefetchAllPages();
-}
-
-function resetPrefetchTracking(
-  prefetchedRef: React.MutableRefObject<string | null>,
-  playlistId: string | null | undefined
-): void {
-  if (playlistId !== prefetchedRef.current) {
-    prefetchedRef.current = null;
-  }
 }
 
 function getSnapshotId(data: InfiniteData<PlaylistTracksPage> | undefined): string | undefined {
@@ -238,7 +162,7 @@ function getHasLoadedAll(
  * Hook for loading all playlist tracks using infinite query.
  * 
  * Uses TanStack Query's useInfiniteQuery as the authoritative data source.
- * Automatically prefetches all pages on initial load for instant client-side search.
+ * Automatically loads all pages for instant client-side search.
  * 
  * @example
  * ```tsx
@@ -252,8 +176,6 @@ export function usePlaylistTracksInfinite({
   providerId = 'spotify',
   enabled = true,
 }: UsePlaylistTracksInfiniteOptions): UsePlaylistTracksInfiniteResult {
-  const prefetchedRef = useRef<string | null>(null);
-
   const queryResult = useInfiniteQuery<
     PlaylistTracksPage,
     Error,
@@ -281,34 +203,36 @@ export function usePlaylistTracksInfinite({
     structuralSharing: false,
   });
 
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, isRefetching, error, dataUpdatedAt } = queryResult;
+  const {
+    data,
+    fetchNextPage,
+    hasNextPage,
+    isFetching,
+    isFetchingNextPage,
+    isFetchNextPageError,
+    isPlaceholderData,
+    isLoading,
+    isRefetching,
+    error,
+    dataUpdatedAt,
+  } = queryResult;
 
-  // Prefetch all remaining pages once the first page loads
-  const prefetchAllPages = useCallback(async () => {
-    await maybePrefetchAllPages({
+  // Keep loading pages until the server reports none left (all tracks are needed
+  // client-side for search, sorting and DnD positions).
+  const pageCount = data?.pages.length ?? 0;
+  useEffect(() => {
+    if (!shouldLoadNextPage({
       playlistId,
-      data,
       hasNextPage: Boolean(hasNextPage),
-      isFetchingNextPage,
-      prefetchedRef,
-      fetchNextPage,
-    });
-  }, [playlistId, data, hasNextPage, isFetchingNextPage, fetchNextPage]);
+      isFetching,
+      isFetchNextPageError,
+      isPlaceholderData,
+    })) {
+      return;
+    }
 
-  // Auto-fetch all pages when first page loads
-  useEffect(() => {
-    triggerPrefetchOnFirstPage({
-      pageCount: data?.pages.length,
-      hasNextPage: Boolean(hasNextPage),
-      isFetchingNextPage,
-      prefetchAllPages,
-    });
-  }, [data?.pages.length, hasNextPage, isFetchingNextPage, prefetchAllPages]);
-
-  // Reset prefetch tracking when playlist changes
-  useEffect(() => {
-    resetPrefetchTracking(prefetchedRef, playlistId);
-  }, [playlistId]);
+    void fetchNextPage();
+  }, [playlistId, pageCount, hasNextPage, isFetching, isFetchNextPageError, isPlaceholderData, fetchNextPage]);
 
   // Flatten all pages into a single tracks array with stable reference
   // Include dataUpdatedAt in deps to trigger re-memoization when cache is updated via setQueryData

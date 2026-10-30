@@ -73,13 +73,8 @@ function parseTracksToRemove(body: any): RemovableTrack[] | NextResponse {
  *
  * Removes tracks from a playlist.
  * 
- * IMPORTANT: Provider APIs may not support position-based deletion directly.
- * The `positions` parameter is ignored - DELETE always removes ALL instances of a URI.
- * 
- * To handle duplicate tracks (same song at multiple positions), we use a "rebuild" approach:
- * 1. Fetch all current playlist tracks
- * 2. Filter out the specific positions we want to remove
- * 3. Replace the playlist contents with the filtered list
+ * When `positions` are given, only those entries are removed (duplicates elsewhere are
+ * kept). Returns 409 if the playlist no longer matches the given positions.
  *
  * Body: { tracks: Array<{ uri: string, positions?: number[] }>, snapshotId?: string }
  * Returns: { snapshotId: string } on success
@@ -131,53 +126,28 @@ export async function DELETE(
 }
 
 /**
- * Handle position-based removal using the "rebuild playlist" approach.
- * This is needed because provider delete operations may ignore positions.
+ * Handle position-based removal. Providers remove exactly the requested entries and
+ * leave every other entry (including other occurrences of the same track) untouched.
  */
 async function handlePositionBasedRemoval(
   provider: MusicProvider,
   playlistId: string,
   tracksToRemove: RemovableTrack[]
 ): Promise<NextResponse> {
-  // Build set of positions to remove
-  const positionsToRemove = new Set<number>();
-  tracksToRemove.forEach(t => {
-    if (t.positions) {
-      t.positions.forEach(pos => positionsToRemove.add(pos));
-    }
-  });
+  const expected = tracksToRemove
+    .filter((track): track is Required<RemovableTrack> => Array.isArray(track.positions) && track.positions.length > 0)
+    .map((track) => ({ uri: track.uri, positions: track.positions }));
 
-  if (positionsToRemove.size === 0) {
+  const positionCount = expected.reduce((sum, track) => sum + track.positions.length, 0);
+  if (positionCount === 0) {
     return NextResponse.json({ error: 'No positions specified for removal' }, { status: 400 });
   }
 
-  console.debug('[api/playlists/tracks/remove] Position-based removal, positions:', Array.from(positionsToRemove));
+  const removed = await provider.removePlaylistTracksAtPositions(playlistId, expected);
 
-  // Fetch all current playlist tracks
-  const allTracks = await fetchAllPlaylistTracks(provider, playlistId);
-  
-  if (!allTracks) {
-    return NextResponse.json({ error: 'Failed to fetch playlist tracks' }, { status: 500 });
-  }
+  logTrackRemove(playlistId, positionCount).catch(() => {});
 
-  console.debug(`[api/playlists/tracks/remove] Fetched ${allTracks.length} tracks from playlist`);
-
-  // Filter out the positions we want to remove
-  const remainingTracks = allTracks.filter((_, index) => !positionsToRemove.has(index));
-  
-  console.debug(`[api/playlists/tracks/remove] After removal: ${remainingTracks.length} tracks remain`);
-
-  // Replace playlist contents
-  const newSnapshotId = await replacePlaylistTracks(provider, playlistId, remainingTracks);
-  
-  if (!newSnapshotId) {
-    return NextResponse.json({ error: 'Failed to update playlist' }, { status: 500 });
-  }
-
-  // Log metrics
-  logTrackRemove(playlistId, positionsToRemove.size).catch(() => {});
-
-  return NextResponse.json({ snapshotId: newSnapshotId });
+  return NextResponse.json({ snapshotId: removed.snapshotId });
 }
 
 /**
@@ -195,30 +165,4 @@ async function handleSimpleRemoval(
   logTrackRemove(playlistId, tracksToRemove.length).catch(() => {});
 
   return NextResponse.json({ snapshotId: removed.snapshotId });
-}
-
-/**
- * Fetch all tracks from a playlist (handles pagination).
- */
-async function fetchAllPlaylistTracks(provider: MusicProvider, playlistId: string): Promise<string[] | null> {
-  try {
-    return await provider.getPlaylistTrackUris(playlistId);
-  } catch (error) {
-    console.error('[fetchAllPlaylistTracks] Error:', error);
-    return null;
-  }
-}
-
-/**
- * Replace all tracks in a playlist with a new list.
- * Uses PUT for small playlists, or clear+add for larger ones.
- */
-async function replacePlaylistTracks(provider: MusicProvider, playlistId: string, trackUris: string[]): Promise<string | null> {
-  try {
-    const replaced = await provider.replacePlaylistTracks(playlistId, trackUris);
-    return replaced.snapshotId;
-  } catch (error) {
-    console.error('[replacePlaylistTracks] Error:', error);
-    return null;
-  }
 }

@@ -45,8 +45,27 @@ export async function fetchTrack(
   }
 }
 
+/** Parallel single-item requests; the batch GET /tracks?ids= endpoint was removed (Feb 2026). */
+const CATALOG_FETCH_CONCURRENCY = 5;
+
+async function fetchEach<T>(ids: string[], fetchOne: (id: string) => Promise<T | null>): Promise<T[]> {
+  const results: T[] = [];
+
+  for (let i = 0; i < ids.length; i += CATALOG_FETCH_CONCURRENCY) {
+    const batch = ids.slice(i, i + CATALOG_FETCH_CONCURRENCY);
+    const fetched = await Promise.all(batch.map(fetchOne));
+    for (const item of fetched) {
+      if (item) {
+        results.push(item);
+      }
+    }
+  }
+
+  return results;
+}
+
 /**
- * Fetch multiple tracks by IDs (up to 50).
+ * Fetch multiple tracks by IDs.
  * 
  * @param trackIds - Array of track IDs
  */
@@ -56,27 +75,8 @@ export async function fetchTracks(
 ): Promise<Track[]> {
   const normalizedTrackIds = normalizeTrackIdsForProvider(trackIds, providerId);
   if (normalizedTrackIds.length === 0) return [];
-  
-  const results: Track[] = [];
-  
-  // Process in batches of 50
-  for (let i = 0; i < normalizedTrackIds.length; i += 50) {
-    const batch = normalizedTrackIds.slice(i, i + 50);
-    const ids = batch.join(',');
-    
-    const provider = getMusicProvider(providerId);
-    const raw = await provider.getJSON<{
-      tracks: Array<any | null>;
-    }>(`/tracks?ids=${ids}`);
-    
-    for (const track of raw.tracks ?? []) {
-      if (track) {
-        results.push(mapPlaylistItemToTrack(track));
-      }
-    }
-  }
-  
-  return results;
+
+  return fetchEach(normalizedTrackIds, (trackId) => fetchTrack(trackId, providerId));
 }
 
 /**
@@ -114,7 +114,7 @@ export async function fetchArtist(
 }
 
 /**
- * Fetch multiple artists by IDs (up to 50).
+ * Fetch multiple artists by IDs.
  * 
  * @param artistIds - Array of artist IDs
  */
@@ -128,42 +128,8 @@ export async function fetchArtists(
   popularity: number;
 }>> {
   if (artistIds.length === 0) return [];
-  
-  const results: Array<{
-    id: string;
-    name: string;
-    genres: string[];
-    popularity: number;
-  }> = [];
-  
-  // Process in batches of 50
-  for (let i = 0; i < artistIds.length; i += 50) {
-    const batch = artistIds.slice(i, i + 50);
-    const ids = batch.join(',');
-    
-    const provider = getMusicProvider(providerId);
-    const raw = await provider.getJSON<{
-      artists: Array<{
-        id: string;
-        name: string;
-        genres: string[];
-        popularity: number;
-      } | null>;
-    }>(`/artists?ids=${ids}`);
-    
-    for (const artist of raw.artists ?? []) {
-      if (artist) {
-        results.push({
-          id: artist.id,
-          name: artist.name,
-          genres: artist.genres ?? [],
-          popularity: artist.popularity ?? 0,
-        });
-      }
-    }
-  }
-  
-  return results;
+
+  return fetchEach(artistIds, (artistId) => fetchArtist(artistId, providerId));
 }
 
 /**

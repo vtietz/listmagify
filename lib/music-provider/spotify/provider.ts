@@ -11,6 +11,7 @@ import {
   type PlaylistPageResult,
   type PlaylistPermissionsResult,
   type PlaylistTracksPageResult,
+  type PositionedTrackRemoval,
   type PublicUserProfileResult,
   type ProviderClientOptions,
   type ReorderTracksPayload,
@@ -31,10 +32,12 @@ import {
   type SpotifyProviderDependencies,
 } from '@/lib/music-provider/spotify/http';
 import {
+  PLAYLIST_ITEMS_PAGE_LIMIT,
   buildTracksPath,
   mapCurrentUser,
   mapPlaylistTracksPage,
   mapPublicUser,
+  playlistItemsPath,
   requireSnapshotId,
 } from '@/lib/music-provider/spotify/mappers';
 import {
@@ -48,7 +51,48 @@ import {
   batchRemovePlaylistTracks,
   batchReplacePlaylistTracks,
   fetchPlaylistTrackUris,
+  removePlaylistTracksAtPositions,
 } from '@/lib/music-provider/spotify/batchOperations';
+
+/** /search `limit` maximum (reduced from 50 to 10 in Feb 2026). */
+const SEARCH_LIMIT_MAX = 10;
+
+/** Max URIs per /me/library request. */
+const LIBRARY_BATCH_SIZE = 40;
+
+type ResolvedSpotifyDependencies = ReturnType<typeof resolveSpotifyDependencies>;
+
+function chunk<T>(values: T[], size: number): T[][] {
+  const batches: T[][] = [];
+  for (let i = 0; i < values.length; i += size) {
+    batches.push(values.slice(i, i + size));
+  }
+  return batches;
+}
+
+function toTrackUris(ids: string[]): string[] {
+  return ids.map((id) => (id.startsWith('spotify:') ? id : `spotify:track:${id}`));
+}
+
+async function sendLibraryRequest(
+  method: 'PUT' | 'DELETE',
+  uris: string[],
+  operation: string,
+  deps: ResolvedSpotifyDependencies
+): Promise<void> {
+  for (const batch of chunk(uris, LIBRARY_BATCH_SIZE)) {
+    const response = await executeWithSession(
+      `/me/library?uris=${batch.map(encodeURIComponent).join(',')}`,
+      { method },
+      undefined,
+      deps
+    );
+
+    if (!response.ok) {
+      throwProviderError(response, await readErrorText(response), operation);
+    }
+  }
+}
 
 export function createSpotifyProvider(
   dependencies: SpotifyProviderDependencies = {}
@@ -57,44 +101,34 @@ export function createSpotifyProvider(
 
   return {
     async saveTracks(payload: TrackSavePayload): Promise<void> {
-      const response = await executeWithSession(
-        `/me/tracks?ids=${payload.ids.join(',')}`,
-        { method: 'PUT' },
-        undefined,
-        deps
-      );
-
-      if (!response.ok) {
-        throwProviderError(response, await readErrorText(response), 'saveTracks');
-      }
+      await sendLibraryRequest('PUT', toTrackUris(payload.ids), 'saveTracks', deps);
     },
 
     async removeTracks(payload: TrackSavePayload): Promise<void> {
-      const response = await executeWithSession(
-        `/me/tracks?ids=${payload.ids.join(',')}`,
-        { method: 'DELETE' },
-        undefined,
-        deps
-      );
-
-      if (!response.ok) {
-        throwProviderError(response, await readErrorText(response), 'removeTracks');
-      }
+      await sendLibraryRequest('DELETE', toTrackUris(payload.ids), 'removeTracks', deps);
     },
 
     async containsTracks(payload: TrackSavePayload): Promise<boolean[]> {
-      const response = await executeWithSession(
-        `/me/tracks/contains?ids=${payload.ids.join(',')}`,
-        { method: 'GET' },
-        undefined,
-        deps
-      );
+      const uris = toTrackUris(payload.ids);
+      const results: boolean[] = [];
 
-      if (!response.ok) {
-        throwProviderError(response, await readErrorText(response), 'containsTracks');
+      for (const batch of chunk(uris, LIBRARY_BATCH_SIZE)) {
+        const response = await executeWithSession(
+          `/me/library/contains?uris=${batch.map(encodeURIComponent).join(',')}`,
+          { method: 'GET' },
+          undefined,
+          deps
+        );
+
+        if (!response.ok) {
+          throwProviderError(response, await readErrorText(response), 'containsTracks');
+        }
+
+        const flags = await response.json();
+        results.push(...(Array.isArray(flags) ? flags.map((flag) => flag === true) : batch.map(() => false)));
       }
 
-      return response.json() as Promise<boolean[]>;
+      return results;
     },
 
     async getLikedTracks(
@@ -119,8 +153,8 @@ export function createSpotifyProvider(
       };
     },
 
-    async searchTracks(query: string, limit = 50, offset = 0): Promise<TrackSearchResult<Track>> {
-      const boundedLimit = Math.min(Math.max(limit, 1), 50);
+    async searchTracks(query: string, limit = SEARCH_LIMIT_MAX, offset = 0): Promise<TrackSearchResult<Track>> {
+      const boundedLimit = Math.min(Math.max(limit, 1), SEARCH_LIMIT_MAX);
       const boundedOffset = Math.max(offset, 0);
       const path = `/search?q=${encodeURIComponent(query)}&type=track&limit=${boundedLimit}&offset=${boundedOffset}`;
       const response = await executeWithSession(path, { method: 'GET' }, undefined, deps);
@@ -146,8 +180,8 @@ export function createSpotifyProvider(
       return result.tracks[0] ?? null;
     },
 
-    async searchArtists(query: string, limit = 50, offset = 0): Promise<ArtistSearchResult> {
-      const boundedLimit = Math.min(Math.max(limit, 1), 50);
+    async searchArtists(query: string, limit = SEARCH_LIMIT_MAX, offset = 0): Promise<ArtistSearchResult> {
+      const boundedLimit = Math.min(Math.max(limit, 1), SEARCH_LIMIT_MAX);
       const boundedOffset = Math.max(offset, 0);
       const path = `/search?q=${encodeURIComponent(query)}&type=artist&limit=${boundedLimit}&offset=${boundedOffset}`;
       const response = await executeWithSession(path, { method: 'GET' }, undefined, deps);
@@ -160,8 +194,8 @@ export function createSpotifyProvider(
       return mapSearchArtists(raw, boundedOffset);
     },
 
-    async searchAlbums(query: string, limit = 50, offset = 0): Promise<AlbumSearchResult> {
-      const boundedLimit = Math.min(Math.max(limit, 1), 50);
+    async searchAlbums(query: string, limit = SEARCH_LIMIT_MAX, offset = 0): Promise<AlbumSearchResult> {
+      const boundedLimit = Math.min(Math.max(limit, 1), SEARCH_LIMIT_MAX);
       const boundedOffset = Math.max(offset, 0);
       const path = `/search?q=${encodeURIComponent(query)}&type=album&limit=${boundedLimit}&offset=${boundedOffset}`;
       const response = await executeWithSession(path, { method: 'GET' }, undefined, deps);
@@ -174,17 +208,40 @@ export function createSpotifyProvider(
       return mapSearchAlbums(raw, boundedOffset);
     },
 
+    // GET /artists/{id}/top-tracks was removed (Feb 2026): approximate with an
+    // artist-scoped track search filtered to tracks credited to this artist.
     async getArtistTopTracks(artistId: string): Promise<Track[]> {
-      const path = `/artists/${encodeURIComponent(artistId)}/top-tracks`;
-      const response = await executeWithSession(path, { method: 'GET' }, undefined, deps);
+      const artistResponse = await executeWithSession(
+        `/artists/${encodeURIComponent(artistId)}`,
+        { method: 'GET' },
+        undefined,
+        deps
+      );
+
+      if (!artistResponse.ok) {
+        throwProviderError(artistResponse, await readErrorText(artistResponse), 'getArtistTopTracks');
+      }
+
+      const artist = await artistResponse.json();
+      const artistName = typeof artist?.name === 'string' ? artist.name : '';
+      if (!artistName) {
+        return [];
+      }
+
+      const query = encodeURIComponent(`artist:"${artistName.replace(/"/g, '')}"`);
+      const response = await executeWithSession(
+        `/search?q=${query}&type=track&limit=${SEARCH_LIMIT_MAX}`,
+        { method: 'GET' },
+        undefined,
+        deps
+      );
 
       if (!response.ok) {
         throwProviderError(response, await readErrorText(response), 'getArtistTopTracks');
       }
 
-      const raw = await response.json();
-      const rawTracks = Array.isArray(raw?.tracks) ? raw.tracks : [];
-      return rawTracks.map((item: any) => mapPlaylistItemToTrack({ track: item }));
+      const { tracks } = mapSearchTracks(await response.json(), 0);
+      return tracks.filter((track) => track.artistObjects?.some((entry) => entry.id === artistId) ?? true);
     },
 
     async getAlbumTracks(albumId: string): Promise<Track[]> {
@@ -208,19 +265,20 @@ export function createSpotifyProvider(
       return mapCurrentUser(await response.json());
     },
 
+    // GET /users/{id} was removed (Feb 2026); only the current user's profile is readable.
     async getUserProfile(userId: string): Promise<PublicUserProfileResult> {
-      const response = await executeWithSession(
-        `/users/${encodeURIComponent(userId)}`,
-        { method: 'GET' },
-        undefined,
-        deps
-      );
+      const response = await executeWithSession('/me', { method: 'GET' }, undefined, deps);
 
       if (!response.ok) {
         throwProviderError(response, await readErrorText(response), 'getUserProfile');
       }
 
-      return mapPublicUser(await response.json(), userId);
+      const me = await response.json();
+      if (me?.id !== userId) {
+        return { id: userId, displayName: null, imageUrl: null };
+      }
+
+      return mapPublicUser(me, userId);
     },
 
     async getPlaylistPermissions(playlistId: string): Promise<PlaylistPermissionsResult> {
@@ -251,7 +309,7 @@ export function createSpotifyProvider(
     },
 
     async createPlaylist(payload: CreatePlaylistPayload): Promise<Playlist> {
-      const path = `/users/${encodeURIComponent(payload.userId)}/playlists`;
+      const path = '/me/playlists';
       const response = await executeWithSession(
         path,
         {
@@ -292,13 +350,9 @@ export function createSpotifyProvider(
       }
     },
 
+    // Unfollowing a playlist (Spotify's "delete") now goes through /me/library.
     async deletePlaylist(playlistId: string): Promise<void> {
-      const path = `/playlists/${encodeURIComponent(playlistId)}/followers`;
-      const response = await executeWithSession(path, { method: 'DELETE' }, undefined, deps);
-
-      if (!response.ok) {
-        throwProviderError(response, await readErrorText(response), 'deletePlaylist');
-      }
+      await sendLibraryRequest('DELETE', [`spotify:playlist:${playlistId}`], 'deletePlaylist', deps);
     },
 
     async getPlaylistTrackUris(playlistId: string): Promise<string[]> {
@@ -311,6 +365,13 @@ export function createSpotifyProvider(
 
     async removePlaylistTracks(playlistId: string, trackUris: string[]): Promise<{ snapshotId: string }> {
       return batchRemovePlaylistTracks(playlistId, trackUris, deps);
+    },
+
+    async removePlaylistTracksAtPositions(
+      playlistId: string,
+      expected: PositionedTrackRemoval[]
+    ): Promise<{ snapshotId: string }> {
+      return removePlaylistTracksAtPositions(playlistId, expected, deps);
     },
 
     async getPlaybackState(): Promise<PlaybackState | null> {
@@ -342,7 +403,7 @@ export function createSpotifyProvider(
     },
 
     async reorderTracks(payload: ReorderTracksPayload): Promise<{ snapshotId: string }> {
-      const path = `/playlists/${encodeURIComponent(payload.playlistId)}/tracks`;
+      const path = playlistItemsPath(payload.playlistId);
       const requestBody: Record<string, unknown> = {
         range_start: payload.fromIndex,
         insert_before: payload.toIndex,
@@ -388,10 +449,10 @@ export function createSpotifyProvider(
 
     async getPlaylistTracks(
       playlistId: string,
-      limit = 100,
+      limit = PLAYLIST_ITEMS_PAGE_LIMIT,
       nextCursor?: string | null
     ): Promise<PlaylistTracksPageResult<Track>> {
-      const boundedLimit = Math.min(Math.max(limit, 1), 100);
+      const boundedLimit = Math.min(Math.max(limit, 1), PLAYLIST_ITEMS_PAGE_LIMIT);
       const path = buildTracksPath(playlistId, boundedLimit, nextCursor);
       const response = await executeWithSession(path, { method: 'GET' }, undefined, deps);
 

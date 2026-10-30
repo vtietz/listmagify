@@ -1,6 +1,8 @@
 import {
+  PlaylistPositionConflictError,
   ProviderApiError,
   type AddTracksPayload,
+  type PositionedTrackRemoval,
   type CreatePlaylistPayload,
   type CurrentUserResult,
   type LikedTracksPageResult,
@@ -379,6 +381,32 @@ export function createTidalProvider(dependencies: TidalProviderDependencies = {}
       }
 
       await deletePlaylistTrackItems(transport, playlistId, toRemove, 'removePlaylistTracks');
+
+      return { snapshotId: makeSnapshotId() };
+    },
+
+    async removePlaylistTracksAtPositions(
+      playlistId: string,
+      expected: PositionedTrackRemoval[],
+    ): Promise<{ snapshotId: string }> {
+      // Client positions count track entries only (see mapTrackListDocument).
+      const trackReferences = (await transport.fetchAllPlaylistItemReferences(playlistId))
+        .filter((reference) => reference.type === 'tracks');
+      const toRemove = new Map<string, { id: string; type: 'tracks'; meta: { itemId: string } }>();
+
+      for (const { uri, positions } of expected) {
+        for (const position of positions) {
+          const reference = trackReferences[position];
+          if (!reference || toTrackUri(reference.id) !== uri || typeof reference.itemId !== 'string') {
+            throw new PlaylistPositionConflictError('tidal');
+          }
+          toRemove.set(reference.itemId, { id: reference.id, type: 'tracks', meta: { itemId: reference.itemId } });
+        }
+      }
+
+      if (toRemove.size > 0) {
+        await deletePlaylistTrackItems(transport, playlistId, Array.from(toRemove.values()), 'removePlaylistTracksAtPositions');
+      }
 
       return { snapshotId: makeSnapshotId() };
     },

@@ -242,6 +242,19 @@ export class ProviderApiError extends Error {
   }
 }
 
+export interface PositionedTrackRemoval {
+  uri: string;
+  positions: number[];
+}
+
+/** Raised when a position-based removal no longer matches the playlist contents. */
+export class PlaylistPositionConflictError extends ProviderApiError {
+  constructor(providerId: MusicProviderId) {
+    super('Playlist changed since it was loaded. Reload it and try again.', 409, providerId);
+    this.name = 'PlaylistPositionConflictError';
+  }
+}
+
 export interface MusicProvider {
   saveTracks(payload: TrackSavePayload): Promise<void>;
   removeTracks(payload: TrackSavePayload): Promise<void>;
@@ -263,6 +276,15 @@ export interface MusicProvider {
   getPlaylistTrackUris(playlistId: string): Promise<string[]>;
   replacePlaylistTracks(playlistId: string, trackUris: string[]): Promise<{ snapshotId: string }>;
   removePlaylistTracks(playlistId: string, trackUris: string[]): Promise<{ snapshotId: string }>;
+  /**
+   * Removes the tracks at the given zero-based positions, leaving all other entries
+   * (including other occurrences of the same track) untouched.
+   * Throws PlaylistPositionConflictError when the playlist no longer matches `expected`.
+   */
+  removePlaylistTracksAtPositions(
+    playlistId: string,
+    expected: PositionedTrackRemoval[]
+  ): Promise<{ snapshotId: string }>;
   getPlaybackState(): Promise<PlaybackState | null>;
   getPlaybackDevices(): Promise<PlaybackDevice[]>;
   addTracks(payload: AddTracksPayload): Promise<{ snapshotId: string }>;

@@ -86,9 +86,8 @@ function mapReorderAllThrownError(error: unknown): NextResponse {
  * Reorders all tracks in a playlist to match the provided order.
  * This replaces the entire playlist track order with the new URIs order.
  * 
- * For playlists with >100 tracks, uses batch operations:
- * 1. Clears playlist (PUT with empty array)
- * 2. Adds tracks back in batches of 100 (POST)
+ * Providers write in batches (e.g. Spotify: PUT replaces with the first 100,
+ * then POST appends the rest), so the playlist is never left empty in between.
  * 
  * Body: { trackUris: string[] }
  * Returns: { snapshotId: string } on success

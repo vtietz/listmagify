@@ -84,8 +84,8 @@ async function refreshOpenSyncedPanels(params: {
       : playlistTracksInfiniteByProvider(entry.playlistId, entry.providerId);
 
     if (uncertain) {
-      queryClient.removeQueries({ queryKey, exact: true });
-      await queryClient.refetchQueries({ queryKey, exact: true, type: 'active' });
+      // Drop possibly inconsistent pages and reload active panels from page 1
+      await queryClient.resetQueries({ queryKey, exact: true });
       continue;
     }
 

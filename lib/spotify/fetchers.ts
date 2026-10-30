@@ -39,17 +39,17 @@ export async function getPlaylistById(
  * Fetch tracks from a playlist (items with paging).
  * Note: Uses fields to reduce payload size.
  * @param playlistId Spotify playlist id
- * @param limit number of items per page (1-100)
+ * @param limit number of items per page (1-50)
  * @param nextCursor optional "next" URL to continue
  */
 export async function getPlaylistItems(
   playlistId: string,
-  limit: number = 100,
+  limit: number = 50,
   nextCursor?: string | null,
   providerId: MusicProviderId = 'spotify'
 ): Promise<PageResult<Track>> {
   const provider = getMusicProvider(providerId);
-  const base = `/playlists/${encodeURIComponent(playlistId)}/tracks?limit=${Math.min(Math.max(limit, 1), 100)}`;
+  const base = `/playlists/${encodeURIComponent(playlistId)}/items?limit=${Math.min(Math.max(limit, 1), 50)}`;
   const path = nextCursor ?? base;
 
   const res = await provider.fetch(path, { method: "GET" });

@@ -8,17 +8,25 @@ import {
 import { mapPlaylistItemToTrack } from '@/lib/spotify/types';
 import { DEFAULT_PROVIDER_ID } from './http';
 
+/** Max page size for GET /playlists/{id}/items (reduced from 100 to 50 in Feb 2026). */
+export const PLAYLIST_ITEMS_PAGE_LIMIT = 50;
+
+export function playlistItemsPath(playlistId: string): string {
+  return `/playlists/${encodeURIComponent(playlistId)}/items`;
+}
+
 export function buildTracksPath(playlistId: string, limit: number, nextCursor?: string | null): string {
-  const fields = 'items(track(id,uri,name,artists(name),duration_ms,album(id,name,images,release_date,release_date_precision),popularity,external_ids),added_at,added_by(id,display_name)),next,total,snapshot_id';
+  const fields = 'items(item(id,uri,name,artists(id,name),duration_ms,explicit,album(id,name,images,release_date,release_date_precision),external_ids),added_at,added_by(id,display_name)),next,total';
+  const basePath = playlistItemsPath(playlistId);
   if (!nextCursor) {
-    return `/playlists/${encodeURIComponent(playlistId)}/tracks?limit=${limit}&fields=${encodeURIComponent(fields)}`;
+    return `${basePath}?limit=${limit}&fields=${encodeURIComponent(fields)}`;
   }
 
   try {
     const url = new URL(nextCursor);
     const offset = url.searchParams.get('offset') || '0';
-    const parsedLimit = url.searchParams.get('limit') || String(limit);
-    return `/playlists/${encodeURIComponent(playlistId)}/tracks?offset=${offset}&limit=${parsedLimit}&fields=${encodeURIComponent(fields)}`;
+    const parsedLimit = Math.min(Number(url.searchParams.get('limit')) || limit, PLAYLIST_ITEMS_PAGE_LIMIT);
+    return `${basePath}?offset=${offset}&limit=${parsedLimit}&fields=${encodeURIComponent(fields)}`;
   } catch {
     return nextCursor.includes('fields=') ? nextCursor : `${nextCursor}&fields=${encodeURIComponent(fields)}`;
   }

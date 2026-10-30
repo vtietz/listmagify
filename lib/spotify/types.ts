@@ -81,7 +81,8 @@ export function mapPlaylist(raw: any): Playlist {
   const source = raw ?? {};
   const images = mapImageArray(source.images);
   const owner = mapOwner(source.owner);
-  const tracks = source.tracks ?? {};
+  // Spotify renamed playlist `tracks` to `items` (Feb 2026); accept both shapes
+  const tracks = source.items ?? source.tracks ?? {};
 
   return {
     id: toStringValue(source.id, ''),
@@ -98,8 +99,11 @@ export function mapPlaylist(raw: any): Playlist {
 
 export function mapPlaylistItemToTrack(raw: any): Track {
   const source = raw ?? {};
+  // Playlist items expose the entry as `item` (Feb 2026); `track` is the deprecated alias
+  // still used by saved-tracks responses.
+  const hasItemField = Object.prototype.hasOwnProperty.call(source, 'item');
   const hasTrackField = Object.prototype.hasOwnProperty.call(source, 'track');
-  const trackSource = hasTrackField ? source.track : source;
+  const trackSource = hasItemField || hasTrackField ? (source.item ?? source.track) : source;
 
   // Handle unavailable tracks (Spotify returns null for removed/unavailable tracks)
   if (trackSource === null || trackSource === undefined) {

@@ -48,4 +48,21 @@ describe('spotify type mappers', () => {
     expect(track.popularity).toBe(50);
     expect(track.explicit).toBe(true);
   });
+
+  it('reads playlist item counts from the renamed `items` field', () => {
+    const playlist = mapPlaylist({ id: 'pl-2', name: 'New Shape', items: { total: 12 } });
+    expect(playlist.tracksTotal).toBe(12);
+  });
+
+  it('maps playlist entries from the `item` field and treats a null item as unavailable', () => {
+    const track = mapPlaylistItemToTrack({
+      added_at: '2026-01-01T00:00:00Z',
+      item: { id: 't-1', uri: 'spotify:track:t-1', name: 'Song', artists: [{ id: 'a', name: 'Artist' }], duration_ms: 1000 },
+    });
+    expect(track.uri).toBe('spotify:track:t-1');
+    expect(track.addedAt).toBe('2026-01-01T00:00:00Z');
+
+    const unavailable = mapPlaylistItemToTrack({ added_at: '2026-01-01T00:00:00Z', item: null });
+    expect(unavailable.id).toBeNull();
+  });
 });

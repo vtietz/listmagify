@@ -1,13 +1,12 @@
 /**
  * Hook for removing tracks from a playlist (move operation - source side).
  * 
- * Note: Spotify's API no longer supports position-based deletion.
- * When positions are provided, the server uses a "rebuild playlist" approach:
- * fetching all tracks, filtering out selected positions, and replacing the playlist.
+ * When positions are provided, the server removes exactly those entries and
+ * responds with 409 if the playlist no longer matches them.
  */
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiFetch } from '@/lib/api/client';
+import { apiFetch, ApiError } from '@/lib/api/client';
 import {
   playlistTracksByProvider,
   playlistTracksInfiniteByProvider,
@@ -133,6 +132,10 @@ export function useRemoveTracks() {
       const providerId = params.providerId ?? DEFAULT_MUSIC_PROVIDER_ID;
       // Rollback both caches
       rollbackPlaylistCaches(queryClient, params.playlistId, providerId, context);
+      if (error instanceof ApiError && error.status === 409) {
+        // Playlist changed underneath us: positions are stale, reload fresh data
+        eventBus.emit('playlist:reload', { playlistId: params.playlistId, providerId });
+      }
       toast.error(error instanceof Error ? error.message : 'Failed to remove tracks');
     },
   });

@@ -149,31 +149,50 @@ app.get('/v1/playlists/:id', (req, res) => {
   }
 });
 
-// GET /v1/playlists/:id/tracks - Playlist tracks
-app.get('/v1/playlists/:id/tracks', (req, res) => {
-  const limit = parseInt(req.query.limit) || 100;
+// GET /v1/playlists/:id/items - Playlist items (Feb 2026 API: `item` field, max 50 per page)
+app.get('/v1/playlists/:id/items', (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit) || 20, 50);
   const offset = parseInt(req.query.offset) || 0;
+  const base = `http://spotify-mock:8080/v1/playlists/${req.params.id}/items`;
   
   try {
     const allTracks = loadFixture(`playlist-${req.params.id}-tracks`);
-    const items = allTracks.items.slice(offset, offset + limit);
+    const items = allTracks.items
+      .slice(offset, offset + limit)
+      .map((entry) => ({ ...entry, item: entry.item ?? entry.track ?? null }));
     
     const hasMore = offset + limit < allTracks.items.length;
     const nextOffset = hasMore ? offset + limit : null;
     
     res.json({
-      href: `http://spotify-mock:8080/v1/playlists/${req.params.id}/tracks?offset=${offset}&limit=${limit}`,
+      href: `${base}?offset=${offset}&limit=${limit}`,
       items,
       limit,
-      next: nextOffset ? `http://spotify-mock:8080/v1/playlists/${req.params.id}/tracks?offset=${nextOffset}&limit=${limit}` : null,
+      next: nextOffset ? `${base}?offset=${nextOffset}&limit=${limit}` : null,
       offset,
-      previous: offset > 0 ? `http://spotify-mock:8080/v1/playlists/${req.params.id}/tracks?offset=${Math.max(0, offset - limit)}&limit=${limit}` : null,
+      previous: offset > 0 ? `${base}?offset=${Math.max(0, offset - limit)}&limit=${limit}` : null,
       total: allTracks.items.length,
-      snapshot_id: allTracks.snapshot_id || 'mock-snapshot-id'
     });
   } catch (_err) {
     res.status(404).json({ error: { status: 404, message: 'Playlist not found' } });
   }
+});
+
+// PUT/DELETE /v1/me/library - Save/remove library items (tracks, playlists, ...)
+app.put('/v1/me/library', (req, res) => {
+  console.debug('[mock-spotify] Save to library:', req.query.uris);
+  res.status(200).send();
+});
+
+app.delete('/v1/me/library', (req, res) => {
+  console.debug('[mock-spotify] Remove from library:', req.query.uris);
+  res.status(200).send();
+});
+
+// GET /v1/me/library/contains - Saved state per URI
+app.get('/v1/me/library/contains', (req, res) => {
+  const uris = String(req.query.uris || '').split(',').filter(Boolean);
+  res.json(uris.map(() => false));
 });
 
 // GET /v1/me/player - Current playback state (204 = no active playback)
@@ -298,8 +317,8 @@ app.put('/v1/me/player', (_req, res) => {
   res.status(204).send();
 });
 
-// PUT /v1/playlists/:id/tracks - Reorder tracks
-app.put('/v1/playlists/:id/tracks', (req, res) => {
+// PUT /v1/playlists/:id/items - Reorder or replace items
+app.put('/v1/playlists/:id/items', (req, res) => {
   console.debug('[mock-spotify] Reorder tracks:', req.body);
   
   // Return success with new snapshot_id
@@ -308,8 +327,8 @@ app.put('/v1/playlists/:id/tracks', (req, res) => {
   });
 });
 
-// POST /v1/playlists/:id/tracks - Add tracks
-app.post('/v1/playlists/:id/tracks', (req, res) => {
+// POST /v1/playlists/:id/items - Add items
+app.post('/v1/playlists/:id/items', (req, res) => {
   console.debug('[mock-spotify] Add tracks:', req.body);
   
   res.json({
@@ -317,8 +336,8 @@ app.post('/v1/playlists/:id/tracks', (req, res) => {
   });
 });
 
-// DELETE /v1/playlists/:id/tracks - Remove tracks
-app.delete('/v1/playlists/:id/tracks', (req, res) => {
+// DELETE /v1/playlists/:id/items - Remove items
+app.delete('/v1/playlists/:id/items', (req, res) => {
   console.debug('[mock-spotify] Remove tracks:', req.body);
   
   res.json({
@@ -347,8 +366,9 @@ app.listen(PORT, '0.0.0.0', () => {
   console.debug('  GET  /v1/me');
   console.debug('  GET  /v1/me/playlists');
   console.debug('  GET  /v1/playlists/:id');
-  console.debug('  GET  /v1/playlists/:id/tracks');
-  console.debug('  PUT  /v1/playlists/:id/tracks');
-  console.debug('  POST /v1/playlists/:id/tracks');
-  console.debug('  DELETE /v1/playlists/:id/tracks');
+  console.debug('  GET  /v1/playlists/:id/items');
+  console.debug('  PUT  /v1/playlists/:id/items');
+  console.debug('  POST /v1/playlists/:id/items');
+  console.debug('  DELETE /v1/playlists/:id/items');
+  console.debug('  PUT|DELETE /v1/me/library, GET /v1/me/library/contains');
 });
