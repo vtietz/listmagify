@@ -8,6 +8,7 @@
 
 import type { MusicProvider, MusicProviderId } from '@/lib/music-provider/types';
 import { getSessionFromDb } from '@/lib/auth/sessionFromDb';
+import { describeMissingSession } from '@/lib/auth/missingSessionMessage';
 
 const backgroundProviderFactories: Record<MusicProviderId, (getSession: () => Promise<{ accessToken: string }>) => Promise<MusicProvider>> = {
   spotify: async (getSession) => {
@@ -27,7 +28,7 @@ export async function createBackgroundProvider(
   const getSession = async () => {
     const session = await getSessionFromDb(userId, providerId);
     if (!session) {
-      throw new Error(`No valid session for ${providerId}, user=${userId}`);
+      throw new Error(describeMissingSession(userId, providerId));
     }
     return session;
   };

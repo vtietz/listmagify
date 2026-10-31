@@ -2,6 +2,7 @@ import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'crypt
 
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 16;
+let didWarnMissingKey = false;
 
 function getEncryptionKey(): Buffer {
   const key = process.env.TOKEN_ENCRYPTION_KEY;
@@ -52,4 +53,20 @@ export function decryptToken(ciphertext: string): string {
  */
 export function isTokenEncryptionAvailable(): boolean {
   return !!process.env.TOKEN_ENCRYPTION_KEY;
+}
+
+/**
+ * Emit a one-time warning when token storage encryption is not configured.
+ */
+export function warnIfTokenEncryptionMissing(context: string): void {
+  if (process.env.NODE_ENV === 'test') return;
+  // `next build` loads auth modules without runtime secrets; only warn on real starts.
+  if (process.env.NEXT_PHASE === 'phase-production-build') return;
+  if (isTokenEncryptionAvailable()) return;
+  if (didWarnMissingKey) return;
+
+  didWarnMissingKey = true;
+  console.warn(
+    `[auth-token-store] TOKEN_ENCRYPTION_KEY is not set (${context}); token persistence is disabled. Generate one with: openssl rand -hex 32`
+  );
 }

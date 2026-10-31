@@ -252,6 +252,38 @@ export function markTokenStatus(
 }
 
 /**
+ * Read raw token status for a user/provider pair.
+ */
+export function getTokenStatus(
+  userId: string,
+  provider: MusicProviderId,
+): TokenStatus | null {
+  if (!isTokenEncryptionAvailable()) {
+    return null;
+  }
+
+  try {
+    const db = getAuthDb();
+    const row = db
+      .prepare('SELECT status FROM user_tokens WHERE user_id = ? AND provider = ? LIMIT 1')
+      .get(userId, provider) as { status: string } | undefined;
+
+    if (!row) {
+      return null;
+    }
+
+    if (row.status === 'active' || row.status === 'needs_reauth' || row.status === 'revoked') {
+      return row.status;
+    }
+
+    return null;
+  } catch (error) {
+    console.error('[auth-token-store] Failed to get token status:', error);
+    return null;
+  }
+}
+
+/**
  * Get all active tokens for a given user across all providers.
  */
 export function getActiveTokensForUser(userId: string): StoredProviderToken[] {

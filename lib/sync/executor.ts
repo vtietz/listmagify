@@ -13,6 +13,7 @@ import { applySyncPlan } from '@/lib/sync/apply';
 import { buildSyncPlan } from '@/lib/sync/planner';
 import { orderCanonicalIds, uniqueCanonicalIds } from '@/lib/sync/bidirectionalPlan';
 import { getSessionFromDb } from '@/lib/auth/sessionFromDb';
+import { describeMissingSession } from '@/lib/auth/missingSessionMessage';
 import { notifyReauthRequired } from '@/lib/sync/reauthNotifier';
 import {
   createSyncRun,
@@ -97,9 +98,7 @@ function markRunFailedForMissingSession(
 ): void {
   updateSyncRun(runId, {
     status: 'failed',
-    errorMessage: missing
-      .map(({ providerId, userId }) => `No valid session for ${providerId}, user=${userId}`)
-      .join('; '),
+    errorMessage: missing.map(({ providerId, userId }) => describeMissingSession(userId, providerId)).join('; '),
     completedAt: new Date().toISOString(),
   });
 

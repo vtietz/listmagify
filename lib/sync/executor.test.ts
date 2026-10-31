@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SyncPair } from '@/lib/sync/types';
 import type { PlaylistSnapshot } from '@/lib/sync/snapshot';
 
@@ -43,6 +43,7 @@ import { notifyReauthRequired } from '@/lib/sync/reauthNotifier';
 import {
   advanceNextRunAt,
   incrementConsecutiveFailures,
+  updateSyncRun,
   updateSyncPairSnapshotIds,
   updateSyncPairBidirectionalMetadata,
 } from '@/lib/sync/syncStore';
@@ -57,6 +58,7 @@ const mockedUpdateSyncPairBidirectionalMetadata = vi.mocked(updateSyncPairBidire
 const mockedAdvanceNextRunAt = vi.mocked(advanceNextRunAt);
 const mockedNotifyReauthRequired = vi.mocked(notifyReauthRequired);
 const mockedIncrementConsecutiveFailures = vi.mocked(incrementConsecutiveFailures);
+const mockedUpdateSyncRun = vi.mocked(updateSyncRun);
 
 function createPair(): SyncPair {
   return {
@@ -111,6 +113,10 @@ function makeSnapshot(providerId: 'spotify' | 'tidal', playlistId: string, ids: 
 }
 
 describe('executeSyncRun bidirectional metadata planner', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockedGetSessionFromDb.mockResolvedValue({} as never);
@@ -172,6 +178,10 @@ describe('executeSyncRun bidirectional metadata planner', () => {
 });
 
 describe('executeSyncRun scheduled failures', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockedGetSessionFromDb.mockResolvedValue({} as never);
@@ -232,5 +242,21 @@ describe('executeSyncRun scheduled failures', () => {
 
     expect(mockedNotifyReauthRequired).toHaveBeenCalledTimes(1);
     expect(mockedNotifyReauthRequired).toHaveBeenCalledWith('spotify:user-1', 'spotify');
+  });
+
+  it('reports token storage misconfiguration when encryption key is missing', async () => {
+    vi.stubEnv('TOKEN_ENCRYPTION_KEY', '');
+    const pair = createPair();
+    mockedGetSessionFromDb.mockResolvedValue(null);
+
+    await executeSyncRun('run-1', { pair, triggeredBy: 'manual' });
+
+    expect(mockedUpdateSyncRun).toHaveBeenCalledWith(
+      'run-1',
+      expect.objectContaining({
+        status: 'failed',
+        errorMessage: expect.stringContaining('Token storage not configured for spotify'),
+      }),
+    );
   });
 });

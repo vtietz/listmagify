@@ -14,11 +14,13 @@ import {
 } from '@/lib/auth/tokenRefresh';
 import { persistProviderTokens, deleteProviderTokens, markTokenStatus, getProviderTokens as getDbProviderTokens } from '@/lib/auth/tokenStore';
 import { setProviderAccountEmail, setProviderAccountEmailIfMissing } from '@/lib/auth/tokenNotificationStore';
-import { isTokenEncryptionAvailable } from '@/lib/auth/tokenEncryption';
+import { isTokenEncryptionAvailable, warnIfTokenEncryptionMissing } from '@/lib/auth/tokenEncryption';
 import { resetCircuitBreaker } from '@/lib/auth/refreshCircuitBreaker';
 import { prefixedUserId } from '@/lib/auth/sessionUserIds';
 
 const FALLBACK_PROVIDER_ID = getFallbackMusicProviderId();
+
+warnIfTokenEncryptionMissing('web-auth');
 
 // ---------------------------------------------------------------------------
 // Single-flight refresh lock — prevents concurrent JWT callbacks from racing

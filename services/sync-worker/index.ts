@@ -12,8 +12,11 @@
 import { startScheduler, stopScheduler } from '@/lib/sync/scheduler';
 import { startTokenKeepaliveLoop, stopTokenKeepaliveLoop } from '@/lib/auth/tokenKeepalive';
 import { startPreviewWorkerLoop, stopPreviewWorkerLoop } from '@/lib/sync/previewWorker';
+import { warnIfTokenEncryptionMissing } from '@/lib/auth/tokenEncryption';
 
 function main(): void {
+  warnIfTokenEncryptionMissing('sync-worker');
+
   console.debug('[sync-worker] starting', {
     SYNC_SCHEDULER_ENABLED: process.env.SYNC_SCHEDULER_ENABLED,
     TOKEN_KEEPALIVE_ENABLED: process.env.TOKEN_KEEPALIVE_ENABLED,
