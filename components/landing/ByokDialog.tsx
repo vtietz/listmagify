@@ -223,23 +223,21 @@ function RedirectUriCopyButton({
   onCopyRedirectUri: () => Promise<void>;
 }) {
   return (
-    <li className="break-all">
-      <span className="inline-flex items-center gap-1.5 flex-wrap">
-        <span>Redirect URI:</span>
-        <code className="text-xs bg-background px-1 py-0.5 rounded break-all">{redirectUri || 'Loading...'}</code>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="h-6 w-6 p-0"
-          onClick={onCopyRedirectUri}
-          disabled={!redirectUri}
-          aria-label="Copy Redirect URI"
-          title="Copy Redirect URI"
-        >
-          {redirectUriCopied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
-        </Button>
-      </span>
+    <li>
+      Redirect URI:{' '}
+      <code className="text-xs bg-background px-1 py-0.5 rounded break-all">{redirectUri || 'Loading...'}</code>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="ml-1 inline-flex h-6 w-6 p-0 align-middle"
+        onClick={onCopyRedirectUri}
+        disabled={!redirectUri}
+        aria-label="Copy Redirect URI"
+        title="Copy Redirect URI"
+      >
+        {redirectUriCopied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
+      </Button>
     </li>
   );
 }
@@ -256,7 +254,7 @@ function SpotifyByokInstructions({
   return (
     <div className="rounded-lg bg-muted/50 p-3 sm:p-4 space-y-2 sm:space-y-3 text-sm">
       <p className="font-medium">How to get your Spotify API credentials:</p>
-      <ol className="list-decimal list-inside space-y-1.5 sm:space-y-2 text-muted-foreground text-xs sm:text-sm">
+      <ol className="list-decimal list-outside pl-5 space-y-1.5 sm:space-y-2 text-muted-foreground text-xs sm:text-sm">
         <li>
           Go to the{' '}
           <a
@@ -273,7 +271,7 @@ function SpotifyByokInstructions({
         <li>Click &quot;Create App&quot;</li>
         <li>
           Fill in app details:
-          <ul className="list-disc list-inside ml-3 sm:ml-4 mt-1 space-y-1 text-xs sm:text-sm">
+          <ul className="list-disc list-outside pl-4 mt-1 space-y-1 text-xs sm:text-sm">
             <li>App name: anything (e.g., &quot;My Listmagify&quot;)</li>
             <li>App description: anything</li>
             <RedirectUriCopyButton
@@ -304,7 +302,7 @@ function TidalByokInstructions({
   return (
     <div className="rounded-lg bg-muted/50 p-3 sm:p-4 space-y-2 sm:space-y-3 text-sm">
       <p className="font-medium">How to get TIDAL API credentials:</p>
-      <ol className="list-decimal list-inside space-y-1.5 sm:space-y-2 text-muted-foreground text-xs sm:text-sm">
+      <ol className="list-decimal list-outside pl-5 space-y-1.5 sm:space-y-2 text-muted-foreground text-xs sm:text-sm">
         <li>
           Go to the{' '}
           <a
@@ -321,7 +319,7 @@ function TidalByokInstructions({
         <li>Navigate to &quot;Dashboard&quot; and click &quot;Create App&quot;</li>
         <li>
           Fill in the app details:
-          <ul className="list-disc list-inside ml-3 sm:ml-4 mt-1 space-y-1 text-xs sm:text-sm">
+          <ul className="list-disc list-outside pl-4 mt-1 space-y-1 text-xs sm:text-sm">
             <li>App Name: Choose any name (e.g., &quot;Listmagify&quot;)</li>
             <RedirectUriCopyButton
               redirectUri={redirectUri}
