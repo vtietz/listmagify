@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { serverEnv } from '@/lib/env';
 import { TIDAL_AUTHORIZATION_URL, TIDAL_SCOPES } from '@/lib/auth/authProviderFactories';
+import { createByokState, setByokPendingAuth } from '@/lib/auth/byokPendingAuth';
 
 /**
  * POST /api/auth/byok/tidal
@@ -9,6 +10,7 @@ import { TIDAL_AUTHORIZATION_URL, TIDAL_SCOPES } from '@/lib/auth/authProviderFa
  * Initiates OAuth flow using user-provided TIDAL API credentials.
  * The client sends their Client ID and Client Secret from localStorage,
  * and we redirect them to TIDAL's authorization page with PKCE.
+ * Credentials never appear in the authorization URL.
  */
 export async function POST(request: NextRequest) {
   // Check if BYOK is enabled
@@ -42,16 +44,8 @@ export async function POST(request: NextRequest) {
     const codeVerifier = crypto.randomBytes(32).toString('base64url');
     const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest('base64url');
 
-    // Generate state for CSRF protection (includes PKCE verifier for callback)
-    const state = Buffer.from(
-      JSON.stringify({
-        clientId,
-        clientSecret,
-        callbackUrl: callbackUrl || '/playlists',
-        timestamp: Date.now(),
-        codeVerifier,
-      })
-    ).toString('base64url');
+    // Opaque CSRF state; credentials and PKCE verifier stay in an encrypted HttpOnly cookie
+    const state = createByokState();
 
     // Build TIDAL authorization URL with PKCE
     const redirectUri = `${serverEnv.NEXTAUTH_URL}/api/auth/byok/tidal/callback`;
@@ -65,7 +59,9 @@ export async function POST(request: NextRequest) {
     authUrl.searchParams.set('code_challenge_method', 'S256');
     authUrl.searchParams.set('code_challenge', codeChallenge);
 
-    return NextResponse.json({ authUrl: authUrl.toString() });
+    const response = NextResponse.json({ authUrl: authUrl.toString() });
+    setByokPendingAuth(response, 'tidal', state, { clientId, clientSecret, callbackUrl, codeVerifier });
+    return response;
   } catch (error) {
     console.error('[byok/tidal] Error initiating auth:', error);
     return NextResponse.json(

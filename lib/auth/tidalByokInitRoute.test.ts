@@ -6,6 +6,17 @@ function createRequest(body: Record<string, unknown>) {
   } as any;
 }
 
+/** Decrypt the pending-auth cookie set by the init route, as the callback would. */
+async function readPendingFromResponse(response: Response, state: string) {
+  const { getByokPendingCookieName, readByokPendingAuth } = await import('@/lib/auth/byokPendingAuth');
+  const cookieName = getByokPendingCookieName('tidal');
+  const cookieValue = (response as import('next/server').NextResponse).cookies.get(cookieName)?.value;
+  const request = {
+    cookies: { get: (name: string) => (name === cookieName && cookieValue ? { value: cookieValue } : undefined) },
+  } as any;
+  return readByokPendingAuth(request, 'tidal', state);
+}
+
 describe('TIDAL BYOK initiation route', () => {
   beforeEach(() => {
     vi.resetModules();
@@ -111,7 +122,7 @@ describe('TIDAL BYOK initiation route', () => {
     expect(authUrl.searchParams.get('scope')).toContain('playlists.read');
   });
 
-  it('encodes state with PKCE code verifier', async () => {
+  it('keeps credentials out of the authorization URL', async () => {
     vi.resetModules();
     vi.doMock('@/lib/env', () => ({
       serverEnv: {
@@ -133,12 +144,19 @@ describe('TIDAL BYOK initiation route', () => {
     const authUrl = new URL(data.authUrl);
     const state = authUrl.searchParams.get('state')!;
 
-    const decodedState = JSON.parse(Buffer.from(state, 'base64url').toString('utf-8'));
-    expect(decodedState.clientId).toBe('123456789012345678901');
-    expect(decodedState.clientSecret).toBe('abcdefghijklmnopqrstuvwxyz123456');
-    expect(decodedState.callbackUrl).toBe('/my-playlists');
-    expect(decodedState.codeVerifier).toBeTruthy();
-    expect(decodedState.timestamp).toBeGreaterThan(0);
+    expect(data.authUrl).not.toContain('abcdefghijklmnopqrstuvwxyz123456');
+    expect(Buffer.from(state, 'base64url').toString('utf-8')).not.toContain('clientSecret');
+
+    const setCookie = response.headers.get('set-cookie') ?? '';
+    expect(setCookie).toContain('__listmagify_byok_tidal=');
+    expect(setCookie.toLowerCase()).toContain('httponly');
+    expect(setCookie).not.toContain('abcdefghijklmnopqrstuvwxyz123456');
+
+    const pending = await readPendingFromResponse(response, state);
+    expect(pending.clientId).toBe('123456789012345678901');
+    expect(pending.clientSecret).toBe('abcdefghijklmnopqrstuvwxyz123456');
+    expect(pending.callbackUrl).toBe('/my-playlists');
+    expect(pending.codeVerifier).toBeTruthy();
   });
 
   it('defaults callbackUrl to /playlists when not provided', async () => {
@@ -161,8 +179,8 @@ describe('TIDAL BYOK initiation route', () => {
     const data = await response.json();
     const authUrl = new URL(data.authUrl);
     const state = authUrl.searchParams.get('state')!;
-    const decodedState = JSON.parse(Buffer.from(state, 'base64url').toString('utf-8'));
-    expect(decodedState.callbackUrl).toBe('/playlists');
+    const pending = await readPendingFromResponse(response, state);
+    expect(pending.callbackUrl).toBe('/playlists');
   });
 
   it('generates valid PKCE S256 challenge from verifier', async () => {
@@ -187,13 +205,13 @@ describe('TIDAL BYOK initiation route', () => {
 
     const state = authUrl.searchParams.get('state')!;
     const codeChallenge = authUrl.searchParams.get('code_challenge')!;
-    const decodedState = JSON.parse(Buffer.from(state, 'base64url').toString('utf-8'));
+    const pending = await readPendingFromResponse(response, state);
 
     // Verify the challenge is the SHA-256 hash of the verifier, base64url-encoded
     const crypto = await import('crypto');
     const expectedChallenge = crypto
       .createHash('sha256')
-      .update(decodedState.codeVerifier)
+      .update(pending.codeVerifier!)
       .digest('base64url');
 
     expect(codeChallenge).toBe(expectedChallenge);

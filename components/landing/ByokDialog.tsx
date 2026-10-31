@@ -150,8 +150,9 @@ function ByokDialogBody({
         <AlertTriangle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-amber-500 shrink-0 mt-0.5" />
         <div className="text-xs">
           <span className="font-medium text-foreground">Privacy Note:</span>{' '}
-          Your credentials are stored only in this browser&apos;s localStorage on this machine.
-          They are never sent to our servers and are only used to authenticate directly with {providerLabel}.
+          Your credentials are saved in this browser&apos;s localStorage on this machine.
+          When you sign in, our server uses them to complete the {providerLabel} login and keeps them
+          encrypted alongside your session so it can refresh your access. They never appear in URLs.
         </div>
       </div>
 

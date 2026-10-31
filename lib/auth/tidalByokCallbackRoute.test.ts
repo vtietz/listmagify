@@ -4,9 +4,16 @@ const mockLogAuthEvent = vi.fn();
 const mockStartSession = vi.fn();
 const mockEncode = vi.fn();
 
+const PENDING_COOKIE_NAME = '__listmagify_byok_tidal';
+let pendingCookie: string | undefined;
+
 function createRequest(url: string) {
+  const cookieValue = pendingCookie;
   return {
     nextUrl: new URL(url),
+    cookies: {
+      get: (name: string) => (name === PENDING_COOKIE_NAME && cookieValue ? { value: cookieValue } : undefined),
+    },
   } as any;
 }
 
@@ -20,26 +27,34 @@ vi.mock('@/lib/metrics', () => ({
 }));
 
 /**
- * Build a base64url-encoded state parameter matching the TidalByokState shape
- * expected by the TIDAL BYOK callback route.
+ * Create an opaque state plus the matching encrypted pending-auth cookie,
+ * as the TIDAL BYOK init route would.
  */
-function buildState(overrides: Partial<{
+async function buildState(overrides: Partial<{
   clientId: string;
   clientSecret: string;
   callbackUrl: string;
   timestamp: number;
   codeVerifier: string;
 }> = {}) {
-  return Buffer.from(
-    JSON.stringify({
-      clientId: '123456789012345678901',
-      clientSecret: 'abcdefghijklmnopqrstuvwxyz123456',
-      callbackUrl: '/split-editor',
-      timestamp: Date.now(),
-      codeVerifier: 'test-code-verifier-value-for-pkce',
-      ...overrides,
-    })
-  ).toString('base64url');
+  const { NextResponse } = await import('next/server');
+  const { createByokState, setByokPendingAuth } = await import('@/lib/auth/byokPendingAuth');
+  const { timestamp, ...data } = overrides;
+  const nowSpy = timestamp ? vi.spyOn(Date, 'now').mockReturnValue(timestamp) : null;
+
+  const state = createByokState();
+  const response = NextResponse.json({});
+  setByokPendingAuth(response, 'tidal', state, {
+    clientId: '123456789012345678901',
+    clientSecret: 'abcdefghijklmnopqrstuvwxyz123456',
+    callbackUrl: '/split-editor',
+    codeVerifier: 'test-code-verifier-value-for-pkce',
+    ...data,
+  });
+
+  nowSpy?.mockRestore();
+  pendingCookie = response.cookies.get(PENDING_COOKIE_NAME)?.value;
+  return state;
 }
 
 /**
@@ -77,6 +92,7 @@ function stubTidalFetch() {
 describe('TIDAL BYOK callback session cookie naming', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    pendingCookie = undefined;
     mockEncode.mockResolvedValue('mock-tidal-session-token');
   });
 
@@ -92,7 +108,7 @@ describe('TIDAL BYOK callback session cookie naming', () => {
     const { GET } = await import('@/app/api/auth/byok/tidal/callback/route');
     stubTidalFetch();
 
-    const state = buildState();
+    const state = await buildState();
     const request = createRequest(
       `https://listmagify.com/api/auth/byok/tidal/callback?code=test-code&state=${state}`
     );
@@ -117,7 +133,7 @@ describe('TIDAL BYOK callback session cookie naming', () => {
     const { GET } = await import('@/app/api/auth/byok/tidal/callback/route');
     stubTidalFetch();
 
-    const state = buildState();
+    const state = await buildState();
     const request = createRequest(
       `http://127.0.0.1:3000/api/auth/byok/tidal/callback?code=test-code&state=${state}`
     );
@@ -128,12 +144,14 @@ describe('TIDAL BYOK callback session cookie naming', () => {
     expect(response.headers.get('location')).toBe('http://127.0.0.1:3000/split-editor');
     expect(setCookie).toContain('next-auth.session-token=mock-tidal-session-token');
     expect(setCookie).not.toContain('__Secure-next-auth.session-token');
+    expect(setCookie).toContain(`${PENDING_COOKIE_NAME}=;`);
   });
 });
 
 describe('TIDAL BYOK callback error handling', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    pendingCookie = undefined;
     mockEncode.mockResolvedValue('mock-tidal-session-token');
   });
 
@@ -169,13 +187,56 @@ describe('TIDAL BYOK callback error handling', () => {
 
     const { GET } = await import('@/app/api/auth/byok/tidal/callback/route');
 
-    const state = buildState({ timestamp: Date.now() - 10 * 60 * 1000 });
+    const state = await buildState({ timestamp: Date.now() - 10 * 60 * 1000 });
     const request = createRequest(
       `http://127.0.0.1:3000/api/auth/byok/tidal/callback?code=test-code&state=${state}`
     );
 
     const response = await GET(request);
     expect(response.headers.get('location')).toBe('http://127.0.0.1:3000/?error=state_expired');
+  });
+
+  it('redirects with state_mismatch when the pending cookie is missing', async () => {
+    vi.resetModules();
+    vi.doMock('@/lib/env', () => ({
+      serverEnv: {
+        TIDAL_BYOK_ENABLED: true,
+        NEXTAUTH_URL: 'http://127.0.0.1:3000',
+        NEXTAUTH_SECRET: 'test-secret',
+      },
+    }));
+
+    const { GET } = await import('@/app/api/auth/byok/tidal/callback/route');
+
+    const state = await buildState();
+    pendingCookie = undefined;
+    const request = createRequest(
+      `http://127.0.0.1:3000/api/auth/byok/tidal/callback?code=test-code&state=${state}`
+    );
+
+    const response = await GET(request);
+    expect(response.headers.get('location')).toBe('http://127.0.0.1:3000/?error=state_mismatch');
+  });
+
+  it('redirects with state_mismatch when state does not match the cookie', async () => {
+    vi.resetModules();
+    vi.doMock('@/lib/env', () => ({
+      serverEnv: {
+        TIDAL_BYOK_ENABLED: true,
+        NEXTAUTH_URL: 'http://127.0.0.1:3000',
+        NEXTAUTH_SECRET: 'test-secret',
+      },
+    }));
+
+    const { GET } = await import('@/app/api/auth/byok/tidal/callback/route');
+
+    await buildState();
+    const request = createRequest(
+      'http://127.0.0.1:3000/api/auth/byok/tidal/callback?code=test-code&state=forged-state'
+    );
+
+    const response = await GET(request);
+    expect(response.headers.get('location')).toBe('http://127.0.0.1:3000/?error=state_mismatch');
   });
 
   it('redirects with missing_params when code is absent', async () => {
@@ -217,7 +278,7 @@ describe('TIDAL BYOK callback error handling', () => {
       );
     }));
 
-    const state = buildState();
+    const state = await buildState();
     const request = createRequest(
       `http://127.0.0.1:3000/api/auth/byok/tidal/callback?code=bad-code&state=${state}`
     );
@@ -250,6 +311,7 @@ describe('TIDAL BYOK callback error handling', () => {
 describe('TIDAL BYOK callback token structure', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    pendingCookie = undefined;
     mockEncode.mockResolvedValue('mock-tidal-session-token');
   });
 
@@ -266,7 +328,7 @@ describe('TIDAL BYOK callback token structure', () => {
     const { GET } = await import('@/app/api/auth/byok/tidal/callback/route');
     stubTidalFetch();
 
-    const state = buildState();
+    const state = await buildState();
     const request = createRequest(
       `http://127.0.0.1:3000/api/auth/byok/tidal/callback?code=test-code&state=${state}`
     );
@@ -290,7 +352,7 @@ describe('TIDAL BYOK callback token structure', () => {
     const { GET } = await import('@/app/api/auth/byok/tidal/callback/route');
     stubTidalFetch();
 
-    const state = buildState();
+    const state = await buildState();
     const request = createRequest(
       `http://127.0.0.1:3000/api/auth/byok/tidal/callback?code=test-code&state=${state}`
     );
@@ -352,7 +414,7 @@ describe('TIDAL BYOK callback token structure', () => {
 
     vi.stubGlobal('fetch', fetchSpy);
 
-    const state = buildState({ codeVerifier: 'my-pkce-verifier' });
+    const state = await buildState({ codeVerifier: 'my-pkce-verifier' });
     const request = createRequest(
       `http://127.0.0.1:3000/api/auth/byok/tidal/callback?code=test-code&state=${state}`
     );
@@ -381,7 +443,7 @@ describe('TIDAL BYOK callback token structure', () => {
     const { GET } = await import('@/app/api/auth/byok/tidal/callback/route');
     stubTidalFetch();
 
-    const state = buildState();
+    const state = await buildState();
     const request = createRequest(
       `http://127.0.0.1:3000/api/auth/byok/tidal/callback?code=test-code&state=${state}`
     );

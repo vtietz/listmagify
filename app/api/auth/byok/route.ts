@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { serverEnv } from '@/lib/env';
+import { createByokState, setByokPendingAuth } from '@/lib/auth/byokPendingAuth';
 
 /**
  * POST /api/auth/byok
@@ -36,15 +37,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate state for CSRF protection
-    const state = Buffer.from(
-      JSON.stringify({
-        clientId,
-        clientSecret,
-        callbackUrl: callbackUrl || '/playlists',
-        timestamp: Date.now(),
-      })
-    ).toString('base64url');
+    // Opaque CSRF state; credentials stay in an encrypted HttpOnly cookie
+    const state = createByokState();
 
     // Build Spotify authorization URL
     const scopes = [
@@ -69,7 +63,9 @@ export async function POST(request: NextRequest) {
     authUrl.searchParams.set('scope', scopes);
     authUrl.searchParams.set('state', state);
 
-    return NextResponse.json({ authUrl: authUrl.toString() });
+    const response = NextResponse.json({ authUrl: authUrl.toString() });
+    setByokPendingAuth(response, 'spotify', state, { clientId, clientSecret, callbackUrl });
+    return response;
   } catch (error) {
     console.error('[byok] Error initiating auth:', error);
     return NextResponse.json(

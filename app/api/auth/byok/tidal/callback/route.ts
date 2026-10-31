@@ -8,30 +8,17 @@ import {
   TIDAL_JSON_API_CONTENT_TYPE,
   mapTidalProfile,
 } from '@/lib/auth/authProviderFactories';
+import { clearByokPendingAuth, readByokPendingAuth, type ByokPendingAuth } from '@/lib/auth/byokPendingAuth';
 
-interface TidalByokState {
-  clientId: string;
-  clientSecret: string;
-  callbackUrl: string;
-  timestamp: number;
-  codeVerifier: string;
-}
+const KNOWN_ERRORS = ['state_mismatch', 'state_expired', 'token_exchange_failed', 'profile_fetch_failed'];
 
 function buildErrorRedirect(error: string): NextResponse {
-  return NextResponse.redirect(new URL(`/?error=${encodeURIComponent(error)}`, serverEnv.NEXTAUTH_URL));
+  const response = NextResponse.redirect(new URL(`/?error=${encodeURIComponent(error)}`, serverEnv.NEXTAUTH_URL));
+  clearByokPendingAuth(response, 'tidal');
+  return response;
 }
 
-function parseState(state: string): TidalByokState {
-  return JSON.parse(Buffer.from(state, 'base64url').toString('utf-8')) as TidalByokState;
-}
-
-function assertFreshState(timestamp: number): void {
-  if (Date.now() - timestamp > 5 * 60 * 1000) {
-    throw new Error('state_expired');
-  }
-}
-
-async function exchangeToken(code: string, state: TidalByokState) {
+async function exchangeToken(code: string, pending: ByokPendingAuth) {
   const redirectUri = `${serverEnv.NEXTAUTH_URL}/api/auth/byok/tidal/callback`;
 
   // TIDAL uses body params for client credentials (no Basic auth header)
@@ -44,9 +31,9 @@ async function exchangeToken(code: string, state: TidalByokState) {
       grant_type: 'authorization_code',
       code,
       redirect_uri: redirectUri,
-      client_id: state.clientId,
-      client_secret: state.clientSecret,
-      code_verifier: state.codeVerifier,
+      client_id: pending.clientId,
+      client_secret: pending.clientSecret,
+      code_verifier: pending.codeVerifier ?? '',
     }),
   });
 
@@ -122,7 +109,8 @@ function buildRedirectResponse(callbackUrl: string, token: string): NextResponse
     ? '__Secure-next-auth.session-token'
     : 'next-auth.session-token';
 
-  const response = NextResponse.redirect(new URL(callbackUrl || '/playlists', serverEnv.NEXTAUTH_URL));
+  const response = NextResponse.redirect(new URL(callbackUrl, serverEnv.NEXTAUTH_URL));
+  clearByokPendingAuth(response, 'tidal');
 
   response.cookies.set(sessionCookieName, token, {
     httpOnly: true,
@@ -162,18 +150,17 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const stateData = parseState(state);
-    assertFreshState(stateData.timestamp);
+    const pending = readByokPendingAuth(request, 'tidal', state);
 
-    const tokens = await exchangeToken(code, stateData);
+    const tokens = await exchangeToken(code, pending);
     const profile = await fetchProfile(tokens.access_token);
     const token = await encodeSessionToken({
       profile,
       tokens,
-      clientId: stateData.clientId,
-      clientSecret: stateData.clientSecret,
+      clientId: pending.clientId,
+      clientSecret: pending.clientSecret,
     });
-    const redirectResponse = buildRedirectResponse(stateData.callbackUrl, token);
+    const redirectResponse = buildRedirectResponse(pending.callbackUrl, token);
 
     console.debug('[byok/tidal] Successfully authenticated user:', profile.id);
 
@@ -190,7 +177,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('[byok/tidal] Callback error:', error);
     const message = error instanceof Error ? error.message : 'callback_failed';
-    const knownError = ['state_expired', 'token_exchange_failed', 'profile_fetch_failed'].includes(message)
+    const knownError = KNOWN_ERRORS.includes(message)
       ? message
       : 'callback_failed';
     return buildErrorRedirect(knownError);

@@ -2,26 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { encode } from 'next-auth/jwt';
 import { serverEnv } from '@/lib/env';
 import { logAuthEvent, startSession } from '@/lib/metrics';
+import { clearByokPendingAuth, readByokPendingAuth } from '@/lib/auth/byokPendingAuth';
 
-interface ByokState {
-  clientId: string;
-  clientSecret: string;
-  callbackUrl: string;
-  timestamp: number;
-}
+const KNOWN_ERRORS = ['state_mismatch', 'state_expired', 'token_exchange_failed', 'profile_fetch_failed'];
 
 function buildErrorRedirect(error: string): NextResponse {
-  return NextResponse.redirect(new URL(`/?error=${encodeURIComponent(error)}`, serverEnv.NEXTAUTH_URL));
-}
-
-function parseState(state: string): ByokState {
-  return JSON.parse(Buffer.from(state, 'base64url').toString('utf-8')) as ByokState;
-}
-
-function assertFreshState(timestamp: number): void {
-  if (Date.now() - timestamp > 5 * 60 * 1000) {
-    throw new Error('state_expired');
-  }
+  const response = NextResponse.redirect(new URL(`/?error=${encodeURIComponent(error)}`, serverEnv.NEXTAUTH_URL));
+  clearByokPendingAuth(response, 'spotify');
+  return response;
 }
 
 async function exchangeToken(code: string, clientId: string, clientSecret: string) {
@@ -110,7 +98,8 @@ function buildRedirectResponse(callbackUrl: string, token: string): NextResponse
     ? '__Secure-next-auth.session-token'
     : 'next-auth.session-token';
 
-  const response = NextResponse.redirect(new URL(callbackUrl || '/playlists', serverEnv.NEXTAUTH_URL));
+  const response = NextResponse.redirect(new URL(callbackUrl, serverEnv.NEXTAUTH_URL));
+  clearByokPendingAuth(response, 'spotify');
 
   response.cookies.set(sessionCookieName, token, {
     httpOnly: true,
@@ -150,10 +139,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const stateData = parseState(state);
-    assertFreshState(stateData.timestamp);
-
-    const { clientId, clientSecret, callbackUrl } = stateData;
+    const { clientId, clientSecret, callbackUrl } = readByokPendingAuth(request, 'spotify', state);
     const tokens = await exchangeToken(code, clientId, clientSecret);
     const profile = await fetchProfile(tokens.access_token);
     const token = await encodeSessionToken({ profile, tokens, clientId, clientSecret });
@@ -174,7 +160,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('[byok] Callback error:', error);
     const message = error instanceof Error ? error.message : 'callback_failed';
-    const knownError = ['state_expired', 'token_exchange_failed', 'profile_fetch_failed'].includes(message)
+    const knownError = KNOWN_ERRORS.includes(message)
       ? message
       : 'callback_failed';
     return buildErrorRedirect(knownError);
