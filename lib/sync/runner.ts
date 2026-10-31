@@ -515,8 +515,18 @@ export async function executePreviewRun(
     }
   }
 
+  let isFinalized = false;
+
+  const finalizeRun = (update: Parameters<typeof updateSyncPreviewRun>[1]) => {
+    if (isFinalized) {
+      return;
+    }
+    isFinalized = true;
+    updateSyncPreviewRun(runId, update);
+  };
+
   const markCancelled = () => {
-    updateSyncPreviewRun(runId, {
+    finalizeRun({
       status: 'failed',
       phase: 'cancelled',
       progress: 100,
@@ -553,12 +563,15 @@ export async function executePreviewRun(
 
     const result = await Promise.race([
       previewSync(config, matchThresholds, (phase, progress) => {
+        if (isFinalized) {
+          return;
+        }
+
         if (isSyncPreviewRunCancellationRequested(runId)) {
           throw new SyncPreviewCancelledError();
         }
 
         updateSyncPreviewRun(runId, {
-          status: 'executing',
           phase,
           progress,
         });
@@ -573,7 +586,7 @@ export async function executePreviewRun(
       return;
     }
 
-    updateSyncPreviewRun(runId, {
+    finalizeRun({
       status: 'done',
       phase: 'done',
       progress: 100,
@@ -587,7 +600,7 @@ export async function executePreviewRun(
     }
 
     const message = error instanceof Error ? error.message : String(error);
-    updateSyncPreviewRun(runId, {
+    finalizeRun({
       status: 'failed',
       phase: 'failed',
       progress: 100,
