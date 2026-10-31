@@ -320,10 +320,25 @@ case "${1:-}" in
     echo ""
     echo "Restarting production deployment..."
     if [ -f docker/docker-compose.prod.override.yml ]; then
-      docker compose --env-file .env -f docker/docker-compose.prod.yml -f docker/docker-compose.prod.override.yml up -d
+      docker compose --env-file .env -f docker/docker-compose.prod.yml -f docker/docker-compose.prod.override.yml up -d --force-recreate
     else
-      docker compose --env-file .env -f docker/docker-compose.prod.yml up -d
+      docker compose --env-file .env -f docker/docker-compose.prod.yml up -d --force-recreate
     fi
+
+    echo ""
+    echo "Verifying production health..."
+    PROD_HOST="${VIRTUAL_HOST%%,*}"
+    if [ -z "${PROD_HOST}" ]; then
+      echo "⚠ VIRTUAL_HOST is not set in .env; skipping health check."
+    else
+      HTTP_CODE="$(curl -sS -o /dev/null -w '%{http_code}' "https://${PROD_HOST}" || true)"
+      if [ "${HTTP_CODE}" != "200" ]; then
+        echo "✗ Health check failed for https://${PROD_HOST} (HTTP ${HTTP_CODE})"
+        exit 1
+      fi
+      echo "✓ Health check passed for https://${PROD_HOST}"
+    fi
+
     echo ""
     echo "✓ Production update complete. Viewing logs (Ctrl+C to exit)..."
     if [ -f docker/docker-compose.prod.override.yml ]; then
