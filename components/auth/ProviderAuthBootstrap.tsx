@@ -5,21 +5,21 @@ import { useSession } from 'next-auth/react';
 import { providerAuthRegistry } from '@/lib/providers/authRegistry';
 import { syncProviderAuthStatusWithRetry } from '@/lib/providers/syncProviderAuth';
 import { createDefaultProviderAuthSummary } from '@/lib/providers/types';
-import { isPerPanelInlineLoginEnabled } from '@/lib/utils';
 
 const STATUS_POLL_INTERVAL_MS = 30_000;
 
+/**
+ * Keeps the client provider auth registry in sync with the server session.
+ * Always runs: provider queries are gated on this registry, so skipping it
+ * leaves every provider looking disconnected. The per-panel inline login
+ * flag only controls the login UI, not this sync.
+ */
 export function ProviderAuthBootstrap() {
   const { status, update } = useSession();
-  const enabled = isPerPanelInlineLoginEnabled();
   const isE2EMode = process.env.NEXT_PUBLIC_E2E_MODE === '1';
   const lastSessionUpdateRef = useRef<number>(0);
 
   useEffect(() => {
-    if (!enabled) {
-      return;
-    }
-
     let cancelled = false;
     let intervalId: ReturnType<typeof setInterval> | null = null;
 
@@ -55,13 +55,13 @@ export function ProviderAuthBootstrap() {
         clearInterval(intervalId);
       }
     };
-  }, [enabled, status, isE2EMode]);
+  }, [status, isE2EMode]);
 
   // Re-sync when session is updated (e.g. after NextAuth `update()` call for logout)
   // The `update` function reference changes when the session is refreshed,
   // which signals that the server-side JWT has been modified.
   useEffect(() => {
-    if (!enabled || status !== 'authenticated') {
+    if (status !== 'authenticated') {
       return;
     }
 
@@ -79,7 +79,7 @@ export function ProviderAuthBootstrap() {
 
     lastSessionUpdateRef.current = now;
     void syncProviderAuthStatusWithRetry();
-  }, [enabled, status, update]);
+  }, [status, update]);
 
   return null;
 }
