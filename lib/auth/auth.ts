@@ -5,7 +5,7 @@ import type { MusicProviderId } from '@/lib/music-provider/types';
 import { authLogger, createAuthEvents } from '@/lib/auth/authLogging';
 import { createSpotifyAuthProvider, createTidalAuthProvider } from '@/lib/auth/authProviderFactories';
 import { restoreProviderTokensFromBackup } from '@/lib/auth/authBackupCookie';
-import { buildJwtCallbackResult } from '@/lib/auth/authJwtPayload';
+import { buildJwtCallbackResult, migrateLegacyProviderTokens } from '@/lib/auth/authJwtPayload';
 import {
   refreshProviderTokens,
   TOKEN_REFRESH_ERROR,
@@ -157,9 +157,7 @@ function toMusicProviderId(value: unknown): MusicProviderId | null {
 }
 
 function getProviderTokens(token: AuthJwtToken, _accountProviderId: MusicProviderId | null = null): ProviderTokenStore {
-  return {
-    ...(token.musicProviderTokens ?? {}),
-  };
+  return migrateLegacyProviderTokens(token);
 }
 
 function resolveSessionProviderId(providerTokens: ProviderTokenStore): MusicProviderId | null {
