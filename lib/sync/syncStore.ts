@@ -151,7 +151,7 @@ function mapSyncPairRow(row: SyncPairRow): SyncPair {
  * Build a WHERE clause that matches sync pairs owned by any of the given userIds.
  * Checks both the legacy `created_by` column and the `provider_user_ids` JSON map.
  */
-function ownershipCondition(userIds: string[]): { sql: string; params: string[] } {
+export function ownershipCondition(userIds: string[]): { sql: string; params: string[] } {
   const createdByPlaceholders = userIds.map(() => '?').join(', ');
   const likeClauses = userIds.map(() => `provider_user_ids LIKE ?`).join(' OR ');
   const likeParams = userIds.map((id) => `%${id}%`);

@@ -325,6 +325,21 @@ function persistSignInTokens(
   const userId = resolveTokenUserId(token, accountProviderId);
   if (!userId) return;
   safePersistSingleProvider(userId, accountProviderId, providerToken);
+  resumeFailedSyncPairs(userId);
+}
+
+/** Fresh tokens after sign-in — let background sync pick paused pairs up again. */
+function resumeFailedSyncPairs(userId: string): void {
+  void import('@/lib/sync/syncPairResume')
+    .then(({ resumeFailedSyncPairsForUser }) => {
+      const resumed = resumeFailedSyncPairsForUser(userId);
+      if (resumed > 0) {
+        console.debug(`[auth] resumed ${resumed} failed sync pair(s) for ${userId}`);
+      }
+    })
+    .catch((error) => {
+      console.error('[auth] Failed to resume sync pairs after sign-in', error);
+    });
 }
 
 function persistRefreshedTokens(

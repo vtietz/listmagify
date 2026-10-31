@@ -132,11 +132,6 @@ function parseRetryAfterMsFromError(error: unknown, message: string): number | u
 }
 
 function handleScheduledFailure(pair: SyncPair, message: string, error: unknown): void {
-  const isAuthError =
-    message.includes('No valid session') ||
-    message.includes('invalid_grant') ||
-    message.includes('revoked');
-
   const retryAfterMs = parseRetryAfterMsFromError(error, message);
 
   incrementConsecutiveFailures(pair.id);
@@ -146,9 +141,9 @@ function handleScheduledFailure(pair: SyncPair, message: string, error: unknown)
     return;
   }
 
-  if (!isAuthError) {
-    advanceNextRunAt(pair.id);
-  }
+  // Auth failures also wait for the next interval; re-login resumes the pair
+  // immediately via resumeFailedSyncPairsForUser.
+  advanceNextRunAt(pair.id);
 }
 
 function buildRunUpdate(result: SyncApplyResult): Record<string, unknown> {

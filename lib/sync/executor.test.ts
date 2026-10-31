@@ -36,6 +36,8 @@ import { captureSnapshot, fetchPlaylistSnapshotId } from '@/lib/sync/snapshot';
 import { applySyncPlan } from '@/lib/sync/apply';
 import { getSessionFromDb } from '@/lib/auth/sessionFromDb';
 import {
+  advanceNextRunAt,
+  incrementConsecutiveFailures,
   updateSyncPairSnapshotIds,
   updateSyncPairBidirectionalMetadata,
 } from '@/lib/sync/syncStore';
@@ -47,6 +49,8 @@ const mockedApplySyncPlan = vi.mocked(applySyncPlan);
 const mockedGetSessionFromDb = vi.mocked(getSessionFromDb);
 const mockedUpdateSyncPairSnapshotIds = vi.mocked(updateSyncPairSnapshotIds);
 const mockedUpdateSyncPairBidirectionalMetadata = vi.mocked(updateSyncPairBidirectionalMetadata);
+const mockedAdvanceNextRunAt = vi.mocked(advanceNextRunAt);
+const mockedIncrementConsecutiveFailures = vi.mocked(incrementConsecutiveFailures);
 
 function createPair(): SyncPair {
   return {
@@ -158,5 +162,24 @@ describe('executeSyncRun bidirectional metadata planner', () => {
       sourceLastChangeAt: expect.any(String),
       targetLastChangeAt: expect.any(String),
     });
+  });
+});
+
+describe('executeSyncRun scheduled failures', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockedGetSessionFromDb.mockResolvedValue({} as never);
+  });
+
+  it('waits for the next interval after an auth failure instead of retrying every tick', async () => {
+    const pair = createPair();
+    mockedCreateBackgroundProvider.mockRejectedValue(
+      new Error('No valid session for tidal, user=tidal:user-1'),
+    );
+
+    await executeSyncRun('run-1', { pair, triggeredBy: 'scheduler' });
+
+    expect(mockedIncrementConsecutiveFailures).toHaveBeenCalledWith(pair.id);
+    expect(mockedAdvanceNextRunAt).toHaveBeenCalledWith(pair.id);
   });
 });
