@@ -53,6 +53,7 @@ export default function PrivacyPage() {
             </p>
             <ul className="list-disc list-inside text-muted-foreground space-y-1 ml-2">
               <li>Your display name and profile information</li>
+              <li>The email address of your Spotify or TIDAL account (see section 3.5)</li>
               <li>Your playlists (names, tracks, metadata)</li>
               <li>Your Liked Songs / Favorites library</li>
               <li>Playback control for track previews (Spotify)</li>
@@ -84,21 +85,46 @@ export default function PrivacyPage() {
 
             <h3 className="font-medium mt-4 mb-2">3.4 Server-Side Token Storage (Background Sync)</h3>
             <p className="text-muted-foreground mb-2">
-              If you enable playlist synchronization between providers, we store encrypted OAuth tokens
-              (access tokens and refresh tokens) on the server to enable background sync when you are
-              not actively using the application.
+              When you sign in with Spotify or TIDAL, we store encrypted OAuth tokens (access tokens and
+              refresh tokens) on the server so that playlist synchronization between providers can run in
+              the background when you are not actively using the application.
             </p>
             <ul className="list-disc list-inside text-muted-foreground space-y-1 ml-2">
               <li>Tokens are encrypted using AES-256-GCM before storage</li>
-              <li>Tokens are used exclusively to sync your playlists between providers</li>
+              <li>Tokens are used only to keep your sign-in working and to sync your playlists between providers</li>
               <li>Tokens are deleted immediately when you disconnect a provider</li>
-              <li>You can disable background sync at any time, which stops token usage</li>
-              <li>Stored tokens grant limited access (playlist management only, per the scopes you authorized)</li>
+              <li>Signing out of Listmagify does not delete them, so scheduled syncs keep running</li>
+              <li>
+                You can disable background sync at any time, which stops syncs from using the tokens; the
+                tokens themselves stay stored and are kept valid until you disconnect the provider
+              </li>
+              <li>Stored tokens grant only the access covered by the permissions you approved when signing in</li>
             </ul>
             <p className="text-muted-foreground mt-2">
               This server-side storage is necessary because OAuth tokens expire regularly and must be
               refreshed to maintain continuous sync. Without stored tokens, sync would only work while
               you have the application open in your browser.
+            </p>
+
+            <h3 className="font-medium mt-4 mb-2">3.5 Email Address for Sync Notifications</h3>
+            <p className="text-muted-foreground mb-2">
+              Together with the encrypted tokens described in section 3.4, we store the email address
+              that Spotify or TIDAL shares with us when you sign in. We use it for one purpose only:
+            </p>
+            <ul className="list-disc list-inside text-muted-foreground space-y-1 ml-2">
+              <li>
+                If a scheduled background sync stops because your Spotify or TIDAL authorization expired
+                or was revoked, we send you a single email asking you to sign in again
+              </li>
+              <li>You receive at most one such email per provider until you sign in again</li>
+              <li>We never use the address for newsletters, marketing, or any other purpose</li>
+              <li>The address is encrypted using AES-256-GCM before storage</li>
+              <li>The address is deleted together with your tokens when you disconnect the provider</li>
+            </ul>
+            <p className="text-muted-foreground mt-2">
+              Legal basis: Art. 6(1)(b) GDPR – informing you about a problem with the background sync you
+              set up is part of providing that feature. These are service messages, not newsletters, so
+              there is no separate unsubscribe option; they stop when you disconnect the provider.
             </p>
           </div>
 
@@ -111,6 +137,7 @@ export default function PrivacyPage() {
               <li>Display and organize your playlists</li>
               <li>Enable drag-and-drop track management</li>
               <li>Synchronize playlists between Spotify and TIDAL</li>
+              <li>Notify you once by email when background sync stops because you need to sign in again</li>
               <li>Preview tracks through Spotify&apos;s player</li>
               <li>Match and resolve tracks across providers</li>
               <li>Remember your UI preferences</li>
@@ -122,7 +149,9 @@ export default function PrivacyPage() {
             <p className="text-muted-foreground">
               We do not sell, trade, or share your personal data with third parties. Your data is only
               transmitted to Spotify and TIDAL to perform the actions you request (e.g., moving tracks,
-              updating playlists, syncing between providers).
+              updating playlists, syncing between providers). Notification emails (see section 3.5) are
+              delivered through our email service provider, which processes your address only to deliver
+              the message.
             </p>
           </div>
 
@@ -134,9 +163,11 @@ export default function PrivacyPage() {
               until you clear it.
             </p>
             <p className="text-muted-foreground">
-              <strong>Encrypted tokens</strong> stored for background sync (see section 3.4) are retained
-              as long as the sync feature is enabled and deleted immediately when you disconnect a
-              provider or delete a sync pair. You can request deletion of all stored tokens by contacting us.
+              <strong>Encrypted tokens</strong> (see section 3.4) and the <strong>email address</strong>
+              stored with them (see section 3.5) are retained until you disconnect the provider in
+              Listmagify, which deletes them immediately. Deleting a sync pair or signing out does not
+              delete them, so you can set up or resume a sync without signing in again. You can request
+              deletion of all stored tokens and email addresses at any time by contacting us.
             </p>
           </div>
 
@@ -222,7 +253,7 @@ export default function PrivacyPage() {
               changes by posting the new policy on this page.
             </p>
             <p className="text-muted-foreground mt-2">
-              Last updated: March 2026
+              Last updated: October 2026
             </p>
           </div>
 

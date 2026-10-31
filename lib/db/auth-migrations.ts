@@ -32,4 +32,15 @@ export const authMigrations: Migration[] = [
       );
     `,
   },
+  {
+    version: 2,
+    name: 'add_reauth_notification_columns',
+    sql: `
+      -- Encrypted provider account email, used only to tell the user that
+      -- background sync stopped because their authorization is gone.
+      ALTER TABLE user_tokens ADD COLUMN email TEXT;
+      -- Set once the re-auth email went out; cleared when fresh tokens are stored.
+      ALTER TABLE user_tokens ADD COLUMN reauth_notified_at TEXT;
+    `,
+  },
 ];

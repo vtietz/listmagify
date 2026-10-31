@@ -13,6 +13,7 @@ import { applySyncPlan } from '@/lib/sync/apply';
 import { buildSyncPlan } from '@/lib/sync/planner';
 import { orderCanonicalIds, uniqueCanonicalIds } from '@/lib/sync/bidirectionalPlan';
 import { getSessionFromDb } from '@/lib/auth/sessionFromDb';
+import { notifyReauthRequired } from '@/lib/sync/reauthNotifier';
 import {
   createSyncRun,
   updateSyncRun,
@@ -58,11 +59,13 @@ function resolveUserIdForProvider(pair: SyncPair, providerId: MusicProviderId): 
   return pair.providerUserIds[providerId] ?? pair.createdBy;
 }
 
+type MissingSession = { providerId: MusicProviderId; userId: string };
+
 type ProviderSessions = {
   sourceUserId: string;
   targetUserId: string;
-  missingProvider?: MusicProviderId;
-  missingUserId?: string;
+  /** Every side without a valid session (deduplicated for same-account pairs). */
+  missing: MissingSession[];
 };
 
 async function resolveProviderSessions(pair: SyncPair): Promise<ProviderSessions> {
@@ -74,33 +77,38 @@ async function resolveProviderSessions(pair: SyncPair): Promise<ProviderSessions
     getSessionFromDb(targetUserId, pair.targetProvider),
   ]);
 
+  const missing: MissingSession[] = [];
   if (!sourceSession) {
-    return { sourceUserId, targetUserId, missingProvider: pair.sourceProvider, missingUserId: sourceUserId };
+    missing.push({ providerId: pair.sourceProvider, userId: sourceUserId });
+  }
+  const targetIsSameAccount = pair.targetProvider === pair.sourceProvider && targetUserId === sourceUserId;
+  if (!targetSession && !(targetIsSameAccount && !sourceSession)) {
+    missing.push({ providerId: pair.targetProvider, userId: targetUserId });
   }
 
-  if (!targetSession) {
-    return { sourceUserId, targetUserId, missingProvider: pair.targetProvider, missingUserId: targetUserId };
-  }
-
-  return { sourceUserId, targetUserId };
+  return { sourceUserId, targetUserId, missing };
 }
 
 function markRunFailedForMissingSession(
   runId: string,
   pair: SyncPair,
   isScheduled: boolean,
-  missingProvider: MusicProviderId,
-  missingUserId: string,
+  missing: MissingSession[],
 ): void {
   updateSyncRun(runId, {
     status: 'failed',
-    errorMessage: `No valid session for ${missingProvider}, user=${missingUserId}`,
+    errorMessage: missing
+      .map(({ providerId, userId }) => `No valid session for ${providerId}, user=${userId}`)
+      .join('; '),
     completedAt: new Date().toISOString(),
   });
 
   if (isScheduled) {
     incrementConsecutiveFailures(pair.id);
     advanceNextRunAt(pair.id);
+    for (const { providerId, userId } of missing) {
+      void notifyReauthRequired(userId, providerId);
+    }
   }
 }
 
@@ -329,8 +337,8 @@ async function resolveExecutionProviders(
   isScheduled: boolean,
 ): Promise<{ sourceProvider: MusicProvider; targetProvider: MusicProvider } | null> {
   const sessions = await resolveProviderSessions(pair);
-  if (sessions.missingProvider && sessions.missingUserId) {
-    markRunFailedForMissingSession(runId, pair, isScheduled, sessions.missingProvider, sessions.missingUserId);
+  if (sessions.missing.length > 0) {
+    markRunFailedForMissingSession(runId, pair, isScheduled, sessions.missing);
     return null;
   }
 

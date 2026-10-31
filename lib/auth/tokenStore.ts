@@ -110,6 +110,7 @@ export function persistProviderTokens(params: PersistParams): boolean {
         is_byok = @isByok,
         byok_client_id = @byokClientId,
         byok_client_secret = @byokClientSecret,
+        reauth_notified_at = NULL,
         updated_at = CURRENT_TIMESTAMP
     `);
 

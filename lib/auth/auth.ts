@@ -13,6 +13,7 @@ import {
   type ProviderTokenStore,
 } from '@/lib/auth/tokenRefresh';
 import { persistProviderTokens, deleteProviderTokens, markTokenStatus, getProviderTokens as getDbProviderTokens } from '@/lib/auth/tokenStore';
+import { setProviderAccountEmail, setProviderAccountEmailIfMissing } from '@/lib/auth/tokenNotificationStore';
 import { isTokenEncryptionAvailable } from '@/lib/auth/tokenEncryption';
 import { resetCircuitBreaker } from '@/lib/auth/refreshCircuitBreaker';
 import { prefixedUserId } from '@/lib/auth/sessionUserIds';
@@ -318,6 +319,7 @@ function persistSignInTokens(
   token: AuthJwtToken,
   accountProviderId: MusicProviderId | null,
   providerTokens: ProviderTokenStore,
+  user: { email?: unknown } | undefined,
 ): void {
   if (!accountProviderId || !isTokenEncryptionAvailable()) return;
   const providerToken = providerTokens[accountProviderId];
@@ -325,7 +327,35 @@ function persistSignInTokens(
   const userId = resolveTokenUserId(token, accountProviderId);
   if (!userId) return;
   safePersistSingleProvider(userId, accountProviderId, providerToken);
+  safeSetAccountEmail(userId, accountProviderId, user?.email ?? token.email);
   resumeFailedSyncPairs(userId);
+}
+
+function safeSetAccountEmail(userId: string, providerId: MusicProviderId, email: unknown): void {
+  if (typeof email !== 'string' || !email) return;
+  try {
+    setProviderAccountEmail(userId, providerId, email);
+  } catch {
+    // DB write failure should never break auth flow
+  }
+}
+
+/**
+ * BYOK sign-ins bypass the NextAuth account flow, so their email only shows
+ * up on the session token. It is unambiguous only while one provider is
+ * connected, and never overwrites an email stored at sign-in.
+ */
+function backfillSingleProviderEmail(token: AuthJwtToken, providerTokens: ProviderTokenStore): void {
+  const connected = (Object.keys(providerTokens) as MusicProviderId[]).filter((pid) => providerTokens[pid]?.refreshToken);
+  const [onlyProvider] = connected;
+  if (connected.length !== 1 || !onlyProvider || typeof token.email !== 'string' || !token.email) return;
+  const userId = resolveTokenUserId(token, onlyProvider);
+  if (!userId) return;
+  try {
+    setProviderAccountEmailIfMissing(userId, onlyProvider, token.email);
+  } catch {
+    // DB write failure should never break auth flow
+  }
 }
 
 /** Fresh tokens after sign-in — let background sync pick paused pairs up again. */
@@ -361,6 +391,7 @@ function persistRefreshedTokens(
       }
     }
   }
+  backfillSingleProviderEmail(token, providerTokens);
 }
 
 async function setUidCookie(token: AuthJwtToken): Promise<void> {
@@ -411,7 +442,7 @@ export const authOptions: AuthOptions = {
   },
   providers: authProviders,
   callbacks: {
-    async jwt({ token, account, trigger, session }: any) {
+    async jwt({ token, user, account, trigger, session }: any) {
       const nextToken = token as AuthJwtToken;
       const accountProviderId = toMusicProviderId((account as Record<string, unknown> | null)?.provider);
       const providerTokens = getProviderTokens(nextToken, accountProviderId);
@@ -427,7 +458,7 @@ export const authOptions: AuthOptions = {
       }
 
       // Persist tokens from initial sign-in to DB
-      persistSignInTokens(nextToken, accountProviderId, providerTokens);
+      persistSignInTokens(nextToken, accountProviderId, providerTokens, user);
 
       if (trigger === 'update' && session?.providerAuthAction === 'logout-provider') {
         const providerId = toMusicProviderId(session.providerId);

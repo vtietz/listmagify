@@ -19,6 +19,10 @@ vi.mock('@/lib/auth/sessionFromDb', () => ({
   getSessionFromDb: vi.fn(),
 }));
 
+vi.mock('@/lib/sync/reauthNotifier', () => ({
+  notifyReauthRequired: vi.fn(),
+}));
+
 vi.mock('@/lib/sync/syncStore', () => ({
   createSyncRun: vi.fn(),
   updateSyncRun: vi.fn(),
@@ -35,6 +39,7 @@ import { createBackgroundProvider } from '@/lib/sync/backgroundProvider';
 import { captureSnapshot, fetchPlaylistSnapshotId } from '@/lib/sync/snapshot';
 import { applySyncPlan } from '@/lib/sync/apply';
 import { getSessionFromDb } from '@/lib/auth/sessionFromDb';
+import { notifyReauthRequired } from '@/lib/sync/reauthNotifier';
 import {
   advanceNextRunAt,
   incrementConsecutiveFailures,
@@ -50,6 +55,7 @@ const mockedGetSessionFromDb = vi.mocked(getSessionFromDb);
 const mockedUpdateSyncPairSnapshotIds = vi.mocked(updateSyncPairSnapshotIds);
 const mockedUpdateSyncPairBidirectionalMetadata = vi.mocked(updateSyncPairBidirectionalMetadata);
 const mockedAdvanceNextRunAt = vi.mocked(advanceNextRunAt);
+const mockedNotifyReauthRequired = vi.mocked(notifyReauthRequired);
 const mockedIncrementConsecutiveFailures = vi.mocked(incrementConsecutiveFailures);
 
 function createPair(): SyncPair {
@@ -181,5 +187,50 @@ describe('executeSyncRun scheduled failures', () => {
 
     expect(mockedIncrementConsecutiveFailures).toHaveBeenCalledWith(pair.id);
     expect(mockedAdvanceNextRunAt).toHaveBeenCalledWith(pair.id);
+  });
+
+  it('asks the notifier to email the user when a scheduled run has no valid session', async () => {
+    const pair = createPair();
+    mockedGetSessionFromDb.mockImplementation(async (_userId, providerId) =>
+      (providerId === 'tidal' ? null : ({} as never)));
+
+    await executeSyncRun('run-1', { pair, triggeredBy: 'scheduler' });
+
+    expect(mockedNotifyReauthRequired).toHaveBeenCalledWith('tidal:user-1', 'tidal');
+    expect(mockedCreateBackgroundProvider).not.toHaveBeenCalled();
+  });
+
+  it('does not email for manual runs', async () => {
+    const pair = createPair();
+    mockedGetSessionFromDb.mockResolvedValue(null);
+
+    await executeSyncRun('run-1', { pair, triggeredBy: 'manual' });
+
+    expect(mockedNotifyReauthRequired).not.toHaveBeenCalled();
+  });
+
+  it('asks for re-auth on both providers when both sessions are gone', async () => {
+    const pair = createPair();
+    mockedGetSessionFromDb.mockResolvedValue(null);
+
+    await executeSyncRun('run-1', { pair, triggeredBy: 'scheduler' });
+
+    expect(mockedNotifyReauthRequired).toHaveBeenCalledTimes(2);
+    expect(mockedNotifyReauthRequired).toHaveBeenCalledWith('spotify:user-1', 'spotify');
+    expect(mockedNotifyReauthRequired).toHaveBeenCalledWith('tidal:user-1', 'tidal');
+  });
+
+  it('notifies once for a same-account pair with an expired session', async () => {
+    const pair = {
+      ...createPair(),
+      targetProvider: 'spotify' as const,
+      providerUserIds: { spotify: 'spotify:user-1' },
+    };
+    mockedGetSessionFromDb.mockResolvedValue(null);
+
+    await executeSyncRun('run-1', { pair, triggeredBy: 'scheduler' });
+
+    expect(mockedNotifyReauthRequired).toHaveBeenCalledTimes(1);
+    expect(mockedNotifyReauthRequired).toHaveBeenCalledWith('spotify:user-1', 'spotify');
   });
 });
