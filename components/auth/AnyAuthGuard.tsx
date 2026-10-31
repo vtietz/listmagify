@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState, type PropsWithChildren } from 'react';
-import { usePathname, useSearchParams } from 'next/navigation';
+import { useEffect, useState, type PropsWithChildren } from 'react';
+import { usePathname } from 'next/navigation';
 import { SignInButton } from '@/components/auth/SignInButton';
 import { useAuthRegistryHydrated, useAuthSummary } from '@features/auth/hooks/useAuth';
 import { isPerPanelInlineLoginEnabled } from '@/lib/utils';
@@ -29,14 +29,8 @@ export function AnyAuthGuard({ children }: PropsWithChildren) {
   const summary = useAuthSummary();
   const hydrated = useAuthRegistryHydrated();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const shouldBypassGlobalGuard = pathname === '/playlists';
   const [providers, setProviders] = useState<ProviderId[]>(['spotify']);
-
-  const callbackUrl = useMemo(() => {
-    const query = searchParams?.toString() ?? '';
-    return resolveCallbackUrl(pathname, query);
-  }, [pathname, searchParams]);
 
   useEffect(() => {
     if (!enabled || shouldBypassGlobalGuard) {
@@ -90,6 +84,11 @@ export function AnyAuthGuard({ children }: PropsWithChildren) {
   if (summary.anyAuthenticated) {
     return <>{children}</>;
   }
+
+  // Read the query from window instead of useSearchParams: the fallback only
+  // renders after client hydration, and useSearchParams would force every
+  // statically prerendered page under this guard into a Suspense bailout.
+  const callbackUrl = resolveCallbackUrl(pathname, window.location.search.replace(/^\?/, ''));
 
   return (
     <div className="flex h-full w-full items-center justify-center p-8">

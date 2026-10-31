@@ -201,9 +201,23 @@ function extractExpiresAt(accountData: Record<string, any>): number {
   return Date.now() + 3600 * 1000;
 }
 
+/**
+ * `next build` imports route modules to collect page data, usually without
+ * runtime secrets. Skip providers with missing credentials there instead of
+ * failing the build; at runtime the factories still throw.
+ */
+function createAuthProvider<T>(factory: () => T): T[] {
+  try {
+    return [factory()];
+  } catch (error) {
+    if (process.env.NEXT_PHASE === 'phase-production-build') return [];
+    throw error;
+  }
+}
+
 const authProviders = [
-  ...(isMusicProviderEnabled('spotify') ? [createSpotifyAuthProvider()] : []),
-  ...(isMusicProviderEnabled('tidal') ? [createTidalAuthProvider()] : []),
+  ...(isMusicProviderEnabled('spotify') ? createAuthProvider(createSpotifyAuthProvider) : []),
+  ...(isMusicProviderEnabled('tidal') ? createAuthProvider(createTidalAuthProvider) : []),
 ];
 
 function getInitialProviderErrors(nextToken: AuthJwtToken): Partial<Record<MusicProviderId, string | undefined>> {
