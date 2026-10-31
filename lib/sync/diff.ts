@@ -3,6 +3,7 @@ import type { SyncDirection, SyncDiffItem, SyncPlan } from '@/lib/sync/types';
 import type { PlaylistSnapshot, CanonicalSnapshotItem } from '@/lib/sync/snapshot';
 import { getCanonicalTrackMetadata } from '@/lib/resolver/canonicalResolver';
 import { DEFAULT_MATCH_THRESHOLDS } from '@/lib/matching/config';
+import { computeBidirectionalPlanWithMetadata, withoutBaselines } from '@/lib/sync/bidirectionalPlan';
 
 /**
  * Build a lookup map from canonical track ID to the first matching snapshot item.
@@ -111,38 +112,6 @@ function flattenOneway(diff: { toAdd: SyncDiffItem[]; toRemove: SyncDiffItem[] }
 }
 
 /**
- * Compute diff items for a bidirectional merge. Missing tracks are added
- * to the side that lacks them — no removals.
- */
-function computeBidirectional(
-  source: PlaylistSnapshot,
-  target: PlaylistSnapshot,
-): SyncDiffItem[] {
-  const sourceIndex = buildSnapshotIndex(source);
-  const targetIndex = buildSnapshotIndex(target);
-  const sourceIds = new Set(sourceIndex.keys());
-  const targetIds = new Set(targetIndex.keys());
-
-  const items: SyncDiffItem[] = [];
-
-  // Tracks in source missing from target -> add to target
-  for (const id of sourceIds) {
-    if (!targetIds.has(id)) {
-      items.push(buildDiffItem(id, 'add', target.providerId, sourceIndex.get(id)));
-    }
-  }
-
-  // Tracks in target missing from source -> add to source
-  for (const id of targetIds) {
-    if (!sourceIds.has(id)) {
-      items.push(buildDiffItem(id, 'add', source.providerId, targetIndex.get(id)));
-    }
-  }
-
-  return items;
-}
-
-/**
  * Compute the desired canonical ID order for each side after sync.
  */
 function computeTargetOrder(
@@ -173,22 +142,7 @@ function computeTargetOrder(
     };
   }
 
-  // Bidirectional: source (left panel) is authoritative for order.
-  // Both playlists end up with the same canonical order — source order
-  // with target-only tracks appended at the end.
-  const sourceCanonicalIds = source.items.map((i) => i.canonicalTrackId);
-  const targetCanonicalIds = target.items.map((i) => i.canonicalTrackId);
-  const sourceIdSet = new Set(sourceCanonicalIds);
-
-  const unifiedOrder = [
-    ...sourceCanonicalIds,
-    ...targetCanonicalIds.filter((id) => !sourceIdSet.has(id)),
-  ];
-
-  return {
-    [source.providerId]: unifiedOrder,
-    [target.providerId]: unifiedOrder,
-  };
+  return {};
 }
 
 /**
@@ -197,8 +151,9 @@ function computeTargetOrder(
  * - `a-to-b`: source is authoritative; tracks in source but not target
  *   are added, tracks in target but not source are removed.
  * - `b-to-a`: target is authoritative; logic is reversed.
- * - `bidirectional`: union merge -- missing tracks are added to the side
- *   that lacks them. No removals.
+ * - `bidirectional`: union merge without sync history -- missing tracks are
+ *   added to the side that lacks them, no removals. Uses the same engine as
+ *   saved pairs (`computeBidirectionalPlanWithMetadata`), just without baselines.
  */
 export function computeSyncDiff(
   source: PlaylistSnapshot,
@@ -208,12 +163,21 @@ export function computeSyncDiff(
 ): SyncPlan {
   const manualThreshold = options?.thresholds?.manual ?? DEFAULT_MATCH_THRESHOLDS.manual;
 
-  const items = direction === 'bidirectional'
-    ? computeBidirectional(source, target)
-    : flattenOneway(computeOneway(
-        direction === 'a-to-b' ? source : target,
-        direction === 'a-to-b' ? target : source,
-      ));
+  if (direction === 'bidirectional') {
+    const context = withoutBaselines({
+      sourceProvider: source.providerId,
+      sourcePlaylistId: source.playlistId,
+      targetProvider: target.providerId,
+      targetPlaylistId: target.playlistId,
+      direction,
+    });
+    return computeBidirectionalPlanWithMetadata(context, source, target, manualThreshold).plan;
+  }
+
+  const items = flattenOneway(computeOneway(
+    direction === 'a-to-b' ? source : target,
+    direction === 'a-to-b' ? target : source,
+  ));
 
   const summary = {
     toAdd: items.filter((i) => i.action === 'add').length,

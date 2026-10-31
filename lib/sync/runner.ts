@@ -2,9 +2,8 @@ import { getMusicProvider } from '@/lib/music-provider';
 import type { MusicProvider, MusicProviderId } from '@/lib/music-provider/types';
 import { captureSnapshot } from '@/lib/sync/snapshot';
 import type { SnapshotOptions } from '@/lib/sync/snapshot';
-import { computeSyncDiff } from '@/lib/sync/diff';
 import { applySyncPlan } from '@/lib/sync/apply';
-import { markSkippedItems } from '@/lib/sync/skipped';
+import { buildSyncPlan, resolvePlanContext } from '@/lib/sync/planner';
 import { createSyncMaterializeAdapter } from '@/lib/sync/materializeAdapter';
 import { materializeCanonicalTrackIds } from '@/lib/recs/materialize';
 import { getSyncPair, createSyncRun, updateSyncRun } from '@/lib/sync/syncStore';
@@ -346,9 +345,9 @@ export async function previewSync(
   onProgress?.('capturing_snapshots', PREVIEW_PROGRESS_CAPTURE_DONE);
   onProgress?.('computing_diff', PREVIEW_PROGRESS_DIFF_DONE);
 
-  const diffOpts = matchThresholds ? { thresholds: matchThresholds } : undefined;
-  const plan = computeSyncDiff(sourceSnapshot, targetSnapshot, config.direction, diffOpts);
-  markSkippedItems(plan, config.skippedCanonicalIds);
+  // Same planner as scheduled runs; a saved pair contributes its baselines and skips.
+  const pair = config.syncPairId ? getSyncPair(config.syncPairId) : null;
+  const plan = buildSyncPlan(resolvePlanContext(config, pair), sourceSnapshot, targetSnapshot, matchThresholds);
 
   // Validate which tracks can actually be found on the target providers
   const providerMap = new Map<MusicProviderId, MusicProvider>([
@@ -416,7 +415,7 @@ function buildRunUpdate(result: SyncApplyResult): Record<string, unknown> {
  * Records the post-apply state as the pair's baseline, like scheduled runs do.
  * Failures are logged only: the plan itself was applied successfully.
  */
-async function refreshPairBaselines(syncPairId: string): Promise<void> {
+async function refreshPairBaselines(syncPairId: string, sideChanges: SyncPlan['sideChanges']): Promise<void> {
   const pair = getSyncPair(syncPairId);
   if (!pair) return;
 
@@ -426,7 +425,7 @@ async function refreshPairBaselines(syncPairId: string): Promise<void> {
       sourceProvider: getMusicProvider(pair.sourceProvider),
       targetProvider: getMusicProvider(pair.targetProvider),
       snapshotOpts: undefined,
-      bidirectionalPlan: null,
+      sideChanges,
     });
   } catch (error) {
     console.warn('[sync/runner] failed to refresh pair baselines', {
@@ -453,7 +452,7 @@ export async function applySyncPlanWithRun(
   try {
     const result = await applySyncPlan(plan);
     updateSyncRun(runId, buildRunUpdate(result));
-    await refreshPairBaselines(syncPairId);
+    await refreshPairBaselines(syncPairId, plan.sideChanges);
     return { result, runId };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

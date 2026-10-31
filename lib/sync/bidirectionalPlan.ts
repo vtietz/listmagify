@@ -3,6 +3,41 @@ import type { MusicProviderId } from '@/lib/music-provider/types';
 import type { PlaylistSnapshot, CanonicalSnapshotItem } from '@/lib/sync/snapshot';
 import type { SyncPair, SyncPlan, SyncDiffItem } from '@/lib/sync/types';
 
+/** What the bidirectional merge needs to know about a pair. */
+export type BidirectionalContext = Pick<
+  SyncPair,
+  | 'sourceProvider'
+  | 'sourcePlaylistId'
+  | 'targetProvider'
+  | 'targetPlaylistId'
+  | 'direction'
+  | 'sourceMembershipBaseline'
+  | 'targetMembershipBaseline'
+  | 'sourceOrderBaseline'
+  | 'targetOrderBaseline'
+  | 'sourceLastChangeAt'
+  | 'targetLastChangeAt'
+>;
+
+/** Context for a sync without history (first sync or one-off): a pure union merge. */
+export function withoutBaselines(
+  config: Pick<SyncPair, 'sourceProvider' | 'sourcePlaylistId' | 'targetProvider' | 'targetPlaylistId' | 'direction'>,
+): BidirectionalContext {
+  return {
+    ...config,
+    sourceMembershipBaseline: null,
+    targetMembershipBaseline: null,
+    sourceOrderBaseline: null,
+    targetOrderBaseline: null,
+    sourceLastChangeAt: null,
+    targetLastChangeAt: null,
+  };
+}
+
+/** Removals above this share of the previous playlist are treated as a glitch, not intent. */
+const MASS_REMOVAL_RATIO = 0.5;
+const MASS_REMOVAL_MIN = 10;
+
 export function uniqueCanonicalIds(snapshot: PlaylistSnapshot): string[] {
   return Array.from(new Set(snapshot.items.map((item) => item.canonicalTrackId))).sort();
 }
@@ -65,7 +100,7 @@ function buildDiffItemFromSnapshots(
 }
 
 function chooseOrderWinner(
-  pair: SyncPair,
+  pair: BidirectionalContext,
   sourceOrderChanged: boolean,
   targetOrderChanged: boolean,
 ): MusicProviderId {
@@ -122,8 +157,40 @@ type BidirectionalDelta = {
   targetCurrentOrder: string[];
 };
 
+function difference(from: Iterable<string>, without: Set<string>): Set<string> {
+  return new Set(Array.from(from).filter((id) => !without.has(id)));
+}
+
+/**
+ * A track counts as removed only if it was on that same side at the last sync and
+ * is gone now. Tracks that never made it to a side (e.g. not found there) are not
+ * removals. Implausibly large removals are ignored to protect against bad reads.
+ */
+function collectRemovals(
+  sourceBaseline: string[],
+  targetBaseline: string[],
+  sourceSet: Set<string>,
+  targetSet: Set<string>,
+): Set<string> {
+  const removed = new Set<string>([
+    ...difference(sourceBaseline, sourceSet),
+    ...difference(targetBaseline, targetSet),
+  ]);
+
+  const previousSize = Math.max(sourceBaseline.length, targetBaseline.length);
+  if (removed.size > MASS_REMOVAL_MIN && removed.size > previousSize * MASS_REMOVAL_RATIO) {
+    console.warn('[sync/bidirectional] ignoring implausible mass removal', {
+      removed: removed.size,
+      previousSize,
+    });
+    return new Set();
+  }
+
+  return removed;
+}
+
 function buildBidirectionalDelta(
-  pair: SyncPair,
+  pair: BidirectionalContext,
   sourceSnapshot: PlaylistSnapshot,
   targetSnapshot: PlaylistSnapshot,
 ): BidirectionalDelta {
@@ -142,26 +209,10 @@ function buildBidirectionalDelta(
   const sourceOrderChanged = !arraysEqual(sourceCurrentOrder, sourceBaselineOrder);
   const targetOrderChanged = !arraysEqual(targetCurrentOrder, targetBaselineOrder);
 
-  const baselineSet = new Set<string>([
-    ...sourceBaselineMembership,
-    ...targetBaselineMembership,
-  ]);
   const sourceSet = new Set<string>(sourceCurrentMembership);
   const targetSet = new Set<string>(targetCurrentMembership);
-  const sourceAdds = new Set<string>(Array.from(sourceSet).filter((id) => !baselineSet.has(id)));
-  const targetAdds = new Set<string>(Array.from(targetSet).filter((id) => !baselineSet.has(id)));
-  const sourceRemoves = new Set<string>(Array.from(baselineSet).filter((id) => !sourceSet.has(id)));
-  const targetRemoves = new Set<string>(Array.from(baselineSet).filter((id) => !targetSet.has(id)));
-  const removedByAny = new Set<string>([...sourceRemoves, ...targetRemoves]);
-
-  const mergedSet = new Set<string>([
-    ...baselineSet,
-    ...sourceAdds,
-    ...targetAdds,
-  ]);
-  for (const removed of removedByAny) {
-    mergedSet.delete(removed);
-  }
+  const removedByAny = collectRemovals(sourceBaselineMembership, targetBaselineMembership, sourceSet, targetSet);
+  const mergedSet = difference([...sourceSet, ...targetSet], removedByAny);
 
   return {
     sourceMembershipChanged,
@@ -177,7 +228,7 @@ function buildBidirectionalDelta(
 }
 
 function buildBidirectionalItems(
-  pair: SyncPair,
+  pair: BidirectionalContext,
   sourceSet: Set<string>,
   targetSet: Set<string>,
   mergedSet: Set<string>,
@@ -210,7 +261,7 @@ function buildBidirectionalItems(
 }
 
 export function computeBidirectionalPlanWithMetadata(
-  pair: SyncPair,
+  pair: BidirectionalContext,
   sourceSnapshot: PlaylistSnapshot,
   targetSnapshot: PlaylistSnapshot,
   manualThreshold: number,
@@ -249,6 +300,10 @@ export function computeBidirectionalPlanWithMetadata(
     targetOrder: {
       [pair.sourceProvider]: unifiedOrder,
       [pair.targetProvider]: unifiedOrder,
+    },
+    sideChanges: {
+      source: delta.sourceMembershipChanged || delta.sourceOrderChanged,
+      target: delta.targetMembershipChanged || delta.targetOrderChanged,
     },
     summary: {
       toAdd: items.filter((item) => item.action === 'add').length,

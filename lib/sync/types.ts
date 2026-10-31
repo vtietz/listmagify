@@ -99,8 +99,8 @@ export interface SyncConfig {
   targetProvider: MusicProviderId;
   targetPlaylistId: string;
   direction: SyncDirection;
-  /** Canonical track IDs that are left out of the sync (from the saved pair) */
-  skippedCanonicalIds?: string[];
+  /** Saved pair this sync belongs to; supplies baselines and skipped tracks */
+  syncPairId?: string;
 }
 
 /** `skipped`: the user chose to leave this track out of the pair's syncs. */
@@ -133,6 +133,8 @@ export interface SyncPlan {
   items: SyncDiffItem[];
   /** Desired canonical track ID order for each side after sync */
   targetOrder?: Record<string, string[]>;
+  /** Bidirectional only: which side changed since the last sync (stored with the baselines) */
+  sideChanges?: { source: boolean; target: boolean };
   summary: {
     toAdd: number;
     toRemove: number;

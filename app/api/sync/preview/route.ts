@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
       targetProvider: 'spotify' | 'tidal';
       targetPlaylistId: string;
       direction: SyncDirection;
-      skippedCanonicalIds?: string[];
+      syncPairId?: string;
     };
 
     // Pair-based preview
@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
         targetProvider: pair.targetProvider,
         targetPlaylistId: pair.targetPlaylistId,
         direction: pair.direction,
-        skippedCanonicalIds: pair.skippedCanonicalIds,
+        syncPairId: pair.id,
       };
     } else {
       // Inline config preview

@@ -9,14 +9,9 @@
 import { createBackgroundProvider } from '@/lib/sync/backgroundProvider';
 import { captureSnapshot, fetchPlaylistSnapshotId } from '@/lib/sync/snapshot';
 import type { SnapshotOptions } from '@/lib/sync/snapshot';
-import { computeSyncDiff } from '@/lib/sync/diff';
 import { applySyncPlan } from '@/lib/sync/apply';
-import { markSkippedItems } from '@/lib/sync/skipped';
-import {
-  computeBidirectionalPlanWithMetadata,
-  orderCanonicalIds,
-  uniqueCanonicalIds,
-} from '@/lib/sync/bidirectionalPlan';
+import { buildSyncPlan } from '@/lib/sync/planner';
+import { orderCanonicalIds, uniqueCanonicalIds } from '@/lib/sync/bidirectionalPlan';
 import { getSessionFromDb } from '@/lib/auth/sessionFromDb';
 import {
   createSyncRun,
@@ -29,11 +24,9 @@ import {
   updateSyncPairBidirectionalMetadata,
 } from '@/lib/sync/syncStore';
 import type { SyncPair, SyncTrigger, SyncWarning, SyncApplyResult, SyncPlan } from '@/lib/sync/types';
-import type { PlaylistSnapshot } from '@/lib/sync/snapshot';
 import type { MusicProvider, MusicProviderId } from '@/lib/music-provider/types';
 import { ProviderApiError } from '@/lib/music-provider/types';
 import { RateLimitError } from '@/lib/spotify/rateLimit';
-import { DEFAULT_MATCH_THRESHOLDS } from '@/lib/matching/config';
 
 export interface SyncMatchThresholds {
   convert: number;
@@ -276,7 +269,7 @@ async function executeSyncRunInternal(
     captureSnapshot(targetProvider, pair.targetProvider, pair.targetPlaylistId, snapshotOpts),
   ]);
 
-  const { plan, bidirectionalPlan } = buildExecutionPlan(pair, sourceSnapshot, targetSnapshot, matchThresholds);
+  const plan = buildSyncPlan(pair, sourceSnapshot, targetSnapshot, matchThresholds);
 
   const providerOverrides: Partial<Record<MusicProviderId, typeof sourceProvider>> = {
     [pair.sourceProvider]: sourceProvider,
@@ -292,7 +285,7 @@ async function executeSyncRunInternal(
     sourceProvider,
     targetProvider,
     snapshotOpts,
-    bidirectionalPlan,
+    sideChanges: plan.sideChanges,
   });
 
   finishScheduledSuccess(pair);
@@ -315,9 +308,9 @@ export async function refreshBidirectionalMetadata(params: {
   sourceProvider: MusicProvider;
   targetProvider: MusicProvider;
   snapshotOpts: SnapshotOptions | undefined;
-  bidirectionalPlan: ReturnType<typeof computeBidirectionalPlanWithMetadata> | null;
+  sideChanges: SyncPlan['sideChanges'];
 }): Promise<void> {
-  const { pair, sourceProvider, targetProvider, snapshotOpts, bidirectionalPlan } = params;
+  const { pair, sourceProvider, targetProvider, snapshotOpts, sideChanges } = params;
 
   const [postSourceSnapshot, postTargetSnapshot] = await Promise.all([
     captureSnapshot(sourceProvider, pair.sourceProvider, pair.sourcePlaylistId, snapshotOpts),
@@ -330,12 +323,8 @@ export async function refreshBidirectionalMetadata(params: {
     targetMembershipBaseline: uniqueCanonicalIds(postTargetSnapshot),
     sourceOrderBaseline: orderCanonicalIds(postSourceSnapshot),
     targetOrderBaseline: orderCanonicalIds(postTargetSnapshot),
-    ...(bidirectionalPlan && (bidirectionalPlan.sourceMembershipChanged || bidirectionalPlan.sourceOrderChanged)
-      ? { sourceLastChangeAt: nowIso }
-      : {}),
-    ...(bidirectionalPlan && (bidirectionalPlan.targetMembershipChanged || bidirectionalPlan.targetOrderChanged)
-      ? { targetLastChangeAt: nowIso }
-      : {}),
+    ...(sideChanges?.source ? { sourceLastChangeAt: nowIso } : {}),
+    ...(sideChanges?.target ? { targetLastChangeAt: nowIso } : {}),
   });
 }
 
@@ -374,25 +363,6 @@ function markRunSkippedUnchanged(runId: string, pair: SyncPair): void {
 
 function buildSnapshotOptions(matchThresholds?: SyncMatchThresholds): SnapshotOptions | undefined {
   return matchThresholds ? { resolveOptions: { thresholds: matchThresholds } } : undefined;
-}
-
-function buildExecutionPlan(
-  pair: SyncPair,
-  sourceSnapshot: PlaylistSnapshot,
-  targetSnapshot: PlaylistSnapshot,
-  matchThresholds?: SyncMatchThresholds,
-): { plan: SyncPlan; bidirectionalPlan: ReturnType<typeof computeBidirectionalPlanWithMetadata> | null } {
-  const diffOpts = matchThresholds ? { thresholds: matchThresholds } : undefined;
-  const manualThreshold = matchThresholds?.manual ?? DEFAULT_MATCH_THRESHOLDS.manual;
-  const bidirectionalPlan = pair.direction === 'bidirectional'
-    ? computeBidirectionalPlanWithMetadata(pair, sourceSnapshot, targetSnapshot, manualThreshold)
-    : null;
-
-  const plan = bidirectionalPlan?.plan
-    ?? computeSyncDiff(sourceSnapshot, targetSnapshot, pair.direction, diffOpts);
-  markSkippedItems(plan, pair.skippedCanonicalIds);
-
-  return { plan, bidirectionalPlan };
 }
 
 /**
