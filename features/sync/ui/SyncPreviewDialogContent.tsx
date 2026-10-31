@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { DialogFooter } from '@/components/ui/dialog';
 import { SyncSplitView } from '@features/sync/ui/SyncSplitView';
 import { SyncRunResultContent } from '@features/sync/ui/SyncRunResultContent';
+import { ProviderGlyph } from '@/components/auth/ProviderStatusDropdown';
 import type { SyncApplyResult, SyncPreviewResult, SyncPreviewRun } from '@/lib/sync/types';
 import type { SyncDialogConfig } from '@features/sync/stores/useSyncDialogStore';
 import { getRunPhaseLabel } from '@features/sync/ui/syncPreviewDialogUtils';
@@ -251,9 +252,17 @@ function PreviewStepContent({
   return (
     <div className="space-y-4">
       {config && (
-        <p className="text-xs text-muted-foreground text-center">
-          {sourcePlaylistName} &harr; {targetPlaylistName}
-        </p>
+        <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+          <span className="inline-flex items-center gap-1.5 min-w-0">
+            <ProviderGlyph providerId={config.sourceProvider} />
+            <span className="truncate">{sourcePlaylistName}</span>
+          </span>
+          <span aria-hidden="true">&harr;</span>
+          <span className="inline-flex items-center gap-1.5 min-w-0">
+            <ProviderGlyph providerId={config.targetProvider} />
+            <span className="truncate">{targetPlaylistName}</span>
+          </span>
+        </div>
       )}
 
       <PreviewStatusMessage
