@@ -4,7 +4,12 @@ import type { PlaylistSnapshot, CanonicalSnapshotItem } from '@/lib/sync/snapsho
 import type { SyncPair, SyncPlan, SyncDiffItem } from '@/lib/sync/types';
 
 /** What the bidirectional merge needs to know about a pair. */
-export type BidirectionalContext = Pick<
+export type BidirectionalContext = BidirectionalPairState & {
+  /** Removals decided from the pair's local copy; replaces the baseline comparison */
+  removedKeys?: ReadonlySet<string>;
+};
+
+type BidirectionalPairState = Pick<
   SyncPair,
   | 'sourceProvider'
   | 'sourcePlaylistId'
@@ -33,10 +38,6 @@ export function withoutBaselines(
     targetLastChangeAt: null,
   };
 }
-
-/** Removals above this share of the previous playlist are treated as a glitch, not intent. */
-const MASS_REMOVAL_RATIO = 0.5;
-const MASS_REMOVAL_MIN = 10;
 
 export function uniqueCanonicalIds(snapshot: PlaylistSnapshot): string[] {
   return Array.from(new Set(snapshot.items.map((item) => item.canonicalTrackId))).sort();
@@ -157,14 +158,14 @@ type BidirectionalDelta = {
   targetCurrentOrder: string[];
 };
 
-function difference(from: Iterable<string>, without: Set<string>): Set<string> {
+function difference(from: Iterable<string>, without: ReadonlySet<string>): Set<string> {
   return new Set(Array.from(from).filter((id) => !without.has(id)));
 }
 
 /**
  * A track counts as removed only if it was on that same side at the last sync and
  * is gone now. Tracks that never made it to a side (e.g. not found there) are not
- * removals. Implausibly large removals are ignored to protect against bad reads.
+ * removals. Implausibly large removals are flagged by the planner, not here.
  */
 function collectRemovals(
   sourceBaseline: string[],
@@ -172,21 +173,10 @@ function collectRemovals(
   sourceSet: Set<string>,
   targetSet: Set<string>,
 ): Set<string> {
-  const removed = new Set<string>([
+  return new Set<string>([
     ...difference(sourceBaseline, sourceSet),
     ...difference(targetBaseline, targetSet),
   ]);
-
-  const previousSize = Math.max(sourceBaseline.length, targetBaseline.length);
-  if (removed.size > MASS_REMOVAL_MIN && removed.size > previousSize * MASS_REMOVAL_RATIO) {
-    console.warn('[sync/bidirectional] ignoring implausible mass removal', {
-      removed: removed.size,
-      previousSize,
-    });
-    return new Set();
-  }
-
-  return removed;
 }
 
 function buildBidirectionalDelta(
@@ -211,7 +201,8 @@ function buildBidirectionalDelta(
 
   const sourceSet = new Set<string>(sourceCurrentMembership);
   const targetSet = new Set<string>(targetCurrentMembership);
-  const removedByAny = collectRemovals(sourceBaselineMembership, targetBaselineMembership, sourceSet, targetSet);
+  const removedByAny = pair.removedKeys
+    ?? collectRemovals(sourceBaselineMembership, targetBaselineMembership, sourceSet, targetSet);
   const mergedSet = difference([...sourceSet, ...targetSet], removedByAny);
 
   return {

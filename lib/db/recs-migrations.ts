@@ -429,4 +429,23 @@ export const recsMigrations: Migration[] = [
       ALTER TABLE sync_pairs ADD COLUMN skipped_canonical_ids_json TEXT;
     `,
   },
+  {
+    version: 20,
+    name: 'add_sync_pair_entries',
+    sql: `
+      CREATE TABLE IF NOT EXISTS sync_pair_entries (
+        sync_pair_id TEXT NOT NULL REFERENCES sync_pairs(id) ON DELETE CASCADE,
+        side TEXT NOT NULL CHECK(side IN ('source','target')),
+        entry_key TEXT NOT NULL,
+        provider_track_id TEXT NOT NULL,
+        sync_key TEXT NOT NULL,
+        position INTEGER,
+        added_at TEXT,
+        first_seen_at TEXT NOT NULL,
+        last_seen_at TEXT NOT NULL,
+        removed_at TEXT,
+        PRIMARY KEY (sync_pair_id, side, entry_key)
+      );
+    `,
+  },
 ];

@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { DialogFooter } from '@/components/ui/dialog';
 import { SyncSplitView } from '@features/sync/ui/SyncSplitView';
 import { SyncRunResultContent } from '@features/sync/ui/SyncRunResultContent';
+import { MassRemovalNotice } from '@features/sync/ui/MassRemovalNotice';
 import { ProviderGlyph } from '@/components/auth/ProviderStatusDropdown';
 import type { SyncApplyResult, SyncPreviewResult, SyncPreviewRun } from '@/lib/sync/types';
 import type { SyncDialogConfig } from '@features/sync/stores/useSyncDialogStore';
@@ -275,6 +276,8 @@ function PreviewStepContent({
         previewErrorMessage={previewErrorMessage}
         onRetryPreview={onRetryPreview}
       />
+
+      <MassRemovalNotice plan={plan} />
 
       {plan && previewData && (
         <SyncSplitView

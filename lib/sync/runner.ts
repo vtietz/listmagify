@@ -3,13 +3,14 @@ import type { MusicProvider, MusicProviderId } from '@/lib/music-provider/types'
 import { captureSnapshot } from '@/lib/sync/snapshot';
 import type { SnapshotOptions } from '@/lib/sync/snapshot';
 import { applySyncPlan } from '@/lib/sync/apply';
-import { buildSyncPlan, resolvePlanContext } from '@/lib/sync/planner';
+import { buildSyncPlan, resolvePlanContext, type SyncPlanContext } from '@/lib/sync/planner';
 import { createSyncMaterializeAdapter } from '@/lib/sync/materializeAdapter';
 import { materializeCanonicalTrackIds } from '@/lib/recs/materialize';
-import { getSyncPair, createSyncRun, updateSyncRun } from '@/lib/sync/syncStore';
+import { getSyncPair, createSyncRun, updateSyncRun, resetConsecutiveFailures } from '@/lib/sync/syncStore';
 import type { SyncConfig, SyncPlan, SyncApplyResult, SyncPreviewResult, SyncPreviewTrack, SyncDiffItem } from '@/lib/sync/types';
 import type { PlaylistSnapshot } from '@/lib/sync/snapshot';
-import { refreshBidirectionalMetadata, type SyncMatchThresholds } from '@/lib/sync/executor';
+import { recordPostSyncState, type SyncMatchThresholds } from '@/lib/sync/executor';
+import { loadPairMirror } from '@/lib/sync/mirrorStore';
 import { isSyncPreviewRunCancellationRequested, updateSyncPreviewRun } from '@/lib/sync/previewStore';
 import { createBackgroundProvider } from '@/lib/sync/backgroundProvider';
 
@@ -297,6 +298,12 @@ async function resolveProviderItemsBatch(
   return { result: null, batchTimedOut };
 }
 
+/** The saved pair with its local copy when there is one, otherwise a context without history. */
+function loadPlanContext(config: SyncConfig): SyncPlanContext {
+  const pair = config.syncPairId ? getSyncPair(config.syncPairId) : null;
+  return resolvePlanContext(config, pair, pair ? loadPairMirror(pair.id) : undefined);
+}
+
 /**
  * Capture snapshots from both playlists, compute the diff, and validate
  * materialization on the target provider — without applying any changes.
@@ -346,8 +353,12 @@ export async function previewSync(
   onProgress?.('computing_diff', PREVIEW_PROGRESS_DIFF_DONE);
 
   // Same planner as scheduled runs; a saved pair contributes its baselines and skips.
-  const pair = config.syncPairId ? getSyncPair(config.syncPairId) : null;
-  const plan = buildSyncPlan(resolvePlanContext(config, pair), sourceSnapshot, targetSnapshot, matchThresholds);
+  const { plan, sourceSnapshot: keyedSource, targetSnapshot: keyedTarget } = buildSyncPlan(
+    loadPlanContext(config),
+    sourceSnapshot,
+    targetSnapshot,
+    matchThresholds,
+  );
 
   // Validate which tracks can actually be found on the target providers
   const providerMap = new Map<MusicProviderId, MusicProvider>([
@@ -367,8 +378,8 @@ export async function previewSync(
 
   return {
     plan,
-    sourceTracks: snapshotToPreviewTracks(sourceSnapshot),
-    targetTracks: snapshotToPreviewTracks(targetSnapshot),
+    sourceTracks: snapshotToPreviewTracks(keyedSource),
+    targetTracks: snapshotToPreviewTracks(keyedTarget),
   };
 }
 
@@ -415,17 +426,23 @@ function buildRunUpdate(result: SyncApplyResult): Record<string, unknown> {
  * Records the post-apply state as the pair's baseline, like scheduled runs do.
  * Failures are logged only: the plan itself was applied successfully.
  */
-async function refreshPairBaselines(syncPairId: string, sideChanges: SyncPlan['sideChanges']): Promise<void> {
+async function refreshPairBaselines(
+  syncPairId: string,
+  sideChanges: SyncPlan['sideChanges'],
+  addedKeys: SyncApplyResult['addedKeys'],
+  matchThresholds: SyncMatchThresholds | undefined,
+): Promise<void> {
   const pair = getSyncPair(syncPairId);
   if (!pair) return;
 
   try {
-    await refreshBidirectionalMetadata({
+    await recordPostSyncState({
       pair,
       sourceProvider: getMusicProvider(pair.sourceProvider),
       targetProvider: getMusicProvider(pair.targetProvider),
-      snapshotOpts: undefined,
+      snapshotOpts: matchThresholds ? { resolveOptions: { thresholds: matchThresholds } } : undefined,
       sideChanges,
+      addedKeys,
     });
   } catch (error) {
     console.warn('[sync/runner] failed to refresh pair baselines', {
@@ -438,7 +455,7 @@ async function refreshPairBaselines(syncPairId: string, sideChanges: SyncPlan['s
 export async function applySyncPlanWithRun(
   plan: SyncPlan,
   syncPairId?: string,
-  _matchThresholds?: SyncMatchThresholds,
+  matchThresholds?: SyncMatchThresholds,
 ): Promise<{ result: SyncApplyResult; runId?: string }> {
   if (!syncPairId) {
     const result = await applySyncPlan(plan);
@@ -452,7 +469,9 @@ export async function applySyncPlanWithRun(
   try {
     const result = await applySyncPlan(plan);
     updateSyncRun(runId, buildRunUpdate(result));
-    await refreshPairBaselines(syncPairId, plan.sideChanges);
+    await refreshPairBaselines(syncPairId, plan.sideChanges, result.addedKeys, matchThresholds);
+    // A successful reviewed apply means the pair is healthy again.
+    if (result.errors.length === 0) resetConsecutiveFailures(syncPairId);
     return { result, runId };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

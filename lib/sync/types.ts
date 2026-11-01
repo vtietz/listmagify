@@ -135,11 +135,29 @@ export interface SyncPlan {
   targetOrder?: Record<string, string[]>;
   /** Bidirectional only: which side changed since the last sync (stored with the baselines) */
   sideChanges?: { source: boolean; target: boolean };
+  /** Per provider: providerTrackId -> sync key, where it differs from the resolved canonical ID */
+  trackKeys?: Partial<Record<MusicProviderId, Record<string, string>>>;
+  /**
+   * Sides that would lose an implausibly large share of their tracks. Unattended
+   * runs hold such a plan; in the preview the user confirms it by applying.
+   */
+  massRemoval?: MassRemovalWarning[];
   summary: {
     toAdd: number;
     toRemove: number;
     unresolved: number;
   };
+}
+
+/** Start of the error message of a run held for review because of a mass removal. */
+export const SYNC_HELD_FOR_REVIEW_PREFIX = 'Sync held for review';
+
+export interface MassRemovalWarning {
+  provider: MusicProviderId;
+  /** Tracks the plan removes from this side */
+  count: number;
+  /** Tracks currently on this side */
+  total: number;
 }
 
 export interface UnresolvedTrackInfo {
@@ -157,6 +175,8 @@ export interface SyncApplyResult {
   removed: number;
   unresolved: UnresolvedTrackInfo[];
   errors: string[];
+  /** Per provider: providerTrackId -> sync key of the plan item it was added for */
+  addedKeys?: Partial<Record<MusicProviderId, Record<string, string>>>;
 }
 
 export interface SyncPreviewTrack {

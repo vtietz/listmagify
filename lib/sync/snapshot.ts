@@ -12,6 +12,8 @@ export interface CanonicalSnapshotItem {
   artists: string[];
   durationMs: number;
   position: number;
+  /** Provider's "added at" timestamp for this playlist entry, when known */
+  addedAt?: string | null;
 }
 
 export interface PlaylistSnapshot {
@@ -150,6 +152,7 @@ export function canonicalizeSnapshot(
       artists: track.artists,
       durationMs: track.durationMs,
       position: index,
+      addedAt: track.addedAt ?? null,
     };
   });
 

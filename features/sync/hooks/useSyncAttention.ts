@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import { useSyncPairs, type SyncPairWithRun } from './useSyncPairs';
+import { SYNC_HELD_FOR_REVIEW_PREFIX } from '@/lib/sync/types';
 
 function hasAuthError(pair: SyncPairWithRun): boolean {
   const msg = pair.latestRun?.errorMessage;
@@ -14,9 +15,18 @@ function hasAuthError(pair: SyncPairWithRun): boolean {
   );
 }
 
+/** The latest run was held because it would remove most of a playlist. */
+function isHeldForReview(pair: SyncPairWithRun): boolean {
+  return pair.latestRun?.errorMessage?.startsWith(SYNC_HELD_FOR_REVIEW_PREFIX) ?? false;
+}
+
+function needsAttention(pair: SyncPairWithRun): boolean {
+  return (pair.consecutiveFailures > 0 && hasAuthError(pair)) || isHeldForReview(pair);
+}
+
 /**
- * Returns the number of sync pairs that need user attention due to
- * authentication failures (expired/revoked tokens).
+ * Returns the number of sync pairs that need user attention: authentication
+ * failures (expired/revoked tokens) or runs held for review.
  *
  * Used to show a warning badge on the Sync nav button.
  */
@@ -26,9 +36,7 @@ export function useSyncAttention(enabled = true) {
 
   const attentionCount = useMemo(() => {
     if (!pairs) return 0;
-    return pairs.filter(
-      (p: SyncPairWithRun) => p.consecutiveFailures > 0 && hasAuthError(p),
-    ).length;
+    return pairs.filter(needsAttention).length;
   }, [pairs]);
 
   return { attentionCount };

@@ -44,6 +44,7 @@ export async function applySyncPlan(
   let totalRemoved = 0;
   const allUnresolved: UnresolvedEntry[] = [];
   const allErrors: string[] = [];
+  const addedKeys: NonNullable<SyncApplyResult['addedKeys']> = {};
 
   const targetOrderProviders = new Set(
     Object.keys(plan.targetOrder ?? {}) as MusicProviderId[],
@@ -73,8 +74,9 @@ export async function applySyncPlan(
       }
     }
     const desiredOrder = plan.targetOrder?.[providerId];
-    const result = await applySide(items, providerId, playlistId, desiredOrder, override);
+    const result = await applySide(items, providerId, playlistId, desiredOrder, override, plan.trackKeys?.[providerId]);
 
+    addedKeys[providerId] = result.addedKeys;
     totalAdded += result.added;
     totalRemoved += result.removed;
     allUnresolved.push(...result.unresolved);
@@ -105,5 +107,6 @@ export async function applySyncPlan(
     removed: totalRemoved,
     unresolved: unresolvedDetails,
     errors: allErrors,
+    addedKeys,
   };
 }

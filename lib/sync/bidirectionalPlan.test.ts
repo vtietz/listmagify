@@ -81,12 +81,19 @@ describe('computeBidirectionalPlanWithMetadata', () => {
     expect(result.sideChanges).toEqual({ source: false, target: true });
   });
 
-  it('ignores implausible mass removals, e.g. after a bad read of one side', () => {
+  it('passes large removals on as removals instead of re-adding the tracks (the planner flags them)', () => {
     const ids = Array.from({ length: 20 }, (_, i) => `t${i}`);
     const result = plan(context(ids, ids), [], ids);
 
-    expect(result.items.every((item) => item.action === 'add' && item.targetProvider === 'tidal')).toBe(true);
+    expect(result.items.every((item) => item.action === 'remove' && item.targetProvider === 'spotify')).toBe(true);
     expect(result.items).toHaveLength(20);
+  });
+
+  it('uses removals decided from the local copy instead of the baselines', () => {
+    const ctx = { ...context(['a', 'b'], ['a', 'b']), removedKeys: new Set(['a']) };
+    const result = plan(ctx, ['b'], ['a', 'b']);
+
+    expect(describeItems(result.items)).toEqual(['remove:spotify:a']);
   });
 
   it('orders both sides by the side that changed its order', () => {

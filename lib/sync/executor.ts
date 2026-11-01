@@ -11,7 +11,9 @@ import { captureSnapshot, fetchPlaylistSnapshotId } from '@/lib/sync/snapshot';
 import type { SnapshotOptions } from '@/lib/sync/snapshot';
 import { applySyncPlan } from '@/lib/sync/apply';
 import { buildSyncPlan } from '@/lib/sync/planner';
-import { orderCanonicalIds, uniqueCanonicalIds } from '@/lib/sync/bidirectionalPlan';
+import { mirrorBaselines, reconcileMirror } from '@/lib/sync/mirror';
+import { loadPairMirror, savePairMirror } from '@/lib/sync/mirrorStore';
+import { getProviderDisplayName } from '@/lib/music-provider/providerLabels';
 import { getSessionFromDb } from '@/lib/auth/sessionFromDb';
 import { describeMissingSession } from '@/lib/auth/missingSessionMessage';
 import { notifyReauthRequired } from '@/lib/sync/reauthNotifier';
@@ -25,7 +27,8 @@ import {
   updateSyncPairSnapshotIds,
   updateSyncPairBidirectionalMetadata,
 } from '@/lib/sync/syncStore';
-import type { SyncPair, SyncTrigger, SyncWarning, SyncApplyResult, SyncPlan } from '@/lib/sync/types';
+import { SYNC_HELD_FOR_REVIEW_PREFIX } from '@/lib/sync/types';
+import type { SyncPair, SyncTrigger, SyncWarning, SyncApplyResult, SyncPlan, MassRemovalWarning } from '@/lib/sync/types';
 import type { MusicProvider, MusicProviderId } from '@/lib/music-provider/types';
 import { ProviderApiError } from '@/lib/music-provider/types';
 import { RateLimitError } from '@/lib/spotify/rateLimit';
@@ -271,7 +274,17 @@ async function executeSyncRunInternal(
     captureSnapshot(targetProvider, pair.targetProvider, pair.targetPlaylistId, snapshotOpts),
   ]);
 
-  const plan = buildSyncPlan(pair, sourceSnapshot, targetSnapshot, matchThresholds);
+  const { plan } = buildSyncPlan(
+    { ...pair, mirror: loadPairMirror(pair.id) },
+    sourceSnapshot,
+    targetSnapshot,
+    matchThresholds,
+  );
+
+  if (plan.massRemoval) {
+    markRunHeldForMassRemoval(runId, pair, isScheduled, plan.massRemoval);
+    return;
+  }
 
   const providerOverrides: Partial<Record<MusicProviderId, typeof sourceProvider>> = {
     [pair.sourceProvider]: sourceProvider,
@@ -282,12 +295,13 @@ async function executeSyncRunInternal(
   updateSyncRun(runId, buildRunUpdate(result));
   updateSyncPairSnapshotIds(pair.id, sourceSnapshot.snapshotId, targetSnapshot.snapshotId);
 
-  await refreshBidirectionalMetadata({
+  await recordPostSyncState({
     pair,
     sourceProvider,
     targetProvider,
     snapshotOpts,
     sideChanges: plan.sideChanges,
+    addedKeys: result.addedKeys,
   });
 
   finishScheduledSuccess(pair);
@@ -302,17 +316,20 @@ async function executeSyncRunInternal(
 }
 
 /**
- * Stores post-sync membership/order baselines so the next bidirectional run can
- * tell which side changed. Also used after applying a plan from the preview dialog.
+ * Records both playlists as they are after a sync: the pair's local copy (entries,
+ * sync keys, tombstones) and the membership/order baselines derived from it, so
+ * the next run can tell what changed on which side. Also used after applying a
+ * plan from the preview dialog.
  */
-export async function refreshBidirectionalMetadata(params: {
+export async function recordPostSyncState(params: {
   pair: SyncPair;
   sourceProvider: MusicProvider;
   targetProvider: MusicProvider;
   snapshotOpts: SnapshotOptions | undefined;
   sideChanges: SyncPlan['sideChanges'];
+  addedKeys: SyncApplyResult['addedKeys'];
 }): Promise<void> {
-  const { pair, sourceProvider, targetProvider, snapshotOpts, sideChanges } = params;
+  const { pair, sourceProvider, targetProvider, snapshotOpts, sideChanges, addedKeys } = params;
 
   const [postSourceSnapshot, postTargetSnapshot] = await Promise.all([
     captureSnapshot(sourceProvider, pair.sourceProvider, pair.sourcePlaylistId, snapshotOpts),
@@ -320,14 +337,60 @@ export async function refreshBidirectionalMetadata(params: {
   ]);
 
   const nowIso = new Date().toISOString();
+  const mirror = reconcileMirror({
+    previous: loadPairMirror(pair.id),
+    source: postSourceSnapshot,
+    target: postTargetSnapshot,
+    addedKeys: {
+      source: addedKeys?.[pair.sourceProvider] ?? {},
+      target: addedKeys?.[pair.targetProvider] ?? {},
+    },
+    now: nowIso,
+  });
+  savePairMirror(pair.id, mirror);
+
+  const sourceBaseline = mirrorBaselines(mirror, 'source');
+  const targetBaseline = mirrorBaselines(mirror, 'target');
   updateSyncPairBidirectionalMetadata(pair.id, {
-    sourceMembershipBaseline: uniqueCanonicalIds(postSourceSnapshot),
-    targetMembershipBaseline: uniqueCanonicalIds(postTargetSnapshot),
-    sourceOrderBaseline: orderCanonicalIds(postSourceSnapshot),
-    targetOrderBaseline: orderCanonicalIds(postTargetSnapshot),
+    sourceMembershipBaseline: sourceBaseline.membership,
+    targetMembershipBaseline: targetBaseline.membership,
+    sourceOrderBaseline: sourceBaseline.order,
+    targetOrderBaseline: targetBaseline.order,
     ...(sideChanges?.source ? { sourceLastChangeAt: nowIso } : {}),
     ...(sideChanges?.target ? { targetLastChangeAt: nowIso } : {}),
   });
+}
+
+export function describeMassRemoval(warnings: MassRemovalWarning[]): string {
+  const parts = warnings.map(
+    (warning) => `${warning.count} of ${warning.total} tracks would be removed from ${getProviderDisplayName(warning.provider)}`,
+  );
+  return `${SYNC_HELD_FOR_REVIEW_PREFIX}: ${parts.join('; ')}. Open the sync preview to confirm.`;
+}
+
+/**
+ * Unattended runs never apply implausibly large removals: nothing is changed and
+ * the pair shows as needing attention until the user confirms in the preview.
+ * A hold is not a failure: scheduling continues, so a hold caused by a bad read
+ * clears itself on the next run.
+ */
+function markRunHeldForMassRemoval(
+  runId: string,
+  pair: SyncPair,
+  isScheduled: boolean,
+  warnings: MassRemovalWarning[],
+): void {
+  updateSyncRun(runId, {
+    status: 'failed',
+    errorMessage: describeMassRemoval(warnings),
+    completedAt: new Date().toISOString(),
+  });
+
+  if (isScheduled) {
+    advanceNextRunAt(pair.id);
+  }
+
+  console.warn('[sync/executor] held: implausibly large removal', { runId, pairId: pair.id, warnings });
 }
 
 async function resolveExecutionProviders(

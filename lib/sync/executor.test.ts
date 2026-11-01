@@ -34,7 +34,13 @@ vi.mock('@/lib/sync/syncStore', () => ({
   updateSyncPairBidirectionalMetadata: vi.fn(),
 }));
 
+vi.mock('@/lib/sync/mirrorStore', () => ({
+  loadPairMirror: vi.fn().mockReturnValue([]),
+  savePairMirror: vi.fn(),
+}));
+
 import { executeSyncRun } from '@/lib/sync/executor';
+import { loadPairMirror, savePairMirror } from '@/lib/sync/mirrorStore';
 import { createBackgroundProvider } from '@/lib/sync/backgroundProvider';
 import { captureSnapshot, fetchPlaylistSnapshotId } from '@/lib/sync/snapshot';
 import { applySyncPlan } from '@/lib/sync/apply';
@@ -59,6 +65,8 @@ const mockedAdvanceNextRunAt = vi.mocked(advanceNextRunAt);
 const mockedNotifyReauthRequired = vi.mocked(notifyReauthRequired);
 const mockedIncrementConsecutiveFailures = vi.mocked(incrementConsecutiveFailures);
 const mockedUpdateSyncRun = vi.mocked(updateSyncRun);
+const mockedLoadPairMirror = vi.mocked(loadPairMirror);
+const mockedSavePairMirror = vi.mocked(savePairMirror);
 
 function createPair(): SyncPair {
   return {
@@ -174,6 +182,70 @@ describe('executeSyncRun bidirectional metadata planner', () => {
       sourceLastChangeAt: expect.any(String),
       targetLastChangeAt: expect.any(String),
     });
+  });
+});
+
+describe('executeSyncRun local copy', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockedGetSessionFromDb.mockResolvedValue({} as never);
+    mockedCreateBackgroundProvider.mockResolvedValue({} as never);
+    mockedFetchPlaylistSnapshotId.mockResolvedValue(null);
+    mockedLoadPairMirror.mockReturnValue([]);
+    mockedApplySyncPlan.mockResolvedValue({ added: 0, removed: 0, unresolved: [], errors: [], addedKeys: {} });
+  });
+
+  it('stores both playlists as the local copy after a run', async () => {
+    const pair = createPair();
+    const source = makeSnapshot('spotify', pair.sourcePlaylistId, ['a', 'b'], 's');
+    const target = makeSnapshot('tidal', pair.targetPlaylistId, ['a', 'b'], 't');
+    mockedCaptureSnapshot
+      .mockResolvedValueOnce(source)
+      .mockResolvedValueOnce(target)
+      .mockResolvedValueOnce(source)
+      .mockResolvedValueOnce(target);
+
+    await executeSyncRun('run-1', { pair, triggeredBy: 'manual' });
+
+    expect(mockedSavePairMirror).toHaveBeenCalledTimes(1);
+    const entries = mockedSavePairMirror.mock.calls[0]?.[1] ?? [];
+    expect(entries.map((entry) => `${entry.side}:${entry.syncKey}`).sort()).toEqual([
+      'source:a', 'source:b', 'target:a', 'target:b',
+    ]);
+  });
+
+  it('holds a scheduled run that would remove most of a playlist, changing nothing', async () => {
+    const pair = createPair();
+    const ids = Array.from({ length: 20 }, (_, i) => `t${i}`);
+    const now = '2026-04-06T12:00:00.000Z';
+    mockedLoadPairMirror.mockReturnValue(
+      (['source', 'target'] as const).flatMap((side) => ids.map((id, position) => ({
+        side,
+        entryKey: `${side === 'source' ? 'spotify' : 'tidal'}:${id}#0`,
+        providerTrackId: `${side === 'source' ? 'spotify' : 'tidal'}:${id}`,
+        syncKey: id,
+        position,
+        addedAt: null,
+        firstSeenAt: now,
+        lastSeenAt: now,
+        removedAt: null,
+      }))),
+    );
+    mockedCaptureSnapshot
+      .mockResolvedValueOnce(makeSnapshot('spotify', pair.sourcePlaylistId, ids.slice(0, 2), 's'))
+      .mockResolvedValueOnce(makeSnapshot('tidal', pair.targetPlaylistId, ids, 't'));
+
+    await executeSyncRun('run-1', { pair, triggeredBy: 'scheduler' });
+
+    expect(mockedApplySyncPlan).not.toHaveBeenCalled();
+    expect(mockedSavePairMirror).not.toHaveBeenCalled();
+    expect(mockedUpdateSyncRun).toHaveBeenCalledWith('run-1', expect.objectContaining({
+      status: 'failed',
+      errorMessage: expect.stringContaining('18 of 20 tracks would be removed from TIDAL'),
+    }));
+    // A hold is not a failure: the pair keeps being scheduled and re-checked.
+    expect(mockedIncrementConsecutiveFailures).not.toHaveBeenCalled();
+    expect(mockedAdvanceNextRunAt).toHaveBeenCalledWith(pair.id);
   });
 });
 

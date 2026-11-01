@@ -86,6 +86,7 @@ describe('canonicalizeSnapshot', () => {
       artists: ['Artist A'],
       durationMs: 200000,
       position: 0,
+      addedAt: null,
     });
 
     expect(snapshot.items[1]).toEqual({
@@ -97,6 +98,7 @@ describe('canonicalizeSnapshot', () => {
       artists: ['Artist B'],
       durationMs: 300000,
       position: 1,
+      addedAt: null,
     });
   });
 

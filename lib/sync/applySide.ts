@@ -6,9 +6,12 @@ import type { SyncDiffItem, UnresolvedTrackInfo } from '@/lib/sync/types';
 import { createSyncMaterializeAdapter } from '@/lib/sync/materializeAdapter';
 import { isLikedSongsPlaylist } from '@/lib/sync/likedSongs';
 import { applyBatchedLikedAdds, applyBatchedLikedRemoves } from '@/lib/sync/applyLikedTracks';
-import { requiresLikedTracksVerification } from '@/lib/music-provider/capabilities';
+import { requiresLikedTracksVerification, supportsInPlaceReorder } from '@/lib/music-provider/capabilities';
+import { buildReorderedIndices, planReorderMoves } from '@/lib/sync/reorderMoves';
 
 const BATCH_SIZE = 100;
+/** Above this many moves a single replace is cheaper, at the cost of resetting "added at" dates. */
+const MAX_REORDER_MOVES = 50;
 
 interface UnresolvedEntry {
   canonicalTrackId: string;
@@ -21,12 +24,15 @@ export interface SideResult {
   removed: number;
   unresolved: UnresolvedEntry[];
   errors: string[];
+  /** providerTrackId -> sync key of the plan item it was resolved for */
+  addedKeys: Record<string, string>;
 }
 
 interface ResolveResult {
   uris: string[];
   unresolved: UnresolvedEntry[];
   errors: string[];
+  keyByTrackId: Record<string, string>;
 }
 
 function chunk<T>(arr: T[], size: number): T[][] {
@@ -47,7 +53,7 @@ async function resolveAddUris(
   targetProviderId: MusicProviderId,
 ): Promise<ResolveResult> {
   if (adds.length === 0) {
-    return { uris: [], unresolved: [], errors: [] };
+    return { uris: [], unresolved: [], errors: [], keyByTrackId: {} };
   }
 
   const preResolved = adds.filter((i) => i.resolvedTargetTrackId && i.materializeStatus === 'resolved');
@@ -58,8 +64,10 @@ async function resolveAddUris(
 
   const seenUris = new Set<string>();
   const uris: string[] = [];
+  const keyByTrackId: Record<string, string> = {};
   for (const item of preResolved) {
     const uri = toProviderTrackUri(targetProviderId, item.resolvedTargetTrackId!);
+    keyByTrackId[item.resolvedTargetTrackId!] ??= item.canonicalTrackId;
     if (!seenUris.has(uri)) {
       seenUris.add(uri);
       uris.push(uri);
@@ -84,6 +92,13 @@ async function resolveAddUris(
       });
 
       uris.push(...result.trackIds.map((id) => toProviderTrackUri(targetProviderId, id)));
+      // trackIds follow the order of the resolved canonical IDs
+      const unresolvedIds = new Set(result.unresolvedCanonicalIds);
+      const resolvedIds = canonicalTrackIds.filter((id) => !unresolvedIds.has(id));
+      result.trackIds.forEach((trackId, index) => {
+        const key = resolvedIds[index];
+        if (key) keyByTrackId[trackId] ??= key;
+      });
       unresolved.push(...result.unresolvedCanonicalIds.map((id) => ({
         canonicalTrackId: id,
         reason: 'not_found' as const,
@@ -97,7 +112,7 @@ async function resolveAddUris(
     }
   }
 
-  return { uris, unresolved, errors };
+  return { uris, unresolved, errors, keyByTrackId };
 }
 
 function resolveRemoveUris(
@@ -223,19 +238,45 @@ export function buildReorderedUris(
   canonicalByUri: Map<string, string>,
   desiredCanonicalOrder: string[],
 ): string[] {
-  const rank = new Map<string, number>();
-  desiredCanonicalOrder.forEach((canonicalId, index) => {
-    if (!rank.has(canonicalId)) rank.set(canonicalId, index);
-  });
+  const keys = currentUris.map((uri) => canonicalByUri.get(uri));
+  return buildReorderedIndices(keys, desiredCanonicalOrder).map((index) => currentUris[index]!);
+}
 
-  const unranked = Number.MAX_SAFE_INTEGER;
-  return currentUris
-    .map((uri, index) => {
-      const canonicalId = canonicalByUri.get(uri);
-      return { uri, index, rank: (canonicalId ? rank.get(canonicalId) : undefined) ?? unranked };
-    })
-    .sort((a, b) => a.rank - b.rank || a.index - b.index)
-    .map((entry) => entry.uri);
+/**
+ * Canonical ID (sync key) per URI: keys known to the sync (the pair's local copy
+ * and tracks this run added) win over the provider-wide mapping.
+ */
+async function resolveCanonicalByUri(
+  providerId: MusicProviderId,
+  currentUris: string[],
+  knownKeys: Record<string, string>,
+): Promise<Map<string, string>> {
+  const { lookupCanonicalTrackIds } = await import('@/lib/resolver/canonicalResolver');
+
+  const providerTrackIds = currentUris.map((uri) => toProviderTrackId(providerId, uri));
+  const unknownIds = Array.from(new Set(providerTrackIds.filter((id) => !knownKeys[id])));
+  const canonicalById = lookupCanonicalTrackIds(providerId, unknownIds);
+
+  const canonicalByUri = new Map<string, string>();
+  currentUris.forEach((uri, index) => {
+    const providerTrackId = providerTrackIds[index]!;
+    const canonicalId = knownKeys[providerTrackId] ?? canonicalById.get(providerTrackId);
+    if (canonicalId) canonicalByUri.set(uri, canonicalId);
+  });
+  return canonicalByUri;
+}
+
+/**
+ * Moves address entries by index, so they are only safe when the URI list covers
+ * every playlist entry (unavailable items and videos are left out of it).
+ */
+async function listsEveryPlaylistEntry(
+  provider: MusicProvider,
+  playlistId: string,
+  uriCount: number,
+): Promise<boolean> {
+  const page = await provider.getPlaylistTracks(playlistId, 1, null);
+  return page.total === uriCount;
 }
 
 async function reorderPlaylist(
@@ -243,35 +284,45 @@ async function reorderPlaylist(
   providerId: MusicProviderId,
   playlistId: string,
   desiredCanonicalOrder: string[],
+  knownKeys: Record<string, string>,
 ): Promise<void> {
   const currentUris = await provider.getPlaylistTrackUris(playlistId);
   if (currentUris.length <= 1) return;
 
-  const { lookupCanonicalTrackIds } = await import('@/lib/resolver/canonicalResolver');
-
-  const providerTrackIds = currentUris.map((uri) => toProviderTrackId(providerId, uri));
-  const canonicalById = lookupCanonicalTrackIds(providerId, Array.from(new Set(providerTrackIds)));
-  const canonicalByUri = new Map<string, string>();
-  currentUris.forEach((uri, index) => {
-    const canonicalId = canonicalById.get(providerTrackIds[index]!);
-    if (canonicalId) canonicalByUri.set(uri, canonicalId);
-  });
-
-  const orderedUris = buildReorderedUris(currentUris, canonicalByUri, desiredCanonicalOrder);
-
-  const unchanged = orderedUris.length === currentUris.length
-    && orderedUris.every((uri, i) => uri === currentUris[i]);
-  if (unchanged) {
+  const canonicalByUri = await resolveCanonicalByUri(providerId, currentUris, knownKeys);
+  const desiredIndices = buildReorderedIndices(
+    currentUris.map((uri) => canonicalByUri.get(uri)),
+    desiredCanonicalOrder,
+  );
+  const moves = planReorderMoves(desiredIndices);
+  if (moves.length === 0) {
     return;
   }
 
-  console.debug('[sync/apply] reordering playlist', {
+  if (
+    supportsInPlaceReorder(providerId)
+    && moves.length <= MAX_REORDER_MOVES
+    && await listsEveryPlaylistEntry(provider, playlistId, currentUris.length)
+  ) {
+    console.debug('[sync/apply] reordering playlist in place', {
+      provider: providerId,
+      playlistId,
+      moves: moves.length,
+    });
+    for (const move of moves) {
+      await provider.reorderTracks({ playlistId, fromIndex: move.fromIndex, toIndex: move.toIndex });
+    }
+    return;
+  }
+
+  console.debug('[sync/apply] reordering playlist by replacing it', {
     provider: providerId,
     playlistId,
-    trackCount: orderedUris.length,
+    trackCount: currentUris.length,
+    moves: moves.length,
   });
 
-  await provider.replacePlaylistTracks(playlistId, orderedUris);
+  await provider.replacePlaylistTracks(playlistId, desiredIndices.map((index) => currentUris[index]!));
 }
 
 export async function applySide(
@@ -280,6 +331,7 @@ export async function applySide(
   playlistId: string,
   desiredOrder?: string[],
   providerOverride?: MusicProvider,
+  trackKeys?: Record<string, string>,
 ): Promise<SideResult> {
   const provider = providerOverride ?? getMusicProvider(providerId);
   const isLiked = isLikedSongsPlaylist(playlistId);
@@ -326,7 +378,7 @@ export async function applySide(
 
   if (!isLiked && desiredOrder && desiredOrder.length > 0) {
     try {
-      await reorderPlaylist(provider, providerId, playlistId, desiredOrder);
+      await reorderPlaylist(provider, providerId, playlistId, desiredOrder, { ...trackKeys, ...resolved.keyByTrackId });
     } catch (err) {
       allErrors.push(`Reorder failed: ${errorMessage(err)}`);
     }
@@ -337,5 +389,6 @@ export async function applySide(
     removed: removeResult.count,
     unresolved: allUnresolved,
     errors: allErrors,
+    addedKeys: resolved.keyByTrackId,
   };
 }
