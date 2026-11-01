@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/auth';
 import { getMusicProviderHintFromRequest, resolveMusicProviderFromRequest } from '@/app/api/_shared/provider';
+import { noteSmartSyncPlaylistEdited } from '@/lib/sync/syncSchedule';
 import { logTrackRemove } from '@/lib/metrics/api-helpers';
 import { ProviderApiError, type MusicProvider } from '@/lib/music-provider/types';
 import { ProviderAuthError } from '@/lib/providers/errors';
@@ -103,18 +104,18 @@ export async function DELETE(
       return tracksToRemove;
     }
 
-    const { provider } = resolveMusicProviderFromRequest(request);
+    const { providerId, provider } = resolveMusicProviderFromRequest(request);
 
     // Check if we need position-based removal (for duplicates)
     const hasPositions = tracksToRemove.some((t: RemovableTrack) => t.positions && t.positions.length > 0);
-    
-    if (hasPositions) {
+
+    const response = hasPositions
       // Use rebuild approach for position-based removal
-      return handlePositionBasedRemoval(provider, playlistId, tracksToRemove);
-    } else {
+      ? await handlePositionBasedRemoval(provider, playlistId, tracksToRemove)
       // Use simple DELETE for non-duplicate removal
-      return handleSimpleRemoval(provider, playlistId, tracksToRemove);
-    }
+      : await handleSimpleRemoval(provider, playlistId, tracksToRemove);
+    if (response.ok) noteSmartSyncPlaylistEdited(providerId, playlistId);
+    return response;
   } catch (error) {
     const authError = mapApiErrorToProviderAuthError(error, getMusicProviderHintFromRequest(request));
     if (authError) {

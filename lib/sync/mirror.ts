@@ -97,6 +97,24 @@ export function mirrorBaselines(
   return { membership: Array.from(new Set(order)).sort(), order };
 }
 
+/**
+ * Whether a side lists exactly the entries, in the same order, that the mirror
+ * recorded after the last sync. The sync's own writes are part of the mirror,
+ * so this detects only changes made by someone else since then.
+ */
+export function mirrorMatchesSnapshot(
+  entries: readonly MirrorEntry[],
+  snapshot: PlaylistSnapshot,
+  side: MirrorSide,
+): boolean {
+  const alive = entries
+    .filter((entry) => entry.side === side && entry.removedAt === null)
+    .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+
+  const current = entryKeysFor(snapshot);
+  return current.length === alive.length && current.every((entryKey, index) => alive[index]!.entryKey === entryKey);
+}
+
 function collectSideRemovals(
   side: MirrorSide,
   entries: readonly MirrorEntry[],

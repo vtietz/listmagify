@@ -25,7 +25,7 @@ import { ImportPlaylistsProgressView } from '@/features/import/ui/ImportPlaylist
 import { SourcePlaylistPicker } from '@/features/import/ui/SourcePlaylistPicker';
 import { useSelectionViewState } from '@/features/import/ui/useSelectionViewState';
 import type { MusicProviderId } from '@/lib/music-provider/types';
-import type { SyncIntervalOption } from '@/lib/sync/types';
+import { formatSyncInterval, type SyncIntervalOption } from '@/lib/sync/types';
 
 const AVAILABLE_PROVIDERS: Array<{ id: MusicProviderId; label: string }> = [
   { id: 'spotify', label: 'Spotify' },
@@ -94,7 +94,7 @@ function TransferModePicker({
             </SelectTrigger>
             <SelectContent>
               {intervalOptions.map((option) => (
-                <SelectItem key={option} value={option}>{option}</SelectItem>
+                <SelectItem key={option} value={option}>{formatSyncInterval(option)}</SelectItem>
               ))}
             </SelectContent>
           </Select>

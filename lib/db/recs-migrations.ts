@@ -448,4 +448,12 @@ export const recsMigrations: Migration[] = [
       );
     `,
   },
+  {
+    version: 21,
+    name: 'add_sync_pair_smart_schedule',
+    sql: `
+      ALTER TABLE sync_pairs ADD COLUMN smart_step INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE sync_pairs ADD COLUMN last_full_read_at TEXT;
+    `,
+  },
 ];

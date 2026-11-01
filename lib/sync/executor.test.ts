@@ -8,6 +8,7 @@ vi.mock('@/lib/sync/backgroundProvider', () => ({
 
 vi.mock('@/lib/sync/snapshot', () => ({
   captureSnapshot: vi.fn(),
+  captureSnapshotWithChangeToken: vi.fn(),
   fetchPlaylistSnapshotId: vi.fn(),
 }));
 
@@ -42,7 +43,7 @@ vi.mock('@/lib/sync/mirrorStore', () => ({
 import { executeSyncRun } from '@/lib/sync/executor';
 import { loadPairMirror, savePairMirror } from '@/lib/sync/mirrorStore';
 import { createBackgroundProvider } from '@/lib/sync/backgroundProvider';
-import { captureSnapshot, fetchPlaylistSnapshotId } from '@/lib/sync/snapshot';
+import { captureSnapshot, captureSnapshotWithChangeToken, fetchPlaylistSnapshotId } from '@/lib/sync/snapshot';
 import { applySyncPlan } from '@/lib/sync/apply';
 import { getSessionFromDb } from '@/lib/auth/sessionFromDb';
 import { notifyReauthRequired } from '@/lib/sync/reauthNotifier';
@@ -56,6 +57,7 @@ import {
 
 const mockedCreateBackgroundProvider = vi.mocked(createBackgroundProvider);
 const mockedCaptureSnapshot = vi.mocked(captureSnapshot);
+const mockedCaptureAfterSync = vi.mocked(captureSnapshotWithChangeToken);
 const mockedFetchPlaylistSnapshotId = vi.mocked(fetchPlaylistSnapshotId);
 const mockedApplySyncPlan = vi.mocked(applySyncPlan);
 const mockedGetSessionFromDb = vi.mocked(getSessionFromDb);
@@ -148,7 +150,8 @@ describe('executeSyncRun bidirectional metadata planner', () => {
 
     mockedCaptureSnapshot
       .mockResolvedValueOnce(sourceBefore)
-      .mockResolvedValueOnce(targetBefore)
+      .mockResolvedValueOnce(targetBefore);
+    mockedCaptureAfterSync
       .mockResolvedValueOnce(sourceAfter)
       .mockResolvedValueOnce(targetAfter);
 
@@ -170,7 +173,8 @@ describe('executeSyncRun bidirectional metadata planner', () => {
     expect(plan?.targetOrder?.spotify).toEqual(['c', 'a']);
     expect(plan?.targetOrder?.tidal).toEqual(['c', 'a']);
 
-    expect(mockedUpdateSyncPairSnapshotIds).toHaveBeenCalledWith(pair.id, 'source-before', 'target-before');
+    // Tokens from after the sync's own writes, so those do not count as changes next time.
+    expect(mockedUpdateSyncPairSnapshotIds).toHaveBeenCalledWith(pair.id, 'source-after', 'target-after');
 
     expect(mockedUpdateSyncPairBidirectionalMetadata).toHaveBeenCalledTimes(1);
     const metadata = mockedUpdateSyncPairBidirectionalMetadata.mock.calls[0]?.[1];
@@ -201,7 +205,8 @@ describe('executeSyncRun local copy', () => {
     const target = makeSnapshot('tidal', pair.targetPlaylistId, ['a', 'b'], 't');
     mockedCaptureSnapshot
       .mockResolvedValueOnce(source)
-      .mockResolvedValueOnce(target)
+      .mockResolvedValueOnce(target);
+    mockedCaptureAfterSync
       .mockResolvedValueOnce(source)
       .mockResolvedValueOnce(target);
 
@@ -330,5 +335,111 @@ describe('executeSyncRun scheduled failures', () => {
         errorMessage: expect.stringContaining('Token storage not configured for spotify'),
       }),
     );
+  });
+});
+
+describe('executeSyncRun smart scheduling', () => {
+  const now = '2026-04-06T12:00:00.000Z';
+
+  function mirrorOf(ids: string[]) {
+    return (['source', 'target'] as const).flatMap((side) => ids.map((id, position) => {
+      const providerId = side === 'source' ? 'spotify' : 'tidal';
+      return {
+        side,
+        entryKey: `${providerId}:${id}#0`,
+        providerTrackId: `${providerId}:${id}`,
+        syncKey: id,
+        position,
+        addedAt: null,
+        firstSeenAt: now,
+        lastSeenAt: now,
+        removedAt: null,
+      };
+    }));
+  }
+
+  function syncedPair(overrides: Partial<SyncPair> = {}): SyncPair {
+    return {
+      ...createPair(),
+      syncInterval: 'smart',
+      sourceSnapshotId: 's',
+      targetSnapshotId: 't',
+      lastFullReadAt: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+      ...overrides,
+    };
+  }
+
+  function readPlaylists(pair: SyncPair, sourceIds: string[], targetIds: string[]): void {
+    const source = makeSnapshot('spotify', pair.sourcePlaylistId, sourceIds, 's');
+    const target = makeSnapshot('tidal', pair.targetPlaylistId, targetIds, 't');
+    mockedCaptureSnapshot.mockResolvedValueOnce(source).mockResolvedValueOnce(target);
+    mockedCaptureAfterSync.mockResolvedValueOnce(source).mockResolvedValueOnce(target);
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockedGetSessionFromDb.mockResolvedValue({} as never);
+    mockedCreateBackgroundProvider.mockResolvedValue({} as never);
+    mockedFetchPlaylistSnapshotId.mockResolvedValue(null);
+    mockedLoadPairMirror.mockReturnValue(mirrorOf(['a', 'b']));
+    mockedApplySyncPlan.mockResolvedValue({ added: 0, removed: 0, unresolved: [], errors: [], addedKeys: {} });
+  });
+
+  it('counts a run as unchanged when both playlists match the local copy', async () => {
+    const pair = syncedPair();
+    readPlaylists(pair, ['a', 'b'], ['a', 'b']);
+
+    await executeSyncRun('run-1', { pair, triggeredBy: 'scheduler' });
+
+    expect(mockedAdvanceNextRunAt).toHaveBeenCalledWith(pair.id, 'unchanged');
+  });
+
+  it('counts a run as changed when a playlist was edited since the last sync', async () => {
+    const pair = syncedPair();
+    readPlaylists(pair, ['a', 'b', 'c'], ['a', 'b']);
+
+    await executeSyncRun('run-1', { pair, triggeredBy: 'scheduler' });
+
+    expect(mockedAdvanceNextRunAt).toHaveBeenCalledWith(pair.id, 'changed');
+  });
+
+  it('counts a reorder as a change', async () => {
+    const pair = syncedPair();
+    readPlaylists(pair, ['b', 'a'], ['a', 'b']);
+
+    await executeSyncRun('run-1', { pair, triggeredBy: 'scheduler' });
+
+    expect(mockedAdvanceNextRunAt).toHaveBeenCalledWith(pair.id, 'changed');
+  });
+
+  it('counts the first sync as changed', async () => {
+    const pair = syncedPair({ sourceSnapshotId: null, targetSnapshotId: null, lastFullReadAt: null });
+    mockedLoadPairMirror.mockReturnValue([]);
+    readPlaylists(pair, [], []);
+
+    await executeSyncRun('run-1', { pair, triggeredBy: 'scheduler' });
+
+    expect(mockedAdvanceNextRunAt).toHaveBeenCalledWith(pair.id, 'changed');
+  });
+
+  it('skips reading the playlists when their change tokens are unchanged', async () => {
+    const pair = syncedPair();
+    mockedFetchPlaylistSnapshotId.mockResolvedValueOnce('s').mockResolvedValueOnce('t');
+
+    await executeSyncRun('run-1', { pair, triggeredBy: 'scheduler' });
+
+    expect(mockedCaptureSnapshot).not.toHaveBeenCalled();
+    expect(mockedAdvanceNextRunAt).toHaveBeenCalledWith(pair.id, 'unchanged');
+  });
+
+  it('reads both playlists in full at least daily, even when change tokens are unchanged', async () => {
+    const pair = syncedPair({ lastFullReadAt: new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString() });
+    mockedFetchPlaylistSnapshotId.mockResolvedValue('s');
+    readPlaylists(pair, ['a', 'b'], ['a', 'b']);
+
+    await executeSyncRun('run-1', { pair, triggeredBy: 'scheduler' });
+
+    expect(mockedCaptureSnapshot).toHaveBeenCalledTimes(2);
+    expect(mockedAdvanceNextRunAt).toHaveBeenCalledWith(pair.id, 'unchanged');
   });
 });

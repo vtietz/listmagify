@@ -3,16 +3,35 @@ import type { MusicProviderId } from '@/lib/music-provider/types';
 export type SyncDirection = 'a-to-b' | 'b-to-a' | 'bidirectional';
 export type SyncRunStatus = 'pending' | 'previewing' | 'executing' | 'done' | 'failed';
 export type SyncPreviewRunStatus = 'pending' | 'executing' | 'done' | 'failed';
-export type SyncInterval = 'off' | '15m' | '30m' | '1h' | '6h' | '12h' | '24h';
+export type FixedSyncInterval = '15m' | '30m' | '1h' | '6h' | '12h' | '24h' | '3d' | '7d';
+/** `smart`: checks often while a pair is active and backs off while nothing changes */
+export type SyncInterval = 'off' | 'smart' | FixedSyncInterval;
 export type SyncIntervalOption = Exclude<SyncInterval, 'off'>;
 export type SyncTrigger = 'manual' | 'auto_sync' | 'scheduler';
 
-export const DEFAULT_SYNC_INTERVAL_OPTIONS: readonly SyncIntervalOption[] = ['15m', '30m', '1h', '6h', '12h', '24h'];
+const FIXED_SYNC_INTERVALS: readonly FixedSyncInterval[] = ['15m', '30m', '1h', '6h', '12h', '24h', '3d', '7d'];
 
-export function isSyncIntervalOption(value: string): value is SyncIntervalOption {
-  return (DEFAULT_SYNC_INTERVAL_OPTIONS as readonly string[]).includes(value);
+export const DEFAULT_SYNC_INTERVAL_OPTIONS: readonly SyncIntervalOption[] = [
+  'smart', '15m', '30m', '1h', '6h', '12h', '24h', '7d',
+];
+
+export const SMART_SYNC_INTERVAL_HINT =
+  'Smart: checks every 15 minutes while the playlists change and backs off to weekly while they don\'t. Edits made in Listmagify sync within minutes.';
+
+export function formatSyncInterval(interval: string): string {
+  if (interval === 'off') return 'Off';
+  if (interval === 'smart') return 'Smart';
+  return interval;
 }
 
+export function isSyncIntervalOption(value: string): value is SyncIntervalOption {
+  return value === 'smart' || (FIXED_SYNC_INTERVALS as readonly string[]).includes(value);
+}
+
+/**
+ * Interval options offered to users. `smart` is a mode rather than an interval,
+ * so it is always offered, even when SYNC_INTERVAL_OPTIONS lists only intervals.
+ */
 export function parseSyncIntervalOptions(raw: string | undefined): SyncIntervalOption[] {
   if (!raw) {
     return [...DEFAULT_SYNC_INTERVAL_OPTIONS];
@@ -27,7 +46,7 @@ export function parseSyncIntervalOptions(raw: string | undefined): SyncIntervalO
     return [...DEFAULT_SYNC_INTERVAL_OPTIONS];
   }
 
-  return Array.from(new Set(parsed));
+  return Array.from(new Set<SyncIntervalOption>(['smart', ...parsed]));
 }
 
 export interface SyncWarning {
@@ -55,10 +74,12 @@ export interface SyncPair {
   syncInterval: SyncInterval;
   nextRunAt: string | null;
   consecutiveFailures: number;
-  /** Last-seen snapshot ID for the source playlist (Spotify-only; null for TIDAL) */
+  /** Change token of the source playlist after the last full read (Spotify snapshot ID, TIDAL last-modified) */
   sourceSnapshotId: string | null;
-  /** Last-seen snapshot ID for the target playlist (Spotify-only; null for TIDAL) */
+  /** Change token of the target playlist after the last full read */
   targetSnapshotId: string | null;
+  /** When both playlists were last read in full; null before the first sync */
+  lastFullReadAt?: string | null;
   /** Baseline membership canonical IDs for source side used by bidirectional merge. */
   sourceMembershipBaseline: string[] | null;
   /** Baseline membership canonical IDs for target side used by bidirectional merge. */

@@ -7,11 +7,11 @@
  */
 
 import { createBackgroundProvider } from '@/lib/sync/backgroundProvider';
-import { captureSnapshot, fetchPlaylistSnapshotId } from '@/lib/sync/snapshot';
-import type { SnapshotOptions } from '@/lib/sync/snapshot';
+import { captureSnapshot, captureSnapshotWithChangeToken, fetchPlaylistSnapshotId } from '@/lib/sync/snapshot';
+import type { PlaylistSnapshot, SnapshotOptions } from '@/lib/sync/snapshot';
 import { applySyncPlan } from '@/lib/sync/apply';
 import { buildSyncPlan } from '@/lib/sync/planner';
-import { mirrorBaselines, reconcileMirror } from '@/lib/sync/mirror';
+import { mirrorBaselines, mirrorMatchesSnapshot, reconcileMirror, type MirrorEntry } from '@/lib/sync/mirror';
 import { loadPairMirror, savePairMirror } from '@/lib/sync/mirrorStore';
 import { getProviderDisplayName } from '@/lib/music-provider/providerLabels';
 import { getSessionFromDb } from '@/lib/auth/sessionFromDb';
@@ -27,6 +27,7 @@ import {
   updateSyncPairSnapshotIds,
   updateSyncPairBidirectionalMetadata,
 } from '@/lib/sync/syncStore';
+import type { SyncActivity } from '@/lib/sync/syncSchedule';
 import { SYNC_HELD_FOR_REVIEW_PREFIX } from '@/lib/sync/types';
 import type { SyncPair, SyncTrigger, SyncWarning, SyncApplyResult, SyncPlan, MassRemovalWarning } from '@/lib/sync/types';
 import type { MusicProvider, MusicProviderId } from '@/lib/music-provider/types';
@@ -114,10 +115,10 @@ function markRunFailedForMissingSession(
   }
 }
 
-function finishScheduledSuccess(pair: SyncPair): void {
+function finishScheduledSuccess(pair: SyncPair, activity: SyncActivity): void {
   resetConsecutiveFailures(pair.id);
   if (pair.syncInterval !== 'off') {
-    advanceNextRunAt(pair.id);
+    advanceNextRunAt(pair.id, activity);
   }
 }
 
@@ -178,15 +179,26 @@ function buildRunUpdate(result: SyncApplyResult): Record<string, unknown> {
 
 
 /**
+ * Even when change tokens say nothing changed, both playlists are read in full
+ * at least this often, in case a provider's token misses a change.
+ */
+const FULL_READ_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+function isFullReadRecent(pair: SyncPair): boolean {
+  if (!pair.lastFullReadAt) return false;
+  return Date.now() - new Date(pair.lastFullReadAt).getTime() < FULL_READ_MAX_AGE_MS;
+}
+
+/**
  * Check whether both playlists are unchanged since the last sync by
- * comparing lightweight snapshot IDs. Returns true if we can skip the sync.
+ * comparing lightweight change tokens. Returns true if we can skip the sync.
  */
 async function arePlaylistsUnchanged(
   pair: SyncPair,
   sourceProvider: MusicProvider,
   targetProvider: MusicProvider,
 ): Promise<boolean> {
-  if (!pair.sourceSnapshotId || !pair.targetSnapshotId) return false;
+  if (!pair.sourceSnapshotId || !pair.targetSnapshotId || !isFullReadRecent(pair)) return false;
 
   const [currentSourceId, currentTargetId] = await Promise.all([
     fetchPlaylistSnapshotId(sourceProvider, pair.sourcePlaylistId),
@@ -274,12 +286,9 @@ async function executeSyncRunInternal(
     captureSnapshot(targetProvider, pair.targetProvider, pair.targetPlaylistId, snapshotOpts),
   ]);
 
-  const { plan } = buildSyncPlan(
-    { ...pair, mirror: loadPairMirror(pair.id) },
-    sourceSnapshot,
-    targetSnapshot,
-    matchThresholds,
-  );
+  const mirror = loadPairMirror(pair.id);
+  const activity = detectActivity(pair, mirror, sourceSnapshot, targetSnapshot);
+  const { plan } = buildSyncPlan({ ...pair, mirror }, sourceSnapshot, targetSnapshot, matchThresholds);
 
   if (plan.massRemoval) {
     markRunHeldForMassRemoval(runId, pair, isScheduled, plan.massRemoval);
@@ -293,7 +302,6 @@ async function executeSyncRunInternal(
   const result = await applySyncPlan(plan, providerOverrides);
 
   updateSyncRun(runId, buildRunUpdate(result));
-  updateSyncPairSnapshotIds(pair.id, sourceSnapshot.snapshotId, targetSnapshot.snapshotId);
 
   await recordPostSyncState({
     pair,
@@ -304,15 +312,32 @@ async function executeSyncRunInternal(
     addedKeys: result.addedKeys,
   });
 
-  finishScheduledSuccess(pair);
+  finishScheduledSuccess(pair, activity);
   console.debug('[sync/executor] complete', {
     runId,
     pairId: pair.id,
     triggeredBy,
+    activity,
     added: result.added,
     removed: result.removed,
     unresolved: result.unresolved.length,
   });
+}
+
+/**
+ * Whether anyone changed either playlist since the last sync. The first sync
+ * always counts as a change.
+ */
+function detectActivity(
+  pair: SyncPair,
+  mirror: readonly MirrorEntry[],
+  sourceSnapshot: PlaylistSnapshot,
+  targetSnapshot: PlaylistSnapshot,
+): SyncActivity {
+  if (!pair.lastFullReadAt) return 'changed';
+  const unchanged = mirrorMatchesSnapshot(mirror, sourceSnapshot, 'source')
+    && mirrorMatchesSnapshot(mirror, targetSnapshot, 'target');
+  return unchanged ? 'unchanged' : 'changed';
 }
 
 /**
@@ -332,9 +357,11 @@ export async function recordPostSyncState(params: {
   const { pair, sourceProvider, targetProvider, snapshotOpts, sideChanges, addedKeys } = params;
 
   const [postSourceSnapshot, postTargetSnapshot] = await Promise.all([
-    captureSnapshot(sourceProvider, pair.sourceProvider, pair.sourcePlaylistId, snapshotOpts),
-    captureSnapshot(targetProvider, pair.targetProvider, pair.targetPlaylistId, snapshotOpts),
+    captureSnapshotWithChangeToken(sourceProvider, pair.sourceProvider, pair.sourcePlaylistId, snapshotOpts),
+    captureSnapshotWithChangeToken(targetProvider, pair.targetProvider, pair.targetPlaylistId, snapshotOpts),
   ]);
+  // Tokens from after the sync's own writes, so those do not count as changes next time.
+  updateSyncPairSnapshotIds(pair.id, postSourceSnapshot.snapshotId, postTargetSnapshot.snapshotId);
 
   const nowIso = new Date().toISOString();
   const mirror = reconcileMirror({
@@ -419,7 +446,7 @@ function markRunSkippedUnchanged(runId: string, pair: SyncPair): void {
     tracksUnresolved: 0,
     completedAt: new Date().toISOString(),
   });
-  finishScheduledSuccess(pair);
+  finishScheduledSuccess(pair, 'unchanged');
   console.debug('[sync/executor] skipped — both playlists unchanged', {
     runId,
     pairId: pair.id,

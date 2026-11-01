@@ -294,6 +294,15 @@ function getPlaylistTracksTotal(attributes: Record<string, unknown>): number {
   return typeof attributes.numberOfItems === 'number' ? attributes.numberOfItems : 0;
 }
 
+/**
+ * TIDAL has no snapshot IDs; the last-modified time plus the item count stands in
+ * as a change token. Null when TIDAL does not report the modification time.
+ */
+function getPlaylistChangeToken(attributes: Record<string, unknown>): string | null {
+  if (typeof attributes.lastModifiedAt !== 'string' || attributes.lastModifiedAt.length === 0) return null;
+  return `${attributes.lastModifiedAt}|${getPlaylistTracksTotal(attributes)}`;
+}
+
 export function mapPlaylistResource(raw: JsonApiResource, includedIndex: Map<string, JsonApiResource>): Playlist {
   const attributes = raw.attributes ?? {};
   const { ownerId, ownerDisplayName } = getPlaylistOwner(raw, includedIndex);
@@ -312,6 +321,7 @@ export function mapPlaylistResource(raw: JsonApiResource, includedIndex: Map<str
     tracksTotal: getPlaylistTracksTotal(attributes),
     isPublic: attributes.accessType === 'PUBLIC',
     collaborative: collaborators.length > 0,
+    snapshotId: getPlaylistChangeToken(attributes),
   };
 }
 

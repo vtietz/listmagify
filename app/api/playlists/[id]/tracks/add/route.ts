@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth/requireAuth';
 import { getMusicProviderHintFromRequest, resolveMusicProviderFromRequest } from '@/app/api/_shared/provider';
+import { noteSmartSyncPlaylistEdited } from '@/lib/sync/syncSchedule';
 import { ProviderApiError } from '@/lib/music-provider/types';
 import { logTrackAdd } from '@/lib/metrics/api-helpers';
 import type { MusicProvider } from '@/lib/music-provider/types';
@@ -219,6 +220,7 @@ export async function POST(
 
     // Log metrics (fire-and-forget, non-blocking)
     logTrackAdd(input.playlistId, input.trackUris.length).catch(() => {});
+    noteSmartSyncPlaylistEdited(providerId, input.playlistId);
 
     return NextResponse.json({ snapshotId });
   } catch (error) {

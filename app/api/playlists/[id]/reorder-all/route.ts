@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/requireAuth";
 import { getMusicProviderHintFromRequest, resolveMusicProviderFromRequest } from '@/app/api/_shared/provider';
+import { noteSmartSyncPlaylistEdited } from '@/lib/sync/syncSchedule';
 import { ProviderApiError } from '@/lib/music-provider/types';
 import { mapApiErrorToProviderAuthError, toProviderAuthErrorResponse } from '@/lib/api/errorHandler';
 
@@ -98,7 +99,7 @@ export async function PUT(
 ) {
   try {
     await requireAuth();
-    const { provider } = resolveMusicProviderFromRequest(request);
+    const { providerId, provider } = resolveMusicProviderFromRequest(request);
 
     const parsedInput = await parseReorderAllInput(request, params);
     if (parsedInput instanceof NextResponse) {
@@ -107,6 +108,7 @@ export async function PUT(
 
     const { playlistId, trackUris } = parsedInput;
     const reordered = await provider.replacePlaylistTracks(playlistId, trackUris);
+    noteSmartSyncPlaylistEdited(providerId, playlistId);
     return NextResponse.json({ snapshotId: reordered.snapshotId });
   } catch (error) {
     const authError = mapApiErrorToProviderAuthError(error, getMusicProviderHintFromRequest(request));

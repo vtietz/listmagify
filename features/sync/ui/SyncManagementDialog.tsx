@@ -25,7 +25,7 @@ import { cn } from '@/lib/utils';
 import { useSyncIntervalOptions, useSyncSchedulerEnabled, useSyncSchedulerTickMs } from '@shared/hooks/useAppConfig';
 import { useProposedSyncPairs } from '@features/sync/hooks/useProposedSyncPairs';
 import type { MusicProviderId } from '@/lib/music-provider/types';
-import type { SyncRunStatus } from '@/lib/sync/types';
+import { formatSyncInterval, SMART_SYNC_INTERVAL_HINT, type SyncRunStatus } from '@/lib/sync/types';
 import { formatRelativeTime } from '@shared/utils/formatRelativeTime';
 
 const ROW_GRID = 'grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_minmax(120px,auto)_auto] items-center gap-x-2';
@@ -146,7 +146,7 @@ function SyncPairActions({ pair, bothConnected, isSyncing, showScheduler, interv
   const actionsDisabled = !bothConnected || isSyncing;
   const intervalOptions = ['off', ...configuredSyncIntervals, pair.syncInterval]
     .filter((value, index, all) => all.indexOf(value) === index);
-  const intervalLabel = pair.syncInterval === 'off' ? 'Off' : pair.syncInterval;
+  const intervalLabel = formatSyncInterval(pair.syncInterval);
 
   return (
     <div className="flex items-center gap-0.5 shrink-0">
@@ -157,7 +157,7 @@ function SyncPairActions({ pair, bothConnected, isSyncing, showScheduler, interv
               variant="outline"
               className="h-7 w-[68px] text-xs px-2 justify-between"
               disabled={!bothConnected}
-              title="Sync interval"
+              title={pair.syncInterval === 'smart' ? SMART_SYNC_INTERVAL_HINT : 'Sync interval'}
             >
               <span>{intervalLabel}</span>
               <ChevronDown className="h-3 w-3 opacity-70" />
@@ -179,12 +179,13 @@ function SyncPairActions({ pair, bothConnected, isSyncing, showScheduler, interv
                     type="button"
                     variant="ghost"
                     className="h-7 w-full justify-between px-2 text-xs"
+                    title={interval === 'smart' ? SMART_SYNC_INTERVAL_HINT : undefined}
                     onClick={() => {
                       updatePair.mutate({ id: pair.id, syncInterval: interval });
                       onIntervalOpenChange(false);
                     }}
                   >
-                    <span>{interval === 'off' ? 'Off' : interval}</span>
+                    <span>{formatSyncInterval(interval)}</span>
                     {isSelected && <Check className="h-3 w-3" />}
                   </Button>
                 );

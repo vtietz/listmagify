@@ -129,6 +129,24 @@ describe('tidal jsonApi and mappers', () => {
     });
   });
 
+  it('derives a change token from the last-modified time and item count', () => {
+    const playlist = (attributes: Record<string, unknown>): JsonApiResource => ({
+      id: 'pl-token',
+      type: 'playlists',
+      attributes: { name: 'Token', ...attributes },
+      relationships: {},
+    });
+    const tokenOf = (attributes: Record<string, unknown>) =>
+      mapPlaylistResource(playlist(attributes), buildIncludedIndex([])).snapshotId;
+
+    const token = tokenOf({ lastModifiedAt: '2026-10-01T10:00:00Z', numberOfItems: 12 });
+
+    expect(token).toBeTruthy();
+    expect(tokenOf({ lastModifiedAt: '2026-10-01T10:00:00Z', numberOfItems: 13 })).not.toBe(token);
+    expect(tokenOf({ lastModifiedAt: '2026-10-02T10:00:00Z', numberOfItems: 12 })).not.toBe(token);
+    expect(tokenOf({ numberOfItems: 12 })).toBeNull();
+  });
+
   it('maps track list document with artists, album, cover, and addedAt', () => {
     const raw: JsonApiDocument<JsonApiIdentifier[]> = {
       data: [

@@ -4,6 +4,7 @@ import {
   entryKeysFor,
   keySnapshot,
   mirrorBaselines,
+  mirrorMatchesSnapshot,
   reconcileMirror,
   type MirrorEntry,
   type MirrorSide,
@@ -216,5 +217,29 @@ describe('planning from the local copy', () => {
     const mirror = reconcile([], ['a', 'b', 'a'], ['a', 'b'], T0);
 
     expect(planFromMirror(mirror, ['a', 'b'], ['a', 'b'])).toEqual([]);
+  });
+});
+
+describe('mirrorMatchesSnapshot', () => {
+  it('matches when a side lists exactly what the last sync recorded', () => {
+    const mirror = reconcile([], ['a', 'b'], ['a'], T0);
+
+    expect(mirrorMatchesSnapshot(mirror, snapshot('source', ['a', 'b']), 'source')).toBe(true);
+    expect(mirrorMatchesSnapshot(mirror, snapshot('target', ['a']), 'target')).toBe(true);
+  });
+
+  it('detects additions, removals and reorders', () => {
+    const mirror = reconcile([], ['a', 'b'], ['a', 'b'], T0);
+
+    expect(mirrorMatchesSnapshot(mirror, snapshot('source', ['a', 'b', 'c']), 'source')).toBe(false);
+    expect(mirrorMatchesSnapshot(mirror, snapshot('source', ['a']), 'source')).toBe(false);
+    expect(mirrorMatchesSnapshot(mirror, snapshot('source', ['b', 'a']), 'source')).toBe(false);
+  });
+
+  it('ignores tombstones', () => {
+    const first = reconcile([], ['a', 'b'], ['a', 'b'], T0);
+    const removed = reconcile(first, ['a'], ['a', 'b'], T1);
+
+    expect(mirrorMatchesSnapshot(removed, snapshot('source', ['a']), 'source')).toBe(true);
   });
 });

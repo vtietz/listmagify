@@ -11,58 +11,9 @@ import {
   resetStaleSyncRuns,
   pruneOldSyncRuns,
 } from '@/lib/sync/syncRunStore';
+import { backfillMissingNextRunAt, computeNextRunAt } from '@/lib/sync/syncSchedule';
 
-// -----------------------------------------------------------------------------
-// Constants
-// -----------------------------------------------------------------------------
-
-const INTERVAL_MS: Record<SyncInterval, number> = {
-  'off': 0,
-  '15m': 15 * 60 * 1000,
-  '30m': 30 * 60 * 1000,
-  '1h': 60 * 60 * 1000,
-  '6h': 6 * 60 * 60 * 1000,
-  '12h': 12 * 60 * 60 * 1000,
-  '24h': 24 * 60 * 60 * 1000,
-};
-
-interface PairMissingNextRunRow {
-  id: string;
-  syncInterval: SyncInterval;
-}
-
-function computeNextRunAt(interval: SyncInterval): string | null {
-  if (interval === 'off') return null;
-
-  const ms = INTERVAL_MS[interval];
-  if (!ms) return null;
-
-  const jitter = ms * 0.10 * (2 * Math.random() - 1);
-  return new Date(Date.now() + Math.round(ms + jitter)).toISOString();
-}
-
-function backfillMissingNextRunAt(): void {
-  const db = getRecsDb();
-  const rows = db.prepare(`
-    SELECT id, sync_interval AS syncInterval
-    FROM sync_pairs
-    WHERE sync_interval != 'off' AND next_run_at IS NULL
-  `).all() as PairMissingNextRunRow[];
-
-  if (rows.length === 0) return;
-
-  const update = db.prepare(`
-    UPDATE sync_pairs
-    SET next_run_at = ?, updated_at = CURRENT_TIMESTAMP
-    WHERE id = ?
-  `);
-
-  for (const row of rows) {
-    const nextRunAt = computeNextRunAt(row.syncInterval);
-    if (!nextRunAt) continue;
-    update.run(nextRunAt, row.id);
-  }
-}
+export { advanceNextRunAt, setNextRunAtFromNow } from '@/lib/sync/syncSchedule';
 
 // -----------------------------------------------------------------------------
 // SyncPair row mapper
@@ -85,6 +36,7 @@ interface SyncPairRow {
   consecutiveFailures: number;
   sourceSnapshotId: string | null;
   targetSnapshotId: string | null;
+  lastFullReadAt: string | null;
   sourceMembershipBaselineJson: string | null;
   targetMembershipBaselineJson: string | null;
   sourceOrderBaselineJson: string | null;
@@ -135,6 +87,7 @@ function mapSyncPairRow(row: SyncPairRow): SyncPair {
     consecutiveFailures: row.consecutiveFailures,
     sourceSnapshotId: row.sourceSnapshotId,
     targetSnapshotId: row.targetSnapshotId,
+    lastFullReadAt: row.lastFullReadAt,
     sourceMembershipBaseline: parseStringArray(row.sourceMembershipBaselineJson),
     targetMembershipBaseline: parseStringArray(row.targetMembershipBaselineJson),
     sourceOrderBaseline: parseStringArray(row.sourceOrderBaselineJson),
@@ -179,6 +132,7 @@ const SYNC_PAIR_COLUMNS = `
   consecutive_failures AS consecutiveFailures,
   source_snapshot_id AS sourceSnapshotId,
   target_snapshot_id AS targetSnapshotId,
+  last_full_read_at AS lastFullReadAt,
   source_membership_baseline_json AS sourceMembershipBaselineJson,
   target_membership_baseline_json AS targetMembershipBaselineJson,
   source_order_baseline_json AS sourceOrderBaselineJson,
@@ -211,9 +165,7 @@ export function createSyncPair(input: {
   const id = randomUUID();
   const syncInterval = input.syncInterval ?? 'off';
   const autoSync = input.autoSync ?? syncInterval !== 'off';
-  const nextRunAt = syncInterval === 'off'
-    ? null
-    : new Date(Date.now() + INTERVAL_MS[syncInterval]).toISOString();
+  const nextRunAt = computeNextRunAt(syncInterval);
 
   db.prepare(`
     INSERT INTO sync_pairs (
@@ -429,9 +381,9 @@ export function updateSyncPairSnapshotIds(
   const db = getRecsDb();
   db.prepare(`
     UPDATE sync_pairs
-    SET source_snapshot_id = ?, target_snapshot_id = ?, updated_at = CURRENT_TIMESTAMP
+    SET source_snapshot_id = ?, target_snapshot_id = ?, last_full_read_at = ?, updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
-  `).run(sourceSnapshotId, targetSnapshotId, id);
+  `).run(sourceSnapshotId, targetSnapshotId, new Date().toISOString(), id);
 }
 
 export function updateSyncPairBidirectionalMetadata(
@@ -493,11 +445,7 @@ export function updateSyncPairBidirectionalMetadata(
 export function updateSyncPairInterval(id: string, interval: SyncInterval, createdBy?: string | string[]): boolean {
   const db = getRecsDb();
 
-  const baseMs = INTERVAL_MS[interval];
-  const jitter = baseMs * 0.10 * (2 * Math.random() - 1);
-  const nextRunAt = interval === 'off'
-    ? null
-    : new Date(Date.now() + Math.round(baseMs + jitter)).toISOString();
+  const nextRunAt = computeNextRunAt(interval);
 
   if (createdBy) {
     const userIds = Array.isArray(createdBy) ? createdBy : [createdBy];
@@ -505,7 +453,7 @@ export function updateSyncPairInterval(id: string, interval: SyncInterval, creat
     const ownership = ownershipCondition(userIds);
     const result = db.prepare(`
       UPDATE sync_pairs
-      SET sync_interval = ?, next_run_at = ?, consecutive_failures = 0, updated_at = CURRENT_TIMESTAMP
+      SET sync_interval = ?, next_run_at = ?, smart_step = 0, consecutive_failures = 0, updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND ${ownership.sql}
     `).run(interval, nextRunAt, id, ...ownership.params);
     return result.changes > 0;
@@ -513,7 +461,7 @@ export function updateSyncPairInterval(id: string, interval: SyncInterval, creat
 
   const result = db.prepare(`
     UPDATE sync_pairs
-    SET sync_interval = ?, next_run_at = ?, consecutive_failures = 0, updated_at = CURRENT_TIMESTAMP
+    SET sync_interval = ?, next_run_at = ?, smart_step = 0, consecutive_failures = 0, updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
   `).run(interval, nextRunAt, id);
   return result.changes > 0;
@@ -536,30 +484,6 @@ export function getDueSyncPairs(limit: number): SyncPair[] {
   `).all(limit) as SyncPairRow[];
 
   return rows.map(mapSyncPairRow);
-}
-
-export function advanceNextRunAt(id: string): void {
-  const db = getRecsDb();
-
-  const row = db.prepare('SELECT sync_interval FROM sync_pairs WHERE id = ?').get(id) as
-    | { sync_interval: SyncInterval }
-    | undefined;
-
-  if (!row || row.sync_interval === 'off') return;
-
-  const ms = INTERVAL_MS[row.sync_interval];
-  if (ms === 0) return;
-
-  const nextRunAt = computeNextRunAt(row.sync_interval);
-  if (!nextRunAt) return;
-  db.prepare('UPDATE sync_pairs SET next_run_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(nextRunAt, id);
-}
-
-export function setNextRunAtFromNow(id: string, delayMs: number): void {
-  const db = getRecsDb();
-  const safeDelayMs = Math.max(1000, Math.floor(delayMs));
-  const nextRunAt = new Date(Date.now() + safeDelayMs).toISOString();
-  db.prepare('UPDATE sync_pairs SET next_run_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(nextRunAt, id);
 }
 
 export function incrementConsecutiveFailures(id: string): void {

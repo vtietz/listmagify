@@ -26,7 +26,7 @@ vi.mock('./refreshCircuitBreaker', () => ({
   recordPermanentFailure: vi.fn(),
 }));
 
-import { startTokenKeepaliveLoop, stopTokenKeepaliveLoop } from './tokenKeepalive';
+import { computeNextDelayMs, startTokenKeepaliveLoop, stopTokenKeepaliveLoop } from './tokenKeepalive';
 import { getAllActiveTokens, persistProviderTokens, markTokenStatus } from './tokenStore';
 import {
   refreshSpotifyAccessToken,
@@ -431,5 +431,44 @@ describe('provider dispatch', () => {
     expect(refreshSpotifyAccessToken).toHaveBeenCalledOnce();
     expect(refreshTidalAccessToken).toHaveBeenCalledOnce();
     expect(persistProviderTokens).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('keepalive timing', () => {
+  const MINUTE = 60 * 1000;
+
+  it('wakes up shortly before the earliest token expires', () => {
+    const now = Date.now();
+    // Due 15 min (refresh threshold) before expiry: 25 min - 15 min = 10 min.
+    expect(computeNextDelayMs([now + 25 * MINUTE, now + 50 * MINUTE], now)).toBe(10 * MINUTE);
+  });
+
+  it('waits at most the scan interval, to pick up new sign-ins', () => {
+    const now = Date.now();
+    expect(computeNextDelayMs([now + 24 * 60 * MINUTE], now)).toBe(30 * MINUTE);
+    expect(computeNextDelayMs([null], now)).toBe(30 * MINUTE);
+  });
+
+  it('does not retry an overdue token in a tight loop', () => {
+    const now = Date.now();
+    expect(computeNextDelayMs([now - 5 * MINUTE], now)).toBe(2 * MINUTE);
+  });
+
+  it('times the next pass by the refreshed expiry', async () => {
+    const token = createToken({ accessTokenExpires: Date.now() + 5 * MINUTE });
+    vi.mocked(getAllActiveTokens).mockReturnValue([token]);
+    vi.mocked(refreshSpotifyAccessToken).mockResolvedValue({
+      accessToken: 'new-access',
+      refreshToken: 'refresh-123',
+      accessTokenExpires: Date.now() + 25 * MINUTE,
+    });
+
+    startTokenKeepaliveLoop();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(getAllActiveTokens).toHaveBeenCalledTimes(1);
+
+    // Refreshed token expires in 25 min, so the next pass runs 10 min from now, not 30.
+    await vi.advanceTimersByTimeAsync(10 * MINUTE + 1000);
+    expect(getAllActiveTokens).toHaveBeenCalledTimes(2);
   });
 });

@@ -14,7 +14,7 @@ import { Save, ArrowLeftRight, Eye, Loader2, ChevronDown, Check } from 'lucide-r
 import { useSyncDialogStore } from '@features/sync/stores/useSyncDialogStore';
 import { useSyncIntervalOptions, useSyncSchedulerEnabled } from '@shared/hooks/useAppConfig';
 import type { MusicProviderId } from '@/lib/music-provider/types';
-import type { SyncPair, SyncInterval } from '@/lib/sync/types';
+import { formatSyncInterval, SMART_SYNC_INTERVAL_HINT, type SyncPair, type SyncInterval } from '@/lib/sync/types';
 
 // Context for coordinating dropdown open/close within a form
 type SyncIntervalContextType = {
@@ -141,7 +141,7 @@ function SyncIntervalSelect({
 }) {
   const { openDropdownId, setOpenDropdownId } = useSyncIntervalDropdown();
   const isOpen = openDropdownId === dropdownId;
-  const selectedLabel = value === 'off' ? 'Off' : value;
+  const selectedLabel = formatSyncInterval(value);
 
   return (
     <Popover
@@ -155,7 +155,7 @@ function SyncIntervalSelect({
           type="button"
           variant="outline"
           className="h-7 w-[68px] justify-between px-2 text-xs"
-          title="Sync interval"
+          title={value === 'smart' ? SMART_SYNC_INTERVAL_HINT : 'Sync interval'}
         >
           <span>{selectedLabel}</span>
           <ChevronDown className="h-3 w-3 opacity-70" />
@@ -177,12 +177,13 @@ function SyncIntervalSelect({
                 type="button"
                 variant="ghost"
                 className="h-7 w-full justify-between px-2 text-xs"
+                title={interval === 'smart' ? SMART_SYNC_INTERVAL_HINT : undefined}
                 onClick={() => {
                   onChange(interval);
                   setOpenDropdownId(null);
                 }}
               >
-                <span>{interval === 'off' ? 'Off' : interval}</span>
+                <span>{formatSyncInterval(interval)}</span>
                 {isSelected && <Check className="h-3 w-3" />}
               </Button>
             );

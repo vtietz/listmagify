@@ -32,10 +32,10 @@ export interface SnapshotFetchProgress {
 }
 
 /**
- * Lightweight fetch to get only the playlist snapshot ID without loading
- * all tracks. Fetches a single-track page to extract the snapshotId.
- * Returns null if the provider doesn't support snapshot IDs (e.g. TIDAL)
- * or for liked songs (which have no snapshot concept).
+ * Lightweight fetch of the playlist's change token without loading all tracks:
+ * the snapshot ID of a single-track page, or, for providers without snapshot IDs
+ * on track pages (TIDAL), the one reported on the playlist itself.
+ * Returns null when the provider has neither, and for liked songs.
  */
 export async function fetchPlaylistSnapshotId(
   provider: MusicProvider,
@@ -43,7 +43,9 @@ export async function fetchPlaylistSnapshotId(
 ): Promise<string | null> {
   if (isLikedSongsPlaylist(playlistId)) return null;
   const page = await provider.getPlaylistTracks(playlistId, 1, null);
-  return page.snapshotId;
+  if (page.snapshotId) return page.snapshotId;
+  const details = await provider.getPlaylistDetails(playlistId);
+  return details.snapshotId ?? null;
 }
 
 /**
@@ -184,4 +186,20 @@ export async function captureSnapshot(
 ): Promise<PlaylistSnapshot> {
   const { tracks, snapshotId } = await fetchFullPlaylistTracks(provider, playlistId, onProgress);
   return canonicalizeSnapshot(providerId, playlistId, tracks, snapshotId, options);
+}
+
+/**
+ * Like `captureSnapshot`, but fills `snapshotId` with a change token whenever the
+ * provider has one. The token is read before the tracks, so an edit made while
+ * the tracks are read shows up as a change next time instead of being missed.
+ */
+export async function captureSnapshotWithChangeToken(
+  provider: MusicProvider,
+  providerId: MusicProviderId,
+  playlistId: string,
+  options?: SnapshotOptions,
+): Promise<PlaylistSnapshot> {
+  const tokenBefore = await fetchPlaylistSnapshotId(provider, playlistId);
+  const snapshot = await captureSnapshot(provider, providerId, playlistId, options);
+  return { ...snapshot, snapshotId: snapshot.snapshotId ?? tokenBefore };
 }

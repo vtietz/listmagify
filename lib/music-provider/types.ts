@@ -33,6 +33,8 @@ export type Playlist = {
   tracksTotal: number;
   isPublic?: boolean | null;
   collaborative?: boolean | null;
+  /** Changes whenever the playlist's tracks change, when the provider exposes one */
+  snapshotId?: string | null;
 };
 
 export type Track = {

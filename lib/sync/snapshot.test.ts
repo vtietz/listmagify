@@ -252,6 +252,23 @@ describe('fetchPlaylistSnapshotId', () => {
     expect(provider.getPlaylistTracks).toHaveBeenCalledTimes(1);
     expect(provider.getPlaylistTracks).toHaveBeenCalledWith('regular-playlist-id', 1, null);
   });
+
+  it('falls back to the playlist change token when track pages have no snapshot ID', async () => {
+    const provider = createMockProvider({
+      getPlaylistTracks: vi.fn().mockResolvedValue({
+        tracks: [createTrack()],
+        snapshotId: null,
+        total: 10,
+        nextCursor: null,
+      }),
+      getPlaylistDetails: vi.fn().mockResolvedValue({ id: 'pl', name: 'pl', tracksTotal: 10, snapshotId: 'modified|10' }),
+    });
+
+    const result = await fetchPlaylistSnapshotId(provider, 'regular-playlist-id');
+
+    expect(result).toBe('modified|10');
+    expect(provider.getPlaylistDetails).toHaveBeenCalledWith('regular-playlist-id');
+  });
 });
 
 // ---------------------------------------------------------------------------

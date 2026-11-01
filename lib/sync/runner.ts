@@ -6,7 +6,7 @@ import { applySyncPlan } from '@/lib/sync/apply';
 import { buildSyncPlan, resolvePlanContext, type SyncPlanContext } from '@/lib/sync/planner';
 import { createSyncMaterializeAdapter } from '@/lib/sync/materializeAdapter';
 import { materializeCanonicalTrackIds } from '@/lib/recs/materialize';
-import { getSyncPair, createSyncRun, updateSyncRun, resetConsecutiveFailures } from '@/lib/sync/syncStore';
+import { getSyncPair, createSyncRun, updateSyncRun, resetConsecutiveFailures, advanceNextRunAt } from '@/lib/sync/syncStore';
 import type { SyncConfig, SyncPlan, SyncApplyResult, SyncPreviewResult, SyncPreviewTrack, SyncDiffItem } from '@/lib/sync/types';
 import type { PlaylistSnapshot } from '@/lib/sync/snapshot';
 import { recordPostSyncState, type SyncMatchThresholds } from '@/lib/sync/executor';
@@ -462,8 +462,7 @@ export async function applySyncPlanWithRun(
     return { result };
   }
 
-  const run = createSyncRun({ syncPairId, direction: plan.direction });
-  const runId = run.id;
+  const { id: runId } = createSyncRun({ syncPairId, direction: plan.direction });
   updateSyncRun(runId, { status: 'executing' });
 
   try {
@@ -472,6 +471,7 @@ export async function applySyncPlanWithRun(
     await refreshPairBaselines(syncPairId, plan.sideChanges, result.addedKeys, matchThresholds);
     // A successful reviewed apply means the pair is healthy again.
     if (result.errors.length === 0) resetConsecutiveFailures(syncPairId);
+    advanceNextRunAt(syncPairId, 'changed'); // the user is active here: a smart pair checks again soon
     return { result, runId };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

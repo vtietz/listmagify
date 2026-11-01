@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/auth";
 import { getMusicProviderHintFromRequest, resolveMusicProviderFromRequest } from '@/app/api/_shared/provider';
+import { noteSmartSyncPlaylistEdited } from '@/lib/sync/syncSchedule';
 import { logTrackReorder } from '@/lib/metrics/api-helpers';
 import { ProviderApiError } from '@/lib/music-provider/types';
 import { ProviderAuthError } from '@/lib/providers/errors';
@@ -157,7 +158,7 @@ export async function PUT(
       return parsedRequest;
     }
 
-    const { provider } = resolveMusicProviderFromRequest(request);
+    const { providerId, provider } = resolveMusicProviderFromRequest(request);
     const reordered = await provider.reorderTracks({
       playlistId: parsedRequest.playlistId,
       fromIndex: parsedRequest.fromIndex,
@@ -178,6 +179,7 @@ export async function PUT(
 
     // Log metrics (fire-and-forget, non-blocking)
     logTrackReorder(parsedRequest.playlistId, parsedRequest.rangeLength).catch(() => {});
+    noteSmartSyncPlaylistEdited(providerId, parsedRequest.playlistId);
 
     return NextResponse.json({ snapshotId: newSnapshotId });
   } catch (error) {
