@@ -72,12 +72,18 @@ networks:
 **Without scripts** (manual):
 ```bash
 # Build
-docker compose -f docker/docker-compose.prod.yml build
+docker compose --env-file .env -f docker/docker-compose.prod.yml build
 
 # Start (auto-detects override file if present)
-docker compose -f docker/docker-compose.prod.yml \
+docker compose --env-file .env -f docker/docker-compose.prod.yml \
   -f docker/docker-compose.prod.override.yml up -d
 ```
+
+Run manual commands from the repository root with `--env-file .env`, including
+`docker compose --env-file .env -f docker/docker-compose.prod.yml ps`.
+The service-level `env_file` supplies container runtime variables, but does not
+supply Compose interpolation values such as the `CONTACT_*` build arguments.
+The `./run.sh prod-*` commands already pass `--env-file .env`.
 
 ## Updating from Git
 
