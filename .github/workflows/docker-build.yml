@@ -19,7 +19,10 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
     # Only run if CI workflow succeeded (or manual trigger/release)
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'release' || github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'release' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.head_repository.full_name == github.repository) }}
+    outputs:
+      source-sha: ${{ steps.source.outputs.sha }}
+      digest: ${{ steps.build.outputs.digest }}
     permissions:
       contents: read
       packages: write
@@ -27,6 +30,14 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          persist-credentials: false
+
+      - name: Record source revision
+        id: source
+        shell: bash
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -48,10 +59,13 @@ jobs:
             type=ref,event=pr
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=sha,prefix={{branch}}-
+            type=raw,value=sha-${{ steps.source.outputs.sha }}
             type=raw,value=latest,enable={{is_default_branch}}
+          labels: |
+            org.opencontainers.image.revision=${{ steps.source.outputs.sha }}
       
       - name: Build and push Docker image
+        id: build
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -64,4 +78,131 @@ jobs:
           build-args: |
             BUILDTIME=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
             VERSION=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.version'] }}
-            REVISION=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.revision'] }}
+            REVISION=${{ steps.source.outputs.sha }}
+
+  check-deployment-candidate:
+    needs: build-and-push
+    if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.head_repository.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      current: ${{ steps.candidate.outputs.current }}
+    steps:
+      - name: Reject stale builds before entering deployment queue
+        id: candidate
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APPROVED_SHA: ${{ needs.build-and-push.outputs.source-sha }}
+        run: |
+          set -euo pipefail
+          [[ "$APPROVED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          current_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')
+          if [[ "$current_sha" == "$APPROVED_SHA" ]]; then
+            echo 'current=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'current=false' >> "$GITHUB_OUTPUT"
+          fi
+
+  deploy-production:
+    needs: [build-and-push, check-deployment-candidate]
+    if: ${{ needs.check-deployment-candidate.outputs.current == 'true' }}
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Deploy approved immutable image
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APPROVED_SHA: ${{ needs.build-and-push.outputs.source-sha }}
+          EXPECTED_SHA: ${{ github.event.workflow_run.head_sha }}
+          IMAGE_DIGEST: ${{ needs.build-and-push.outputs.digest }}
+          PROD_SSH_PRIVATE_KEY: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+          PROD_SSH_KNOWN_HOSTS: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
+          PROD_SSH_HOST: ${{ vars.PROD_SSH_HOST }}
+          PROD_SSH_PORT: ${{ vars.PROD_SSH_PORT }}
+          PROD_SSH_USER: ${{ vars.PROD_SSH_USER }}
+          PROD_SSH_PATH: ${{ vars.PROD_SSH_PATH }}
+          PROD_HEALTH_URL: ${{ vars.PROD_HEALTH_URL }}
+        run: |
+          set -euo pipefail
+          [[ "$APPROVED_SHA" =~ ^[0-9a-f]{40}$ && "$APPROVED_SHA" == "$EXPECTED_SHA" ]]
+          [[ "$IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          [[ "$PROD_SSH_HOST" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*$ ]]
+          [[ "$PROD_SSH_PORT" =~ ^[0-9]{1,5}$ ]]
+          (( 10#$PROD_SSH_PORT >= 1 && 10#$PROD_SSH_PORT <= 65535 ))
+          [[ "$PROD_SSH_USER" =~ ^[a-z_][a-z0-9_-]*$ ]]
+          [[ "$PROD_SSH_PATH" =~ ^/([a-zA-Z0-9_-]+/)*[a-zA-Z0-9_-]+$ ]]
+          [[ "$PROD_HEALTH_URL" =~ ^https://[a-zA-Z0-9][a-zA-Z0-9.-]*(:[0-9]{1,5})?/api/config$ ]]
+          [[ -n "$PROD_SSH_PRIVATE_KEY" && -n "$PROD_SSH_KNOWN_HOSTS" ]]
+
+          current_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')
+          [[ "$current_sha" == "$APPROVED_SHA" ]] || { echo 'Approved revision is stale'; exit 1; }
+
+          umask 077
+          ssh_dir=$(mktemp -d)
+          trap 'rm -rf "$ssh_dir"' EXIT
+          printf '%s\n' "$PROD_SSH_PRIVATE_KEY" > "$ssh_dir/key"
+          printf '%s\n' "$PROD_SSH_KNOWN_HOSTS" > "$ssh_dir/known_hosts"
+          chmod 600 "$ssh_dir/key" "$ssh_dir/known_hosts"
+          unset PROD_SSH_PRIVATE_KEY PROD_SSH_KNOWN_HOSTS GH_TOKEN
+
+          ssh -F /dev/null -i "$ssh_dir/key" -p "$PROD_SSH_PORT" \
+            -o StrictHostKeyChecking=yes -o BatchMode=yes -o IdentitiesOnly=yes \
+            -o UserKnownHostsFile="$ssh_dir/known_hosts" -o GlobalKnownHostsFile=/dev/null \
+            -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 \
+            "$PROD_SSH_USER@$PROD_SSH_HOST" \
+            "bash -s -- '$PROD_SSH_PATH' '$APPROVED_SHA' '$IMAGE_DIGEST'" <<'REMOTE'
+          set -euo pipefail
+          [[ $# == 3 ]]
+          [[ "$1" =~ ^/([a-zA-Z0-9_-]+/)*[a-zA-Z0-9_-]+$ ]]
+          [[ "$2" =~ ^[0-9a-f]{40}$ && "$3" =~ ^sha256:[0-9a-f]{64}$ ]]
+          cd -- "$1"
+          [[ "$(git rev-parse --show-toplevel)" == "$PWD" ]]
+          exec 9> .git/deployment.lock
+          flock -n 9 || { echo 'Deployment already in progress'; exit 1; }
+          [[ -z "$(git status --porcelain --untracked-files=no)" ]] || { echo 'Tracked checkout changes detected'; exit 1; }
+          export GIT_TERMINAL_PROMPT=0
+          git fetch origin refs/heads/main:refs/remotes/origin/main
+          [[ "$(git rev-parse refs/remotes/origin/main)" == "$2" ]] || { echo 'Approved revision is stale'; exit 1; }
+          git checkout --detach "$2"
+          export IMAGE="ghcr.io/vtietz/listmagify@$3"
+          compose=(docker compose --env-file .env -f docker/docker-compose.prod.yml)
+          if [[ -f docker/docker-compose.prod.override.yml ]]; then
+            compose+=(-f docker/docker-compose.prod.override.yml)
+          fi
+          "${compose[@]}" pull spotify-web sync-worker
+          "${compose[@]}" up -d --no-build spotify-web sync-worker
+          intended_image=$(docker image inspect --format '{{.Id}}' "$IMAGE")
+          verify_services() {
+            local service container_id
+            for service in spotify-web sync-worker; do
+              container_id=$("${compose[@]}" ps -q "$service")
+              [[ -n "$container_id" ]] || return 1
+              [[ "$(docker inspect --format '{{.State.Running}} {{.Image}} {{.Config.Image}}' "$container_id")" == "true $intended_image $IMAGE" ]] || return 1
+            done
+            "${compose[@]}" exec -T spotify-web node -e \
+              'fetch("http://127.0.0.1:3000/api/config", {signal: AbortSignal.timeout(5000)}).then(response => {if (!response.ok) process.exit(1)}).catch(() => process.exit(1))'
+          }
+          healthy=false
+          for attempt in {1..24}; do
+            if verify_services; then
+              healthy=true
+              break
+            fi
+            sleep 5
+          done
+          [[ "$healthy" == true ]] || { echo 'Deployment verification failed; no automatic rollback'; exit 1; }
+          REMOTE
+
+          curl --fail --silent --show-error --proto '=https' \
+            --connect-timeout 10 --max-time 15 --retry 12 --retry-delay 5 \
+            --retry-all-errors --retry-max-time 180 --output /dev/null "$PROD_HEALTH_URL"

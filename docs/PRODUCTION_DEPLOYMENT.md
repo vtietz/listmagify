@@ -85,7 +85,98 @@ The service-level `env_file` supplies container runtime variables, but does not
 supply Compose interpolation values such as the `CONTACT_*` build arguments.
 The `./run.sh prod-*` commands already pass `--env-file .env`.
 
-## Updating from Git
+## Approved CI Deployment
+
+The Docker publication workflow deploys only after successful **CI** triggered by
+a push to `main` in this repository. Manual workflow runs and releases publish
+images only. Builds check out the exact CI source SHA (or `github.sha` for manual
+runs/releases), publish a full `sha-<commit>` tag and revision label, and pass the
+registry digest to deployment. Production uses the immutable digest, not `latest`.
+
+### GitHub Protection and Approval
+
+Before enabling deployments, create the **production** GitHub environment and
+configure required reviewers, deployment branch restrictions, and prevention of
+self-review where available. **Creating an environment does not enforce approval.**
+Verify that deployments actually wait for review; do not assume the environment
+name provides protection. Required reviewers, self-review prevention, and other
+protection features depend on repository visibility and GitHub plan. If your plan
+does not support the required approval gate, do not provision deployment secrets
+until an equivalent enforceable gate is in place. A sole owner cannot approve
+their own deployment when self-review prevention is enabled; arrange an independent
+reviewer rather than silently weakening that control.
+
+Configure a `main` ruleset requiring pull requests, successful CI, and appropriate
+review, restricting updates/bypass to the intended owner or trusted maintainers,
+and preventing force pushes and deletion. Check plan support and owner/admin bypass
+settings explicitly. Protect changes to workflows as privileged code changes.
+
+### Environment Settings
+
+Set these only in the **production** environment, not as repository-wide secrets.
+No automatic deployment should be enabled until all settings, approval controls,
+host prerequisites, and backups below are provisioned and verified.
+
+| Kind | Name | Value |
+| --- | --- | --- |
+| Secret | `PROD_SSH_PRIVATE_KEY` | Dedicated deployment private key, usable noninteractively |
+| Secret | `PROD_SSH_KNOWN_HOSTS` | Independently verified OpenSSH host-key entry for the destination |
+| Variable | `PROD_SSH_HOST` | DNS name or IPv4 address, without scheme (IPv6 is not supported by this script) |
+| Variable | `PROD_SSH_PORT` | Explicit SSH port, from 1 to 65535 |
+| Variable | `PROD_SSH_USER` | Dedicated lowercase Unix account name |
+| Variable | `PROD_SSH_PATH` | Absolute dedicated checkout path; only letters, digits, underscores, hyphens, and separating slashes; no trailing slash |
+| Variable | `PROD_HEALTH_URL` | Public `https://hostname[:port]/api/config` URL; no credentials, query, or fragment |
+
+Verify the host key fingerprint using a trusted server console or another
+independent administrative channel. For a nondefault SSH port, the known-hosts
+entry must use `[hostname]:port`; for port 22, use the normal hostname entry.
+Provision the entry ahead of time. The workflow never discovers keys with runtime
+`ssh-keyscan` and requires strict host checking, batch mode, and its dedicated key.
+
+### Host Prerequisites
+
+- Install Bash, Git, OpenSSH, `flock`, Docker Engine, and Docker Compose v2.
+- Create a dedicated, existing, full Git checkout with `origin` pointing to this
+  repository. Keep tracked files clean, including staged changes. Do not edit
+  tracked Compose files on the server; use the ignored production override.
+- Provision `.env`, the optional `docker/docker-compose.prod.override.yml`, persistent
+  data, and reverse-proxy networking separately. Never put secrets in workflow logs.
+  Overrides must retain both service names and the `IMAGE` selection for both.
+- Limit the deployment SSH account and key to the required host and purpose;
+  disable forwarding/PTY capabilities where practical. Docker access is effectively
+  root access, even without `sudo`; treat this account and GitHub environment
+  reviewers as privileged operators. Do not grant unrelated host access.
+- If Git or GHCR is private, provision least-privilege read credentials on the
+  server for noninteractive `git fetch` and Docker pulls. The runner's GitHub token
+  is used only for the main-branch freshness check, never forwarded to the server.
+- Back up persistent data/database and verify restoration before rollout. Review
+  migrations and compatibility before approving: both services can run migrations.
+
+### Deployment and Recovery Behavior
+
+Deployments serialize through a fixed GitHub concurrency group without canceling
+an active deployment, and a nonblocking checkout-local `flock` rejects overlapping
+remote deployments. Jobs have a 20-minute timeout. A queued or approved old build
+fails if it is no longer current `main`: the runner checks GitHub's API and the
+server independently fetches and verifies `origin/main` before detached checkout.
+These are point-in-time checks; they do not prevent a later push during rollout.
+
+The remote script exports `IMAGE=ghcr.io/vtietz/listmagify@sha256:...`, then runs
+Compose from the checkout root with `--env-file .env`, the production base file,
+and the optional production override. It pulls and runs only `spotify-web` and
+`sync-worker` using `up -d --no-build`, without stopping the stack first.
+It checks both running containers against the intended image ID and digest
+reference, retries an internal web `/api/config` request for a bounded interval,
+then checks public HTTPS from the runner with bounded curl retries. It does not
+print container environments or rendered Compose configuration.
+
+This is not a zero-downtime guarantee or an end-to-end scheduler test. A failed
+check can leave a partially updated stack. There is **no automatic rollback**:
+migrations may make an older image unsafe. Investigate without exposing secrets,
+then choose a reviewed forward fix or a coordinated image/database restore.
+Do not prune images, reset tracked files, or stop the stack as part of this flow.
+
+## Updating from Git (Manual Alternative)
 
 When you pull updates from the repository:
 
@@ -94,9 +185,11 @@ When you pull updates from the repository:
 3. **Rebuild and redeploy**:
    ```bash
    git pull
-   ./run.sh prod-down  # Stops with override if present
    ./run.sh prod-up    # Rebuilds and starts with override
    ```
+
+Do not run manual updates concurrently with approved CI deployments. Prefer the
+approved immutable-image flow above for the dedicated deployment checkout.
 
 ## nginx-proxy Integration Example
 
