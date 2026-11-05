@@ -5,6 +5,7 @@ import { parseMusicProviderId } from '@/lib/music-provider';
 import { createSyncPair, listSyncPairs, getLatestSyncRun, getSyncPairByPlaylists } from '@/lib/sync/syncStore';
 import { getAllSessionUserIds, getCreatorUserId, getProviderUserIds } from '@/lib/auth/sessionUserIds';
 import { serverEnv } from '@/lib/env';
+import { getSyncTaskLimit } from '@/lib/sync/taskLimits';
 import type { SyncDirection, SyncInterval } from '@/lib/sync/types';
 
 const VALID_DIRECTIONS = new Set<SyncDirection>(['a-to-b', 'b-to-a', 'bidirectional']);
@@ -144,7 +145,7 @@ export async function POST(request: NextRequest) {
 
     const body = parsedBody.value;
 
-    const maxSyncTasksPerUser = serverEnv.SYNC_MAX_TASKS_PER_USER;
+    const maxSyncTasksPerUser = getSyncTaskLimit(sessionUserIds);
     if (maxSyncTasksPerUser) {
       const currentSyncTasks = listSyncPairs(sessionUserIds).length;
       if (currentSyncTasks >= maxSyncTasksPerUser) {

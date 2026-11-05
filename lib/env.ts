@@ -4,6 +4,16 @@ import { parseSyncIntervalOptions } from '@/lib/sync/types';
 type ConfiguredMusicProvider = 'spotify' | 'tidal';
 const DEFAULT_MUSIC_PROVIDERS: ConfiguredMusicProvider[] = ['spotify'];
 
+const optionalPositiveInteger = z
+  .string()
+  .optional()
+  .refine((val) => {
+    if (!val) return true;
+    const num = Number(val);
+    return /^\d+$/.test(val) && Number.isSafeInteger(num) && num > 0;
+  }, 'Must be a positive integer')
+  .transform((val) => val ? Number(val) : undefined);
+
 function parseMusicProviders(raw: string | undefined): ConfiguredMusicProvider[] {
   if (!raw) {
     return [...DEFAULT_MUSIC_PROVIDERS];
@@ -63,14 +73,14 @@ const serverSchema = z.object({
     .optional()
     .transform((val) => parseSyncIntervalOptions(val)),
   // Optional: maximum number of sync tasks (sync pairs) each user can create
-  SYNC_MAX_TASKS_PER_USER: z
+  SYNC_MAX_TASKS_PER_USER: optionalPositiveInteger,
+  // Optional: higher sync-task limit for users in SYNC_PREMIUM_USER_IDS
+  SYNC_PREMIUM_MAX_TASKS_PER_USER: optionalPositiveInteger,
+  // Temporary premium allowlist using provider-prefixed IDs (spotify:id,tidal:id)
+  SYNC_PREMIUM_USER_IDS: z
     .string()
     .optional()
-    .transform((val) => {
-      if (!val) return undefined;
-      const num = parseInt(val, 10);
-      return Number.isNaN(num) || num <= 0 ? undefined : num;
-    }),
+    .transform((val) => (val ?? '').split(',').map((id) => id.trim()).filter(Boolean)),
   // Optional: allow users to bring their own Spotify API keys
   SPOTIFY_BYOK_ENABLED: z
     .string()
@@ -158,6 +168,8 @@ export const serverEnv: ServerEnv = (() => {
       PLAYLIST_POLL_INTERVAL_SECONDS: undefined,
       SYNC_INTERVAL_OPTIONS: parseSyncIntervalOptions(undefined),
       SYNC_MAX_TASKS_PER_USER: undefined,
+      SYNC_PREMIUM_MAX_TASKS_PER_USER: undefined,
+      SYNC_PREMIUM_USER_IDS: [],
       SPOTIFY_BYOK_ENABLED: false,
       TIDAL_BYOK_ENABLED: false,
       ACCESS_REQUEST_ENABLED: false,
@@ -175,6 +187,8 @@ export const serverEnv: ServerEnv = (() => {
     PLAYLIST_POLL_INTERVAL_SECONDS: process.env.PLAYLIST_POLL_INTERVAL_SECONDS,
     SYNC_INTERVAL_OPTIONS: process.env.SYNC_INTERVAL_OPTIONS,
     SYNC_MAX_TASKS_PER_USER: process.env.SYNC_MAX_TASKS_PER_USER,
+    SYNC_PREMIUM_MAX_TASKS_PER_USER: process.env.SYNC_PREMIUM_MAX_TASKS_PER_USER,
+    SYNC_PREMIUM_USER_IDS: process.env.SYNC_PREMIUM_USER_IDS,
     SPOTIFY_BYOK_ENABLED: process.env.SPOTIFY_BYOK_ENABLED ?? process.env.BYOK_ENABLED,
     TIDAL_BYOK_ENABLED: process.env.TIDAL_BYOK_ENABLED,
     ACCESS_REQUEST_ENABLED: process.env.ACCESS_REQUEST_ENABLED,
@@ -194,6 +208,8 @@ export function summarizeEnv(): string {
     `MUSIC_PROVIDERS=${serverEnv.MUSIC_PROVIDERS.join(',')}`,
     `SYNC_INTERVAL_OPTIONS=${serverEnv.SYNC_INTERVAL_OPTIONS.join(',')}`,
     `SYNC_MAX_TASKS_PER_USER=${serverEnv.SYNC_MAX_TASKS_PER_USER ?? '[unset]'}`,
+    `SYNC_PREMIUM_MAX_TASKS_PER_USER=${serverEnv.SYNC_PREMIUM_MAX_TASKS_PER_USER ?? '[unset]'}`,
+    `SYNC_PREMIUM_USER_IDS=${serverEnv.SYNC_PREMIUM_USER_IDS.length ? `[${serverEnv.SYNC_PREMIUM_USER_IDS.length} configured]` : '[unset]'}`,
     `SPOTIFY_CLIENT_ID=${serverEnv.SPOTIFY_CLIENT_ID ? "[set]" : "[missing]"}`,
     `SPOTIFY_CLIENT_SECRET=${serverEnv.SPOTIFY_CLIENT_SECRET ? "[set]" : "[missing]"}`,
     `TIDAL_CLIENT_ID=${serverEnv.TIDAL_CLIENT_ID ? "[set]" : "[missing]"}`,

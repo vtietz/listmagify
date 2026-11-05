@@ -16,7 +16,6 @@ import {
   toProviderTrackId,
   toProviderTrackUri,
 } from '@/lib/music-provider/trackCodec';
-import { findUserIdForProvider } from '@/lib/auth/tokenStore';
 import {
   isLikedSongsPlaylist,
   LIKED_TRACKS_BATCH_SIZE,
@@ -24,7 +23,7 @@ import {
 } from '@/lib/sync/likedSongs';
 import { RateLimitError } from '@/lib/spotify/rateLimit';
 import { ProviderApiError } from '@/lib/music-provider/types';
-import { serverEnv } from '@/lib/env';
+import { getSyncTaskLimit } from '@/lib/sync/taskLimits';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -233,8 +232,8 @@ async function initializeProviders(
   const sourceProviderId = job.sourceProvider as MusicProviderId;
   const targetProviderId = job.targetProvider as MusicProviderId;
 
-  const sourceUserId = findUserIdForProvider(sourceProviderId) ?? job.createdBy;
-  const targetUserId = findUserIdForProvider(targetProviderId) ?? job.createdBy;
+  const sourceUserId = job.providerUserIds[sourceProviderId] ?? job.createdBy;
+  const targetUserId = job.providerUserIds[targetProviderId] ?? job.createdBy;
 
   let sourceProvider: MusicProvider;
   let targetProvider: MusicProvider;
@@ -277,8 +276,9 @@ function createSyncPairsForJob(
   syncInterval: SyncInterval,
   providerUserIds: Record<string, string>,
 ): void {
-  const maxSyncTasksPerUser = serverEnv.SYNC_MAX_TASKS_PER_USER;
-  const currentSyncTasks = listSyncPairs(createdBy).length;
+  const ownerUserIds = Array.from(new Set([createdBy, ...Object.values(providerUserIds)]));
+  const maxSyncTasksPerUser = getSyncTaskLimit(ownerUserIds);
+  const currentSyncTasks = listSyncPairs(ownerUserIds).length;
   const remainingSlots = maxSyncTasksPerUser
     ? Math.max(0, maxSyncTasksPerUser - currentSyncTasks)
     : Number.POSITIVE_INFINITY;

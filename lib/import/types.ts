@@ -7,6 +7,7 @@ export interface ImportJob {
   targetProvider: string;
   status: ImportJobStatus;
   createdBy: string;
+  providerUserIds: Record<string, string>;
   createdAt: string;
   completedAt: string | null;
   createSyncPair: boolean;
@@ -32,6 +33,7 @@ export interface CreateImportJobInput {
   sourceProvider: string;
   targetProvider: string;
   createdBy: string;
+  providerUserIds: Record<string, string>;
   playlists: { id: string; name: string }[];
   createSyncPair?: boolean;
   syncInterval?: string;

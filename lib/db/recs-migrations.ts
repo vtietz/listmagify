@@ -456,4 +456,11 @@ export const recsMigrations: Migration[] = [
       ALTER TABLE sync_pairs ADD COLUMN last_full_read_at TEXT;
     `,
   },
+  {
+    version: 22,
+    name: 'add_import_job_provider_user_ids',
+    sql: `
+      ALTER TABLE import_jobs ADD COLUMN provider_user_ids TEXT NOT NULL DEFAULT '{}';
+    `,
+  },
 ];

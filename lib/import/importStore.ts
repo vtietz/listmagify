@@ -8,6 +8,21 @@ import type {
 } from './types';
 import type { MusicProviderId } from '@/lib/music-provider/types';
 
+type ImportJobRow = Omit<ImportJob, 'createSyncPair' | 'providerUserIds'> & {
+  createSyncPair: number;
+  providerUserIds: string;
+};
+
+function mapImportJob(row: ImportJobRow): ImportJob {
+  let providerUserIds: Record<string, string> = {};
+  try {
+    providerUserIds = JSON.parse(row.providerUserIds) as Record<string, string>;
+  } catch {
+    // Existing/corrupt rows safely fall back to the owning createdBy identity.
+  }
+  return { ...row, createSyncPair: Boolean(row.createSyncPair), providerUserIds };
+}
+
 // -----------------------------------------------------------------------------
 // ImportJob CRUD
 // -----------------------------------------------------------------------------
@@ -23,9 +38,10 @@ export function createImportJob(input: CreateImportJobInput): ImportJob {
       target_provider,
       status,
       created_by,
+      provider_user_ids,
       create_sync_pair,
       sync_interval
-    ) VALUES (?, ?, ?, 'pending', ?, ?, ?)
+    ) VALUES (?, ?, ?, 'pending', ?, ?, ?, ?)
   `);
 
   const insertPlaylist = db.prepare(`
@@ -45,6 +61,7 @@ export function createImportJob(input: CreateImportJobInput): ImportJob {
       input.sourceProvider,
       input.targetProvider,
       input.createdBy,
+      JSON.stringify(input.providerUserIds),
       input.createSyncPair ? 1 : 0,
       input.syncInterval ?? 'off',
     );
@@ -70,17 +87,17 @@ function getImportJob(jobId: string): ImportJob | null {
       target_provider AS targetProvider,
       status,
       created_by AS createdBy,
+      provider_user_ids AS providerUserIds,
       created_at AS createdAt,
       completed_at AS completedAt,
       create_sync_pair AS createSyncPair,
       sync_interval AS syncInterval
     FROM import_jobs
     WHERE id = ?
-  `).get(jobId) as ImportJob | undefined;
+  `).get(jobId) as ImportJobRow | undefined;
 
   if (!row) return null;
-  row.createSyncPair = Boolean(row.createSyncPair);
-  return row;
+  return mapImportJob(row);
 }
 
 export function getImportJobWithPlaylists(
@@ -89,44 +106,46 @@ export function getImportJobWithPlaylists(
 ): ImportJobWithPlaylists | null {
   const db = getRecsDb();
 
-  let job: ImportJob | undefined;
+  let row: ImportJobRow | undefined;
 
   if (createdBy) {
     const userIds = Array.isArray(createdBy) ? createdBy : [createdBy];
     if (userIds.length === 0) return null;
     const placeholders = userIds.map(() => '?').join(', ');
-    job = db.prepare(`
+    row = db.prepare(`
         SELECT
           id,
           source_provider AS sourceProvider,
           target_provider AS targetProvider,
           status,
           created_by AS createdBy,
+          provider_user_ids AS providerUserIds,
           created_at AS createdAt,
           completed_at AS completedAt,
           create_sync_pair AS createSyncPair,
           sync_interval AS syncInterval
         FROM import_jobs
         WHERE id = ? AND created_by IN (${placeholders})
-      `).get(jobId, ...userIds) as ImportJob | undefined;
+      `).get(jobId, ...userIds) as ImportJobRow | undefined;
   } else {
-    job = db.prepare(`
+    row = db.prepare(`
         SELECT
           id,
           source_provider AS sourceProvider,
           target_provider AS targetProvider,
           status,
           created_by AS createdBy,
+          provider_user_ids AS providerUserIds,
           created_at AS createdAt,
           completed_at AS completedAt,
           create_sync_pair AS createSyncPair,
           sync_interval AS syncInterval
         FROM import_jobs
         WHERE id = ?
-      `).get(jobId) as ImportJob | undefined;
+      `).get(jobId) as ImportJobRow | undefined;
   }
-  if (!job) return null;
-  job.createSyncPair = Boolean(job.createSyncPair);
+  if (!row) return null;
+  const job = mapImportJob(row);
 
   const playlists = db.prepare(`
     SELECT
@@ -240,6 +259,7 @@ export function getActiveImportJob(createdBy: string | string[]): ImportJob | nu
       target_provider AS targetProvider,
       status,
       created_by AS createdBy,
+      provider_user_ids AS providerUserIds,
       created_at AS createdAt,
       completed_at AS completedAt,
       create_sync_pair AS createSyncPair,
@@ -249,11 +269,10 @@ export function getActiveImportJob(createdBy: string | string[]): ImportJob | nu
       AND status IN ('pending', 'running')
     ORDER BY created_at DESC
     LIMIT 1
-  `).get(...userIds) as ImportJob | undefined;
+  `).get(...userIds) as ImportJobRow | undefined;
 
   if (!row) return null;
-  row.createSyncPair = Boolean(row.createSyncPair);
-  return row;
+  return mapImportJob(row);
 }
 
 /**
@@ -291,6 +310,7 @@ export function getImportHistory(createdBy: string | string[], limit = 20): Impo
       target_provider AS targetProvider,
       status,
       created_by AS createdBy,
+      provider_user_ids AS providerUserIds,
       created_at AS createdAt,
       completed_at AS completedAt,
       create_sync_pair AS createSyncPair,
@@ -299,10 +319,10 @@ export function getImportHistory(createdBy: string | string[], limit = 20): Impo
     WHERE created_by IN (${placeholders})
     ORDER BY created_at DESC
     LIMIT ?
-  `).all(...userIds, limit) as ImportJob[];
+  `).all(...userIds, limit) as ImportJobRow[];
 
-  return jobs.map((job) => {
-    job.createSyncPair = Boolean(job.createSyncPair);
+  return jobs.map((row) => {
+    const job = mapImportJob(row);
 
     const playlists = db.prepare(`
       SELECT
@@ -358,15 +378,16 @@ export function getRecentImportJobsAdmin(limit = 20): ImportJobWithPlaylists[] {
     SELECT
       id, source_provider AS sourceProvider, target_provider AS targetProvider,
       status, created_by AS createdBy, created_at AS createdAt,
+      provider_user_ids AS providerUserIds,
       completed_at AS completedAt, create_sync_pair AS createSyncPair,
       sync_interval AS syncInterval
     FROM import_jobs
     ORDER BY created_at DESC
     LIMIT ?
-  `).all(limit) as ImportJob[];
+  `).all(limit) as ImportJobRow[];
 
-  return jobs.map((job) => {
-    job.createSyncPair = Boolean(job.createSyncPair);
+  return jobs.map((row) => {
+    const job = mapImportJob(row);
 
     const playlists = db.prepare(`
       SELECT

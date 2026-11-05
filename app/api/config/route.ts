@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
 import { serverEnv } from '@/lib/env';
+import { authOptions } from '@/lib/auth/auth';
+import { getAllSessionUserIds } from '@/lib/auth/sessionUserIds';
 import { getEnabledMusicProviders } from '@/lib/music-provider/enabledProviders';
+import { getSyncTaskLimit } from '@/lib/sync/taskLimits';
 
 /**
  * GET /api/config
@@ -9,6 +13,9 @@ import { getEnabledMusicProviders } from '@/lib/music-provider/enabledProviders'
  * Only expose non-sensitive configuration here.
  */
 export async function GET() {
+  const session = await getServerSession(authOptions);
+  const maxSyncTasksPerUser = getSyncTaskLimit(getAllSessionUserIds(session));
+
   return NextResponse.json({
     // Polling interval in seconds for auto-reloading playlists (undefined = disabled)
     playlistPollIntervalSeconds: serverEnv.PLAYLIST_POLL_INTERVAL_SECONDS ?? null,
@@ -25,6 +32,6 @@ export async function GET() {
     // User-configurable sync interval options for UI dropdowns
     syncIntervalOptions: serverEnv.SYNC_INTERVAL_OPTIONS,
     // Maximum number of sync pairs allowed per user (null = unlimited)
-    maxSyncTasksPerUser: serverEnv.SYNC_MAX_TASKS_PER_USER ?? null,
+    maxSyncTasksPerUser: maxSyncTasksPerUser ?? null,
   });
 }

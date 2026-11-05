@@ -3,7 +3,7 @@ import { assertAuthenticated } from '@/app/api/_shared/guard';
 import { created, badRequest, conflict, fromError } from '@/app/api/_shared/http';
 import { createImportJob, getActiveImportJob } from '@/lib/import/importStore';
 import { executeImportJob } from '@/lib/import/importRunner';
-import { getAllSessionUserIds, getCreatorUserId } from '@/lib/auth/sessionUserIds';
+import { getAllSessionUserIds, getCreatorUserId, getProviderUserIds } from '@/lib/auth/sessionUserIds';
 import { serverEnv } from '@/lib/env';
 
 type ImportStartBody = {
@@ -84,6 +84,7 @@ export async function POST(request: NextRequest) {
       sourceProvider: String(body.sourceProvider),
       targetProvider: String(body.targetProvider),
       createdBy: getCreatorUserId(session),
+      providerUserIds: getProviderUserIds(session),
       playlists: (body.playlists ?? []).map((p) => ({
         id: String(p.id),
         name: String(p.name),
