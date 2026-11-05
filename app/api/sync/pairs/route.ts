@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { assertAuthenticated } from '@/app/api/_shared/guard';
 import { ok, created, badRequest, conflict, fromError } from '@/app/api/_shared/http';
 import { parseMusicProviderId } from '@/lib/music-provider';
-import { createSyncPair, listSyncPairs, getLatestSyncRun } from '@/lib/sync/syncStore';
+import { createSyncPair, listSyncPairs, getLatestSyncRun, getSyncPairByPlaylists } from '@/lib/sync/syncStore';
 import { getAllSessionUserIds, getCreatorUserId, getProviderUserIds } from '@/lib/auth/sessionUserIds';
 import { serverEnv } from '@/lib/env';
 import type { SyncDirection, SyncInterval } from '@/lib/sync/types';
@@ -155,11 +155,30 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const sourceProvider = parseMusicProviderId(body.sourceProvider);
+    const targetProvider = parseMusicProviderId(body.targetProvider);
+
+    // sync_pairs is unique on (source, target) across all users
+    const existingPair = getSyncPairByPlaylists(
+      sourceProvider,
+      body.sourcePlaylistId,
+      targetProvider,
+      body.targetPlaylistId,
+    );
+    if (existingPair) {
+      return conflict(
+        'Sync pair already exists',
+        sessionUserIds.includes(existingPair.createdBy)
+          ? 'These playlists are already saved as a sync pair'
+          : 'These playlists are already synced by another account',
+      );
+    }
+
     const pair = createSyncPair({
-      sourceProvider: parseMusicProviderId(body.sourceProvider),
+      sourceProvider,
       sourcePlaylistId: body.sourcePlaylistId,
       sourcePlaylistName: body.sourcePlaylistName,
-      targetProvider: parseMusicProviderId(body.targetProvider),
+      targetProvider,
       targetPlaylistId: body.targetPlaylistId,
       targetPlaylistName: body.targetPlaylistName,
       direction: body.direction,

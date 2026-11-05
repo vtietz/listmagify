@@ -233,9 +233,13 @@ export function getSyncPairByPlaylists(
   sourcePlaylistId: string,
   targetProvider: MusicProviderId,
   targetPlaylistId: string,
-  createdBy: string,
+  createdBy?: string,
 ): SyncPair | null {
   const db = getRecsDb();
+  const params: string[] = [sourceProvider, sourcePlaylistId, targetProvider, targetPlaylistId];
+  if (createdBy !== undefined) {
+    params.push(createdBy);
+  }
 
   const row = db.prepare(`
     SELECT ${SYNC_PAIR_COLUMNS}
@@ -244,14 +248,8 @@ export function getSyncPairByPlaylists(
       AND source_playlist_id = ?
       AND target_provider = ?
       AND target_playlist_id = ?
-      AND created_by = ?
-  `).get(
-    sourceProvider,
-    sourcePlaylistId,
-    targetProvider,
-    targetPlaylistId,
-    createdBy,
-  ) as SyncPairRow | undefined;
+      ${createdBy !== undefined ? 'AND created_by = ?' : ''}
+  `).get(...params) as SyncPairRow | undefined;
 
   return row ? mapSyncPairRow(row) : null;
 }

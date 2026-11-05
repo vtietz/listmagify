@@ -8,7 +8,7 @@ import { ProviderStatusDropdown } from '@/components/auth/ProviderStatusDropdown
 import { useAvailableProviders } from '@shared/hooks/useAvailableProviders';
 import { useAuthSummary } from '@features/auth/hooks/useAuth';
 import { useMusicProviderId } from '@features/auth/hooks/useMusicProviderId';
-import { useCreateSyncPair } from '@features/sync/hooks/useSyncPairs';
+import { useCreateSyncPair, useSyncPairs } from '@features/sync/hooks/useSyncPairs';
 import { usePlaylistName } from '@features/sync/hooks/usePlaylistName';
 import { Save, ArrowLeftRight, Eye, Loader2, ChevronDown, Check } from 'lucide-react';
 import { useSyncDialogStore } from '@features/sync/stores/useSyncDialogStore';
@@ -126,6 +126,21 @@ function canSubmitForm(
   return !!sourcePlaylistId && !!targetPlaylistId && sourceProvider !== targetProvider && !isPending;
 }
 
+function isExistingPair(
+  pairs: readonly SyncPair[] | undefined,
+  sourceProvider: MusicProviderId,
+  sourcePlaylistId: string | null,
+  targetProvider: MusicProviderId,
+  targetPlaylistId: string | null,
+): boolean {
+  return (pairs ?? []).some((pair) => (
+    pair.sourceProvider === sourceProvider
+    && pair.sourcePlaylistId === sourcePlaylistId
+    && pair.targetProvider === targetProvider
+    && pair.targetPlaylistId === targetPlaylistId
+  ));
+}
+
 function SyncIntervalSelect({
   value,
   options,
@@ -216,6 +231,7 @@ function AddSyncPairFormContent({
   const currentProvider = useMusicProviderId();
   const authSummary = useAuthSummary();
   const createPair = useCreateSyncPair();
+  const { data: existingPairs } = useSyncPairs();
   const schedulerEnabled = useSyncSchedulerEnabled();
   const configuredSyncIntervals = useSyncIntervalOptions();
   const intervalOptions: readonly SyncInterval[] = useMemo(
@@ -293,9 +309,11 @@ function AddSyncPairFormContent({
   const targetPlaylistName = usePlaylistName(targetProvider, targetPlaylistId ?? '');
 
   const canSubmit = canSubmitForm(sourcePlaylistId, targetPlaylistId, sourceProvider, targetProvider, createPair.isPending);
+  const isDuplicate = isExistingPair(existingPairs, sourceProvider, sourcePlaylistId, targetProvider, targetPlaylistId);
+  const canSave = canSubmit && !isDuplicate;
 
   function handleSubmit() {
-    if (!sourcePlaylistId || !targetPlaylistId) return;
+    if (!sourcePlaylistId || !targetPlaylistId || isDuplicate) return;
 
     createPair.mutate(
       {
@@ -388,8 +406,8 @@ function AddSyncPairFormContent({
           variant="ghost"
           size="icon"
           className="h-7 w-7"
-          title="Save sync pair"
-          disabled={!canSubmit}
+          title={isDuplicate ? 'This sync pair is already saved' : 'Save sync pair'}
+          disabled={!canSave}
           onClick={handleSubmit}
         >
           {createPair.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
