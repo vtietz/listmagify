@@ -73,45 +73,27 @@ async function fetchUserCollectionTrackPage(
   return response.json() as Promise<JsonApiDocument<JsonApiIdentifier[]>>;
 }
 
-function collectMatchingTrackIds(
-  identifiers: JsonApiIdentifier[],
-  targetIds: ReadonlySet<string>,
-  foundIds: Set<string>,
-): void {
-  for (const identifier of identifiers) {
-    if (identifier.type !== 'tracks') {
-      continue;
-    }
-
-    if (targetIds.has(identifier.id)) {
-      foundIds.add(identifier.id);
-    }
-  }
-}
-
-export async function findTracksInUserCollection(
-  transport: SessionTransport,
-  targetTrackIds: string[],
-): Promise<Set<string>> {
-  const targetIdSet = new Set(targetTrackIds);
-  const foundIds = new Set<string>();
+export async function fetchAllUserCollectionTrackIds(transport: SessionTransport): Promise<Set<string>> {
+  const trackIds = new Set<string>();
   let nextCursor: string | null = null;
 
   for (let page = 0; page < MAX_USER_COLLECTION_PAGES; page += 1) {
     const path = nextCursor ?? USER_COLLECTION_TRACKS_PATH;
     const raw = await fetchUserCollectionTrackPage(transport, path);
     const identifiers = Array.isArray(raw.data) ? raw.data : [];
-    collectMatchingTrackIds(identifiers, targetIdSet, foundIds);
-
-    const nextLink = raw.links?.next ?? null;
-    if (foundIds.size === targetTrackIds.length || !nextLink) {
-      break;
+    for (const identifier of identifiers) {
+      if (identifier.type === 'tracks') {
+        trackIds.add(identifier.id);
+      }
     }
 
-    nextCursor = nextLink;
+    nextCursor = raw.links?.next ?? null;
+    if (!nextCursor) {
+      break;
+    }
   }
 
-  return foundIds;
+  return trackIds;
 }
 
 export function mapContainsTracksResult(inputIds: string[], foundIds: ReadonlySet<string>): boolean[] {

@@ -54,7 +54,7 @@ import {
   PLAYLIST_RELATIONSHIP_MAX_BATCH_SIZE,
   appendPlaylistTracks,
   deletePlaylistTrackItems,
-  findTracksInUserCollection,
+  fetchAllUserCollectionTrackIds,
   isNativeReorderEnabled,
   logReorderDebug,
   makeSnapshotId,
@@ -64,9 +64,14 @@ import {
   toRelationArray,
   unsupported,
 } from '@/lib/music-provider/tidal/providerInternals';
+import { createUserCollectionIndex } from '@/lib/music-provider/tidal/collectionIndex';
 
 export function createTidalProvider(dependencies: TidalProviderDependencies = {}): MusicProvider {
   const transport = createTidalTransport(dependencies);
+  const collectionIndex = createUserCollectionIndex({
+    getSession: transport.getSession,
+    fetchAllTrackIds: () => fetchAllUserCollectionTrackIds(transport),
+  });
 
   return {
     async saveTracks(payload: TrackSavePayload): Promise<void> {
@@ -84,9 +89,12 @@ export function createTidalProvider(dependencies: TidalProviderDependencies = {}
         );
 
         if (!response.ok) {
+          await collectionIndex.invalidate();
           throwProviderError(response, await readJsonApiErrorDetails(response), 'saveTracks');
         }
       }
+
+      await collectionIndex.markSaved(trackIds);
     },
 
     async removeTracks(payload: TrackSavePayload): Promise<void> {
@@ -104,9 +112,12 @@ export function createTidalProvider(dependencies: TidalProviderDependencies = {}
         );
 
         if (!response.ok) {
+          await collectionIndex.invalidate();
           throwProviderError(response, await readJsonApiErrorDetails(response), 'removeTracks');
         }
       }
+
+      await collectionIndex.markRemoved(trackIds);
     },
 
     async containsTracks(payload: TrackSavePayload): Promise<boolean[]> {
@@ -115,8 +126,8 @@ export function createTidalProvider(dependencies: TidalProviderDependencies = {}
         return [];
       }
 
-      const foundIds = await findTracksInUserCollection(transport, targetIds);
-      return mapContainsTracksResult(payload.ids, foundIds);
+      const collectionTrackIds = await collectionIndex.getTrackIds();
+      return mapContainsTracksResult(payload.ids, collectionTrackIds);
     },
 
     async getLikedTracks(limit = 50, nextCursor?: string | null): Promise<LikedTracksPageResult<Track>> {

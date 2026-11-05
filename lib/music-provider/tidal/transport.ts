@@ -223,6 +223,7 @@ export function createTidalTransport(dependencies: TidalProviderDependencies = {
   }
 
   return {
+    getSession: deps.getSession,
     executeWithSession,
     executeWithAccessToken,
     fetchPlaylistItemsPage,

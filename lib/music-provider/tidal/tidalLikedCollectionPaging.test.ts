@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getLikedTracksPage } from '@/lib/music-provider/tidal/likedTracks';
-import { findTracksInUserCollection } from '@/lib/music-provider/tidal/providerInternals';
+import { fetchAllUserCollectionTrackIds } from '@/lib/music-provider/tidal/providerInternals';
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -46,14 +46,29 @@ describe('TIDAL liked collection paging', () => {
       }),
     );
 
-    const found = await findTracksInUserCollection(
-      { executeWithSession },
-      ['track-1'],
-    );
+    const found = await fetchAllUserCollectionTrackIds({ executeWithSession });
 
     const firstCallPath = String(executeWithSession.mock.calls[0]?.[0] ?? '');
     expect(firstCallPath).toContain('/userCollectionTracks/me/relationships/items?page[size]=100');
     expect(firstCallPath).not.toContain('include=');
     expect(found.has('track-1')).toBe(true);
+  });
+
+  it('follows next links until the whole collection is indexed', async () => {
+    const executeWithSession = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({
+        data: [{ id: 'track-1', type: 'tracks' }, { id: 'video-1', type: 'videos' }],
+        links: { next: '/userCollectionTracks/me/relationships/items?page[cursor]=p2' },
+      }))
+      .mockResolvedValueOnce(jsonResponse({
+        data: [{ id: 'track-2', type: 'tracks' }],
+        links: {},
+      }));
+
+    const found = await fetchAllUserCollectionTrackIds({ executeWithSession });
+
+    expect(executeWithSession).toHaveBeenCalledTimes(2);
+    expect(executeWithSession.mock.calls[1]?.[0]).toBe('/userCollectionTracks/me/relationships/items?page[cursor]=p2');
+    expect(Array.from(found)).toEqual(['track-1', 'track-2']);
   });
 });
