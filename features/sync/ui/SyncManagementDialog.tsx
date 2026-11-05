@@ -247,10 +247,9 @@ function SyncPairRow({
   const openPreview = useSyncDialogStore((s) => s.openPreview);
   const [showResultDialog, setShowResultDialog] = useState(false);
 
-  const fetchedSourceName = usePlaylistName(pair.sourceProvider, pair.sourcePlaylistId);
-  const fetchedTargetName = usePlaylistName(pair.targetProvider, pair.targetPlaylistId);
-  const sourceName = pair.sourcePlaylistName || fetchedSourceName;
-  const targetName = pair.targetPlaylistName || fetchedTargetName;
+  // Prefer the live name: it reflects renames and repairs pairs saved with an ID placeholder.
+  const sourceName = usePlaylistName(pair.sourceProvider, pair.sourcePlaylistId, pair.sourcePlaylistName);
+  const targetName = usePlaylistName(pair.targetProvider, pair.targetPlaylistId, pair.targetPlaylistName);
   const isExecutingBackground = pair.latestRun?.status === 'executing' && !pair.latestRun?.completedAt;
   const isSyncing = execute.isPending || isExecutingBackground;
 

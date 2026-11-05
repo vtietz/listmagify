@@ -9,7 +9,7 @@ import { useAvailableProviders } from '@shared/hooks/useAvailableProviders';
 import { useAuthSummary } from '@features/auth/hooks/useAuth';
 import { useMusicProviderId } from '@features/auth/hooks/useMusicProviderId';
 import { useCreateSyncPair, useSyncPairs } from '@features/sync/hooks/useSyncPairs';
-import { usePlaylistName } from '@features/sync/hooks/usePlaylistName';
+import { useResolvedPlaylistName } from '@features/sync/hooks/usePlaylistName';
 import { Save, ArrowLeftRight, Eye, Loader2, ChevronDown, Check } from 'lucide-react';
 import { useSyncDialogStore } from '@features/sync/stores/useSyncDialogStore';
 import { useSyncIntervalOptions, useSyncSchedulerEnabled } from '@shared/hooks/useAppConfig';
@@ -305,8 +305,9 @@ function AddSyncPairFormContent({
     syncInterval,
   ]);
 
-  const sourcePlaylistName = usePlaylistName(sourceProvider, sourcePlaylistId ?? '');
-  const targetPlaylistName = usePlaylistName(targetProvider, targetPlaylistId ?? '');
+  // Empty when unresolved so the ID placeholder is never persisted as the name
+  const sourcePlaylistName = useResolvedPlaylistName(sourceProvider, sourcePlaylistId ?? '') ?? '';
+  const targetPlaylistName = useResolvedPlaylistName(targetProvider, targetPlaylistId ?? '') ?? '';
 
   const canSubmit = canSubmitForm(sourcePlaylistId, targetPlaylistId, sourceProvider, targetProvider, createPair.isPending);
   const isDuplicate = isExistingPair(existingPairs, sourceProvider, sourcePlaylistId, targetProvider, targetPlaylistId);

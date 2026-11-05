@@ -12,12 +12,18 @@ interface PlaylistMetaResponse {
   name: string;
 }
 
+function formatPlaylistIdFallback(playlistId: string): string {
+  return playlistId.length > 20 ? `${playlistId.slice(0, 20)}...` : playlistId;
+}
+
 /**
- * Resolve a playlist ID to its display name via the playlist meta API.
+ * Resolve a playlist ID to its real display name via the playlist meta API.
+ * Returns null while loading or when the lookup fails, so callers never mistake
+ * the ID placeholder for a name (e.g. when persisting it).
  * Shares the same query cache as the panel's usePlaylistMetaPermissions hook.
  * For liked songs, returns the provider-specific name without an API call.
  */
-export function usePlaylistName(providerId: MusicProviderId, playlistId: string): string {
+export function useResolvedPlaylistName(providerId: MusicProviderId, playlistId: string): string | null {
   const isLiked = isLikedSongsPlaylist(playlistId);
 
   const { data } = useQuery({
@@ -29,5 +35,13 @@ export function usePlaylistName(providerId: MusicProviderId, playlistId: string)
 
   if (isLiked) return getProviderLikedSongsDisplayName(providerId);
 
-  return data?.name ?? (playlistId.length > 20 ? `${playlistId.slice(0, 20)}...` : playlistId);
+  return data?.name || null;
+}
+
+/**
+ * Display name for a playlist: the resolved name, else the stored name, else a shortened ID.
+ */
+export function usePlaylistName(providerId: MusicProviderId, playlistId: string, storedName?: string): string {
+  const resolvedName = useResolvedPlaylistName(providerId, playlistId);
+  return resolvedName ?? (storedName || formatPlaylistIdFallback(playlistId));
 }
