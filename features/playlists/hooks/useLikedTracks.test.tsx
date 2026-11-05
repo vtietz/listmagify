@@ -112,6 +112,7 @@ describe("useLikedTracksStatus", () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ids: ["track1", "track2", "track3"] }),
+      suppressErrorDialog: true,
     });
     expect(result.current.likedMap.get("track1")).toBe(true);
     expect(result.current.likedMap.get("track2")).toBe(false);
@@ -147,6 +148,7 @@ describe("useLikedTracksStatus", () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ids: ["track1", "track2"] }),
+      suppressErrorDialog: true,
     });
     expect(result.current.likedMap.has(null as unknown as string)).toBe(false);
   });

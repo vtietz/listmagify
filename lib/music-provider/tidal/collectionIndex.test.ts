@@ -86,3 +86,21 @@ describe('TIDAL user collection index', () => {
     expect(await index.getTrackIds()).toEqual(new Set(['a']));
   });
 });
+
+describe('TIDAL user collection index deadline', () => {
+  it('answers 503 when the scan outlasts the wait timeout, then serves the finished scan', async () => {
+    let resolveScan: (ids: Set<string>) => void = () => {};
+    const fetchAllTrackIds = vi.fn(() => new Promise<Set<string>>((resolve) => { resolveScan = resolve; }));
+    const index = createUserCollectionIndex({
+      getSession: vi.fn().mockResolvedValue({ accessToken: 't', user: { id: 'u1' } } as AuthenticatedSession),
+      fetchAllTrackIds,
+      waitTimeoutMs: 10,
+    });
+
+    await expect(index.getTrackIds()).rejects.toMatchObject({ status: 503 });
+
+    resolveScan(new Set(['a']));
+    await vi.waitFor(async () => expect(await index.getTrackIds()).toEqual(new Set(['a'])));
+    expect(fetchAllTrackIds).toHaveBeenCalledTimes(1);
+  });
+});

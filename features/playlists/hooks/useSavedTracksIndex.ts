@@ -17,7 +17,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage, StateStorage } from 'zustand/middleware';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
-import { apiFetch } from '@/lib/api/client';
+import { ApiError, apiFetch } from '@/lib/api/client';
 import type { MusicProviderId } from '@/lib/music-provider/types';
 import { resolveClientMusicProviderId } from '@features/auth/hooks/useMusicProviderId';
 import { isTrackIdCompatibleWithProvider } from '@/lib/providers/trackIdCompat';
@@ -194,6 +194,18 @@ const MAX_CONTAINS_BATCH = 50;
  * Debounce delay for ensureCoverage calls (ms)
  */
 const ENSURE_COVERAGE_DEBOUNCE = 300;
+
+/**
+ * Retry for transient /contains failures (e.g. server still indexing the library).
+ * The liked status is background information, so these never open the error dialog.
+ */
+const CONTAINS_RETRY_DELAY = 5000;
+const CONTAINS_MAX_RETRIES = 3;
+const RETRYABLE_CONTAINS_STATUSES = new Set([502, 503, 504]);
+
+function isRetryableContainsError(err: unknown): boolean {
+  return err instanceof ApiError && RETRYABLE_CONTAINS_STATUSES.has(err.status);
+}
 
 interface LikedTracksResponse {
   tracks: Array<{ id: string | null }>;
@@ -387,8 +399,7 @@ export function useSavedTracksIndex(providerId?: MusicProviderId) {
       clearTimeout(ensureCoverageTimeoutRef.current);
     }
     
-    // Debounce the actual API call
-    ensureCoverageTimeoutRef.current = setTimeout(async () => {
+    const flush = async (attempt: number) => {
       const idsToCheck = Array.from(pendingEnsureIdsRef.current);
       pendingEnsureIdsRef.current.clear();
       
@@ -411,6 +422,7 @@ export function useSavedTracksIndex(providerId?: MusicProviderId) {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ ids: batch }),
+              suppressErrorDialog: true,
             })
           )
         );
@@ -432,12 +444,20 @@ export function useSavedTracksIndex(providerId?: MusicProviderId) {
           addToLikedSet(likedIdsFound);
         }
       } catch (err) {
+        if (isRetryableContainsError(err) && attempt < CONTAINS_MAX_RETRIES) {
+          idsToCheck.forEach(id => pendingEnsureIdsRef.current.add(id));
+          ensureCoverageTimeoutRef.current = setTimeout(() => flush(attempt + 1), CONTAINS_RETRY_DELAY);
+          return;
+        }
         const errorMsg = err instanceof Error ? err.message : 'Failed to check track status';
         setError(errorMsg);
       } finally {
         removePendingContains(idsToCheck);
       }
-    }, ENSURE_COVERAGE_DEBOUNCE);
+    };
+
+    // Debounce the actual API call
+    ensureCoverageTimeoutRef.current = setTimeout(() => flush(0), ENSURE_COVERAGE_DEBOUNCE);
   }, [addPendingContains, removePendingContains, addToLikedSet, setError, activeProviderId]); // Removed likedSet/pendingSet - using refs
 
   /**
