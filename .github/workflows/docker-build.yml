@@ -134,6 +134,15 @@ jobs:
           PROD_HEALTH_URL: ${{ vars.PROD_HEALTH_URL }}
         run: |
           set -euo pipefail
+          missing=()
+          for name in PROD_SSH_PRIVATE_KEY PROD_SSH_KNOWN_HOSTS PROD_SSH_HOST PROD_SSH_PORT PROD_SSH_USER PROD_SSH_PATH PROD_HEALTH_URL; do
+            [[ -n "${!name}" ]] || missing+=("$name")
+          done
+          if (( ${#missing[@]} > 0 )); then
+            echo "::error title=Production environment not configured::Missing in the 'production' environment: ${missing[*]} (see docs/PRODUCTION_DEPLOYMENT.md)"
+            exit 1
+          fi
+
           [[ "$APPROVED_SHA" =~ ^[0-9a-f]{40}$ && "$APPROVED_SHA" == "$EXPECTED_SHA" ]]
           [[ "$IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
           [[ "$PROD_SSH_HOST" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*$ ]]

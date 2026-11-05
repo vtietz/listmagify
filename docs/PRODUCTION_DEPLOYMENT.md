@@ -85,7 +85,7 @@ The service-level `env_file` supplies container runtime variables, but does not
 supply Compose interpolation values such as the `CONTACT_*` build arguments.
 The `./run.sh prod-*` commands already pass `--env-file .env`.
 
-## Approved CI Deployment
+## Automatic CI Deployment
 
 The Docker publication workflow deploys only after successful **CI** triggered by
 a push to `main` in this repository. Manual workflow runs and releases publish
@@ -93,29 +93,19 @@ images only. Builds check out the exact CI source SHA (or `github.sha` for manua
 runs/releases), publish a full `sha-<commit>` tag and revision label, and pass the
 registry digest to deployment. Production uses the immutable digest, not `latest`.
 
-### GitHub Protection and Approval
+### GitHub Protection
 
-Before enabling deployments, create the **production** GitHub environment and
-configure required reviewers, deployment branch restrictions, and prevention of
-self-review where available. **Creating an environment does not enforce approval.**
-Verify that deployments actually wait for review; do not assume the environment
-name provides protection. Required reviewers, self-review prevention, and other
-protection features depend on repository visibility and GitHub plan. If your plan
-does not support the required approval gate, do not provision deployment secrets
-until an equivalent enforceable gate is in place. A sole owner cannot approve
-their own deployment when self-review prevention is enabled; arrange an independent
-reviewer rather than silently weakening that control.
-
-Configure a `main` ruleset requiring pull requests, successful CI, and appropriate
-review, restricting updates/bypass to the intended owner or trusted maintainers,
-and preventing force pushes and deletion. Check plan support and owner/admin bypass
-settings explicitly. Protect changes to workflows as privileged code changes.
+Configure the **production** environment to permit deployments from `main` only.
+Deployments run automatically after successful CI, without manual approval. Anyone
+who can change `main` or its workflows can therefore deploy production code and
+access deployment credentials. Restrict repository access and protect `main` and
+workflow changes accordingly; prevent force pushes and deletion where possible.
 
 ### Environment Settings
 
 Set these only in the **production** environment, not as repository-wide secrets.
-No automatic deployment should be enabled until all settings, approval controls,
-host prerequisites, and backups below are provisioned and verified.
+Do not enable automatic deployment until all settings, host prerequisites, and
+backups below are provisioned and verified.
 
 | Kind | Name | Value |
 | --- | --- | --- |
@@ -144,19 +134,19 @@ Provision the entry ahead of time. The workflow never discovers keys with runtim
   Overrides must retain both service names and the `IMAGE` selection for both.
 - Limit the deployment SSH account and key to the required host and purpose;
   disable forwarding/PTY capabilities where practical. Docker access is effectively
-  root access, even without `sudo`; treat this account and GitHub environment
-  reviewers as privileged operators. Do not grant unrelated host access.
+  root access, even without `sudo`; treat this account and anyone able to modify
+  deployment workflows as privileged operators. Do not grant unrelated host access.
 - If Git or GHCR is private, provision least-privilege read credentials on the
   server for noninteractive `git fetch` and Docker pulls. The runner's GitHub token
   is used only for the main-branch freshness check, never forwarded to the server.
 - Back up persistent data/database and verify restoration before rollout. Review
-  migrations and compatibility before approving: both services can run migrations.
+  migrations and compatibility before pushing: both services can run migrations.
 
 ### Deployment and Recovery Behavior
 
 Deployments serialize through a fixed GitHub concurrency group without canceling
 an active deployment, and a nonblocking checkout-local `flock` rejects overlapping
-remote deployments. Jobs have a 20-minute timeout. A queued or approved old build
+remote deployments. Jobs have a 20-minute timeout. A queued old build
 fails if it is no longer current `main`: the runner checks GitHub's API and the
 server independently fetches and verifies `origin/main` before detached checkout.
 These are point-in-time checks; they do not prevent a later push during rollout.
@@ -188,8 +178,8 @@ When you pull updates from the repository:
    ./run.sh prod-up    # Rebuilds and starts with override
    ```
 
-Do not run manual updates concurrently with approved CI deployments. Prefer the
-approved immutable-image flow above for the dedicated deployment checkout.
+Do not run manual updates concurrently with CI deployments. Prefer the
+immutable-image flow above for the dedicated deployment checkout.
 
 ## nginx-proxy Integration Example
 
