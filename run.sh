@@ -22,7 +22,7 @@ Commands:
   prod-build      Build production image (use --no-cache to force rebuild)
   prod-up         Start production deployment
   prod-down       Stop production deployment
-  prod-logs       View production logs (use -f to follow)
+  prod-logs       View production logs with timestamps (-f to follow, --since 1h, --tail N)
   prod-pull       Pull pre-built production image from registry
   prod-push       Push production image to registry
   prod-update     Pull latest code, pull latest image, and restart production
@@ -280,11 +280,11 @@ case "${1:-}" in
     ;;
   prod-logs)
     shift
-    # View production logs
+    # View production logs (with timestamps; e.g. --since 1h, --tail 200, -f)
     if [ -f docker/docker-compose.prod.override.yml ]; then
-      docker compose --env-file .env -f docker/docker-compose.prod.yml -f docker/docker-compose.prod.override.yml logs "$@"
+      docker compose --env-file .env -f docker/docker-compose.prod.yml -f docker/docker-compose.prod.override.yml logs --timestamps "$@"
     else
-      docker compose --env-file .env -f docker/docker-compose.prod.yml logs "$@"
+      docker compose --env-file .env -f docker/docker-compose.prod.yml logs --timestamps "$@"
     fi
     ;;
   prod-pull)

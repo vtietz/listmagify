@@ -12,8 +12,8 @@ import { usePlayerStore } from './usePlayerStore';
 import type { PlaybackContext } from './usePlayerStore';
 import { useSessionUser } from '@features/auth/hooks/useSessionUser';
 import { useDeviceType } from '@shared/hooks/useDeviceType';
-import { useMusicProviderId } from '@features/auth/hooks/useMusicProviderId';
-import { supportsProviderPlaybackControl } from '@/lib/music-provider/capabilities';
+import { usePlaybackProviderId } from './usePlaybackProviderId';
+import { DEFAULT_MUSIC_PROVIDER_ID } from '@/lib/music-provider/providerId';
 import type { PlaybackDevice, PlaybackState } from '@/lib/music-provider/types';
 import { toast } from '@/lib/ui/toast';
 import { useMobileOverlayStore } from '@/components/split-editor/mobile/MobileBottomNav';
@@ -505,8 +505,9 @@ async function executePreviousPlaybackAction(params: {
 
 export function useSpotifyPlayer(options?: UseSpotifyPlayerOptions) {
   const queryClient = useQueryClient();
-  const providerId = useMusicProviderId();
-  const isPlaybackSupported = supportsProviderPlaybackControl(providerId);
+  const playbackProviderId = usePlaybackProviderId();
+  const providerId = playbackProviderId ?? DEFAULT_MUSIC_PROVIDER_ID;
+  const isPlaybackSupported = playbackProviderId !== null;
   const { authenticated } = useSessionUser();
   const enableStatePolling = options?.enableStatePolling ?? true;
   const shouldPollPlaybackState = authenticated && isPlaybackSupported && enableStatePolling;

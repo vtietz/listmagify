@@ -10,7 +10,7 @@
 import { useCallback, useState, useEffect, useRef } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import { useSpotifyPlayer } from '@features/player/hooks/useSpotifyPlayer';
-import { useMusicProviderId } from '@features/auth/hooks/useMusicProviderId';
+import { usePlaybackProviderId } from '@features/player/hooks/usePlaybackProviderId';
 import { usePlayerStore } from '@features/player/hooks/usePlayerStore';
 import { useWebPlaybackSDK } from '@features/player/hooks/useWebPlaybackSDK';
 import { useSavedTracksIndex } from '@features/playlists/hooks/useSavedTracksIndex';
@@ -490,12 +490,12 @@ interface SpotifyPlayerProps {
 }
 
 export function SpotifyPlayer({ forceShow = false, onTrackClick }: SpotifyPlayerProps) {
-  const providerId = useMusicProviderId();
+  const playbackProviderId = usePlaybackProviderId();
   const isPlayerVisible = usePlayerStore((s) => s.isPlayerVisible);
   const shouldPollPlaybackState = forceShow || isPlayerVisible;
   const model = useSpotifyPlayerViewModel(shouldPollPlaybackState);
 
-  if (providerId !== 'spotify') {
+  if (playbackProviderId === null) {
     return null;
   }
 
@@ -555,7 +555,7 @@ export function SpotifyPlayer({ forceShow = false, onTrackClick }: SpotifyPlayer
   );
 
   return (
-    <ProviderPanelGuard provider="spotify" fillHeight={false}>
+    <ProviderPanelGuard provider={playbackProviderId} fillHeight={false}>
       {content}
     </ProviderPanelGuard>
   );

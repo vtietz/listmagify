@@ -27,8 +27,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { useSpotifyPlayer } from '@features/player/hooks/useSpotifyPlayer';
-import { useMusicProviderId } from '@features/auth/hooks/useMusicProviderId';
-import { supportsProviderPlaybackControl } from '@/lib/music-provider/capabilities';
+import { usePlaybackProviderId } from '@features/player/hooks/usePlaybackProviderId';
 import { useSavedTracksIndex } from '@features/playlists/hooks/useSavedTracksIndex';
 import { useInsertionPointsStore, computeInsertionPositions } from '@features/split-editor/playlist/hooks/useInsertionPointsStore';
 import { useAddTracks } from '@/lib/spotify/playlistMutations';
@@ -438,13 +437,13 @@ interface MiniPlayerProps {
 function shouldRenderMiniPlayer(
   isVisible: boolean,
   track: PlaybackTrack | null | undefined,
-  providerId: ReturnType<typeof useMusicProviderId>,
+  playbackProviderId: ReturnType<typeof usePlaybackProviderId>,
 ): track is PlaybackTrack {
-  return Boolean(isVisible && track && supportsProviderPlaybackControl(providerId));
+  return Boolean(isVisible && track && playbackProviderId !== null);
 }
 
 export function MiniPlayer({ isVisible, onHide, onTrackClick }: MiniPlayerProps) {
-  const providerId = useMusicProviderId();
+  const playbackProviderId = usePlaybackProviderId();
   const {
     playbackState,
     isPlaying,
@@ -487,7 +486,7 @@ export function MiniPlayer({ isVisible, onHide, onTrackClick }: MiniPlayerProps)
   const trackClickHandler = getTrackClickHandler(track, onTrackClick);
 
   // Don't render if not visible or no track
-  if (!shouldRenderMiniPlayer(isVisible, track, providerId)) {
+  if (!shouldRenderMiniPlayer(isVisible, track, playbackProviderId)) {
     return null;
   }
 

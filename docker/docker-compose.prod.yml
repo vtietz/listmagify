@@ -1,5 +1,13 @@
 name: spotify
 
+# Rotate container logs so they cannot fill the disk (per container: 5 x 10 MB, compressed).
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+    compress: "true"
+
 services:
   spotify-web:
     image: ${IMAGE:-ghcr.io/vtietz/listmagify:latest}
@@ -21,6 +29,7 @@ services:
       - ../.env
     volumes:
       - ../data:/usr/src/app/data
+    logging: *default-logging
     restart: unless-stopped
 
   sync-worker:
@@ -39,4 +48,5 @@ services:
         limits:
           cpus: '0.25'
           memory: 256M
+    logging: *default-logging
     restart: unless-stopped

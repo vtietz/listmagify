@@ -5,8 +5,7 @@
 
 import { useCallback, useState, useRef } from 'react';
 import { useProviderPlayer } from './useSpotifyPlayer';
-import { useMusicProviderId } from '@features/auth/hooks/useMusicProviderId';
-import { supportsProviderPlaybackControl } from '@/lib/music-provider/capabilities';
+import { usePlaybackProviderId } from './usePlaybackProviderId';
 
 interface UseTrackPlaybackOptions {
   /** All track URIs in the current playlist (for auto-play next) */
@@ -27,8 +26,7 @@ export function useTrackPlayback(options: UseTrackPlaybackOptions) {
   const { play, pause, isPlaying, currentTrackId, isLoading } = useProviderPlayer({
     enableStatePolling: false,
   });
-  const providerId = useMusicProviderId();
-  const isPlaybackSupported = supportsProviderPlaybackControl(providerId);
+  const isPlaybackSupported = usePlaybackProviderId() !== null;
   
   // Track which track we're loading (for showing spinner)
   const [loadingTrackUri, setLoadingTrackUri] = useState<string | null>(null);
