@@ -52,4 +52,17 @@ describe('generateErrorSummary', () => {
     expect(summary).toContain('# Error Report Summary');
     expect(summary).not.toContain('## Environment');
   });
+
+  it('lists request context entries under request information', () => {
+    const summary = generateErrorSummary(
+      makeReport({
+        error_request_path: '/api/me/playlists',
+        error_status_code: 504,
+        error_context_json: JSON.stringify({ provider: 'tidal', method: 'GET', responseSource: 'proxy' }),
+      })
+    );
+
+    expect(summary).toContain('- **provider:** tidal');
+    expect(summary).toContain('- **responseSource:** proxy');
+  });
 });

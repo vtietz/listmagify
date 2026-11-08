@@ -358,4 +358,12 @@ export const metricsMigrations: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_user_registrations_provider ON user_registrations(provider);
     `,
   },
+  {
+    version: 16,
+    name: 'add_error_report_context',
+    sql: `
+      -- Request context of reported errors (provider, method, response source)
+      ALTER TABLE error_reports ADD COLUMN error_context_json TEXT;
+    `,
+  },
 ];

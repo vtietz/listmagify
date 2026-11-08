@@ -190,6 +190,7 @@ export interface ErrorReport {
   error_details: string | null;
   error_status_code: number | null;
   error_request_path: string | null;
+  error_context_json?: string | null;
   user_description: string | null;
   environment_json: string | null;
   app_version: string | null;

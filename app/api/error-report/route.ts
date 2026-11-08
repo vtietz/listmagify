@@ -26,6 +26,7 @@ function logErrorReport(reportId: string, session: { user: { id?: string | null;
   console.debug(`[error-report] Category: ${body.error.category}`);
   console.debug(`[error-report] Message: ${body.error.message}`);
   console.debug(`[error-report] Details: ${body.error.details || 'N/A'}`);
+  console.debug(`[error-report] Request: ${body.error.requestPath || 'N/A'} ${JSON.stringify(body.error.context ?? {})}`);
   console.debug(`[error-report] User Description: ${body.userDescription || 'N/A'}`);
 
   const logEntry = {
@@ -53,9 +54,9 @@ function persistErrorReport(reportId: string, session: { user: { id?: string | n
       INSERT INTO error_reports (
         report_id, user_id, user_name, user_hash,
         error_category, error_severity, error_message, error_details,
-        error_status_code, error_request_path, user_description,
+        error_status_code, error_request_path, error_context_json, user_description,
         environment_json, app_version
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       reportId,
       session.user.id,
@@ -67,6 +68,7 @@ function persistErrorReport(reportId: string, session: { user: { id?: string | n
       body.error.details || null,
       body.error.statusCode || null,
       body.error.requestPath || null,
+      body.error.context ? JSON.stringify(body.error.context) : null,
       body.userDescription || null,
       JSON.stringify(body.environment),
       body.appVersion

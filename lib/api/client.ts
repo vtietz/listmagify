@@ -29,6 +29,12 @@ interface FetchOptions extends RequestInit {
   suppressErrorDialog?: boolean;
 }
 
+type RequestErrorContext = {
+  requestPath: string;
+  method: string;
+  providerId: MusicProviderId;
+};
+
 const PROVIDER_STORAGE_KEY = 'music-provider-id';
 const PROVIDER_MISMATCH_RELOAD_KEY = 'provider-mismatch-reload-attempted';
 
@@ -49,6 +55,13 @@ function getCurrentProviderId(): MusicProviderId {
   }
 
   return DEFAULT_MUSIC_PROVIDER_ID;
+}
+
+/** Provider the request actually targets (an explicit `provider` query param wins). */
+function getRequestProviderId(resolvedUrl: string, fallback: MusicProviderId): MusicProviderId {
+  const query = resolvedUrl.split('?')[1];
+  const fromQuery = query ? new URLSearchParams(query).get('provider') : null;
+  return isMusicProviderId(fromQuery) ? fromQuery : fallback;
 }
 
 function withProviderOnApiUrl(url: string, providerId: MusicProviderId): string {
@@ -284,7 +297,33 @@ function buildUserNotApprovedAppError(response: Response, requestPath: string): 
   });
 }
 
-function buildGenericAppError(response: Response, data: any, errorMessage: string, requestPath: string): AppError {
+/**
+ * Our route handlers always answer with JSON. A non-JSON gateway status
+ * (502/504) therefore originates from the reverse proxy, not the app.
+ */
+function resolveResponseSource(response: Response): 'app' | 'proxy' | 'non-json' {
+  const contentType = response.headers.get('content-type') ?? '';
+  if (contentType.includes('application/json')) {
+    return 'app';
+  }
+
+  return response.status === 502 || response.status === 504 ? 'proxy' : 'non-json';
+}
+
+function buildRequestContext(response: Response, request: RequestErrorContext): Record<string, string> {
+  return {
+    provider: request.providerId,
+    method: request.method,
+    responseSource: resolveResponseSource(response),
+  };
+}
+
+function buildGenericAppError(
+  response: Response,
+  data: any,
+  errorMessage: string,
+  request: RequestErrorContext,
+): AppError {
   const details = resolveErrorDetails(data);
   return createAppError({
     message: errorMessage,
@@ -292,7 +331,8 @@ function buildGenericAppError(response: Response, data: any, errorMessage: strin
     category: 'api',
     severity: response.status >= 500 ? 'error' : 'warning',
     statusCode: response.status,
-    ...(requestPath ? { requestPath } : {}),
+    ...(request.requestPath ? { requestPath: request.requestPath } : {}),
+    context: buildRequestContext(response, request),
   });
 }
 
@@ -324,7 +364,13 @@ function handleRateLimitResponse(response: Response, data: any, requestPath: str
   throw new RateLimitApiError(rateLimitError.message, retryAfterMs, data);
 }
 
-function handleErrorResponse(response: Response, data: any, requestPath: string, shouldOpenErrorDialog: boolean): never {
+function handleErrorResponse(
+  response: Response,
+  data: any,
+  request: RequestErrorContext,
+  shouldOpenErrorDialog: boolean,
+): never {
+  const { requestPath } = request;
   if (maybeRecoverFromProviderMismatch(response.status, data)) {
     throw new ApiError('App updated, reloading to recover request context', response.status, data);
   }
@@ -342,7 +388,7 @@ function handleErrorResponse(response: Response, data: any, requestPath: string,
   }
 
   if (!suppressDialog) {
-    reportAndOpenDialog(buildGenericAppError(response, data, errorMessage, requestPath), shouldOpenErrorDialog);
+    reportAndOpenDialog(buildGenericAppError(response, data, errorMessage, request), shouldOpenErrorDialog);
   }
 
   throw apiError;
@@ -353,6 +399,7 @@ type ApiResponseHandlingOptions = {
   resolvedUrl: string;
   providerId: 'spotify' | 'tidal';
   requestPath: string;
+  requestMethod: string;
   shouldOpenErrorDialog: boolean;
 };
 
@@ -406,7 +453,11 @@ function handleApiResponse<T>(
   maybeHandleRateLimit(response, data, options.requestPath, options.shouldOpenErrorDialog);
 
   if (!response.ok) {
-    handleErrorResponse(response, data, options.requestPath, options.shouldOpenErrorDialog);
+    handleErrorResponse(response, data, {
+      requestPath: options.requestPath,
+      method: options.requestMethod,
+      providerId: getRequestProviderId(options.resolvedUrl, options.providerId),
+    }, options.shouldOpenErrorDialog);
   }
 
   return data as T;
@@ -462,6 +513,7 @@ export async function apiFetch<T = any>(
       resolvedUrl,
       providerId,
       requestPath,
+      requestMethod: (fetchOptions.method ?? 'GET').toUpperCase(),
       shouldOpenErrorDialog,
     });
   } catch (error) {

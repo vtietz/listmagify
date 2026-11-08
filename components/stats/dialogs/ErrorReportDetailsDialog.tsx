@@ -7,6 +7,14 @@ import { Copy, Check } from 'lucide-react';
 import type { ErrorReport } from '../types';
 import { generateErrorSummary } from './errorReportSummary';
 
+function formatJson(json: string): string {
+  try {
+    return JSON.stringify(JSON.parse(json), null, 2);
+  } catch {
+    return json;
+  }
+}
+
 interface ErrorReportDetailsDialogProps {
   report: ErrorReport;
   open: boolean;
@@ -147,6 +155,15 @@ export function ErrorReportDetailsDialog({
               <div>
                 <div className="text-sm font-medium text-muted-foreground">Request Path</div>
                 <div className="font-mono text-sm">{report.error_request_path}</div>
+              </div>
+            )}
+
+            {report.error_context_json && (
+              <div>
+                <div className="text-sm font-medium text-muted-foreground">Request Context</div>
+                <pre className="p-3 bg-muted rounded text-xs overflow-x-auto">
+                  {formatJson(report.error_context_json)}
+                </pre>
               </div>
             )}
 

@@ -95,7 +95,7 @@ export async function GET(request: NextRequest) {
       SELECT 
         id, report_id, ts, user_id, user_name, user_hash,
         error_category, error_severity, error_message, error_details,
-        error_status_code, error_request_path, user_description,
+        error_status_code, error_request_path, error_context_json, user_description,
         environment_json, app_version, resolved
       FROM error_reports
       WHERE 1=1

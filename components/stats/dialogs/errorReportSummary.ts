@@ -20,6 +20,19 @@ function parseEnvironment(environmentJson: string | null): EnvironmentPayload {
   }
 }
 
+function parseContext(contextJson: string | null | undefined): Record<string, unknown> {
+  if (!contextJson) {
+    return {};
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(contextJson);
+    return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {};
+  } catch {
+    return {};
+  }
+}
+
 function buildOptionalSection(title: string, body: string | null): string {
   if (!body) {
     return '';
@@ -37,7 +50,11 @@ function buildRequestSection(report: ErrorReport): string {
     ? `\n- **Status Code:** ${report.error_status_code}`
     : '';
 
-  return `\n\n## Request Information\n- **Path:** ${report.error_request_path}${statusLine}`;
+  const contextLines = Object.entries(parseContext(report.error_context_json))
+    .map(([key, value]) => `\n- **${key}:** ${value}`)
+    .join('');
+
+  return `\n\n## Request Information\n- **Path:** ${report.error_request_path}${statusLine}${contextLines}`;
 }
 
 function buildEnvironmentSection(report: ErrorReport, environment: EnvironmentPayload): string {
