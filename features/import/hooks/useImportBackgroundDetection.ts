@@ -6,6 +6,7 @@ import { apiFetch } from '@/lib/api/client';
 import { toast } from '@/lib/ui/toast';
 import { useImportActivityStore } from '@/features/import/stores/useImportActivityStore';
 import { useImportJob, type ImportJobData } from '@/features/import/hooks/useImportJob';
+import { useSessionUser } from '@features/auth/hooks/useSessionUser';
 
 interface ActiveImportResponse {
   activeJob: { id: string; status: string } | null;
@@ -21,11 +22,13 @@ export function useImportBackgroundDetection() {
   const activeJobId = useImportActivityStore((s) => s.activeImportJobId);
   const queryClient = useQueryClient();
   const hasNotified = useRef(false);
+  const { authenticated } = useSessionUser();
 
-  // Check for active import on mount
+  // Check for active import once a session exists (avoids 401 noise for logged-out users)
   const { data } = useQuery({
     queryKey: ['import-active-check'],
     queryFn: () => apiFetch<ActiveImportResponse>('/api/import/active'),
+    enabled: authenticated,
     staleTime: Infinity,
     gcTime: 0,
   });

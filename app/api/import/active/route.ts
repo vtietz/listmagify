@@ -1,5 +1,6 @@
 import { assertAuthenticated } from '@/app/api/_shared/guard';
 import { ok, fromError } from '@/app/api/_shared/http';
+import { isAppRouteError } from '@/lib/errors';
 import { getActiveImportJob } from '@/lib/import/importStore';
 import { getAllSessionUserIds } from '@/lib/auth/sessionUserIds';
 
@@ -14,7 +15,10 @@ export async function GET() {
     const activeJob = getActiveImportJob(getAllSessionUserIds(session));
     return ok({ activeJob: activeJob ?? null });
   } catch (error) {
-    console.error('[api/import/active] Error:', error);
+    // Missing session is expected (logged-out tabs, stale tabs after redeploy): answer 401 quietly.
+    if (!(isAppRouteError(error) && error.status === 401)) {
+      console.error('[api/import/active] Error:', error);
+    }
     return fromError(error);
   }
 }

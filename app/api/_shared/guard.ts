@@ -19,7 +19,7 @@ export async function assertAuthenticated() {
   const session = await getServerSession(authOptions);
 
   if (!session) {
-    throw routeErrors.unauthorized('token_expired');
+    throw routeErrors.unauthorized('no_session');
   }
 
   return session;
