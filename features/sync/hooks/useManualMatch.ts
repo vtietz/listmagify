@@ -66,6 +66,45 @@ export function useSaveManualMatch() {
   });
 }
 
+export interface ResolveSyncTrackInput {
+  syncPairId: string;
+  canonicalTrackId: string;
+  targetProvider: MusicProviderId;
+  providerTrackId: string;
+  /** Run whose warning is resolved (its warnings and counters are updated) */
+  runId?: string;
+}
+
+export interface ResolveSyncTrackResult {
+  providerTrackId: string;
+  playlistId: string;
+  added: boolean;
+}
+
+/**
+ * Saves a hand-picked match and adds the track to the pair's playlist right
+ * away, without running the whole sync again.
+ */
+export function useResolveSyncTrack() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ syncPairId, ...body }: ResolveSyncTrackInput) =>
+      apiFetch<ResolveSyncTrackResult>(`/api/sync/pairs/${syncPairId}/resolve-track`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }),
+    onSuccess: (result: ResolveSyncTrackResult, input: ResolveSyncTrackInput) => {
+      void queryClient.invalidateQueries({ queryKey: ['sync-run-history', input.syncPairId] });
+      // Refresh any open panel showing the playlist the track was added to.
+      void queryClient.invalidateQueries({
+        predicate: (query: { queryKey: readonly unknown[] }) => query.queryKey.includes(result.playlistId),
+      });
+    },
+  });
+}
+
 /** Leaves a track out of a sync pair's syncs, or brings it back. */
 export function useSetTrackSkipped() {
   const queryClient = useQueryClient();

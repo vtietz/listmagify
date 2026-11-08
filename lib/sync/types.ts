@@ -54,6 +54,8 @@ export interface SyncWarning {
   title: string;
   artists: string[];
   reason: string;
+  /** Source track duration, used to rank manual match candidates (absent on older runs) */
+  durationMs?: number;
   /** Provider the track could not be added to (absent on runs recorded before this was tracked) */
   targetProvider?: MusicProviderId;
 }

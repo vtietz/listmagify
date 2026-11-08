@@ -225,6 +225,24 @@ async function filterAlreadyPresent(
 }
 
 /**
+ * Adds tracks to a playlist (or Liked Songs) outside of a full sync, skipping
+ * tracks that are already there. Returns how many were actually added.
+ */
+export async function addTrackUrisToPlaylist(
+  uris: string[],
+  provider: MusicProvider,
+  providerId: MusicProviderId,
+  playlistId: string,
+): Promise<{ added: number; errors: string[] }> {
+  const isLiked = isLikedSongsPlaylist(playlistId);
+  const toAdd = await filterAlreadyPresent(uris, provider, providerId, playlistId, isLiked);
+  const result = isLiked
+    ? await applyBatchedLikedAdds(toAdd, provider, providerId)
+    : await applyBatchedPlaylistAdds(toAdd, provider, playlistId);
+  return { added: result.count, errors: result.errors };
+}
+
+/**
  * Sorts the playlist's current entries by the desired canonical order.
  *
  * Entries are mapped to canonical IDs from the URIs actually in the playlist, so a

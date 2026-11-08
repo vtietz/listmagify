@@ -1,4 +1,5 @@
 import { getMusicProvider } from '@/lib/music-provider';
+import { toSyncWarnings } from '@/lib/sync/runWarnings';
 import type { MusicProvider, MusicProviderId } from '@/lib/music-provider/types';
 import { captureSnapshot } from '@/lib/sync/snapshot';
 import type { SnapshotOptions } from '@/lib/sync/snapshot';
@@ -387,21 +388,9 @@ export async function previewSync(
 // Sync run tracking helpers (used by applySyncPlanWithRun)
 // ---------------------------------------------------------------------------
 
-function formatUnresolvedReason(reason: string): string {
-  if (reason === 'not_found') return 'Not found on target provider';
-  if (reason === 'materialize_failed') return 'Search on target provider failed';
-  return 'No track mapping for target provider';
-}
-
 function buildRunUpdate(result: SyncApplyResult): Record<string, unknown> {
   const hasErrors = result.errors.length > 0;
-  const warnings = result.unresolved.map((info) => ({
-    canonicalTrackId: info.canonicalTrackId,
-    title: info.title,
-    artists: info.artists,
-    reason: formatUnresolvedReason(info.reason),
-    ...(info.targetProvider ? { targetProvider: info.targetProvider } : {}),
-  }));
+  const warnings = toSyncWarnings(result.unresolved);
 
   return {
     status: hasErrors ? 'failed' : 'done',

@@ -1,6 +1,6 @@
 'use client';
 
-import { Ban, Link2 } from 'lucide-react';
+import { Ban, Check, Link2 } from 'lucide-react';
 import type { SyncRun, SyncApplyResult } from '@/lib/sync/types';
 import type { MusicProviderId } from '@/lib/music-provider/types';
 import { ManualMatchPicker } from '@features/sync/ui/ManualMatchPicker';
@@ -30,7 +30,7 @@ function toResultData(source: SyncApplyResult | SyncRun): ResultData {
       added: source.tracksAdded,
       removed: source.tracksRemoved,
       errors: source.errorMessage ? [source.errorMessage] : [],
-      warnings: source.warnings.map((warning) => ({ ...warning, durationMs: 0 })),
+      warnings: source.warnings.map((warning) => ({ ...warning, durationMs: warning.durationMs ?? 0 })),
     };
   }
   // SyncApplyResult
@@ -70,10 +70,15 @@ function WarningStatus({ warning, manual }: { warning: ResultWarning; manual: Ma
   const resolution = manual.resolutions[key];
 
   if (resolution?.kind === 'matched') {
+    const Icon = resolution.added ? Check : Link2;
     return (
-      <span className="flex min-w-0 shrink items-center gap-1 text-green-500">
-        <Link2 className="h-3 w-3 shrink-0" />
+      <span
+        className="flex min-w-0 shrink items-center gap-1 text-green-500"
+        title={resolution.added ? 'Added to the playlist; later syncs use this match' : 'Used from the next sync on'}
+      >
+        <Icon className="h-3 w-3 shrink-0" />
         <span className="truncate">{resolution.title}</span>
+        {resolution.added && <span className="shrink-0 text-muted-foreground">added</span>}
       </span>
     );
   }
@@ -124,7 +129,7 @@ function WarningRow({ warning, manual }: { warning: ResultWarning; manual: Manua
           source={{ title: warning.title, artists: warning.artists, durationMs: warning.durationMs }}
           targetProvider={target.targetProvider}
           isSaving={manual.isSaving}
-          onPick={(track) => void manual.pick(target, track)}
+          onPick={(track) => void manual.pick(target, track, { addNow: manual.canAddNow })}
           {...(manual.canSkip ? { onSkip: () => void manual.skip(target) } : {})}
           onClose={() => manual.setOpenKey(null)}
         />

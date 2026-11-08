@@ -250,7 +250,8 @@ export function useSyncPreviewDialogController() {
 
   const preview = useSyncPreview();
   const apply = useSyncApply();
-  const manual = useManualResolutions(previewConfig?.syncPairId);
+  // The run recorded by this apply; manual fixes on the result step update its warnings.
+  const manual = useManualResolutions(previewConfig?.syncPairId, apply.data?.runId);
   const resetManual = manual.reset;
   const { applyProgressPercent, isApplyLikelyStuck } = useApplyProgressState(apply.isPending);
 

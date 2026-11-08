@@ -47,7 +47,7 @@ function SyncAgainButton({ resolvedCount, hasLegacyWarnings, onClick }: {
 }
 
 export function SyncRunResultDialog({ run, open, onClose, onSyncAgain }: SyncRunResultDialogProps) {
-  const manual = useManualResolutions(run?.syncPairId);
+  const manual = useManualResolutions(run?.syncPairId, run?.id);
 
   if (!run) return null;
 

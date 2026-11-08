@@ -3,12 +3,20 @@ import type { SyncDiffItem, SyncPlan } from '@/lib/sync/types';
 
 /**
  * What the user decided for a track that could not be matched automatically:
- * - `matched`: a target track was picked by hand (and saved as a mapping)
+ * - `matched`: a target track was picked by hand (and saved as a mapping),
+ *   optionally added to the playlist right away
  * - `skipped`: the track is left out of this pair's syncs
  * - `unskipped`: a previously skipped track is synced again
  */
 export type ManualResolution =
-  | { kind: 'matched'; providerTrackId: string; title: string; artists: string[] }
+  | {
+    kind: 'matched';
+    providerTrackId: string;
+    title: string;
+    artists: string[];
+    /** Already added to the playlist; no further sync needed for this track */
+    added?: boolean;
+  }
   | { kind: 'skipped' }
   | { kind: 'unskipped' };
 

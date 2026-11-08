@@ -145,6 +145,31 @@ export function getLatestSyncRun(syncPairId: string): SyncRun | null {
   return row ? mapSyncRunRow(row) : null;
 }
 
+/** A run of the given pair, or null when it does not exist or belongs to another pair. */
+export function getSyncRunForPair(runId: string, syncPairId: string): SyncRun | null {
+  const db = getRecsDb();
+
+  const row = db.prepare(`
+    SELECT
+      id,
+      sync_pair_id AS syncPairId,
+      status,
+      direction,
+      tracks_added AS tracksAdded,
+      tracks_removed AS tracksRemoved,
+      tracks_unresolved AS tracksUnresolved,
+      error_message AS errorMessage,
+      warnings_json AS warningsJson,
+      triggered_by AS triggeredBy,
+      started_at AS startedAt,
+      completed_at AS completedAt
+    FROM sync_runs
+    WHERE id = ? AND sync_pair_id = ?
+  `).get(runId, syncPairId) as SyncRunRow | undefined;
+
+  return row ? mapSyncRunRow(row) : null;
+}
+
 export function listSyncRunsForPair(syncPairId: string, limit = 20): SyncRun[] {
   const db = getRecsDb();
 
