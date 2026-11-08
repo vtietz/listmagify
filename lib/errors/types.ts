@@ -41,6 +41,10 @@ export interface AppError {
   stack?: string;
   /** Request URL that caused the error (path only, no query params) */
   requestPath?: string;
+  /** User-facing explanation of what happened and what to do (known conditions only) */
+  hint?: string;
+  /** Suggest using an own API key (BYOK) for a separate provider quota */
+  suggestByok?: boolean;
   /** Additional context (non-sensitive) */
   context?: Record<string, string | number | boolean>;
   /** Retry information for rate limits */
@@ -114,7 +118,8 @@ export function createAppError(
  */
 export function createRateLimitError(
   retryAfterMs: number,
-  requestPath?: string
+  requestPath?: string,
+  providerName = 'The music provider'
 ): AppError {
   const retryAfterSeconds = Math.ceil(retryAfterMs / 1000);
   const retryAt = new Date(Date.now() + retryAfterMs).toISOString();
@@ -134,8 +139,9 @@ export function createRateLimitError(
   }
   
   return createAppError({
-    message: `Spotify API rate limit exceeded. Please wait ${waitTime} before trying again.`,
-    details: `The Spotify API has temporarily blocked requests due to rate limiting. This usually happens after many rapid API calls. The app will automatically retry when the limit resets.`,
+    message: `${providerName} rate limit reached. Please wait ${waitTime} before trying again.`,
+    details: `${providerName} has temporarily blocked requests due to rate limiting. This usually happens after many rapid API calls. The app will automatically retry when the limit resets.`,
+    suggestByok: true,
     category: 'rate_limit',
     severity: 'warning',
     statusCode: 429,

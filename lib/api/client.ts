@@ -7,6 +7,8 @@ import { toast } from "@/lib/ui/toast";
 import { reportError, useErrorStore } from "@/lib/errors/store";
 import { createRateLimitError, createAppError } from "@/lib/errors/types";
 import type { AppError } from "@/lib/errors/types";
+import { describeHttpError, type ResponseSource } from "@/lib/errors/httpErrorHints";
+import { getProviderDisplayName } from '@/lib/music-provider/providerLabels';
 import { isPerPanelInlineLoginEnabled } from '@/lib/utils';
 import { providerAuthRegistry } from '@/lib/providers/authRegistry';
 import {
@@ -301,7 +303,7 @@ function buildUserNotApprovedAppError(response: Response, requestPath: string): 
  * Our route handlers always answer with JSON. A non-JSON gateway status
  * (502/504) therefore originates from the reverse proxy, not the app.
  */
-function resolveResponseSource(response: Response): 'app' | 'proxy' | 'non-json' {
+function resolveResponseSource(response: Response): ResponseSource {
   const contentType = response.headers.get('content-type') ?? '';
   if (contentType.includes('application/json')) {
     return 'app';
@@ -310,12 +312,15 @@ function resolveResponseSource(response: Response): 'app' | 'proxy' | 'non-json'
   return response.status === 502 || response.status === 504 ? 'proxy' : 'non-json';
 }
 
-function buildRequestContext(response: Response, request: RequestErrorContext): Record<string, string> {
-  return {
-    provider: request.providerId,
-    method: request.method,
-    responseSource: resolveResponseSource(response),
-  };
+function describeErrorResponse(response: Response, data: any, request: RequestErrorContext) {
+  const responseSource = resolveResponseSource(response);
+  const description = describeHttpError({
+    status: response.status,
+    providerName: getProviderDisplayName(request.providerId),
+    responseSource,
+    code: typeof data?.code === 'string' ? data.code : undefined,
+  });
+  return { responseSource, description };
 }
 
 function buildGenericAppError(
@@ -324,18 +329,30 @@ function buildGenericAppError(
   errorMessage: string,
   request: RequestErrorContext,
 ): AppError {
-  const details = resolveErrorDetails(data);
+  const { responseSource, description } = describeErrorResponse(response, data, request);
+  // For explained conditions, the technical server message moves into details.
+  const isExplained = description.hint !== undefined;
+  const details = isExplained && errorMessage !== description.title
+    ? errorMessage
+    : resolveErrorDetails(data);
+
   return createAppError({
-    message: errorMessage,
+    message: isExplained ? description.title : errorMessage,
     ...(details !== undefined && { details }),
+    ...(description.hint !== undefined && { hint: description.hint }),
+    ...(description.suggestByok && { suggestByok: true }),
     category: 'api',
-    severity: response.status >= 500 ? 'error' : 'warning',
+    severity: description.transient || response.status < 500 ? 'warning' : 'error',
     statusCode: response.status,
     ...(request.requestPath ? { requestPath: request.requestPath } : {}),
-    context: buildRequestContext(response, request),
+    context: {
+      provider: request.providerId,
+      method: request.method,
+      responseSource,
+      kind: description.kind,
+    },
   });
 }
-
 
 function handleUnauthorizedResponse(data: any): never {
   const isLoginPage = window.location.pathname === '/login';
@@ -353,15 +370,30 @@ function handleUnauthorizedResponse(data: any): never {
   throw new AccessTokenExpiredError(data.error || "Session expired");
 }
 
-function handleRateLimitResponse(response: Response, data: any, requestPath: string, shouldOpenErrorDialog: boolean): never {
+function handleRateLimitResponse(
+  response: Response,
+  data: any,
+  request: RequestErrorContext,
+  shouldOpenErrorDialog: boolean,
+): never {
   const retryAfter = response.headers.get("Retry-After");
   const retryAfterMs = retryAfter ? parseInt(retryAfter, 10) * 1000 : 60 * 60 * 1000;
-  const rateLimitError = createRateLimitError(retryAfterMs, requestPath);
+  const rateLimitError = createRateLimitError(
+    retryAfterMs,
+    request.requestPath,
+    getProviderDisplayName(request.providerId),
+  );
   reportError(rateLimitError);
   if (shouldOpenErrorDialog) {
     useErrorStore.getState().openDialog(rateLimitError);
   }
   throw new RateLimitApiError(rateLimitError.message, retryAfterMs, data);
+}
+
+function resolveErrorMessage(response: Response, data: any): string {
+  // Provider auth payloads carry their text in `message` rather than `error`.
+  const statusText = response.statusText ? ` ${response.statusText}` : '';
+  return data.error || data.message || data.details || `Request failed: ${response.status}${statusText}`;
 }
 
 function handleErrorResponse(
@@ -375,7 +407,7 @@ function handleErrorResponse(
     throw new ApiError('App updated, reloading to recover request context', response.status, data);
   }
 
-  const errorMessage = data.error || data.details || `Request failed: ${response.status} ${response.statusText}`;
+  const errorMessage = resolveErrorMessage(response, data);
   const apiError = new ApiError(errorMessage, response.status, data);
   const isProviderMismatch = response.status === 400 && typeof errorMessage === 'string'
     && (errorMessage.includes('not compatible with provider') || errorMessage.includes('Missing provider'));
@@ -388,7 +420,10 @@ function handleErrorResponse(
   }
 
   if (!suppressDialog) {
-    reportAndOpenDialog(buildGenericAppError(response, data, errorMessage, request), shouldOpenErrorDialog);
+    const appError = buildGenericAppError(response, data, errorMessage, request);
+    // Known transient conditions only get a hint toast; details stay one click away.
+    const isHintOnly = appError.hint !== undefined && appError.severity === 'warning';
+    reportAndOpenDialog(appError, shouldOpenErrorDialog && !isHintOnly);
   }
 
   throw apiError;
@@ -435,11 +470,11 @@ function maybeHandleUnauthorized(
 function maybeHandleRateLimit(
   response: Response,
   data: any,
-  requestPath: string,
+  request: RequestErrorContext,
   shouldOpenErrorDialog: boolean,
 ): void {
   if (response.status === 429) {
-    handleRateLimitResponse(response, data, requestPath, shouldOpenErrorDialog);
+    handleRateLimitResponse(response, data, request, shouldOpenErrorDialog);
   }
 }
 
@@ -450,14 +485,15 @@ function handleApiResponse<T>(
 ): T {
   maybeHandleProviderAuthError(response, data, options);
   maybeHandleUnauthorized(response, data, options.perPanelInlineLoginEnabled);
-  maybeHandleRateLimit(response, data, options.requestPath, options.shouldOpenErrorDialog);
+  const request: RequestErrorContext = {
+    requestPath: options.requestPath,
+    method: options.requestMethod,
+    providerId: getRequestProviderId(options.resolvedUrl, options.providerId),
+  };
+  maybeHandleRateLimit(response, data, request, options.shouldOpenErrorDialog);
 
   if (!response.ok) {
-    handleErrorResponse(response, data, {
-      requestPath: options.requestPath,
-      method: options.requestMethod,
-      providerId: getRequestProviderId(options.resolvedUrl, options.providerId),
-    }, options.shouldOpenErrorDialog);
+    handleErrorResponse(response, data, request, options.shouldOpenErrorDialog);
   }
 
   return data as T;

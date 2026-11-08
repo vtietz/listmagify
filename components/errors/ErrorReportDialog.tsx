@@ -20,6 +20,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useErrorStore } from "@/lib/errors/store";
 import type { AppError } from "@/lib/errors/types";
 import { useErrorReportForm } from "@shared/hooks/useErrorReportForm";
+import { ErrorHintSection } from "./ErrorHintSection";
 import { AlertTriangle, CheckCircle, ClipboardCopy, Clock, Loader2, Send, X } from "lucide-react";
 
 /**
@@ -60,6 +61,15 @@ function getSeverityStyles(severity: AppError["severity"]) {
 /**
  * Get human-readable category name
  */
+function getDialogTitle(error: AppError): string {
+  // Explained API errors (outages, timeouts) are not bugs on our side.
+  if (error.category === "api" && error.hint) {
+    return "Temporary problem";
+  }
+
+  return getCategoryLabel(error.category);
+}
+
 function getCategoryLabel(category: AppError["category"]): string {
   switch (category) {
     case "rate_limit":
@@ -117,7 +127,7 @@ export function ErrorReportDialog({ testError }: ErrorReportDialogProps) {
             </div>
             <div>
               <DialogTitle className="flex items-center gap-2">
-                {getCategoryLabel(error.category)}
+                {getDialogTitle(error)}
               </DialogTitle>
               <DialogDescription className="text-xs mt-0.5">
                 {new Date(error.timestamp).toLocaleString()}
@@ -128,6 +138,7 @@ export function ErrorReportDialog({ testError }: ErrorReportDialogProps) {
 
         <div className="space-y-4">
           <ErrorMessageSection message={error.message} details={error.details} />
+          <ErrorHintSection error={error} />
           {showRetryTimer ? <RetryCountdownSection timeRemaining={timeRemaining} /> : null}
           {error.requestPath ? <RequestPathSection requestPath={error.requestPath} /> : null}
           <ReportDetailsSection

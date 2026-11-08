@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { CheckCircle, Loader2 } from 'lucide-react';
 import { ByokDialog } from '@/components/landing/ByokDialog';
 import { useByokCredentials } from '@features/auth/hooks/useByokCredentials';
+import { useByokEnabled } from '@features/auth/hooks/useByokEnabled';
 import { getProviderDisplayName } from '@/lib/music-provider/providerLabels';
 import type { MusicProviderId } from '@/lib/music-provider/types';
 
@@ -17,20 +17,7 @@ interface ByokSignInButtonProps {
  */
 export function ByokSignInButton({ providerId = 'spotify' }: ByokSignInButtonProps) {
   const { hasCredentials, isLoaded } = useByokCredentials(providerId);
-  const [byokEnabled, setByokEnabled] = useState<boolean | null>(null);
-
-  // Fetch BYOK enabled status from server
-  useEffect(() => {
-    fetch('/api/config')
-      .then((res) => res.json())
-      .then((data: { byokEnabled?: boolean; tidalByokEnabled?: boolean }) => {
-        const enabled = providerId === 'spotify'
-          ? data.byokEnabled ?? false
-          : data.tidalByokEnabled ?? false;
-        setByokEnabled(enabled);
-      })
-      .catch(() => setByokEnabled(false));
-  }, [providerId]);
+  const byokEnabled = useByokEnabled(providerId);
 
   // Don't show if BYOK is disabled on the server
   if (byokEnabled === false) {
