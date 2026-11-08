@@ -6,6 +6,9 @@ import {
   fetchTopTracks,
   fetchWeeklyChart,
   isLastfmAvailable,
+  LastfmApiError,
+  LASTFM_ERROR_INVALID_PARAMETERS,
+  LASTFM_ERROR_RATE_LIMIT,
 } from '@/lib/importers/lastfm';
 import type {
   LastfmPeriod,
@@ -91,9 +94,25 @@ export async function getWeeklyTracks(searchParams: URLSearchParams) {
   return fetchWeeklyChart({ username, ...range });
 }
 
+function isLastfmUserNotFound(error: unknown): boolean {
+  return error instanceof LastfmApiError
+    && error.lastfmCode === LASTFM_ERROR_INVALID_PARAMETERS
+    && /user not found/i.test(error.message);
+}
+
+function isLastfmRateLimit(error: unknown, message: string): boolean {
+  if (error instanceof LastfmApiError && error.lastfmCode === LASTFM_ERROR_RATE_LIMIT) {
+    return true;
+  }
+  return message.includes('Rate limit') || message.includes('error 29');
+}
+
 export function mapLastfmError(error: unknown): never {
   const message = error instanceof Error ? error.message : 'Internal server error';
-  if (message.includes('Rate limit') || message.includes('error 29')) {
+  if (isLastfmUserNotFound(error)) {
+    throw routeErrors.notFound('Last.fm user not found. Check the username spelling.');
+  }
+  if (isLastfmRateLimit(error, message)) {
     throw routeErrors.rateLimit('Rate limit exceeded. Please try again later.');
   }
   throw routeErrors.upstreamFailure(message);

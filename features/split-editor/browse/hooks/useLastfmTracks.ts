@@ -105,7 +105,8 @@ export function useLastfmTracks({
         params.set('period', period);
       }
 
-      return apiFetch<LastfmResponse>(`/api/lastfm/${endpoint}?${params}`);
+      // Errors (e.g. unknown username) are shown inline in the browse list.
+      return apiFetch<LastfmResponse>(`/api/lastfm/${endpoint}?${params}`, { suppressErrorDialog: true });
     },
     initialPageParam: 1,
     getNextPageParam: (lastPage) => {

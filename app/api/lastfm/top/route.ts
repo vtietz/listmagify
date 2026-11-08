@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { lastfmErrorResponse } from '@/app/api/lastfm/_shared/errorResponse';
 import { assertAuthenticated } from '@/app/api/_shared/guard';
-import { getMusicProviderHintFromRequest } from '@/app/api/_shared/provider';
-import { mapApiErrorToProviderAuthError, toProviderAuthErrorResponse } from '@/lib/api/errorHandler';
-import { isAppRouteError } from '@/lib/errors';
-import { assertLastfmAvailable, getTopTracks, mapLastfmError } from '@/lib/services/lastfmService';
+import { assertLastfmAvailable, getTopTracks } from '@/lib/services/lastfmService';
 
 /**
  * GET /api/lastfm/top?user=username&period=overall&page=1&limit=50
@@ -23,28 +21,6 @@ export async function GET(request: NextRequest) {
       ...result,
     });
   } catch (error) {
-    const authError = mapApiErrorToProviderAuthError(error, getMusicProviderHintFromRequest(request));
-    if (authError) {
-      return toProviderAuthErrorResponse(authError);
-    }
-
-    if (isAppRouteError(error) && error.status === 503) {
-      return NextResponse.json({ error: 'Last.fm import is not enabled', enabled: false }, { status: 503 });
-    }
-
-    if (isAppRouteError(error) && error.status === 400) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
-    }
-
-    try {
-      mapLastfmError(error);
-      return NextResponse.json({ error: 'Internal server error', retryable: false }, { status: 500 });
-    } catch (mapped) {
-      if (isAppRouteError(mapped) && mapped.status === 429) {
-        return NextResponse.json({ error: mapped.message, retryable: true }, { status: 429 });
-      }
-
-      return NextResponse.json({ error: mapped instanceof Error ? mapped.message : 'Internal server error', retryable: false }, { status: 500 });
-    }
+    return lastfmErrorResponse(error, request);
   }
 }

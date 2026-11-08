@@ -211,6 +211,31 @@ function buildUrl(method: string, params: Record<string, string | number | undef
   return url.toString();
 }
 
+/** Last.fm error codes we handle explicitly (https://www.last.fm/api/errorcodes). */
+export const LASTFM_ERROR_INVALID_PARAMETERS = 6; // also returned for unknown users
+export const LASTFM_ERROR_RATE_LIMIT = 29;
+
+/** Error returned by the Last.fm API, with its numeric error code when available. */
+export class LastfmApiError extends Error {
+  constructor(
+    message: string,
+    public readonly lastfmCode: number | undefined,
+    public readonly httpStatus: number,
+  ) {
+    super(message);
+    this.name = 'LastfmApiError';
+  }
+}
+
+function parseLastfmErrorBody(text: string): { message?: string; error?: number } {
+  try {
+    const parsed: unknown = JSON.parse(text);
+    return parsed && typeof parsed === 'object' ? parsed as { message?: string; error?: number } : {};
+  } catch {
+    return {};
+  }
+}
+
 /**
  * Make request to Last.fm API
  */
@@ -227,7 +252,12 @@ async function lastfmRequest<T>(method: string, params: Record<string, string | 
   
   if (!response.ok) {
     const errorText = await response.text().catch(() => 'Unknown error');
-    throw new Error(`Last.fm API error: ${response.status} ${errorText}`);
+    const body = parseLastfmErrorBody(errorText);
+    throw new LastfmApiError(
+      `Last.fm API error: ${body.message ?? `${response.status} ${errorText}`}`,
+      typeof body.error === 'number' ? body.error : undefined,
+      response.status,
+    );
   }
   
   const data = await response.json();
@@ -235,7 +265,11 @@ async function lastfmRequest<T>(method: string, params: Record<string, string | 
   // Check for Last.fm error response
   if (data.error) {
     const errorMsg = data.message || `Error code ${data.error}`;
-    throw new Error(`Last.fm API error: ${errorMsg}`);
+    throw new LastfmApiError(
+      `Last.fm API error: ${errorMsg}`,
+      typeof data.error === 'number' ? data.error : undefined,
+      response.status,
+    );
   }
   
   return data as T;
