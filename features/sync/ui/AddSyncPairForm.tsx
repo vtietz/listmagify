@@ -33,7 +33,9 @@ function useSyncIntervalDropdown() {
 }
 
 /** Same grid as SyncPairRow: [left] [arrow] [right] [status] [actions] */
-const ROW_GRID = 'grid grid-cols-[1fr_auto_1fr_auto_auto] items-center gap-x-2';
+// Mobile: pickers stacked full-width, interval + actions on their own line.
+// md+: single row — source ⇄ target | interval | actions.
+const ROW_GRID = 'grid grid-cols-1 gap-y-1 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto_auto] md:gap-y-0 items-center gap-x-2';
 
 function buildStatusMap(authSummary: ReturnType<typeof useAuthSummary>) {
   return {
@@ -415,7 +417,7 @@ function AddSyncPairFormContent({
         onPlaylistChange={setSourcePlaylistId}
       />
 
-      <ArrowLeftRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+      <ArrowLeftRight className="hidden md:block h-3.5 w-3.5 text-muted-foreground shrink-0" />
 
       <ProviderPlaylistPicker
         providerId={targetProvider}
@@ -429,42 +431,45 @@ function AddSyncPairFormContent({
         onPlaylistChange={setTargetPlaylistId}
       />
 
-      {/* Status column — scheduling dropdown */}
-      <div className="flex items-center gap-1.5 shrink-0">
-        {schedulerEnabled && (
-          <SyncIntervalContext.Provider value={{ openDropdownId, setOpenDropdownId }}>
-            <SyncIntervalSelect
-              value={syncInterval}
-              options={intervalOptions}
-              onChange={setSyncInterval}
-              dropdownId={formId}
-              popoverContainer={popoverContainer}
-            />
-          </SyncIntervalContext.Provider>
-        )}
-      </div>
+      {/* Mobile: one line holding interval + actions; md+: dissolves into grid columns */}
+      <div className="flex items-center justify-end gap-2 md:contents">
+        {/* Status column — scheduling dropdown */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {schedulerEnabled && (
+            <SyncIntervalContext.Provider value={{ openDropdownId, setOpenDropdownId }}>
+              <SyncIntervalSelect
+                value={syncInterval}
+                options={intervalOptions}
+                onChange={setSyncInterval}
+                dropdownId={formId}
+                popoverContainer={popoverContainer}
+              />
+            </SyncIntervalContext.Provider>
+          )}
+        </div>
 
-      {/* Actions column */}
-      <div className="flex items-center gap-0.5 shrink-0">
-        {showSyncActions && (
-          <SyncActionButtons
-            sourceProvider={sourceProvider}
-            sourcePlaylistId={sourcePlaylistId}
-            targetProvider={targetProvider}
-            targetPlaylistId={targetPlaylistId}
-            disabled={!canSubmit}
-          />
-        )}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7"
-          title={getSaveTitle(isDuplicate, hasSyncedSide)}
-          disabled={!canSave}
-          onClick={handleSubmit}
-        >
-          {createPair.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-        </Button>
+        {/* Actions column */}
+        <div className="flex items-center gap-0.5 shrink-0">
+          {showSyncActions && (
+            <SyncActionButtons
+              sourceProvider={sourceProvider}
+              sourcePlaylistId={sourcePlaylistId}
+              targetProvider={targetProvider}
+              targetPlaylistId={targetPlaylistId}
+              disabled={!canSubmit}
+            />
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            title={getSaveTitle(isDuplicate, hasSyncedSide)}
+            disabled={!canSave}
+            onClick={handleSubmit}
+          >
+            {createPair.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+          </Button>
+      </div>
       </div>
     </div>
   );

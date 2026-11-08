@@ -28,7 +28,9 @@ import type { MusicProviderId } from '@/lib/music-provider/types';
 import { formatSyncInterval, SMART_SYNC_INTERVAL_HINT, type SyncRunStatus } from '@/lib/sync/types';
 import { formatRelativeTime } from '@shared/utils/formatRelativeTime';
 
-const ROW_GRID = 'grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_minmax(120px,auto)_auto] items-center gap-x-2';
+// Mobile: names stacked full-width, status + actions on their own line.
+// md+: single row — source ⇄ target | status | actions.
+const ROW_GRID = 'grid grid-cols-1 gap-y-1 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_minmax(120px,auto)_auto] md:gap-y-0 items-center gap-x-2';
 
 function buildPairConfig(pair: SyncPairWithRun) {
   return {
@@ -104,7 +106,7 @@ function SyncPairStatusCell({ pair, isSyncing, showScheduler, onShowResult }: {
   const showNextRun = isNextRunScheduled(pair, showScheduler);
 
   return (
-    <div className="flex items-center justify-end gap-1.5 shrink-0 text-right">
+    <div className="flex items-center justify-start md:justify-end gap-1.5 shrink-0 md:text-right">
       <SyncRunStatusIcon
         status={getDisplayedStatus(isSyncing, pair.latestRun?.status)}
         hasWarnings={warningCount > 0}
@@ -264,29 +266,32 @@ function SyncPairRow({
           <span className="text-sm truncate" title={sourceName}>{sourceName}</span>
         </div>
 
-        <ArrowLeftRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+        <ArrowLeftRight className="hidden md:block h-3.5 w-3.5 text-muted-foreground shrink-0" />
 
         <div className="flex items-center gap-1.5 min-w-0">
           <ProviderGlyph providerId={pair.targetProvider} />
           <span className="text-sm truncate" title={targetName}>{targetName}</span>
         </div>
 
-        <SyncPairStatusCell
-          pair={pair}
-          isSyncing={isSyncing}
-          showScheduler={showScheduler}
-          onShowResult={() => setShowResultDialog(true)}
-        />
+        {/* Mobile: one line holding status + actions; md+: dissolves into grid columns */}
+        <div className="flex items-center justify-between gap-2 md:contents">
+          <SyncPairStatusCell
+            pair={pair}
+            isSyncing={isSyncing}
+            showScheduler={showScheduler}
+            onShowResult={() => setShowResultDialog(true)}
+          />
 
-        <SyncPairActions
-          pair={pair}
-          bothConnected={bothConnected}
-          isSyncing={isSyncing}
-          showScheduler={showScheduler}
-          intervalOpen={isIntervalOpen}
-          onIntervalOpenChange={onIntervalOpenChange}
-          popoverContainer={popoverContainer}
-        />
+          <SyncPairActions
+            pair={pair}
+            bothConnected={bothConnected}
+            isSyncing={isSyncing}
+            showScheduler={showScheduler}
+            intervalOpen={isIntervalOpen}
+            onIntervalOpenChange={onIntervalOpenChange}
+            popoverContainer={popoverContainer}
+          />
+        </div>
       </div>
 
       <SyncRunResultDialog
@@ -356,7 +361,7 @@ export function SyncManagementDialog() {
         }
       }}
     >
-      <DialogContent className="max-w-2xl flex flex-col">
+      <DialogContent className="max-w-2xl flex flex-col p-4 sm:p-6 max-h-[100dvh]">
         {/* Overlay layer for popover portals — inside Dialog's DOM tree */}
         <div ref={overlayRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 1 }} />
 
@@ -381,7 +386,7 @@ export function SyncManagementDialog() {
           }
         </div>
 
-        <div className="max-h-[60vh] overflow-y-scroll space-y-1.5 flex-1">
+        <div className="max-h-[60vh] overflow-y-auto space-y-1.5 flex-1 min-h-0">
           {isLoading && (
             <p className="text-sm text-muted-foreground text-center py-4">Loading sync pairs...</p>
           )}
