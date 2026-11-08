@@ -76,4 +76,40 @@ describe('POST /api/sync/pairs', () => {
       detail: 'These playlists are already synced by another account',
     });
   });
+
+  it('rejects a pair when one of the playlists is already in another of the user\'s pairs', async () => {
+    sessionState.current = { providerAccountIds: { spotify: 'chain-owner' } };
+    expect((await postPair('td-3', 'sp-3')).status).toBe(201);
+
+    const sourceReused = await postPair('td-3', 'sp-4');
+    expect(sourceReused.status).toBe(409);
+    expect(await sourceReused.json()).toMatchObject({
+      error: 'Playlist already synced',
+      detail: '"Source" is already part of another sync pair',
+    });
+
+    const targetReused = await postPair('td-4', 'sp-3');
+    expect(targetReused.status).toBe(409);
+    expect(await targetReused.json()).toMatchObject({
+      detail: '"Target" is already part of another sync pair',
+    });
+  });
+
+  it('allows another account to sync one of the same playlists to a different counterpart', async () => {
+    sessionState.current = { providerAccountIds: { spotify: 'chain-first' } };
+    expect((await postPair('td-5', 'sp-5')).status).toBe(201);
+
+    sessionState.current = { providerAccountIds: { spotify: 'chain-second' } };
+    expect((await postPair('td-5', 'sp-6')).status).toBe(201);
+  });
+
+  it('does not treat an account ID as owning pairs of a longer, overlapping ID', async () => {
+    sessionState.current = { providerAccountIds: { spotify: 'abc123' } };
+    expect((await postPair('td-7', 'sp-7')).status).toBe(201);
+
+    sessionState.current = { providerAccountIds: { spotify: 'abc' } };
+    const listed = await (await route.GET()).json() as { pairs: unknown[] };
+    expect(listed.pairs).toHaveLength(0);
+    expect((await postPair('td-7', 'sp-8')).status).toBe(201);
+  });
 });

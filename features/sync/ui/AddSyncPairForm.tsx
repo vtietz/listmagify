@@ -50,6 +50,7 @@ function ProviderPlaylistPicker({
   statusMap,
   disabled,
   popoverContainer,
+  getOptionHint,
   onProviderChange,
   onPlaylistChange,
 }: {
@@ -59,6 +60,7 @@ function ProviderPlaylistPicker({
   statusMap: Record<MusicProviderId, 'connected' | 'disconnected'>;
   disabled: boolean;
   popoverContainer?: HTMLElement | null | undefined;
+  getOptionHint: (playlistId: string) => string | undefined;
   onProviderChange: (id: MusicProviderId) => void;
   onPlaylistChange: (id: string | null) => void;
 }) {
@@ -80,6 +82,7 @@ function ProviderPlaylistPicker({
           onSelectPlaylist={(id) => onPlaylistChange(id)}
           disabled={disabled}
           popoverContainer={popoverContainer}
+          getOptionHint={getOptionHint}
         />
       </div>
     </div>
@@ -139,6 +142,50 @@ function isExistingPair(
     && pair.targetProvider === targetProvider
     && pair.targetPlaylistId === targetPlaylistId
   ));
+}
+
+function syncedKey(providerId: MusicProviderId, playlistId: string): string {
+  return `${providerId}:${playlistId}`;
+}
+
+/**
+ * Maps every playlist that already belongs to a sync pair to the name of its
+ * counterpart, so pickers can flag it. A playlist may only be in one pair.
+ */
+function buildSyncedPlaylistMap(pairs: readonly SyncPair[] | undefined): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const pair of pairs ?? []) {
+    map.set(syncedKey(pair.sourceProvider, pair.sourcePlaylistId), pair.targetPlaylistName || 'another playlist');
+    map.set(syncedKey(pair.targetProvider, pair.targetPlaylistId), pair.sourcePlaylistName || 'another playlist');
+  }
+  return map;
+}
+
+function useSyncedPlaylists(
+  pairs: readonly SyncPair[] | undefined,
+  sourceProvider: MusicProviderId,
+  sourcePlaylistId: string | null,
+  targetProvider: MusicProviderId,
+  targetPlaylistId: string | null,
+) {
+  const syncedPlaylists = useMemo(() => buildSyncedPlaylistMap(pairs), [pairs]);
+  const isSynced = (providerId: MusicProviderId, playlistId: string | null) =>
+    !!playlistId && syncedPlaylists.has(syncedKey(providerId, playlistId));
+  const makeHint = (providerId: MusicProviderId) => (playlistId: string) => {
+    const counterpart = syncedPlaylists.get(syncedKey(providerId, playlistId));
+    return counterpart ? `Synced with ${counterpart}` : undefined;
+  };
+
+  return {
+    hasSyncedSide: isSynced(sourceProvider, sourcePlaylistId) || isSynced(targetProvider, targetPlaylistId),
+    makeHint,
+  };
+}
+
+function getSaveTitle(isDuplicate: boolean, hasSyncedSide: boolean): string {
+  if (isDuplicate) return 'This sync pair is already saved';
+  if (hasSyncedSide) return 'A selected playlist is already part of another sync pair';
+  return 'Save sync pair';
 }
 
 function SyncIntervalSelect({
@@ -311,10 +358,13 @@ function AddSyncPairFormContent({
 
   const canSubmit = canSubmitForm(sourcePlaylistId, targetPlaylistId, sourceProvider, targetProvider, createPair.isPending);
   const isDuplicate = isExistingPair(existingPairs, sourceProvider, sourcePlaylistId, targetProvider, targetPlaylistId);
-  const canSave = canSubmit && !isDuplicate;
+  const { hasSyncedSide, makeHint } = useSyncedPlaylists(
+    existingPairs, sourceProvider, sourcePlaylistId, targetProvider, targetPlaylistId,
+  );
+  const canSave = canSubmit && !isDuplicate && !hasSyncedSide;
 
   function handleSubmit() {
-    if (!sourcePlaylistId || !targetPlaylistId || isDuplicate) return;
+    if (!sourcePlaylistId || !targetPlaylistId || !canSave) return;
 
     createPair.mutate(
       {
@@ -360,6 +410,7 @@ function AddSyncPairFormContent({
         statusMap={statusMap}
         disabled={connectedProviders.length === 0}
         popoverContainer={popoverContainer}
+        getOptionHint={makeHint(sourceProvider)}
         onProviderChange={(id) => { setSourceProvider(id); setSourcePlaylistId(null); }}
         onPlaylistChange={setSourcePlaylistId}
       />
@@ -373,6 +424,7 @@ function AddSyncPairFormContent({
         statusMap={statusMap}
         disabled={statusMap[targetProvider] !== 'connected'}
         popoverContainer={popoverContainer}
+        getOptionHint={makeHint(targetProvider)}
         onProviderChange={(id) => { setTargetProvider(id); setTargetPlaylistId(null); }}
         onPlaylistChange={setTargetPlaylistId}
       />
@@ -407,7 +459,7 @@ function AddSyncPairFormContent({
           variant="ghost"
           size="icon"
           className="h-7 w-7"
-          title={isDuplicate ? 'This sync pair is already saved' : 'Save sync pair'}
+          title={getSaveTitle(isDuplicate, hasSyncedSide)}
           disabled={!canSave}
           onClick={handleSubmit}
         >

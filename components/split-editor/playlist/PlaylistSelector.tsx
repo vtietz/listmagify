@@ -29,6 +29,8 @@ interface PlaylistSelectorProps {
   disabled?: boolean;
   /** Container for Popover portal. Use when inside a Dialog to keep popover in the Dialog's DOM tree. */
   popoverContainer?: HTMLElement | null | undefined;
+  /** Optional per-option hint (e.g. "Synced with …") rendered below the playlist name. */
+  getOptionHint?: ((playlistId: string) => string | undefined) | undefined;
 }
 
 export function PlaylistSelector({
@@ -38,6 +40,7 @@ export function PlaylistSelector({
   onSelectPlaylist,
   disabled = false,
   popoverContainer,
+  getOptionHint,
 }: PlaylistSelectorProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -187,6 +190,7 @@ export function PlaylistSelector({
             selectedPlaylistId={selectedPlaylistId}
             handleSelect={handleSelect}
             isFetchingNextPage={isFetchingNextPage}
+            getOptionHint={getOptionHint}
           />
         </div>
       </PopoverContent>

@@ -102,16 +102,20 @@ function mapSyncPairRow(row: SyncPairRow): SyncPair {
 
 /**
  * Build a WHERE clause that matches sync pairs owned by any of the given userIds.
- * Checks both the legacy `created_by` column and the `provider_user_ids` JSON map.
+ * Checks both the legacy `created_by` column and the values of the
+ * `provider_user_ids` JSON map. Values are compared exactly (via json_each) so
+ * an ID like `spotify:abc` never matches `spotify:abc123`.
  */
 export function ownershipCondition(userIds: string[]): { sql: string; params: string[] } {
-  const createdByPlaceholders = userIds.map(() => '?').join(', ');
-  const likeClauses = userIds.map(() => `provider_user_ids LIKE ?`).join(' OR ');
-  const likeParams = userIds.map((id) => `%${id}%`);
+  const placeholders = userIds.map(() => '?').join(', ');
 
   return {
-    sql: `(created_by IN (${createdByPlaceholders}) OR ${likeClauses})`,
-    params: [...userIds, ...likeParams],
+    sql: `(created_by IN (${placeholders}) OR EXISTS (
+      SELECT 1 FROM json_each(
+        CASE WHEN json_valid(provider_user_ids) THEN provider_user_ids ELSE '{}' END
+      ) WHERE json_each.value IN (${placeholders})
+    ))`,
+    params: [...userIds, ...userIds],
   };
 }
 
@@ -276,20 +280,24 @@ export function listSyncPairs(createdBy: string | string[]): SyncPair[] {
 export function listSyncPairsForPlaylist(
   providerId: MusicProviderId,
   playlistId: string,
-  createdBy: string,
+  createdBy: string | string[],
 ): SyncPair[] {
+  const userIds = Array.isArray(createdBy) ? createdBy : [createdBy];
+  if (userIds.length === 0) return [];
+
   const db = getRecsDb();
+  const ownership = ownershipCondition(userIds);
 
   const rows = db.prepare(`
     SELECT ${SYNC_PAIR_COLUMNS}
     FROM sync_pairs
-    WHERE created_by = ?
+    WHERE ${ownership.sql}
       AND (
         (source_provider = ? AND source_playlist_id = ?)
         OR (target_provider = ? AND target_playlist_id = ?)
       )
     ORDER BY created_at DESC
-  `).all(createdBy, providerId, playlistId, providerId, playlistId) as SyncPairRow[];
+  `).all(...ownership.params, providerId, playlistId, providerId, playlistId) as SyncPairRow[];
 
   return rows.map(mapSyncPairRow);
 }

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useCallback, type Dispatch, type SetStateAction, type KeyboardEvent } from 'react';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
-import { Check, Heart } from 'lucide-react';
+import { ArrowLeftRight, Check, Heart } from 'lucide-react';
 import { apiFetch } from '@/lib/api/client';
 import { userPlaylistsByProvider } from '@/lib/api/queryKeys';
 import { cn, matchesAllWords } from '@/lib/utils';
@@ -240,12 +240,14 @@ function PlaylistOption({
   isActive,
   isSelected,
   onSelect,
+  hint,
 }: {
   playlist: Playlist;
   dataIndex: number;
   isActive: boolean;
   isSelected: boolean;
   onSelect: (playlistId: string) => void;
+  hint?: string | undefined;
 }) {
   return (
     <button
@@ -265,6 +267,12 @@ function PlaylistOption({
           {playlist.owner?.displayName && (
             <div className="text-xs text-muted-foreground truncate">{playlist.owner.displayName}</div>
           )}
+          {hint && (
+            <div className="flex items-center gap-1 text-xs text-amber-500 truncate">
+              <ArrowLeftRight className="h-3 w-3 shrink-0" />
+              <span className="truncate">{hint}</span>
+            </div>
+          )}
         </div>
       </div>
     </button>
@@ -282,6 +290,7 @@ export function PlaylistOptionsContent({
   selectedPlaylistId,
   handleSelect,
   isFetchingNextPage,
+  getOptionHint,
 }: {
   isLoading: boolean;
   isFetching: boolean;
@@ -293,6 +302,7 @@ export function PlaylistOptionsContent({
   selectedPlaylistId: string | null;
   handleSelect: (playlistId: string) => void;
   isFetchingNextPage: boolean;
+  getOptionHint?: ((playlistId: string) => string | undefined) | undefined;
 }) {
   if (isLoading && allPlaylistsLength === 0) {
     return <div className="p-2 text-sm text-muted-foreground">Loading...</div>;
@@ -339,6 +349,7 @@ export function PlaylistOptionsContent({
             isActive={dataIndex === activeIndex}
             isSelected={selectedPlaylistId === playlist.id}
             onSelect={handleSelect}
+            hint={getOptionHint?.(playlist.id)}
           />
         );
       })}

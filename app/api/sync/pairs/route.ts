@@ -2,10 +2,17 @@ import { NextRequest } from 'next/server';
 import { assertAuthenticated } from '@/app/api/_shared/guard';
 import { ok, created, badRequest, conflict, fromError } from '@/app/api/_shared/http';
 import { parseMusicProviderId } from '@/lib/music-provider';
-import { createSyncPair, listSyncPairs, getLatestSyncRun, getSyncPairByPlaylists } from '@/lib/sync/syncStore';
+import {
+  createSyncPair,
+  listSyncPairs,
+  listSyncPairsForPlaylist,
+  getLatestSyncRun,
+  getSyncPairByPlaylists,
+} from '@/lib/sync/syncStore';
 import { getAllSessionUserIds, getCreatorUserId, getProviderUserIds } from '@/lib/auth/sessionUserIds';
 import { serverEnv } from '@/lib/env';
 import { getSyncTaskLimit } from '@/lib/sync/taskLimits';
+import type { MusicProviderId } from '@/lib/music-provider/types';
 import type { SyncDirection, SyncInterval } from '@/lib/sync/types';
 
 const VALID_DIRECTIONS = new Set<SyncDirection>(['a-to-b', 'b-to-a', 'bidirectional']);
@@ -106,6 +113,23 @@ function normalizeCreateSyncPairBody(rawBody: unknown): { error: string } | { va
 }
 
 /**
+ * A playlist may belong to at most one of the user's sync pairs: chained pairs
+ * (A↔B, A↔C) propagate edits and removals across playlists in surprising ways.
+ * Returns the name of the first side that is already synced, or null.
+ */
+function findAlreadySyncedPlaylist(
+  sides: Array<{ providerId: MusicProviderId; playlistId: string; name: string | undefined }>,
+  userIds: string[],
+): string | null {
+  for (const side of sides) {
+    if (listSyncPairsForPlaylist(side.providerId, side.playlistId, userIds).length > 0) {
+      return side.name || 'One of the playlists';
+    }
+  }
+  return null;
+}
+
+/**
  * GET /api/sync/pairs
  *
  * List all saved sync pairs for the authenticated user.
@@ -172,6 +196,17 @@ export async function POST(request: NextRequest) {
         sessionUserIds.includes(existingPair.createdBy)
           ? 'These playlists are already saved as a sync pair'
           : 'These playlists are already synced by another account',
+      );
+    }
+
+    const alreadySynced = findAlreadySyncedPlaylist([
+      { providerId: sourceProvider, playlistId: body.sourcePlaylistId, name: body.sourcePlaylistName },
+      { providerId: targetProvider, playlistId: body.targetPlaylistId, name: body.targetPlaylistName },
+    ], sessionUserIds);
+    if (alreadySynced) {
+      return conflict(
+        'Playlist already synced',
+        `"${alreadySynced}" is already part of another sync pair`,
       );
     }
 
