@@ -13,9 +13,10 @@ RUN corepack enable && corepack install -g pnpm@10.26.2
 
 # Dev image: install deps once, keep cache
 FROM base AS dev
-# Install OS deps (openssl for Auth.js PKCE)
+# Install OS deps (openssl for Auth.js PKCE; python3/make/g++ so native modules
+# like better-sqlite3 can build from source when the prebuilt download fails)
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends bash openssl git && \
+    apt-get install -y --no-install-recommends bash openssl git python3 make g++ && \
     rm -rf /var/lib/apt/lists/*
 # Dev image: no dependency install; dependencies are installed during development via docker/run.bat install
 COPY . .
