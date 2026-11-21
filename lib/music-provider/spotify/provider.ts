@@ -57,6 +57,11 @@ import {
 /** /search `limit` maximum (reduced from 50 to 10 in Feb 2026). */
 const SEARCH_LIMIT_MAX = 10;
 
+/** Parallel single-track requests used by getTracksByIds. */
+const TRACK_FETCH_CONCURRENCY = 5;
+
+const SPOTIFY_TRACK_ID_PATTERN = /^[A-Za-z0-9]{22}$/;
+
 /** Max URIs per /me/library request. */
 const LIBRARY_BATCH_SIZE = 40;
 
@@ -165,6 +170,34 @@ export function createSpotifyProvider(
 
       const raw = await response.json();
       return mapSearchTracks(raw, boundedOffset);
+    },
+
+    // The batch GET /tracks?ids= endpoint was removed (Feb 2026): fetch one by one.
+    async getTracksByIds(trackIds: string[]): Promise<Track[]> {
+      const ids = Array.from(new Set(trackIds)).filter((id) => SPOTIFY_TRACK_ID_PATTERN.test(id));
+      const tracks: Track[] = [];
+
+      for (let i = 0; i < ids.length; i += TRACK_FETCH_CONCURRENCY) {
+        const chunk = ids.slice(i, i + TRACK_FETCH_CONCURRENCY);
+        const fetched = await Promise.all(chunk.map(async (id) => {
+          const response = await executeWithSession(`/tracks/${encodeURIComponent(id)}`, { method: 'GET' }, undefined, deps);
+          if (response.status === 400 || response.status === 404) {
+            return null;
+          }
+          if (!response.ok) {
+            throwProviderError(response, await readErrorText(response), 'getTracksByIds');
+          }
+          return mapPlaylistItemToTrack(await response.json());
+        }));
+
+        for (const track of fetched) {
+          if (track?.id) {
+            tracks.push(track);
+          }
+        }
+      }
+
+      return tracks;
     },
 
     async getTrackByIsrc(isrc: string): Promise<Track | null> {

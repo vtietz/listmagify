@@ -264,6 +264,8 @@ export interface MusicProvider {
   getLikedTracks(limit?: number, nextCursor?: string | null): Promise<LikedTracksPageResult<Track>>;
   searchTracks(query: string, limit?: number, offset?: number): Promise<TrackSearchResult<Track>>;
   getTrackByIsrc?(isrc: string): Promise<Track | null>;
+  /** Fetches full metadata for provider track IDs. Unknown or unavailable IDs are omitted. */
+  getTracksByIds(trackIds: string[]): Promise<Track[]>;
   searchArtists(query: string, limit?: number, offset?: number): Promise<ArtistSearchResult>;
   searchAlbums(query: string, limit?: number, offset?: number): Promise<AlbumSearchResult>;
   getArtistTopTracks(artistId: string): Promise<Track[]>;

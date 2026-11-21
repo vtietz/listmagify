@@ -66,6 +66,9 @@ import {
 } from '@/lib/music-provider/tidal/providerInternals';
 import { createUserCollectionIndex } from '@/lib/music-provider/tidal/collectionIndex';
 
+/** Max IDs per `filter[id]` on GET /tracks. */
+const TIDAL_TRACK_FILTER_MAX_IDS = 20;
+
 export function createTidalProvider(dependencies: TidalProviderDependencies = {}): MusicProvider {
   const transport = createTidalTransport(dependencies);
   const collectionIndex = createUserCollectionIndex({
@@ -149,6 +152,28 @@ export function createTidalProvider(dependencies: TidalProviderDependencies = {}
       const raw = (await response.json()) as JsonApiDocument<JsonApiResource[]>;
       const page = mapTrackListDocument(extractSearchRelationship(raw, 'tracks'));
       return { tracks: page.tracks, total: page.tracks.length, nextOffset: null };
+    },
+
+    async getTracksByIds(trackIds: string[]): Promise<Track[]> {
+      const ids = Array.from(new Set(trackIds)).filter((id) => /^\d+$/.test(id));
+      const tracks: Track[] = [];
+
+      for (let i = 0; i < ids.length; i += TIDAL_TRACK_FILTER_MAX_IDS) {
+        const params = new URLSearchParams();
+        params.set('filter[id]', ids.slice(i, i + TIDAL_TRACK_FILTER_MAX_IDS).join(','));
+        params.set('include', 'artists,albums');
+        const response = await transport.executeWithSession(`/tracks?${params.toString()}`, { method: 'GET' }, undefined);
+        if (!response.ok) {
+          throwProviderError(response, await readJsonApiErrorDetails(response), 'getTracksByIds');
+        }
+
+        const raw = (await response.json()) as JsonApiDocument<JsonApiResource[]>;
+        // Primary resources live in `data`, not `included`; index both so the mapper resolves them.
+        const primary = Array.isArray(raw.data) ? raw.data : [];
+        tracks.push(...mapTrackListDocument({ ...raw, included: [...primary, ...(raw.included ?? [])] }).tracks);
+      }
+
+      return tracks;
     },
 
     async getTrackByIsrc(isrc: string): Promise<Track | null> {
