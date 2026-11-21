@@ -80,7 +80,7 @@ function isTokenUnchanged(original: StoredProviderToken, refreshed: ProviderJwtT
 
 /** Refreshes one token; returns its expiry afterwards (null once it needs re-authentication). */
 async function refreshSingleToken(token: StoredProviderToken): Promise<number | null> {
-  if (isRefreshBlocked(token.provider)) {
+  if (isRefreshBlocked(token.provider, token.userId)) {
     console.debug(`[token-keepalive] circuit breaker open for ${token.provider}, skipping`);
     return token.accessTokenExpires;
   }
@@ -93,7 +93,7 @@ async function refreshSingleToken(token: StoredProviderToken): Promise<number | 
 
   // Permanent auth failure
   if (refreshed.error === TOKEN_REFRESH_ERROR) {
-    recordPermanentFailure(token.provider, 'invalid_grant');
+    recordPermanentFailure(token.provider, token.userId, 'invalid_grant');
     console.warn(`[token-keepalive] permanent auth error for ${token.provider}, marking needs_reauth`);
     markTokenStatus(token.userId, token.provider, 'needs_reauth');
     return null;

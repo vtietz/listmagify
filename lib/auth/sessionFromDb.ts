@@ -150,7 +150,7 @@ async function refreshAndPersist(
   providerId: MusicProviderId,
   stored: StoredProviderToken,
 ): Promise<AuthenticatedSession | null> {
-  if (isRefreshBlocked(providerId)) {
+  if (isRefreshBlocked(providerId, userId)) {
     return null;
   }
 
@@ -164,7 +164,7 @@ async function refreshAndPersist(
     const refreshed = await refreshers[providerId](jwtToken);
 
     if (refreshed.error) {
-      recordPermanentFailure(providerId, 'refresh_error');
+      recordPermanentFailure(providerId, userId, 'refresh_error');
       console.debug(`[sessionFromDb] Token refresh returned error for ${providerId}, user=${userId}`);
       safeMarkStatus(userId, providerId, 'needs_reauth');
       return null;

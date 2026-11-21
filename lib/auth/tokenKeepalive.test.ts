@@ -4,6 +4,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { StoredProviderToken } from './tokenStore';
 import type { ProviderJwtToken } from './tokenRefresh';
+import { recordPermanentFailure } from './refreshCircuitBreaker';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -224,6 +225,7 @@ describe('refreshSingleToken behavior', () => {
     await vi.advanceTimersByTimeAsync(0);
 
     expect(markTokenStatus).toHaveBeenCalledWith('user-1', 'spotify', 'needs_reauth');
+    expect(recordPermanentFailure).toHaveBeenCalledWith('spotify', 'user-1', 'invalid_grant');
     expect(persistProviderTokens).not.toHaveBeenCalled();
   });
 

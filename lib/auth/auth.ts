@@ -38,6 +38,7 @@ async function refreshTokensWithDedup(
   userId: string,
   providerTokens: ProviderTokenStore,
   providerErrors: Partial<Record<MusicProviderId, string | undefined>>,
+  resolveUserId: (providerId: MusicProviderId) => string | undefined,
 ): Promise<void> {
   const inflight = jwtRefreshInFlight.get(userId);
   if (inflight) {
@@ -52,7 +53,7 @@ async function refreshTokensWithDedup(
   }
 
   const promise = (async () => {
-    await refreshProviderTokens(providerTokens, providerErrors);
+    await refreshProviderTokens(providerTokens, providerErrors, resolveUserId);
     return {
       tokens: { ...providerTokens },
       errors: { ...providerErrors },
@@ -467,7 +468,7 @@ export const authOptions: AuthOptions = {
       if (account) {
         await restoreProviderTokensFromBackup(providerTokens, accountProviderId, toMusicProviderId, nextToken);
         if (accountProviderId) {
-          resetCircuitBreaker(accountProviderId);
+          resetCircuitBreaker(accountProviderId, resolveTokenUserId(nextToken, accountProviderId));
         }
       }
 
@@ -498,10 +499,11 @@ export const authOptions: AuthOptions = {
       // rotated away, which would cause an unnecessary invalid_grant failure.
       syncFresherTokensFromDb(nextToken, providerTokens);
 
+      const resolveUserId = (pid: MusicProviderId) => resolveTokenUserId(nextToken, pid);
       if (nextToken.sub) {
-        await refreshTokensWithDedup(nextToken.sub, providerTokens, providerErrors);
+        await refreshTokensWithDedup(nextToken.sub, providerTokens, providerErrors, resolveUserId);
       } else {
-        await refreshProviderTokens(providerTokens, providerErrors);
+        await refreshProviderTokens(providerTokens, providerErrors, resolveUserId);
       }
 
       // If refresh failed, try to recover from DB (another request may have

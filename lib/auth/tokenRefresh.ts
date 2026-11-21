@@ -48,18 +48,60 @@ export function shouldRefreshProviderToken(token: ProviderJwtToken): boolean {
   return Date.now() >= token.accessTokenExpires - REFRESH_BUFFER_MS;
 }
 
-export function resolveSpotifyClientCredentials(token: ProviderJwtToken): { clientId: string; clientSecret: string } {
-  const clientId = token.byok?.clientId || serverEnv.SPOTIFY_CLIENT_ID;
-  const clientSecret = token.byok?.clientSecret || serverEnv.SPOTIFY_CLIENT_SECRET;
+export type ClientCredentials = { clientId: string; clientSecret: string };
 
-  if (!clientId || !clientSecret) {
-    throw new Error('Spotify client credentials are not configured');
+/**
+ * Thrown when a BYOK token has no usable BYOK credentials. Refresh tokens are
+ * bound to the app that issued them, so falling back to the server app would
+ * only fail with `invalid_client`. Thrown rather than returned as an error
+ * token so callers can tell it apart from a provider-side `invalid_grant`.
+ */
+export class MissingByokCredentialsError extends Error {
+  constructor(providerId: MusicProviderId) {
+    super(`Missing BYOK client credentials for ${providerId} token refresh`);
+    this.name = 'MissingByokCredentialsError';
+  }
+}
+
+function nonEmpty(value: string | undefined | null): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+/**
+ * Picks the client credentials a refresh token must be refreshed with:
+ * the user's own app for BYOK tokens (no fallback), the server app otherwise.
+ * Empty strings count as missing.
+ */
+export function resolveClientCredentials(
+  providerId: MusicProviderId,
+  token: ProviderJwtToken,
+  serverCredentials: { clientId: string | undefined; clientSecret: string | undefined },
+): ClientCredentials {
+  const byokId = token.byok?.clientId;
+  const byokSecret = token.byok?.clientSecret;
+  const hasByokCredentials = nonEmpty(byokId) && nonEmpty(byokSecret);
+
+  if (token.isByok && !hasByokCredentials) {
+    throw new MissingByokCredentialsError(providerId);
   }
 
-  return {
-    clientId,
-    clientSecret,
-  };
+  if (hasByokCredentials) {
+    return { clientId: byokId, clientSecret: byokSecret };
+  }
+
+  const { clientId, clientSecret } = serverCredentials;
+  if (!nonEmpty(clientId) || !nonEmpty(clientSecret)) {
+    throw new Error(`${providerId} client credentials are not configured`);
+  }
+
+  return { clientId, clientSecret };
+}
+
+export function resolveSpotifyClientCredentials(token: ProviderJwtToken): ClientCredentials {
+  return resolveClientCredentials('spotify', token, {
+    clientId: serverEnv.SPOTIFY_CLIENT_ID,
+    clientSecret: serverEnv.SPOTIFY_CLIENT_SECRET,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -83,12 +125,14 @@ export function buildRefreshedSpotifyToken(token: ProviderJwtToken, data: any): 
 }
 
 export async function refreshSpotifyAccessToken(token: ProviderJwtToken): Promise<ProviderJwtToken> {
+  // Resolved outside the try: missing BYOK credentials are not transient and
+  // must propagate (same as TIDAL) instead of being retried forever.
+  const { clientId, clientSecret } = resolveSpotifyClientCredentials(token);
+
   try {
     if (!token.refreshToken) {
       throw new Error("Missing refresh token");
     }
-
-    const { clientId, clientSecret } = resolveSpotifyClientCredentials(token);
 
     const params = new URLSearchParams({
       grant_type: "refresh_token",
@@ -134,15 +178,11 @@ export async function refreshSpotifyAccessToken(token: ProviderJwtToken): Promis
 // TIDAL
 // ---------------------------------------------------------------------------
 
-export function resolveTidalClientCredentials(token: ProviderJwtToken): { clientId: string; clientSecret: string } {
-  const clientId = token.byok?.clientId ?? serverEnv.TIDAL_CLIENT_ID;
-  const clientSecret = token.byok?.clientSecret ?? serverEnv.TIDAL_CLIENT_SECRET;
-
-  if (!clientId || !clientSecret) {
-    throw new Error('Missing TIDAL client credentials for token refresh');
-  }
-
-  return { clientId, clientSecret };
+export function resolveTidalClientCredentials(token: ProviderJwtToken): ClientCredentials {
+  return resolveClientCredentials('tidal', token, {
+    clientId: serverEnv.TIDAL_CLIENT_ID,
+    clientSecret: serverEnv.TIDAL_CLIENT_SECRET,
+  });
 }
 
 export function buildRefreshedTidalToken(token: ProviderJwtToken, data: any): ProviderJwtToken {
@@ -231,6 +271,7 @@ export async function refreshProviderTokenIfNeeded(
   providerId: MusicProviderId,
   providerTokens: ProviderTokenStore,
   providerErrors: Partial<Record<MusicProviderId, string | undefined>>,
+  userId?: string,
 ): Promise<void> {
   const providerToken = providerTokens[providerId];
   if (!providerToken?.accessToken) {
@@ -242,7 +283,7 @@ export async function refreshProviderTokenIfNeeded(
     return;
   }
 
-  if (isRefreshBlocked(providerId)) {
+  if (isRefreshBlocked(providerId, userId)) {
     providerErrors[providerId] = TOKEN_REFRESH_ERROR;
     return;
   }
@@ -269,23 +310,36 @@ export async function refreshProviderTokenIfNeeded(
     // Provider functions return an error token for permanent failures,
     // or the unchanged token for transient failures (no error flag).
     if (refreshedToken.error === TOKEN_REFRESH_ERROR) {
-      recordPermanentFailure(providerId, 'invalid_grant');
+      recordPermanentFailure(providerId, userId, 'invalid_grant');
       providerErrors[providerId] = TOKEN_REFRESH_ERROR;
     } else {
       providerErrors[providerId] = undefined;
     }
   } catch (error) {
+    if (error instanceof MissingByokCredentialsError) {
+      // Permanent until re-auth; the token's error flag already stops retries,
+      // and no request to the provider was made, so the breaker stays out of it.
+      providerTokens[providerId] = { ...providerToken, error: TOKEN_REFRESH_ERROR };
+      providerErrors[providerId] = TOKEN_REFRESH_ERROR;
+      console.warn(`[auth] ${error.message}; re-authentication required`);
+      return;
+    }
     // Unexpected throw — treat as transient; leave token unchanged so next
     // JWT callback retries instead of permanently killing the session.
     console.warn(`[auth] Failed to refresh ${providerId} token (will retry)`, error);
   }
 }
 
+/**
+ * @param resolveUserId maps a provider to the user ID the circuit breaker is
+ *   keyed by; without it (or when it returns undefined) the breaker is skipped.
+ */
 export async function refreshProviderTokens(
   providerTokens: ProviderTokenStore,
   providerErrors: Partial<Record<MusicProviderId, string | undefined>>,
+  resolveUserId?: (providerId: MusicProviderId) => string | undefined,
 ): Promise<void> {
   for (const providerId of Object.keys(providerTokens) as MusicProviderId[]) {
-    await refreshProviderTokenIfNeeded(providerId, providerTokens, providerErrors);
+    await refreshProviderTokenIfNeeded(providerId, providerTokens, providerErrors, resolveUserId?.(providerId));
   }
 }
